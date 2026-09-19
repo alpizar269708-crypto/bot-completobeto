@@ -76,7 +76,7 @@ async function comandoCarry(sock, chatId, msg, comando, args = []) {
         if (escuadron.liderId !== sender) return await sock.sendMessage(chatId, { text: `❌ Solo el líder (${escuadron.liderNombre}) puede cerrar el escuadrón.` }, { quoted: msg });
         
         escuadronesActivos.delete(chatId);
-        await sock.sendMessage(chatId, { text: `🛑 El escuadrón ha sido cancelado.` }, { quoted: msg });
+        await sock.sendMessage(chatId, { text: `🛑 Haz cancelado el escuadrón.` }, { quoted: msg });
     }
 }
 
