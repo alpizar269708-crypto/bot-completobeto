@@ -1,5 +1,5 @@
 async function ejecutarMenu(sock, chatId, msg, args) {
-    const prefijo = '!'; 
+    const prefijo = ''; // Se dejó vacío para que no muestre ningún signo
     const sender = msg.key.participant || msg.key.remoteJid;
     const isGroup = chatId.endsWith('@g.us');
     let isAdmin = false;
