@@ -44,7 +44,7 @@ async function procesarMensaje(sock, msg) {
         if (msg.key.fromMe || true) { 
             console.log('🔴 Comando de cierre de sesión recibido...');
             try {
-                await sock.sendMessage(chatJid, { text: '🔴 Sesión cerrada.\nPor favor abre este enlace dentro de unos minutos para iniciarla de nuevo:\nhttps://bot-completobeto.onrender.com' });
+                await sock.sendMessage(chatJid, { text: '🔴 Sesión cerrada.\nEl sistema se reiniciará en unos segundos. Abre tu enlace de control para vincular el bot nuevamente.' });
                 await mongoose.model('auth_session').deleteMany({});
             } catch (err) {
                 console.log('Error al borrar sesión:', err);
@@ -125,7 +125,7 @@ async function procesarMensaje(sock, msg) {
                         return;
                     }
                 } else if (!msg.key.fromMe) {
-                    return; // Si es un chat privado y no eres tú, ignorar
+                    return; 
                 }
                 
                 if (args.length === 0 || args[0] === 'todos') {

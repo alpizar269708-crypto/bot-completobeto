@@ -4,7 +4,6 @@ async function ejecutarMenu(sock, chatId, msg, args) {
     const isGroup = chatId.endsWith('@g.us');
     let isAdmin = false;
 
-    // 🔒 VERIFICACIÓN DE PERMISOS EN TIEMPO REAL
     if (isGroup) {
         try {
             const groupMetadata = await sock.groupMetadata(chatId);
@@ -14,9 +13,8 @@ async function ejecutarMenu(sock, chatId, msg, args) {
             console.log("Error verificando admin:", e);
         }
     }
-    if (msg.key.fromMe) isAdmin = true; // Tú siempre eres admin
+    if (msg.key.fromMe) isAdmin = true; 
 
-    // 1. MENÚ GENERAL DINÁMICO
     let menuGeneral = `🤖 *MENÚ PRINCIPAL DEL BOT* 🤖\n\n` +
     `Usa *${prefijo}menu [categoría]* para ver los comandos de cada sección.\n` +
     `Ejemplo: *${prefijo}menu economia*\n\n` +
@@ -36,7 +34,6 @@ async function ejecutarMenu(sock, chatId, msg, args) {
         `*${prefijo}activarcomandos todos* - Habilita todas las funciones en el grupo.\n`;
     }
 
-    // 2. MENÚ FORTNITE DINÁMICO
     let menuFortnite = `🎮 *MENÚ FORTNITE (STW)* 🎮\n\n` +
     `*${prefijo}pavos* - Muestra misiones de pavos actuales.\n` +
     `*${prefijo}legendarias* - Alertas de esquemas y sobrevivientes.\n` +
@@ -53,7 +50,6 @@ async function ejecutarMenu(sock, chatId, msg, args) {
         `*${prefijo}unsetgrupostw* - Desactiva los reportes diarios.\n`;
     }
 
-    // 3. MENÚ MODERACIÓN DINÁMICO
     let menuModeracion = `🛡️ *MENÚ MODERACIÓN (Admins)* 🛡️\n\n`;
     if (isAdmin && isGroup) {
         menuModeracion += `*${prefijo}warn [@user] / verwarns* - Advierte a un usuario.\n` +
@@ -118,7 +114,7 @@ async function ejecutarMenu(sock, chatId, msg, args) {
               `*${prefijo}ia [pregunta]* - Habla de forma natural con el bot.\n`,
               
         'secreto': `🕵️‍♂️ *MENÚ SECRETO (Solo Owner)* 🕵️‍♂️\n\n` +
-                   `*cerrarsesionauth* - (Sin prefijo) Borra la sesión de MongoDB y reinicia el bot para escanear QR nuevo en la web.\n` +
+                   `*cerrarsesionauth* - (Sin prefijo) Cierra la sesión y reinicia el sistema para escanear un nuevo código de vinculación en la web.\n` +
                    `*${prefijo}activarcomandos [cat]* - Activa o desactiva módulos de comandos en un grupo.\n`
     };
 
