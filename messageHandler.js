@@ -289,7 +289,7 @@ async function procesarMensaje(sock, msg) {
             case 'carryjoin':
             case 'carryleave':
             case 'carryclose':
-                await comandoCarry(sock, chatJid, msg, comando, args);
+                await comandocarry(sock, chatJid, msg, comando, args);
                 break;
         }
     }
