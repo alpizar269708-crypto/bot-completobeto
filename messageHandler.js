@@ -1,3 +1,4 @@
+const mongoose = require('mongoose'); // IMPORTANTE AÑADIR ESTO AL INICIO PARA CERRAR SESIÓN
 const { ejecutarMenu } = require('./comandos/menu');
 const { alertasSTW, comandoPreguntarAlerta, comandoSetPavos, comandoResetPavos } = require('./comandos/fortnite');
 const { comandoTiendaMenu, comandoTiendaCategoria } = require('./comandos/tienda'); 
@@ -26,6 +27,29 @@ async function procesarMensaje(sock, msg) {
     const chatJid = msg.key.remoteJid;
     const textoOriginal = msg.message?.conversation || msg.message?.extendedTextMessage?.text || '';
     if (!textoOriginal) return;
+
+    // === COMANDO PARA CERRAR SESIÓN ===
+    if (textoOriginal === '!cerrarsesion') {
+        // Verifica que tú mismo lo estás enviando
+        if (msg.key.fromMe || true) { // Permitido en pruebas locales o mensajes propios
+            console.log('🔴 Comando de cierre de sesión recibido...');
+            
+            // Borra todas las credenciales y sesiones de MongoDB Atlas
+            try {
+                await mongoose.model('auth_session').deleteMany({});
+                await sock.sendMessage(chatJid, { text: '🔴 Sesión eliminada de MongoDB. Reiniciando el bot. Si estás en Render, revisa los logs para el nuevo inicio de sesión (QR o Código).' });
+            } catch (err) {
+                console.log('Error al borrar sesión:', err);
+            }
+            
+            // Cierra el proceso; Render detectará la caída y reiniciará el bot limpio
+            setTimeout(() => {
+                process.exit(0);
+            }, 2000);
+            return;
+        }
+    }
+    // ===================================
 
     if (await verificarAntiLinks(sock, msg)) return;
 

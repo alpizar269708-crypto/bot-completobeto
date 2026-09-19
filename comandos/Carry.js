@@ -1,7 +1,7 @@
 const escuadronesActivos = new Map();
 
 // Nota: Agregamos "args" a la función para poder leer el texto adicional
-async function comandoCarry(sock, chatId, msg, comando, args = []) {
+async function comandocarry(sock, chatId, msg, comando, args = []) {
     const sender = msg.key.participant || msg.key.remoteJid;
     const pushName = msg.pushName || 'Jugador';
 
