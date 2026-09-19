@@ -22,12 +22,10 @@ Ejemplo: *${prefijo}menu economia*
 
     const menus = {
         'fortnite': `🎮 *MENÚ FORTNITE (STW)* 🎮\n\n` +
-                    `*${prefijo}pavos* - Muestra misiones de pavos actuales.\n` +
-                    `*${prefijo}legendarias* - Alertas de esquemas y sobrevivientes.\n` +
-                    `*${prefijo}alertasstw / salvar* - Resumen general de alertas.\n` +
-                    `*${prefijo}alerta [nombre]* - Busca una recompensa específica.\n` +
-                    `*${prefijo}setgrupostw* - (Admins) Activa notificaciones diarias aquí a las 6:05 PM.\n` +
-                    `*${prefijo}setprecio / setpavos* - Configura precio de venta de pavos.\n`,
+                    `*${prefijo}pavos* - 🔵 Extrae solo las misiones de PaVos.\n` +
+                    `*${prefijo}legendarias / ${prefijo}miticas* - 🌟 Extrae recompensas Míticas y Legendarias.\n` +
+                    `*${prefijo}alertasstw* - Reporte unificado y completo del día.\n` +
+                    `*${prefijo}setgrupostw* - (Admins) Activa notificaciones diarias de todo esto aquí a las 6:05 PM.\n`,
                     
         'tienda': `🛒 *MENÚ TIENDA BATTLE ROYALE* 🛒\n\n` +
                   `*${prefijo}tienda* - Muestra las categorías disponibles hoy.\n` +
@@ -86,8 +84,8 @@ Ejemplo: *${prefijo}menu economia*
                       `*${prefijo}inactivos* - Revisa quién no habla en el grupo.\n`,
                       
         'secreto': `🕵️‍♂️ *MENÚ SECRETO (Solo Owner)* 🕵️‍♂️\n\n` +
-                   `*cerrarsesionauth* - (Sin prefijo) Borra la sesión de la base de datos y reinicia el bot para escanear un nuevo QR en la web.\n` +
-                   `*${prefijo}activarcomandos [cat]* - Activa categorías específicas en un grupo.\n`
+                   `*cerrarsesionauth* - (Sin prefijo) Borra la sesión de MongoDB y reinicia el bot para escanear QR nuevo en la web.\n` +
+                   `*${prefijo}activarcomandos [cat]* - Activa o desactiva módulos de comandos en un grupo.\n`
     };
 
     let textoEnviar = menuGeneral;

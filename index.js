@@ -5,7 +5,7 @@ const mongoose = require('mongoose');
 const pino = require('pino');
 const { procesarMensaje } = require('./messageHandler');
 const { verificarNuevoMiembro } = require('./comandos/moderacion');
-const { iniciarCronAlertasDiarias } = require('./comandos/fortnite');
+const { iniciarCronAlertasDiarias } = require('./comandos/alertasstw');
 const express = require('express');
 
 const app = express();
