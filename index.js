@@ -14,25 +14,31 @@ app.use(express.urlencoded({ extended: true }));
 let botArrancado = false;
 let authState = null;
 
+// PÁGINA WEB PRINCIPAL
 app.get('/', async (req, res) => {
     if (botArrancado) {
-        return res.send('<h2 style="font-family: Arial;">🤖 Bot de WhatsApp activo y funcionando 24/7</h2>');
+        return res.send(`
+            <div style="font-family: Arial; text-align: center; margin-top: 50px;">
+                <h2>🤖 Bot de WhatsApp activo</h2>
+                <p>El bot ya está vinculado y trabajando en el servidor.</p>
+            </div>
+        `);
     }
     
     const html = `
     <html>
     <head><title>Vincular Bot</title><meta charset="utf-8"></head>
-    <body style="font-family: Arial; padding: 20px; max-width: 600px; margin: auto;">
+    <body style="font-family: Arial; padding: 20px; max-width: 600px; margin: auto; text-align: center;">
         <h2>🔌 Vincular Bot de WhatsApp</h2>
-        <form action="/iniciar" method="POST">
+        <form action="/iniciar" method="POST" style="text-align: left; background: #f9f9f9; padding: 20px; border-radius: 10px; border: 1px solid #ddd;">
             <p><b>1. Elige el método de inicio de sesión:</b></p>
             <label><input type="radio" name="metodo" value="1" checked> 📱 Código QR</label><br><br>
             <label><input type="radio" name="metodo" value="2"> 🔢 Código de 8 dígitos</label><br><br>
             
             <p><b>2. Si elegiste 8 dígitos, ingresa tu número (código país + número, ej. 525512345678):</b></p>
-            <input type="text" name="numero" placeholder="Ej: 525512345678" style="padding: 8px; width: 100%; box-sizing: border-box;"><br><br>
+            <input type="text" name="numero" placeholder="Ej: 525512345678" style="padding: 10px; width: 100%; box-sizing: border-box; border-radius: 5px; border: 1px solid #ccc;"><br><br>
             
-            <button type="submit" style="padding: 12px 20px; background: #25D366; color: white; border: none; cursor: pointer; font-size: 16px; border-radius: 5px;">Conectar Bot</button>
+            <button type="submit" style="padding: 12px 20px; background: #25D366; color: white; border: none; cursor: pointer; font-size: 16px; border-radius: 5px; width: 100%;">Generar Código</button>
         </form>
     </body>
     </html>
@@ -40,14 +46,19 @@ app.get('/', async (req, res) => {
     res.send(html);
 });
 
+// RUTA QUE PROCESA Y ESPERA EL CÓDIGO PARA MOSTRARLO EN LA MISMA PÁGINA
 app.post('/iniciar', (req, res) => {
-    if (botArrancado) return res.send('<h2 style="font-family: Arial;">El bot ya está arrancando. Revisa los logs.</h2>');
+    if (botArrancado) {
+        return res.send('<h2 style="font-family: Arial; text-align: center; margin-top: 50px;">El bot ya está arrancando.</h2>');
+    }
     
     const { metodo, numero } = req.body;
     const numeroLimpio = numero ? numero.replace(/[^0-9]/g, '') : '';
     
-    res.send('<h2 style="font-family: Arial;">⏳ Procesando...</h2><p style="font-family: Arial;">Ve a la pestaña de <b>Logs</b> en Render para ver tu QR o código de 8 dígitos.</p>');
-    arrancarSocket(metodo, numeroLimpio);
+    // Le pasamos una función callback a arrancarSocket que devolverá el HTML exacto a la página
+    arrancarSocket(metodo, numeroLimpio, (htmlRespuesta) => {
+        res.send(htmlRespuesta);
+    });
 });
 
 const PORT = process.env.PORT || 3000;
@@ -65,11 +76,11 @@ async function inicializarBase() {
         console.log('✅ Sesión previa detectada. Arrancando bot automáticamente...');
         arrancarSocket('1', ''); 
     } else {
-        console.log('⚠️ No hay sesión. Entra a la página web de Render (https://bot-completobeto.onrender.com) para vincular el bot.');
+        console.log('⚠️ No hay sesión. Entra a la página web para vincular el bot.');
     }
 }
 
-async function arrancarSocket(metodo, numeroTelefono) {
+async function arrancarSocket(metodo, numeroTelefono, onCodeReady = null) {
     botArrancado = true;
     const { state, saveCreds } = authState;
 
@@ -94,10 +105,23 @@ async function arrancarSocket(metodo, numeroTelefono) {
         setTimeout(async () => {
             try {
                 const code = await sock.requestPairingCode(numeroTelefono);
-                console.log('\n========================================');
-                console.log(`🔢 TU CÓDIGO ES: ${code?.match(/.{1,4}/g)?.join('-') || code}`);
-                console.log('========================================\n');
-            } catch { }
+                const codigoFormat = code?.match(/.{1,4}/g)?.join('-') || code;
+                console.log(`\n🔢 TU CÓDIGO ES: ${codigoFormat}\n`);
+                
+                // Muestra el código de 8 dígitos en la página web
+                if (onCodeReady) {
+                    onCodeReady(`
+                        <div style="font-family: Arial; text-align: center; margin-top: 50px;">
+                            <h2>🔢 Tu código de vinculación es:</h2>
+                            <h1 style="font-size: 48px; letter-spacing: 5px; color: #25D366; background: #eee; display: inline-block; padding: 10px 20px; border-radius: 10px;">${codigoFormat}</h1>
+                            <p>Abre WhatsApp en tu teléfono, ve a <b>Dispositivos Vinculados > Vincular con número de teléfono</b>, e ingresa este código.</p>
+                        </div>
+                    `);
+                    onCodeReady = null; 
+                }
+            } catch (e) {
+                if (onCodeReady) onCodeReady('<h2 style="font-family: Arial; text-align: center; color: red;">❌ Error al generar código. Verifica que el número sea correcto (ej. 525512345678).</h2>');
+            }
         }, 3000);
     }
 
@@ -107,16 +131,18 @@ async function arrancarSocket(metodo, numeroTelefono) {
         const { connection, lastDisconnect, qr } = update;
         
         if (qr && metodo === '1') {
-            const urlLarga = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(qr)}`;
-            try {
-                const res = await fetch(`https://tinyurl.com/api-create.php?url=${encodeURIComponent(urlLarga)}`);
-                const urlCorta = await res.text();
-                console.log('\n========================================');
-                console.log('✅ QR GENERADO CON ÉXITO');
-                console.log(`🔗 Abre aquí: ${urlCorta}`);
-                console.log('========================================\n');
-            } catch {
-                console.log(`\n🔗 Abre aquí: ${urlLarga}\n`);
+            const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(qr)}`;
+            
+            // Muestra la imagen del QR en la página web
+            if (onCodeReady) {
+                onCodeReady(`
+                    <div style="font-family: Arial; text-align: center; margin-top: 50px;">
+                        <h2>📱 Escanea este código QR</h2>
+                        <img src="${qrUrl}" alt="QR Code" style="border: 1px solid #ccc; border-radius: 10px; padding: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.1);" />
+                        <p>Abre WhatsApp > Dispositivos Vinculados > Vincular un dispositivo.</p>
+                    </div>
+                `);
+                onCodeReady = null;
             }
         }
 
@@ -131,6 +157,18 @@ async function arrancarSocket(metodo, numeroTelefono) {
             }
         } else if (connection === 'open') {
             console.log('\n🟢 BOT EN LÍNEA Y LISTO PARA TRABAJAR 🟢\n');
+            
+            // Si la conexión ya estaba guardada y se abrió sin pedir QR/Código
+            if (onCodeReady) {
+                onCodeReady(`
+                    <div style="font-family: Arial; text-align: center; margin-top: 50px;">
+                        <h2 style="color: #25D366;">✅ ¡Bot vinculado correctamente!</h2>
+                        <p>El bot ya está en línea y listo para trabajar.</p>
+                    </div>
+                `);
+                onCodeReady = null;
+            }
+            
             iniciarCronAlertasDiarias(sock);
         }
     });
@@ -140,7 +178,6 @@ async function arrancarSocket(metodo, numeroTelefono) {
         if (!msg.message || msg.key.remoteJid === 'status@broadcast') return;
 
         const textoCompleto = msg.message.conversation || msg.message.extendedTextMessage?.text || '';
-        
         if (msg.key.fromMe && (textoCompleto.includes('¡Pong!') || textoCompleto.includes('🤖'))) return;
 
         await procesarMensaje(sock, msg);
