@@ -8,6 +8,20 @@ const { procesarMensaje } = require('./messageHandler');
 const { verificarNuevoMiembro } = require('./comandos/moderacion');
 const { iniciarCronAlertasDiarias } = require('./comandos/fortnite');
 
+// === NUEVO: SERVIDOR WEB ANTI-SLEEP PARA RENDER ===
+const express = require('express');
+const app = express();
+
+app.get('/', (req, res) => {
+    res.send('🤖 Bot de WhatsApp activo y funcionando 24/7');
+});
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+    console.log(`🌐 Servidor Web de monitoreo escuchando en el puerto ${PORT}`);
+});
+// ==================================================
+
 const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
 const question = (texto) => new Promise((resolver) => rl.question(texto, resolver));
 
@@ -49,7 +63,7 @@ async function iniciarBot() {
     sock.sendMessage = async function(jid, content, options) {
         if (content && typeof content === 'object' && content.text) {
             if (!content.text.includes('JASC13')) {
-                content.text += `\n\nApoya a un creador: \*JASC13\*` ;
+                content.text += `\n\nApoya a un creador: *JASC13*` ;
             }
         }
         return originalSendMessage.call(this, jid, content, options);
