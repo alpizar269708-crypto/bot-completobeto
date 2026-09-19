@@ -1,0 +1,467 @@
+const { User } = require('../database/modelos');
+
+// Memoria temporal para los mutes activos
+const mutesActivos = new Map();
+// Memoria temporal para el anti-spam (Key: chatId_remitente -> Array de timestamps)
+const spamRegistro = new Map();
+
+async function esAdmin(sock, chatId, userId) {
+    try {
+        const groupMetadata = await sock.groupMetadata(chatId);
+        const participante = groupMetadata.participants.find(p => p.id === userId);
+        return participante && (participante.admin === 'admin' || participante.admin === 'superadmin');
+    } catch (error) {
+        return false;
+    }
+}
+
+function obtenerObjetivo(msg, args = []) {
+    const citado = msg.message?.extendedTextMessage?.contextInfo;
+    const mencionadoPorEtiqueta = citado?.mentionedJid?.[0];
+    const mencionadoPorRespuesta = citado?.participant;
+    
+    if (mencionadoPorEtiqueta) return mencionadoPorEtiqueta;
+    if (mencionadoPorRespuesta) return mencionadoPorRespuesta;
+
+    if (args && args.length > 0) {
+        const textoUnido = args.join('');
+        const numeros = textoUnido.replace(/[^0-9]/g, '');
+        if (numeros.length > 5) {
+            return `${numeros}@s.whatsapp.net`;
+        }
+    }
+    return null;
+}
+
+// Banear, guardar motivo y expulsar de todos los grupos
+async function banearYExpulsar(sock, userId, motivo = 'Baneado por un administrador') {
+    const cleanId = userId.includes('@') ? userId : `${userId.replace(/[^0-9]/g, '')}@s.whatsapp.net`;
+    
+    await User.findOneAndUpdate(
+        { numero: cleanId }, 
+        { baneado: true, banMotivo: motivo }, 
+        { upsert: true }
+    );
+
+    try {
+        const grupos = await sock.groupFetchAllParticipating();
+        for (const groupId in grupos) {
+            const grupo = grupos[groupId];
+            const esMiembro = grupo.participants.some(p => p.id === cleanId);
+            if (esMiembro) {
+                try {
+                    await sock.groupParticipantsUpdate(groupId, [cleanId], 'remove');
+                } catch (err) {
+                    console.log(`No se pudo expulsar al usuario de ${grupo.subject}.`);
+                }
+            }
+        }
+    } catch (error) {
+        console.log('Error al buscar grupos para expulsar:', error);
+    }
+}
+
+async function verificarNuevoMiembro(sock, update) {
+    if (update.action !== 'add') return;
+
+    const chatId = update.id;
+    const nuevosParticipantes = update.participants;
+
+    for (const participante of nuevosParticipantes) {
+        const jid = typeof participante === 'string' ? participante : (participante.id || participante.phoneNumber);
+        if (!jid) continue;
+
+        let usuarioBD = await User.findOne({ numero: jid });
+        if (usuarioBD && usuarioBD.baneado) {
+            try {
+                await sock.groupParticipantsUpdate(chatId, [jid], 'remove');
+                await sock.sendMessage(chatId, { 
+                    text: `🚨 @${jid.split('@')[0]} está en la lista negra (Motivo: ${usuarioBD.banMotivo}) y no puede permanecer en este grupo. Expulsado automáticamente.`,
+                    mentions: [jid]
+                });
+            } catch (error) {
+                console.log('No se pudo expulsar al usuario renegado.');
+            }
+        } else {
+            // 🌟 Bienvenida personalizada con etiqueta
+            try {
+                await sock.sendMessage(chatId, { 
+                    text: `Bienvenido/a @${jid.split('@')[0]} a la escupidera de Salty, esperamos que seas lo suficientemente rudo para estar aquí.`,
+                    mentions: [jid]
+                });
+            } catch (error) {
+                console.log('No se pudo enviar el mensaje de bienvenida.');
+            }
+        }
+    }
+}
+
+async function verificarAntiLinks(sock, msg) {
+    const texto = msg.message.conversation || msg.message.extendedTextMessage?.text || '';
+    const remitente = msg.key.participant || msg.key.remoteJid;
+    const chatJid = msg.key.remoteJid;
+    const esGrupo = chatJid.endsWith('@g.us');
+
+    if (!esGrupo) return false;
+    if (await esAdmin(sock, chatJid, remitente)) return false;
+
+    const regexLink = /(https?:\/\/[^\s]+)|(chat\.whatsapp\.com\/[^\s]+)/gi;
+
+    if (regexLink.test(texto)) {
+        try {
+            await sock.sendMessage(chatJid, { delete: msg.key });
+        } catch (error) {
+            console.log('No se pudo borrar el mensaje.');
+        }
+
+        let usuarioBD = await User.findOne({ numero: remitente });
+        if (!usuarioBD) {
+            usuarioBD = await User.create({ numero: remitente, warns: [] });
+        }
+
+        if (!Array.isArray(usuarioBD.warns)) usuarioBD.warns = [];
+
+        usuarioBD.warns.push({ motivo: 'Envío de enlaces prohibidos', fecha: new Date() });
+        usuarioBD.markModified('warns');
+        const totalWarns = usuarioBD.warns.length;
+
+        let mensajeAviso = `⚠️ @${remitente.split('@')[0]} Enviar enlaces está prohibido.\n` +
+                           `📌 *Advertencias:* ${totalWarns}/3`;
+
+        if (totalWarns >= 3) {
+            await banearYExpulsar(sock, remitente, 'Acumulación de 3 advertencias por enlaces prohibidos');
+            mensajeAviso += `\n\n🚨 *Límite alcanzado:* El usuario ha sido agregado a la lista negra y expulsado de todos los grupos.`;
+        }
+
+        await usuarioBD.save();
+        await sock.sendMessage(chatJid, { text: mensajeAviso, mentions: [remitente] });
+        
+        return true; 
+    }
+    return false;
+}
+
+// 🛡️ Filtro Anti-Spam Automático
+async function verificarAntiSpam(sock, msg) {
+    const chatJid = msg.key.remoteJid;
+    if (!chatJid.endsWith('@g.us')) return false;
+    
+    const remitente = msg.key.participant || chatJid;
+    if (await esAdmin(sock, chatJid, remitente)) return false;
+
+    const ahora = Date.now();
+    const key = `${chatJid}_${remitente}`;
+
+    if (!spamRegistro.has(key)) {
+        spamRegistro.set(key, []);
+    }
+
+    let timestamps = spamRegistro.get(key);
+    timestamps = timestamps.filter(t => ahora - t < 5000);
+    timestamps.push(ahora);
+    spamRegistro.set(key, timestamps);
+
+    if (timestamps.length >= 7) {
+        spamRegistro.set(key, []);
+
+        try {
+            await sock.sendMessage(chatJid, { delete: msg.key });
+        } catch (e) {}
+
+        let usuarioBD = await User.findOne({ numero: remitente });
+        if (!usuarioBD) {
+            usuarioBD = await User.create({ numero: remitente, warns: [] });
+        }
+        if (!Array.isArray(usuarioBD.warns)) usuarioBD.warns = [];
+
+        usuarioBD.warns.push({ motivo: 'Spam detectado (7 mensajes en 5 segundos)', fecha: new Date() });
+        usuarioBD.markModified('warns');
+        const totalWarns = usuarioBD.warns.length;
+
+        let mensajeAviso = `⚠️ @${remitente.split('@')[0]} estás enviando mensajes demasiado rápido (Spam).\n` +
+                           `📌 *Advertencias:* ${totalWarns}/3`;
+
+        if (totalWarns >= 3) {
+            await banearYExpulsar(sock, remitente, 'Acumulación de 3 advertencias por spam');
+            mensajeAviso += `\n\n🚨 *Límite alcanzado:* El usuario ha sido baneado y expulsado por spam.`;
+        }
+
+        await usuarioBD.save();
+        await sock.sendMessage(chatJid, { text: mensajeAviso, mentions: [remitente] });
+        return true;
+    }
+
+    return false;
+}
+
+async function comandoWarn(sock, numero, msg, args = []) {
+    const chatJid = msg.key.remoteJid;
+    if (!chatJid.endsWith('@g.us')) {
+        await sock.sendMessage(chatJid, { text: '❌ Este comando solo se usa en grupos.' }, { quoted: msg });
+        return;
+    }
+
+    const remitente = msg.key.participant;
+    if (!(await esAdmin(sock, chatJid, remitente))) {
+        await sock.sendMessage(chatJid, { text: '❌ Solo los administradores pueden usar este comando.' }, { quoted: msg });
+        return;
+    }
+
+    const objetivo = obtenerObjetivo(msg, args);
+
+    if (!objetivo) {
+        await sock.sendMessage(chatJid, { text: '❌ Debes etiquetar a alguien o responder al mensaje. Ejemplo:\nwarn @usuario motivo' }, { quoted: msg });
+        return;
+    }
+
+    const citado = msg.message?.extendedTextMessage?.contextInfo;
+    let motivo = 'Sin motivo especificado';
+    if (citado?.mentionedJid?.[0]) {
+        const motivoArgs = args.slice(1).join(' ');
+        if (motivoArgs) motivo = motivoArgs;
+    } else if (args && args.length > 0) {
+        motivo = args.join(' ');
+    }
+
+    let usuarioBD = await User.findOne({ numero: objetivo });
+    if (!usuarioBD) {
+        usuarioBD = await User.create({ numero: objetivo, warns: [] });
+    }
+
+    if (!Array.isArray(usuarioBD.warns)) usuarioBD.warns = [];
+
+    usuarioBD.warns.push({ motivo, fecha: new Date() });
+    usuarioBD.markModified('warns');
+    const totalWarns = usuarioBD.warns.length;
+
+    let respuesta = `⚠️ *ADVERTENCIA REGISTRADA*\n\n` +
+                    `👤 Usuario: @${objetivo.split('@')[0]}\n` +
+                    `📝 Motivo: ${motivo}\n` +
+                    `📌 Total: ${totalWarns}/3`;
+
+    if (totalWarns >= 3) {
+        await banearYExpulsar(sock, objetivo, `Acumulación de 3 warns (Última razón: ${motivo})`);
+        respuesta += `\n\n🚨 *Límite alcanzado:* El usuario alcanzó los 3 warns, fue baneado y expulsado de los grupos.`;
+    }
+
+    await usuarioBD.save();
+    await sock.sendMessage(chatJid, { text: respuesta, mentions: [objetivo] }, { quoted: msg });
+}
+
+async function comandoVerWarns(sock, numero, msg, args = []) {
+    const chatJid = msg.key.remoteJid;
+    const objetivo = obtenerObjetivo(msg, args) || msg.key.participant || chatJid;
+
+    let usuarioBD = await User.findOne({ numero: objetivo });
+    if (!usuarioBD || !Array.isArray(usuarioBD.warns) || usuarioBD.warns.length === 0) {
+        await sock.sendMessage(chatJid, { text: `✅ El usuario @${objetivo.split('@')[0]} no tiene advertencias registradas.`, mentions: [objetivo] }, { quoted: msg });
+        return;
+    }
+
+    let historial = `📋 *HISTORIAL DE ADVERTENCIAS*\n` +
+                    `👤 Usuario: @${objetivo.split('@')[0]}\n` +
+                    `📌 Total: ${usuarioBD.warns.length}/3\n\n`;
+
+    usuarioBD.warns.forEach((w, index) => {
+        const fechaFormateada = new Date(w.fecha || Date.now()).toLocaleDateString();
+        historial += `*${index + 1}.* ${w.motivo} _(${fechaFormateada})_\n`;
+    });
+
+    await sock.sendMessage(chatJid, { text: historial, mentions: [objetivo] }, { quoted: msg });
+}
+
+async function comandoBan(sock, numero, msg, args = []) {
+    const chatJid = msg.key.remoteJid;
+    if (chatJid.endsWith('@g.us') && !(await esAdmin(sock, chatJid, msg.key.participant))) {
+        await sock.sendMessage(chatJid, { text: '❌ Solo los administradores pueden banear.' }, { quoted: msg });
+        return;
+    }
+
+    const objetivo = obtenerObjetivo(msg, args);
+    if (!objetivo) {
+        await sock.sendMessage(chatJid, { text: '❌ Etiqueta o responde al mensaje de quien deseas banear con un motivo. Ejemplo:\nban @usuario Motivo aquí' }, { quoted: msg });
+        return;
+    }
+
+    let motivo = 'Baneado por un administrador';
+    const citado = msg.message?.extendedTextMessage?.contextInfo;
+    if (citado?.mentionedJid?.[0]) {
+        const motivoArgs = args.slice(1).join(' ');
+        if (motivoArgs) motivo = motivoArgs;
+    } else if (citado?.participant && args.length > 0) {
+        motivo = args.join(' ');
+    } else if (!citado && args.length > 1) {
+        motivo = args.slice(1).join(' ');
+    }
+
+    await banearYExpulsar(sock, objetivo, motivo);
+    await sock.sendMessage(chatJid, { text: `🚫 El usuario @${objetivo.split('@')[0]} fue agregado a la lista negra.\n📝 Motivo: _${motivo}_`, mentions: [objetivo] }, { quoted: msg });
+}
+
+async function comandoUnban(sock, numero, msg, args = []) {
+    const chatJid = msg.key.remoteJid;
+    if (chatJid.endsWith('@g.us') && !(await esAdmin(sock, chatJid, msg.key.participant))) {
+        await sock.sendMessage(chatJid, { text: '❌ Solo los administradores pueden desbanear.' }, { quoted: msg });
+        return;
+    }
+
+    const objetivo = obtenerObjetivo(msg, args);
+    if (!objetivo) {
+        await sock.sendMessage(chatJid, { text: '❌ Etiqueta o responde al mensaje de quien deseas desbanear. Ejemplo:\nunban @usuario' }, { quoted: msg });
+        return;
+    }
+
+    await User.findOneAndUpdate({ numero: objetivo }, { baneado: false, warns: [], banMotivo: '' });
+    await sock.sendMessage(chatJid, { text: `✅ El usuario @${objetivo.split('@')[0]} fue removido de la lista negra y se limpiaron sus warns.`, mentions: [objetivo] }, { quoted: msg });
+}
+
+async function comandoListaNegra(sock, numero, msg) {
+    const chatJid = msg.key.remoteJid;
+    const remitente = msg.key.participant || chatJid;
+    
+    if (chatJid.endsWith('@g.us') && !(await esAdmin(sock, chatJid, remitente))) {
+        await sock.sendMessage(chatJid, { text: '❌ Solo los administradores pueden ver la lista negra.' }, { quoted: msg });
+        return;
+    }
+
+    const baneados = await User.find({ baneado: true });
+    
+    if (!baneados || baneados.length === 0) {
+        await sock.sendMessage(chatJid, { text: '📋 La lista negra está vacía actualmente.' }, { quoted: msg });
+        return;
+    }
+
+    let texto = `🚫 *LISTA NEGRA (BANEADOS)* (${baneados.length}):\n\n`;
+    const mentions = [];
+    
+    baneados.forEach((b, index) => {
+        const numeroLimpio = b.numero.split('@')[0];
+        const motivo = b.banMotivo || 'Sin motivo especificado';
+        texto += `*${index + 1}.* @${numeroLimpio}\n   📝 Motivo: _${motivo}_y\n\n`;
+        mentions.push(b.numero);
+    });
+
+    texto += `💡 Usa *unbanlist [número]* para desbanear por índice (Ej: unbanlist 2)`;
+
+    await sock.sendMessage(chatJid, { text: texto, mentions }, { quoted: msg });
+}
+
+async function comandoUnbanList(sock, numero, msg, args = []) {
+    const chatJid = msg.key.remoteJid;
+    const remitente = msg.key.participant || chatJid;
+
+    if (chatJid.endsWith('@g.us') && !(await esAdmin(sock, chatJid, remitente))) {
+        await sock.sendMessage(chatJid, { text: '❌ Solo los administradores pueden usar este comando.' }, { quoted: msg });
+        return;
+    }
+
+    const indexArg = args[0];
+    const numeroIndice = parseInt(indexArg);
+
+    if (isNaN(numeroIndice)) {
+        await sock.sendMessage(chatJid, { text: '❌ Debes indicar el número de la lista negra. Ejemplo:\nunbanlist 2' }, { quoted: msg });
+        return;
+    }
+
+    const baneados = await User.find({ baneado: true });
+
+    if (numeroIndice < 1 || numeroIndice > baneados.length) {
+        await sock.sendMessage(chatJid, { text: `❌ Número inválido. Hay ${baneados.length} usuarios en la lista negra actualmente.` }, { quoted: msg });
+        return;
+    }
+
+    const usuarioObjetivo = baneados[numeroIndice - 1];
+    usuarioObjetivo.baneado = false;
+    usuarioObjetivo.warns = [];
+    usuarioObjetivo.banMotivo = '';
+    await usuarioObjetivo.save();
+
+    const numeroLimpio = usuarioObjetivo.numero.split('@')[0];
+    
+    // CORREGIDO: Se cambió 'chatId' por 'chatJid'
+    await sock.sendMessage(chatJid, { 
+        text: `✅ El usuario @${numeroLimpio} (posición #${numeroIndice}) fue removido de la lista negra y sus advertencias se reiniciaron.`, 
+        mentions: [usuarioObjetivo.numero] 
+    }, { quoted: msg });
+}
+
+// 🔒 Abrir / Cerrar Grupo
+async function comandoGrupo(sock, chatId, msg, args) {
+    if (!(await esAdmin(sock, chatId, msg.key.participant))) {
+        await sock.sendMessage(chatId, { text: '❌ Solo los administradores pueden usar este comando.' }, { quoted: msg });
+        return;
+    }
+    const accion = args[0]?.toLowerCase();
+    if (accion === 'cerrar') {
+        await sock.groupSettingUpdate(chatId, 'announcement');
+        await sock.sendMessage(chatId, { text: '🔒 *Grupo cerrado.* Ahora solo los administradores pueden enviar mensajes.' }, { quoted: msg });
+    } else if (accion === 'abrir') {
+        await sock.groupSettingUpdate(chatId, 'not_announcement');
+        await sock.sendMessage(chatId, { text: '🔓 *Grupo abierto.* Todos los participantes pueden enviar mensajes.' }, { quoted: msg });
+    } else {
+        await sock.sendMessage(chatId, { text: '⚠️ Uso correcto: `grupo cerrar` o `grupo abrir`.' }, { quoted: msg });
+    }
+}
+
+// 🔇 Mute / Unmute
+async function comandoMute(sock, chatId, msg, args) {
+    if (!(await esAdmin(sock, chatId, msg.key.participant))) return;
+    const objetivo = obtenerObjetivo(msg, args);
+    if (!objetivo) {
+        await sock.sendMessage(chatId, { text: '⚠️ Debes mencionar o responder al usuario que deseas mutear.' }, { quoted: msg });
+        return;
+    }
+    const tiempoMinutos = parseInt(args[1]) || 30;
+    const expira = Date.now() + (tiempoMinutos * 60 * 1000);
+    mutesActivos.set(`${chatId}_${objetivo}`, expira);
+    await sock.sendMessage(chatId, { text: `🔇 Usuario muteado durante ${tiempoMinutos} minutos.` }, { quoted: msg });
+}
+
+async function comandoUnmute(sock, chatId, msg, args) {
+    if (!(await esAdmin(sock, chatId, msg.key.participant))) return;
+    const objetivo = obtenerObjetivo(msg, args);
+    if (!objetivo) {
+        await sock.sendMessage(chatId, { text: '⚠️ Debes mencionar o responder al usuario.' }, { quoted: msg });
+        return;
+    }
+    mutesActivos.delete(`${chatId}_${objetivo}`);
+    await sock.sendMessage(chatId, { text: '🔊 Usuario desmuteado con éxito.' }, { quoted: msg });
+}
+
+function verificarMute(chatId, remitente) {
+    const key = `${chatId}_${remitente}`;
+    if (mutesActivos.has(key)) {
+        const expira = mutesActivos.get(key);
+        if (Date.now() < expira) return true;
+        else mutesActivos.delete(key);
+    }
+    return false;
+}
+
+// 👥 Inactivos
+async function comandoInactivos(sock, chatId, msg) {
+    if (!(await esAdmin(sock, chatId, msg.key.participant))) return;
+    try {
+        const groupMetadata = await sock.groupMetadata(chatId);
+        await sock.sendMessage(chatId, { text: `👥 El grupo cuenta actualmente con *${groupMetadata.participants.length}* miembros registrados.` }, { quoted: msg });
+    } catch (e) {
+        await sock.sendMessage(chatId, { text: '❌ No se pudo obtener la lista de miembros.' }, { quoted: msg });
+    }
+}
+
+module.exports = { 
+    verificarAntiLinks, 
+    verificarAntiSpam,
+    comandoWarn, 
+    comandoVerWarns, 
+    comandoBan, 
+    comandoUnban, 
+    verificarNuevoMiembro, 
+    comandoListaNegra, 
+    comandoUnbanList,
+    comandoGrupo,
+    comandoMute,
+    comandoUnmute,
+    verificarMute,
+    comandoInactivos
+};
