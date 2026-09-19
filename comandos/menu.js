@@ -22,10 +22,14 @@ Ejemplo: *${prefijo}menu economia*
 
     const menus = {
         'fortnite': `🎮 *MENÚ FORTNITE (STW)* 🎮\n\n` +
-                    `*${prefijo}pavos* - 🔵 Extrae solo las misiones de PaVos.\n` +
-                    `*${prefijo}legendarias / ${prefijo}miticas* - 🌟 Extrae recompensas Míticas y Legendarias.\n` +
-                    `*${prefijo}alertasstw* - Reporte unificado y completo del día.\n` +
-                    `*${prefijo}setgrupostw* - (Admins) Activa notificaciones diarias de todo esto aquí a las 6:05 PM.\n`,
+                    `*${prefijo}pavos* - Muestra misiones de pavos actuales.\n` +
+                    `*${prefijo}legendarias* - Alertas de esquemas y sobrevivientes.\n` +
+                    `*${prefijo}alertasstw / salvar* - Resumen general de alertas.\n` +
+                    `*${prefijo}alerta [nombre]* - Busca una recompensa específica.\n` +
+                    `*${prefijo}setprecio / setpavos* - Configura precio de venta de pavos.\n\n` +
+                    `⚙️ *Gestión del Grupo (Admins):*\n` +
+                    `*${prefijo}setgrupostw* - Activa notificaciones diarias aquí a las 6:05 PM.\n` +
+                    `*${prefijo}unsetgrupostw* - Desactiva las notificaciones diarias en el grupo.\n`,
                     
         'tienda': `🛒 *MENÚ TIENDA BATTLE ROYALE* 🛒\n\n` +
                   `*${prefijo}tienda* - Muestra las categorías disponibles hoy.\n` +

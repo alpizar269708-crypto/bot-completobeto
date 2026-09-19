@@ -11,7 +11,6 @@ async function obtenerAlertasSTW() {
     let pavos = [];
     let legendarias = []; 
 
-    // 1. CARGAR ALERTAS MANUALES DESDE LA BASE DE DATOS
     try {
         let manualPavos = await Config.findOne({ clave: 'stw_pavos_activos' });
         if (manualPavos && manualPavos.valor) {
@@ -26,7 +25,6 @@ async function obtenerAlertasSTW() {
         console.error("Error al leer manuales:", e);
     }
 
-    // 2. SCRAPER AUTOMÁTICO DE FREETHEVBUCKS (Solo PaVos)
     try {
         let respuesta = await fetch('https://freethevbucks.com/timed-missions/', {
             headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' }
@@ -149,7 +147,6 @@ async function comandoSetPavos(sock, chatId, msg, args) {
     const textoArgs = args.join(' ');
     const partes = textoArgs.split('|').map(p => p.trim());
     
-    // Si no tiene los 4 parámetros divididos por la barra, muestra la ayuda visual
     if (partes.length < 4) {
         return await sock.sendMessage(chatId, { text: `❌ *Estructura incorrecta.*\n\nPara definir PaVos manualmente usa la barra vertical ( | ) para separar los datos:\n\n*!setpavos Zona | Misión | Cantidad | PL*\n\nEjemplo:\n*!setpavos Cumbres Leñosas | Rescata supervivientes | 40 | 124*` }, { quoted: msg });
     }
@@ -229,12 +226,18 @@ async function activarAlertasDiarias(sock, chatId, msg) {
     await sock.sendMessage(chatId, { text: `✅ *Grupo vinculado.* Reportes automáticos diarios a las 6:05 PM configurados.` }, { quoted: msg });
 }
 
+async function desactivarAlertasDiarias(sock, chatId, msg) {
+    await Config.findOneAndDelete({ clave: 'chat_alertas_diarias' });
+    await sock.sendMessage(chatId, { text: `🔕 *Alertas desactivadas.* Ya no se enviarán reportes automáticos en este grupo.` }, { quoted: msg });
+}
+
 module.exports = { 
     obtenerAlertasSTW,
     alertasSTW, 
     comandoPreguntarAlerta, 
     iniciarCronAlertasDiarias, 
-    activarAlertasDiarias, 
+    activarAlertasDiarias,
+    desactivarAlertasDiarias, 
     comandoSetPavos,
     comandoSetLegendarias,
     comandoResetPavos

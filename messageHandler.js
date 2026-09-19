@@ -1,6 +1,6 @@
 const mongoose = require('mongoose'); 
 const { ejecutarMenu } = require('./comandos/menu');
-const { alertasSTW, comandoPreguntarAlerta, comandoSetPavos, comandoResetPavos, comandoSetLegendarias } = require('./comandos/fortnite');
+const { alertasSTW, comandoPreguntarAlerta, comandoSetPavos, comandoSetLegendarias, comandoResetPavos, activarAlertasDiarias, desactivarAlertasDiarias } = require('./comandos/fortnite');
 const { comandoTiendaMenu, comandoTiendaCategoria } = require('./comandos/tienda'); 
 const { 
     comandoSticker, comandoTodos, comandoTiktok, comandoTraduce, comandoSkin, comandoStats, comandoContacto 
@@ -21,9 +21,8 @@ const {
 const { comandoRifa, comandoRifaInscripcion } = require('./comandos/rifas');
 const { comandoCarry } = require('./comandos/carry');
 
-// DICCIONARIO DE CATEGORÍAS PARA ACTIVAR/DESACTIVAR MODULOS
 const categoriasMap = {
-    'fortnite': ['pavos', 'legendarias', 'setpavos', 'setlegendarias', 'resetpavos', 'alertasstw', 'salvar', 'stw', 'alerta', 'setgrupostw', 'setprecio'],
+    'fortnite': ['pavos', 'legendarias', 'setpavos', 'setlegendarias', 'resetpavos', 'alertasstw', 'salvar', 'stw', 'alerta', 'setgrupostw', 'unsetgrupostw', 'setprecio'],
     'economia': ['cartera', 'bal', 'banco', 'pay', 'pagar', 'top', 'topdinero', 'daily', 'weekly', 'farmear', 'work', 'crime', 'mendigar', 'pescar', 'minar', 'cazar', 'explorar', 'ruleta', 'cf', 'slots', 'dados', 'adivina', 'buscaminas', 'rob', 'ppt', 'pelea', 'carrera', 'hackear', 'shop', 'buy', 'inventario', 'mochila', 'vender', 'use', 'regalar'],
     'utilidades': ['s', 'sticker', 'todos', 'tiktok', 'traduce', 'skin', 'stats', 'contacto'],
     'ia': ['ia'],
@@ -96,9 +95,8 @@ async function procesarMensaje(sock, msg) {
     }
 
     const comandosValidos = [
-        'activarcomandos',
-        'setprecio', 'ping', 'pavos', 'legendarias', 'setpavos', 'setlegendarias', 'resetpavos', 'alertasstw', 'salvar', 'stw', 'alerta', 
-        'setgrupostw', 'grupo', 'mute', 'unmute', 'inactivos', 'tienda', 'ia', 'menu', 'menusecreto',
+        'activarcomandos', 'setprecio', 'ping', 'pavos', 'legendarias', 'setpavos', 'setlegendarias', 'resetpavos', 'alertasstw', 'salvar', 'stw', 'alerta', 
+        'setgrupostw', 'unsetgrupostw', 'grupo', 'mute', 'unmute', 'inactivos', 'tienda', 'ia', 'menu', 'menusecreto',
         's', 'sticker', 'todos', 'tiktok', 'traduce', 'skin', 'stats', 'contacto',
         'warn', 'advertir', 'verwarns', 'ban', 'unban', 'listanegra', 'banlist', 'unbanlist', 
         'cartera', 'bal', 'banco', 'pay', 'pagar', 'top', 'topdinero', 'daily', 'weekly',
@@ -153,14 +151,9 @@ async function procesarMensaje(sock, msg) {
                 await comandoResetPavos(sock, chatJid, msg);
                 break;
             case 'alertasstw':
-                await alertasSTW(sock, chatJid, msg, 'importantes');
-                break;
-            case 'stw':
-            case 'alertas':
-                await alertasSTW(sock, chatJid, msg, args.length > 0 ? args[0] : 'todas');
-                break;
             case 'salvar':
-                if (['al mundo', 'el mundo', 'stw'].includes(args.join(' '))) await alertasSTW(sock, chatJid, msg, 'todas');
+            case 'stw':
+                await alertasSTW(sock, chatJid, msg, 'todas');
                 break;
             case 'alerta':
                 if (args.length > 0) await alertasSTW(sock, chatJid, msg, args[0]);
@@ -168,6 +161,9 @@ async function procesarMensaje(sock, msg) {
                 break;
             case 'setgrupostw':
                 await activarAlertasDiarias(sock, chatJid, msg);
+                break;
+            case 'unsetgrupostw':
+                await desactivarAlertasDiarias(sock, chatJid, msg);
                 break;
             case 'tienda':
                 if (args.length === 0) await comandoTiendaMenu(sock, chatJid, msg);
