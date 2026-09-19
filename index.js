@@ -3,53 +3,75 @@ const { default: makeWASocket, DisconnectReason, Browsers } = require('@whiskeys
 const { useMongoDBAuthState } = require('./mongoAuth');
 const mongoose = require('mongoose');
 const pino = require('pino');
-const readline = require('readline');
 const { procesarMensaje } = require('./messageHandler');
 const { verificarNuevoMiembro } = require('./comandos/moderacion');
 const { iniciarCronAlertasDiarias } = require('./comandos/fortnite');
-
-// === NUEVO: SERVIDOR WEB ANTI-SLEEP PARA RENDER ===
 const express = require('express');
-const app = express();
 
-app.get('/', (req, res) => {
-    res.send('🤖 Bot de WhatsApp activo y funcionando 24/7');
+const app = express();
+app.use(express.urlencoded({ extended: true }));
+
+let botArrancado = false;
+let authState = null;
+
+app.get('/', async (req, res) => {
+    if (botArrancado) {
+        return res.send('<h2 style="font-family: Arial;">🤖 Bot de WhatsApp activo y funcionando 24/7</h2>');
+    }
+    
+    const html = `
+    <html>
+    <head><title>Vincular Bot</title><meta charset="utf-8"></head>
+    <body style="font-family: Arial; padding: 20px; max-width: 600px; margin: auto;">
+        <h2>🔌 Vincular Bot de WhatsApp</h2>
+        <form action="/iniciar" method="POST">
+            <p><b>1. Elige el método de inicio de sesión:</b></p>
+            <label><input type="radio" name="metodo" value="1" checked> 📱 Código QR</label><br><br>
+            <label><input type="radio" name="metodo" value="2"> 🔢 Código de 8 dígitos</label><br><br>
+            
+            <p><b>2. Si elegiste 8 dígitos, ingresa tu número (código país + número, ej. 525512345678):</b></p>
+            <input type="text" name="numero" placeholder="Ej: 525512345678" style="padding: 8px; width: 100%; box-sizing: border-box;"><br><br>
+            
+            <button type="submit" style="padding: 12px 20px; background: #25D366; color: white; border: none; cursor: pointer; font-size: 16px; border-radius: 5px;">Conectar Bot</button>
+        </form>
+    </body>
+    </html>
+    `;
+    res.send(html);
+});
+
+app.post('/iniciar', (req, res) => {
+    if (botArrancado) return res.send('<h2 style="font-family: Arial;">El bot ya está arrancando. Revisa los logs.</h2>');
+    
+    const { metodo, numero } = req.body;
+    const numeroLimpio = numero ? numero.replace(/[^0-9]/g, '') : '';
+    
+    res.send('<h2 style="font-family: Arial;">⏳ Procesando...</h2><p style="font-family: Arial;">Ve a la pestaña de <b>Logs</b> en Render para ver tu QR o código de 8 dígitos.</p>');
+    arrancarSocket(metodo, numeroLimpio);
 });
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-    console.log(`🌐 Servidor Web de monitoreo escuchando en el puerto ${PORT}`);
+    console.log(`🌐 Servidor Web interactivo escuchando en el puerto ${PORT}`);
 });
-// ==================================================
 
-const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-const question = (texto) => new Promise((resolver) => rl.question(texto, resolver));
-
-async function iniciarBot() {
+async function inicializarBase() {
     if (mongoose.connection.readyState === 0) {
         await mongoose.connect(process.env.MONGO_URI);
     }
-
-    const { state, saveCreds } = await useMongoDBAuthState('sesion');
-    let metodo = '1';
-    let numeroTelefono = '';
-
-    if (!state.creds.me) {
-        console.log('\n========================================');
-        console.log('        🤖 INICIANDO SISTEMA 🤖        ');
-        console.log('========================================\n');
-        console.log('🔌 ¿CÓMO DESEAS VINCULAR TU DISPOSITIVO?');
-        console.log('  [ 1 ] 📱 Código QR (Enlace corto)');
-        console.log('  [ 2 ] 🔢 Código de 8 dígitos');
-        console.log('----------------------------------------');
-        
-        metodo = await question('👉 Tu elección (1 o 2): ');
-        
-        if (metodo === '2') {
-            numeroTelefono = await question('👉 Número (ej. 525512345678): ');
-            numeroTelefono = numeroTelefono.replace(/[^0-9]/g, '');
-        }
+    authState = await useMongoDBAuthState('sesion');
+    
+    if (authState.state.creds.me) {
+        console.log('✅ Sesión previa detectada. Arrancando bot automáticamente...');
+        arrancarSocket('1', ''); 
+    } else {
+        console.log('⚠️ No hay sesión. Entra a la página web de Render (https://bot-completobeto.onrender.com) para vincular el bot.');
     }
+}
+
+async function arrancarSocket(metodo, numeroTelefono) {
+    botArrancado = true;
+    const { state, saveCreds } = authState;
 
     const sock = makeWASocket({
         auth: state,
@@ -58,7 +80,6 @@ async function iniciarBot() {
         browser: Browsers.ubuntu('Chrome'),
     });
 
-    // 🌟 INTERCEPTOR GLOBAL: Añade el código de creador a todos los mensajes de texto del bot
     const originalSendMessage = sock.sendMessage;
     sock.sendMessage = async function(jid, content, options) {
         if (content && typeof content === 'object' && content.text) {
@@ -103,14 +124,14 @@ async function iniciarBot() {
             const razon = lastDisconnect.error?.output?.statusCode;
             if (razon === DisconnectReason.loggedOut) {
                 await mongoose.model('auth_session').deleteMany({});
-                console.log('\n🔴 SESIÓN CERRADA. Limpiando y reiniciando...\n');
-                iniciarBot();
+                console.log('\n🔴 SESIÓN CERRADA DE FORMA REMOTA.\n');
+                process.exit(0);
             } else {
-                iniciarBot(); 
+                arrancarSocket(metodo, numeroTelefono); 
             }
         } else if (connection === 'open') {
             console.log('\n🟢 BOT EN LÍNEA Y LISTO PARA TRABAJAR 🟢\n');
-            iniciarCronAlertasDiarias(sock); // Activa el cron de las 6:05 PM hora México
+            iniciarCronAlertasDiarias(sock);
         }
     });
 
@@ -120,12 +141,6 @@ async function iniciarBot() {
 
         const textoCompleto = msg.message.conversation || msg.message.extendedTextMessage?.text || '';
         
-        console.log('\n👀 --- NUEVO MENSAJE DETECTADO ---');
-        console.log(`De: ${msg.key.remoteJid}`);
-        console.log(`Dice: "${textoCompleto}"`);
-        console.log(`¿Enviado por mi mismo (fromMe)?: ${msg.key.fromMe}`);
-        console.log('----------------------------------\n');
-
         if (msg.key.fromMe && (textoCompleto.includes('¡Pong!') || textoCompleto.includes('🤖'))) return;
 
         await procesarMensaje(sock, msg);
@@ -136,4 +151,4 @@ async function iniciarBot() {
     });
 }
 
-iniciarBot();
+inicializarBase();

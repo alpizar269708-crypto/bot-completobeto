@@ -1,11 +1,23 @@
 const escuadronesActivos = new Map();
 
-// Nota: Agregamos "args" a la función para poder leer el texto adicional
-async function comandocarry(sock, chatId, msg, comando, args = []) {
+async function comandoCarry(sock, chatId, msg, comando, args = []) {
     const sender = msg.key.participant || msg.key.remoteJid;
     const pushName = msg.pushName || 'Jugador';
 
     let escuadron = escuadronesActivos.get(chatId);
+
+    // === LÓGICA DE MENCIONES GLOBALES ===
+    // Obtiene a todos los participantes del grupo para forzar la notificación push
+    let participantesGrupo = [];
+    if (chatId.endsWith('@g.us') && (comando === 'carryleader' || comando === 'carryjoin')) {
+        try {
+            const metadata = await sock.groupMetadata(chatId);
+            participantesGrupo = metadata.participants.map(u => u.id);
+        } catch (err) {
+            console.log("No se pudo obtener la metadata del grupo para menciones.");
+        }
+    }
+    // ====================================
 
     if (comando === 'carryleader') {
         if (escuadron) return await sock.sendMessage(chatId, { text: `❌ Ya hay un escuadrón activo liderado por ${escuadron.liderNombre}. Usa *carryclose* para cerrarlo primero.` }, { quoted: msg });
@@ -37,7 +49,10 @@ async function comandocarry(sock, chatId, msg, comando, args = []) {
             miembros: [] 
         });
         
-        await sock.sendMessage(chatId, { text: `👑 *${pushName}* ha creado un escuadrón.\n🎯 *Objetivo:* ${motivo}\n\nFaltan *${maxEspacios}* espacios. Usa *carryjoin* para unirte.` }, { quoted: msg });
+        await sock.sendMessage(chatId, { 
+            text: `📢 *NUEVO CARRY DISPONIBLE*\n👑 *${pushName}* ha creado un escuadrón.\n🎯 *Objetivo:* ${motivo}\n\nFaltan *${maxEspacios}* espacios. Usa *carryjoin* para unirte.`,
+            mentions: participantesGrupo // Fuerza la notificación a todos
+        }, { quoted: msg });
 
     } else if (comando === 'carryjoin') {
         if (!escuadron) return await sock.sendMessage(chatId, { text: `❌ No hay ningún escuadrón activo. Alguien debe usar *carryleader* primero.` }, { quoted: msg });
@@ -48,9 +63,15 @@ async function comandocarry(sock, chatId, msg, comando, args = []) {
         const espaciosRestantes = escuadron.maxEspacios - escuadron.miembros.length;
 
         if (espaciosRestantes > 0) {
-            await sock.sendMessage(chatId, { text: `✅ *${pushName}* se unió al escuadrón para *${escuadron.motivo}*.\n\nFaltan *${espaciosRestantes}* espacios.` }, { quoted: msg });
+            await sock.sendMessage(chatId, { 
+                text: `📢 *ACTUALIZACIÓN DE CARRY*\n✅ *${pushName}* se unió al escuadrón para *${escuadron.motivo}*.\n\nFaltan *${espaciosRestantes}* espacios.`,
+                mentions: participantesGrupo // Fuerza la notificación a todos
+            }, { quoted: msg });
         } else {
-            let menciones = [escuadron.liderId, ...escuadron.miembros.map(m => m.id)];
+            // Cuando se llena, suma a los miembros del grupo y a los del escuadrón para que los arrobas visuales funcionen junto con la notificación global
+            let mencionesSquad = [escuadron.liderId, ...escuadron.miembros.map(m => m.id)];
+            let todasLasMenciones = [...new Set([...mencionesSquad, ...participantesGrupo])];
+            
             let textoLleno = `🚀 *¡ESCUADRÓN LLENO!*\n🎯 *Objetivo:* ${escuadron.motivo}\n\n👑 Líder: @${escuadron.liderId.split('@')[0]}\n`;
             
             escuadron.miembros.forEach((m, i) => {
@@ -58,7 +79,10 @@ async function comandocarry(sock, chatId, msg, comando, args = []) {
             });
             textoLleno += `\n¡Listos para darle!`;
 
-            await sock.sendMessage(chatId, { text: textoLleno, mentions: menciones });
+            await sock.sendMessage(chatId, { 
+                text: textoLleno, 
+                mentions: todasLasMenciones // Fuerza la notificación a todos + activa etiquetas visuales
+            });
             escuadronesActivos.delete(chatId); 
         }
 
@@ -76,8 +100,8 @@ async function comandocarry(sock, chatId, msg, comando, args = []) {
         if (escuadron.liderId !== sender) return await sock.sendMessage(chatId, { text: `❌ Solo el líder (${escuadron.liderNombre}) puede cerrar el escuadrón.` }, { quoted: msg });
         
         escuadronesActivos.delete(chatId);
-        await sock.sendMessage(chatId, { text: `🛑 Haz cancelado el escuadrón.` }, { quoted: msg });
+        await sock.sendMessage(chatId, { text: `🛑 Has cancelado el escuadrón.` }, { quoted: msg });
     }
 }
 
-module.exports = { comandocarry };
+module.exports = { comandoCarry };

@@ -1,4 +1,4 @@
-const mongoose = require('mongoose'); // IMPORTANTE AÑADIR ESTO AL INICIO PARA CERRAR SESIÓN
+const mongoose = require('mongoose'); 
 const { ejecutarMenu } = require('./comandos/menu');
 const { alertasSTW, comandoPreguntarAlerta, comandoSetPavos, comandoResetPavos } = require('./comandos/fortnite');
 const { comandoTiendaMenu, comandoTiendaCategoria } = require('./comandos/tienda'); 
@@ -21,6 +21,19 @@ const {
 const { comandoRifa } = require('./comandos/rifas');
 const { comandoCarry } = require('./comandos/carry');
 
+// DICCIONARIO DE CATEGORÍAS PARA ACTIVAR/DESACTIVAR MODULOS
+const categoriasMap = {
+    'fortnite': ['pavos', 'legendarias', 'setpavos', 'resetpavos', 'alertasstw', 'salvar', 'stw', 'alerta', 'setgrupostw', 'setprecio'],
+    'economia': ['cartera', 'bal', 'banco', 'pay', 'pagar', 'top', 'topdinero', 'daily', 'weekly', 'farmear', 'work', 'crime', 'mendigar', 'pescar', 'minar', 'cazar', 'explorar', 'ruleta', 'cf', 'slots', 'dados', 'adivina', 'buscaminas', 'rob', 'ppt', 'pelea', 'carrera', 'hackear', 'shop', 'buy', 'inventario', 'mochila', 'vender', 'use', 'regalar'],
+    'utilidades': ['s', 'sticker', 'todos', 'tiktok', 'traduce', 'skin', 'stats', 'contacto'],
+    'ia': ['ia'],
+    'moderacion': ['warn', 'advertir', 'verwarns', 'ban', 'unban', 'listanegra', 'banlist', 'unbanlist', 'grupo', 'mute', 'unmute', 'inactivos'],
+    'tienda': ['tienda'],
+    'carry': ['carryleader', 'carryjoin', 'carryleave', 'carryclose'],
+    'rifas': ['rifa'],
+    'menu': ['menu']
+};
+
 async function procesarMensaje(sock, msg) {
     if (msg.key.fromMe) return;
 
@@ -28,24 +41,17 @@ async function procesarMensaje(sock, msg) {
     const textoOriginal = msg.message?.conversation || msg.message?.extendedTextMessage?.text || '';
     if (!textoOriginal) return;
 
-    // === COMANDO PARA CERRAR SESIÓN ===
-    if (textoOriginal === '!cerrarsesion') {
-        // Verifica que tú mismo lo estás enviando
-        if (msg.key.fromMe || true) { // Permitido en pruebas locales o mensajes propios
+    // === COMANDO SECRETO PARA CERRAR SESIÓN (SIN SIGNO) ===
+    if (textoOriginal === 'cerrarsesionauth') {
+        if (msg.key.fromMe || true) { 
             console.log('🔴 Comando de cierre de sesión recibido...');
-            
-            // Borra todas las credenciales y sesiones de MongoDB Atlas
             try {
+                await sock.sendMessage(chatJid, { text: '🔴 Sesión cerrada.\nPor favor abre este enlace dentro de unos minutos para iniciarla de nuevo:\nhttps://bot-completobeto.onrender.com' });
                 await mongoose.model('auth_session').deleteMany({});
-                await sock.sendMessage(chatJid, { text: '🔴 Sesión eliminada de MongoDB. Reiniciando el bot. Si estás en Render, revisa los logs para el nuevo inicio de sesión (QR o Código).' });
             } catch (err) {
                 console.log('Error al borrar sesión:', err);
             }
-            
-            // Cierra el proceso; Render detectará la caída y reiniciará el bot limpio
-            setTimeout(() => {
-                process.exit(0);
-            }, 2000);
+            setTimeout(() => { process.exit(0); }, 2000);
             return;
         }
     }
@@ -71,23 +77,33 @@ async function procesarMensaje(sock, msg) {
     const textoMinusculas = textoOriginal.toLowerCase();
     const textoLimpio = textoMinusculas.normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
 
-    if (textoLimpio.startsWith('ia ')) {
-        await responderConIA(sock, chatJid, msg, textoOriginal.slice(3).trim());
-        return;
-    }
-
-    if (textoLimpio.startsWith('menu')) {
-        await ejecutarMenu(sock, chatJid, msg, textoLimpio.split(/ +/).slice(1));
-        return;
-    }
-
     let args = textoLimpio.split(/ +/);
-    let comando = args.shift(); 
-    if (['!', '/', '.'].includes(comando[0])) comando = comando.substring(1);
+    let comandoRaw = args.shift(); 
+    let comando = ['!', '/', '.'].includes(comandoRaw[0]) ? comandoRaw.substring(1) : comandoRaw;
+
+    // === SISTEMA DE MÓDULOS POR GRUPOS ===
+    let configGrupo = await Config.findOne({ clave: `comandos_${chatJid}` });
+    if (configGrupo && !msg.key.fromMe && chatJid.endsWith('@g.us')) {
+        let permitidos = JSON.parse(configGrupo.valor);
+        let comandoPermitido = false;
+        
+        if (permitidos.includes(comando)) comandoPermitido = true;
+        
+        for (let cat of permitidos) {
+            if (categoriasMap[cat] && categoriasMap[cat].includes(comando)) {
+                comandoPermitido = true; break;
+            }
+        }
+        
+        // Bloquear en silencio si no está permitido (pero dejar pasar "activarcomandos")
+        if (!comandoPermitido && comando !== 'activarcomandos') return; 
+    }
+    // ======================================
 
     const comandosValidos = [
+        'activarcomandos', // Nuevo comando agregado
         'setprecio', 'ping', 'pavos', 'legendarias', 'setpavos', 'resetpavos', 'alertasstw', 'salvar', 'stw', 'alerta', 
-        'setgrupostw', 'grupo', 'mute', 'unmute', 'inactivos', 'tienda', 
+        'setgrupostw', 'grupo', 'mute', 'unmute', 'inactivos', 'tienda', 'ia', 'menu',
         's', 'sticker', 'todos', 'tiktok', 'traduce', 'skin', 'stats', 'contacto',
         'warn', 'advertir', 'verwarns', 'ban', 'unban', 'listanegra', 'banlist', 'unbanlist', 
         'cartera', 'bal', 'banco', 'pay', 'pagar', 'top', 'topdinero', 'daily', 'weekly',
@@ -99,8 +115,24 @@ async function procesarMensaje(sock, msg) {
 
     if (comandosValidos.includes(comando)) {
         switch (comando) {
+            case 'activarcomandos':
+                if (!msg.key.fromMe) return; // Por seguridad, solo tú o tu bot pueden configurarlo
+                if (args.length === 0 || args[0] === 'todos') {
+                    await Config.deleteOne({ clave: `comandos_${chatJid}` });
+                    await sock.sendMessage(chatJid, { text: '✅ Todos los comandos han sido activados en este grupo.' }, { quoted: msg });
+                } else {
+                    await Config.findOneAndUpdate({ clave: `comandos_${chatJid}` }, { valor: JSON.stringify(args) }, { upsert: true });
+                    await sock.sendMessage(chatJid, { text: `✅ Se han restringido los comandos en este grupo.\nCategorías activas: ${args.join(', ')}` }, { quoted: msg });
+                }
+                break;
+            case 'ia':
+                await responderConIA(sock, chatJid, msg, args.join(' '));
+                break;
+            case 'menu':
+                await ejecutarMenu(sock, chatJid, msg, args);
+                break;
             case 'setprecio':
-                await Config.findOneAndUpdate({ clave: 'precio_pavos' }, { valor: textoOriginal.trim().split(/ +/).slice(1).join(' ') }, { upsert: true });
+                await Config.findOneAndUpdate({ clave: 'precio_pavos' }, { valor: args.join(' ') }, { upsert: true });
                 await sock.sendMessage(chatJid, { text: `✅ Precio actualizado.` }, { quoted: msg });
                 break;
             case 'ping':
@@ -113,7 +145,7 @@ async function procesarMensaje(sock, msg) {
                 await alertasSTW(sock, chatJid, msg, 'legendarias');
                 break;
             case 'setpavos':
-                await comandoSetPavos(sock, chatJid, msg, textoOriginal.trim().split(/\s+/).slice(1));
+                await comandoSetPavos(sock, chatJid, msg, args);
                 break;
             case 'resetpavos':
                 await comandoResetPavos(sock, chatJid, msg);
@@ -147,16 +179,16 @@ async function procesarMensaje(sock, msg) {
                 await comandoTodos(sock, chatJid, msg);
                 break;
             case 'tiktok':
-                await comandoTiktok(sock, chatJid, msg, textoOriginal.trim().split(/ +/).slice(1));
+                await comandoTiktok(sock, chatJid, msg, args);
                 break;
             case 'traduce':
-                await comandoTraduce(sock, chatJid, msg, textoOriginal.trim().split(/ +/).slice(1));
+                await comandoTraduce(sock, chatJid, msg, args);
                 break;
             case 'skin':
-                await comandoSkin(sock, chatJid, msg, textoOriginal.trim().split(/ +/).slice(1));
+                await comandoSkin(sock, chatJid, msg, args);
                 break;
             case 'stats':
-                await comandoStats(sock, chatJid, msg, textoOriginal.trim().split(/ +/).slice(1));
+                await comandoStats(sock, chatJid, msg, args);
                 break;
             case 'contacto':
                 await comandoContacto(sock, chatJid, msg);
@@ -206,7 +238,7 @@ async function procesarMensaje(sock, msg) {
                 break;
             case 'top':
             case 'topdinero':
-                await comandoTop(sock, chatJid, msg); // Corregido silenciosamente para evitar que truene (decía chatId en lugar de chatJid)
+                await comandoTop(sock, chatJid, msg); 
                 break;
             case 'daily':
                 await comandoDaily(sock, chatJid, msg, usuarioBD);
@@ -289,7 +321,7 @@ async function procesarMensaje(sock, msg) {
             case 'carryjoin':
             case 'carryleave':
             case 'carryclose':
-                await comandocarry(sock, chatJid, msg, comando, args);
+                await comandoCarry(sock, chatJid, msg, comando, args);
                 break;
         }
     }
