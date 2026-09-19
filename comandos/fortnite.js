@@ -27,7 +27,7 @@ async function esAdminValido(sock, chatId, msg) {
     return false;
 }
 
-// 🌐 EXTRACTOR LIMPIO DE SALVAR EL MUNDO
+// 🌐 EXTRACTOR CON LA ESTRUCTURA ORIGINAL
 async function obtenerAlertasSTW() {
     let pavos = [];
     let legendarias = []; 
@@ -41,7 +41,7 @@ async function obtenerAlertasSTW() {
         if (manualLegendarias && manualLegendarias.valor) legendarias = legendarias.concat(JSON.parse(manualLegendarias.valor));
     } catch (e) {}
 
-    // 2. Extractor Web Directo
+    // 2. Extractor Web
     try {
         let respuesta = await fetch('https://freethevbucks.com/timed-missions/', {
             headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' }
@@ -75,7 +75,7 @@ async function obtenerAlertasSTW() {
 
         let misionesGuardadas = new Set();
 
-        // Extraer PaVos (Con tu lógica que sí funciona)
+        // Extraer PaVos (Idéntico a tu captura exitosa)
         let match;
         while ((match = regexPavos.exec(textoPlano)) !== null) {
             let cantidad = parseInt(match[1]);
@@ -98,7 +98,7 @@ async function obtenerAlertasSTW() {
             }
         }
 
-        // Extraer Legendarias y Épicas por bloques de texto limpio
+        // Extraer Legendarias y Épicas adaptado
         let filas = html.split(/<\/tr>|<\/li>|<\/div>/i);
         for (let fila of filas) {
             let txt = fila.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').toLowerCase();
@@ -126,7 +126,6 @@ async function obtenerAlertasSTW() {
             
             let colorEmoji = rarezaMatch[1] === 'mythic' ? '🟡 Mítico' : rarezaMatch[1] === 'legendary' ? '🟠 Legendario' : '🟣 Épico';
             
-            // Limpieza y traducción rápida del ítem detectado
             let itemDesc = txt.includes('survivor') ? 'Sobreviviente' :
                            txt.includes('defender') ? 'Defensor' :
                            txt.includes('hero') ? 'Héroe' :
@@ -146,40 +145,39 @@ async function obtenerAlertasSTW() {
     return { pavos, legendarias };
 }
 
-// 📱 FORMATEADOR DE MENSAJE LIMPIO
+// 📱 FORMATEADOR CON EL DISEÑO ORIGINAL EXACTO
 async function alertasSTW(sock, chatId, msg, categoria = 'todas') {
     const datos = await obtenerAlertasSTW();
     const fechaHoy = obtenerFechaActual();
     let texto = `📅 _${fechaHoy}_\n\n`;
 
-    let hayContenido = false;
-
     if (categoria === 'pavos' || categoria === 'todas') {
-        if (datos.pavos.length > 0) {
-            hayContenido = true;
-            texto += `🔵 *ALERTAS DE PAVOS*\n`;
+        texto += `🎮 *ALERTAS DE PAVOS*\n`;
+        if (datos.pavos.length === 0) {
+            texto += `_No hay alertas de pavos hoy._\n\n`;
+        } else {
             let totalPavos = 0;
             datos.pavos.forEach(p => {
                 totalPavos += p.cantidad;
-                texto += `📍 *${p.zona}* | 🪙 ${p.cantidad} PaVos | ⚡ PL: ${p.pl} | 🎯 ${p.mision}\n`;
+                texto += `📍 *${p.zona}*\n🪙 *PaVos:* ${p.cantidad}\n⚡ *PL:* ${p.pl}\n🎯 *Misión:* ${p.mision} ${p.tipo ? `_(${p.tipo})_` : ''}\n\n`;
             });
-            texto += `💰 *Total:* ${totalPavos} paVos\n\n`;
+            texto += `💰 *Total del día:* ${totalPavos} paVos\n\n`;
         }
     }
 
     if (categoria === 'legendarias' || categoria === 'todas' || categoria === 'importantes') {
-        if (datos.legendarias.length > 0) {
-            hayContenido = true;
-            texto += `🌟 *RECOMPENSAS DESTACADAS*\n`;
+        texto += `🌟 *ALERTAS ÉPICAS Y LEGENDARIAS*\n`;
+        if (datos.legendarias.length === 0) {
+            texto += `_No hay alertas legendarias registradas hoy._\n\n`;
+        } else {
             datos.legendarias.forEach(L => {
-                texto += `📍 *${L.zona}* | 🎁 ${L.recompensa} | ⚡ PL: ${L.pl} | 🎯 ${L.mision}\n`;
+                texto += `📍 *${L.zona}*\n🎁 *Da:* ${L.recompensa}\n⚡ *PL:* ${L.pl}\n🎯 *Misión:* ${L.mision}\n\n`;
             });
-            texto += `\n`;
         }
     }
 
-    if (!hayContenido) {
-        texto += `_No hay misiones de PaVos ni recompensas destacadas registradas en este momento._\n\n`;
+    if (categoria !== 'pavos' && categoria !== 'legendarias' && categoria !== 'todas' && categoria !== 'importantes') {
+        texto = `🤖 *CONSULTAS DE SALVAR EL MUNDO*\n\nEscribe *!pavos* o *!legendarias* para ver las misiones activas.\n\n`;
     }
 
     texto += `Support-a-Creator: *JASC13* ❤️`;
@@ -217,7 +215,7 @@ async function comandoResetPavos(sock, chatId, msg) {
 }
 
 async function comandoPreguntarAlerta(sock, chatId, msg) {
-    await sock.sendMessage(chatId, { text: `🤖 Escribe *!pavos*, *!legendarias* o *!stw*.` }, { quoted: msg });
+    await sock.sendMessage(chatId, { text: `🤖 Escribe *!pavos* o *!legendarias*.` }, { quoted: msg });
 }
 
 function iniciarCronAlertasDiarias(sock) {
@@ -230,13 +228,16 @@ function iniciarCronAlertasDiarias(sock) {
 
             let mensajeAuto = `🎮 *REPORTE DIARIO STW (6:05 PM)*\n\n`;
             if (datos.pavos.length > 0) {
-                mensajeAuto += `🪙 *PaVos Totales:* ${total}\n`;
-                datos.pavos.forEach(p => { mensajeAuto += `• ${p.zona} | ${p.cantidad} PaVos | PL ${p.pl} | ${p.mision}\n`; });
-                mensajeAuto += `\n`;
+                datos.pavos.forEach(p => {
+                    mensajeAuto += `📍 *${p.zona}* | 🪙 ${p.cantidad} PaVos | ⚡ PL: ${p.pl}\n`;
+                });
+                mensajeAuto += `\n💰 *Total del día:* ${total} paVos\n\n`;
             }
             if (datos.legendarias.length > 0) {
-                mensajeAuto += `🌟 *Destacadas:*\n`;
-                datos.legendarias.forEach(L => { mensajeAuto += `• ${L.zona} | ${L.recompensa} | PL ${L.pl} | ${L.mision}\n`; });
+                mensajeAuto += `🌟 *ÉPICAS Y LEGENDARIAS*\n`;
+                datos.legendarias.forEach(L => {
+                    mensajeAuto += `📍 *${L.zona}* | 🎁 ${L.recompensa} | ⚡ PL: ${L.pl}\n`;
+                });
             }
             mensajeAuto += `\nSupport-a-Creator: *JASC13* ❤️`;
             await sock.sendMessage(configChat.valor, { text: mensajeAuto });
@@ -247,13 +248,13 @@ function iniciarCronAlertasDiarias(sock) {
 async function activarAlertasDiarias(sock, chatId, msg) {
     if (!(await esAdminValido(sock, chatId, msg))) return;
     await Config.findOneAndUpdate({ clave: 'chat_alertas_diarias' }, { valor: chatId }, { upsert: true });
-    await sock.sendMessage(chatId, { text: `✅ *Reportes diarios a las 6:05 PM activados en este grupo.*` }, { quoted: msg });
+    await sock.sendMessage(chatId, { text: `✅ *Grupo vinculado.* Reportes automáticos a las 6:05 PM configurados.` }, { quoted: msg });
 }
 
 async function desactivarAlertasDiarias(sock, chatId, msg) {
     if (!(await esAdminValido(sock, chatId, msg))) return;
     await Config.findOneAndDelete({ clave: 'chat_alertas_diarias' });
-    await sock.sendMessage(chatId, { text: `🔕 *Reportes diarios desactivados.*` }, { quoted: msg });
+    await sock.sendMessage(chatId, { text: `🔕 *Alertas desactivadas en este grupo.*` }, { quoted: msg });
 }
 
 module.exports = { 
