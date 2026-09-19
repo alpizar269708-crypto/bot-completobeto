@@ -12,7 +12,7 @@ async function esAdminValido(sock, chatId, msg) {
         await sock.sendMessage(chatId, { text: `❌ Este comando solo se puede usar en grupos.` }, { quoted: msg });
         return false;
     }
-    if (msg.key.fromMe) return true; // El dueño siempre tiene permiso
+    if (msg.key.fromMe) return true; 
     
     const remitente = msg.key.participant;
     try {
@@ -27,25 +27,23 @@ async function esAdminValido(sock, chatId, msg) {
     return false;
 }
 
-// 🌐 Extractor de Salvar el Mundo (Estable)
+// 🌐 Extractor de Salvar el Mundo (Estable - Extrae PaVos, Épicas y Legendarias)
 async function obtenerAlertasSTW() {
     let pavos = [];
     let legendarias = []; 
 
+    // 1. Cargar las manuales
     try {
         let manualPavos = await Config.findOne({ clave: 'stw_pavos_activos' });
-        if (manualPavos && manualPavos.valor) {
-            pavos = pavos.concat(JSON.parse(manualPavos.valor));
-        }
+        if (manualPavos && manualPavos.valor) pavos = pavos.concat(JSON.parse(manualPavos.valor));
 
         let manualLegendarias = await Config.findOne({ clave: 'stw_legendarias_activas' });
-        if (manualLegendarias && manualLegendarias.valor) {
-            legendarias = legendarias.concat(JSON.parse(manualLegendarias.valor));
-        }
+        if (manualLegendarias && manualLegendarias.valor) legendarias = legendarias.concat(JSON.parse(manualLegendarias.valor));
     } catch (e) {
         console.error("Error al leer manuales:", e);
     }
 
+    // 2. Extractor Automático Freethevbucks
     try {
         let respuesta = await fetch('https://freethevbucks.com/timed-missions/', {
             headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' }
@@ -55,10 +53,11 @@ async function obtenerAlertasSTW() {
         html = html.replace(/<(head|script|style|nav|footer|header|aside)[^>]*>[\s\S]*?<\/\1>/gi, '');
         let textoPlano = html.replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').toLowerCase();
 
-        const regexMisiones = /(25|30|35|40|50)([^0-9]{1,30}?)(\d{1,3})([^a-z]{1,20}?)([a-z0-9\s\-]+?)\s+in\s+(twine peaks|canny valley|plankerton|stonewood)/gi;
-
-        let match;
-        let misionesGuardadas = new Set();
+        // Regex para PaVos
+        const regexPavos = /(25|30|35|40|50)([^0-9]{1,30}?)(\d{1,3})([^a-z]{1,20}?)([a-z0-9\s\-]+?)\s+in\s+(twine peaks|canny valley|plankerton|stonewood)/gi;
+        
+        // Regex para Épicas y Legendarias
+        const regexDestacadas = /\b(epic|legendary)\b([^0-9]{1,40}?)(\d{1,3})([^a-z]{1,20}?)([a-z0-9\s\-]+?)\s+in\s+(twine peaks|canny valley|plankerton|stonewood)/gi;
 
         const misionesNombres = [
             { en: 'ride the lightning', es: 'Monta el relámpago' },
@@ -78,34 +77,73 @@ async function obtenerAlertasSTW() {
             { en: 'build the radar', es: 'Construye la red de radar' }
         ];
 
-        while ((match = regexMisiones.exec(textoPlano)) !== null) {
+        let misionesGuardadas = new Set();
+
+        // ---- A. PROCESAR PAVOS ----
+        let match;
+        while ((match = regexPavos.exec(textoPlano)) !== null) {
             let cantidad = parseInt(match[1]);
             let pl = match[3];
             let misionCruda = match[5].trim();
             let zonaCruda = match[6].trim();
 
-            let zonaEs = '';
-            if (zonaCruda === 'twine peaks') zonaEs = 'Cumbres Leñosas';
-            else if (zonaCruda === 'canny valley') zonaEs = 'Valle Latoso';
-            else if (zonaCruda === 'plankerton') zonaEs = 'Valle Plácido';
-            else if (zonaCruda === 'stonewood') zonaEs = 'Bosque Pedregoso';
+            let zonaEs = zonaCruda === 'twine peaks' ? 'Cumbres Leñosas' : zonaCruda === 'canny valley' ? 'Valle Latoso' : zonaCruda === 'plankerton' ? 'Valle Plácido' : 'Bosque Pedregoso';
 
             let misionEs = '';
-            let esMisionValida = false;
             for (let m of misionesNombres) {
-                if (misionCruda.includes(m.en)) {
-                    misionEs = m.es;
-                    esMisionValida = true;
-                    break;
-                }
+                if (misionCruda.includes(m.en)) { misionEs = m.es; break; }
             }
 
-            if (!esMisionValida || parseInt(pl) > 160) continue;
+            if (!misionEs || parseInt(pl) > 160) continue;
 
-            let idUnico = `${zonaEs}-${cantidad}-${pl}-${misionEs}`;
+            let idUnico = `pavos-${zonaEs}-${cantidad}-${pl}-${misionEs}`;
             if (!misionesGuardadas.has(idUnico)) {
                 misionesGuardadas.add(idUnico);
                 pavos.push({ zona: zonaEs, cantidad: cantidad, pl: pl, mision: misionEs, tipo: 'Automático' });
+            }
+        }
+
+        // ---- B. PROCESAR ÉPICAS Y LEGENDARIAS ----
+        let matchDestacada;
+        while ((matchDestacada = regexDestacadas.exec(textoPlano)) !== null) {
+            let rarezaCruda = matchDestacada[1]; // epic o legendary
+            let recompensaCruda = matchDestacada[2].trim();
+            let pl = matchDestacada[3];
+            let misionCruda = matchDestacada[5].trim();
+            let zonaCruda = matchDestacada[6].trim();
+
+            let zonaEs = zonaCruda === 'twine peaks' ? 'Cumbres Leñosas' : zonaCruda === 'canny valley' ? 'Valle Latoso' : zonaCruda === 'plankerton' ? 'Valle Plácido' : 'Bosque Pedregoso';
+
+            let misionEs = '';
+            for (let m of misionesNombres) {
+                if (misionCruda.includes(m.en)) { misionEs = m.es; break; }
+            }
+
+            if (!misionEs || parseInt(pl) > 160) continue;
+
+            // Filtro opcional: Si no quieres ver Perk-UPs spammeados y solo quieres Sobrevivientes/Héroes, puedes borrar lo que no te sirva.
+            // Traducimos los objetos automáticamente:
+            let rec = recompensaCruda
+                .replace(/survivor/g, 'Sobreviviente')
+                .replace(/defender/g, 'Defensor')
+                .replace(/hero/g, 'Héroe')
+                .replace(/schematic/g, 'Esquema')
+                .replace(/lead/g, 'Líder')
+                .replace(/melee/g, 'Cuerpo a cuerpo')
+                .replace(/ranged/g, 'A distancia')
+                .replace(/trap/g, 'Trampa')
+                .replace(/perk-up!/g, 'Perk-UP')
+                .replace(/perk-up/g, 'Perk-UP');
+            
+            rec = rec.charAt(0).toUpperCase() + rec.slice(1).trim();
+
+            let emojiColor = rarezaCruda === 'epic' ? '🟣 Épico' : '🟠 Legendario';
+            let recompensaFinal = `${emojiColor} | ${rec}`;
+
+            let idUnico = `recompensa-${zonaEs}-${recompensaFinal}-${pl}-${misionEs}`;
+            if (!misionesGuardadas.has(idUnico)) {
+                misionesGuardadas.add(idUnico);
+                legendarias.push({ zona: zonaEs, recompensa: recompensaFinal, pl: pl, mision: misionEs });
             }
         }
     } catch (e) {
@@ -122,7 +160,7 @@ async function alertasSTW(sock, chatId, msg, categoria = 'todas') {
     let texto = `📅 _${fechaHoy}_\n\n`;
 
     if (categoria === 'pavos' || categoria === 'todas') {
-        texto += `🎮 *ALERTAS DE PAVOS*\n`;
+        texto += `🔵 *ALERTAS DE PAVOS*\n`;
         if (datos.pavos.length === 0) {
             texto += `_No hay alertas de pavos hoy._\n\n`;
         } else {
@@ -136,12 +174,12 @@ async function alertasSTW(sock, chatId, msg, categoria = 'todas') {
     }
 
     if (categoria === 'legendarias' || categoria === 'todas' || categoria === 'importantes') {
-        texto += `🔶 *ALERTAS LEGENDARIAS / MINIJEFES*\n`;
+        texto += `🌟 *RECOMPENSAS ÉPICAS Y LEGENDARIAS*\n`;
         if (datos.legendarias.length === 0) {
-            texto += `_No hay alertas legendarias registradas hoy._\n\n`;
+            texto += `_No hay recompensas Épicas o Legendarias registradas hoy._\n\n`;
         } else {
             datos.legendarias.forEach(L => {
-                texto += `📍 *${L.zona}*\n🎁 *Recompensa:* ${L.recompensa}\n⚡ *PL:* ${L.pl}\n🎯 *Misión:* ${L.mision}\n\n`;
+                texto += `📍 *${L.zona}*\n🎁 *Da:* ${L.recompensa}\n⚡ *PL:* ${L.pl}\n🎯 *Misión:* ${L.mision}\n\n`;
             });
         }
     }
@@ -181,7 +219,7 @@ async function comandoSetLegendarias(sock, chatId, msg, args) {
     const partes = textoArgs.split('|').map(p => p.trim());
     
     if (partes.length < 4) {
-        return await sock.sendMessage(chatId, { text: `❌ *Estructura incorrecta.*\n\n*!setlegendarias Zona | Misión | Recompensa | PL*\n\nEjemplo:\n*!setlegendarias Cumbres Leñosas | Evacua el refugio | Superviviente Legendario | 160*` }, { quoted: msg });
+        return await sock.sendMessage(chatId, { text: `❌ *Estructura incorrecta.*\n\n*!setlegendarias Zona | Misión | Recompensa | PL*\n\nEjemplo:\n*!setlegendarias Cumbres Leñosas | Evacua el refugio | 🟠 Legendario | Sobreviviente | 160*` }, { quoted: msg });
     }
 
     let actual = await Config.findOne({ clave: 'stw_legendarias_activas' });
@@ -189,7 +227,7 @@ async function comandoSetLegendarias(sock, chatId, msg, args) {
     
     lista.push({ zona: partes[0], mision: partes[1], recompensa: partes[2], pl: partes[3] || '??' });
     await Config.findOneAndUpdate({ clave: 'stw_legendarias_activas' }, { valor: JSON.stringify(lista) }, { upsert: true });
-    await sock.sendMessage(chatId, { text: `✅ Misión Legendaria / Minijefe agregada manualmente.` }, { quoted: msg });
+    await sock.sendMessage(chatId, { text: `✅ Misión Legendaria / Épica agregada manualmente.` }, { quoted: msg });
 }
 
 // 🗑️ VACIAR ALERTAS MANUALES
@@ -205,6 +243,7 @@ async function comandoPreguntarAlerta(sock, chatId, msg) {
     await sock.sendMessage(chatId, { text: `🤖 Escribe *!pavos* o *!legendarias* para ver las misiones activas.` }, { quoted: msg });
 }
 
+// CRON JOB DIARIO
 function iniciarCronAlertasDiarias(sock) {
     cron.schedule('5 18 * * *', async () => {
         try {
@@ -215,6 +254,8 @@ function iniciarCronAlertasDiarias(sock) {
             let total = datos.pavos.reduce((acc, p) => acc + p.cantidad, 0);
 
             let mensajeAuto = `🎮 *REPORTE DIARIO STW (6:05 PM)*\n\n`;
+            
+            mensajeAuto += `*--- 🔵 PAVOS ---*\n`;
             if (datos.pavos.length > 0) {
                 datos.pavos.forEach(p => {
                     mensajeAuto += `📍 *${p.zona}* | 🪙 ${p.cantidad} PaVos | ⚡ PL: ${p.pl}\n`;
@@ -223,6 +264,17 @@ function iniciarCronAlertasDiarias(sock) {
             } else {
                 mensajeAuto += `_No hay alertas de pavos hoy._\n\n`;
             }
+
+            mensajeAuto += `*--- 🌟 ÉPICAS Y LEGENDARIAS ---*\n`;
+            if (datos.legendarias.length > 0) {
+                datos.legendarias.forEach(L => {
+                    mensajeAuto += `📍 *${L.zona}* | 🎁 ${L.recompensa} | ⚡ PL: ${L.pl}\n`;
+                });
+                mensajeAuto += `\n`;
+            } else {
+                mensajeAuto += `_No hay recompensas Épicas o Legendarias hoy._\n\n`;
+            }
+
             mensajeAuto += `Support-a-Creator: *JASC13* ❤️`;
             
             await sock.sendMessage(configChat.valor, { text: mensajeAuto });
