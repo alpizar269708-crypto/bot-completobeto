@@ -1,6 +1,6 @@
 const mongoose = require('mongoose'); 
 const { ejecutarMenu } = require('./comandos/menu');
-const { alertasSTW, comandoPreguntarAlerta, comandoSetPavos, comandoResetPavos } = require('./comandos/fortnite');
+const { alertasSTW, comandoPreguntarAlerta, comandoSetPavos, comandoResetPavos, comandoSetLegendarias } = require('./comandos/fortnite');
 const { comandoTiendaMenu, comandoTiendaCategoria } = require('./comandos/tienda'); 
 const { 
     comandoSticker, comandoTodos, comandoTiktok, comandoTraduce, comandoSkin, comandoStats, comandoContacto 
@@ -18,20 +18,20 @@ const {
     comandoBuscaminas, comandoRob, comandoPpt, comandoPelea, comandoCarrera, comandoHackear,
     comandoShop, comandoBuy, comandoInventario, comandoVender, comandoUse, comandoRegalarItem 
 } = require('./comandos/economia');
-const { comandoRifa, comandoRifaInscripcion } = require('./comandos/rifas'); // Importado el nuevo comando
+const { comandoRifa, comandoRifaInscripcion } = require('./comandos/rifas');
 const { comandoCarry } = require('./comandos/carry');
 
 // DICCIONARIO DE CATEGORÍAS PARA ACTIVAR/DESACTIVAR MODULOS
 const categoriasMap = {
-    'fortnite': ['pavos', 'legendarias', 'setpavos', 'resetpavos', 'alertasstw', 'salvar', 'stw', 'alerta', 'setgrupostw', 'setprecio'],
+    'fortnite': ['pavos', 'legendarias', 'setpavos', 'setlegendarias', 'resetpavos', 'alertasstw', 'salvar', 'stw', 'alerta', 'setgrupostw', 'setprecio'],
     'economia': ['cartera', 'bal', 'banco', 'pay', 'pagar', 'top', 'topdinero', 'daily', 'weekly', 'farmear', 'work', 'crime', 'mendigar', 'pescar', 'minar', 'cazar', 'explorar', 'ruleta', 'cf', 'slots', 'dados', 'adivina', 'buscaminas', 'rob', 'ppt', 'pelea', 'carrera', 'hackear', 'shop', 'buy', 'inventario', 'mochila', 'vender', 'use', 'regalar'],
     'utilidades': ['s', 'sticker', 'todos', 'tiktok', 'traduce', 'skin', 'stats', 'contacto'],
     'ia': ['ia'],
     'moderacion': ['warn', 'advertir', 'verwarns', 'ban', 'unban', 'listanegra', 'banlist', 'unbanlist', 'grupo', 'mute', 'unmute', 'inactivos'],
     'tienda': ['tienda'],
     'carry': ['carryleader', 'carryjoin', 'carryleave', 'carryclose'],
-    'rifas': ['rifa', 'rifainscripcion'], // Añadido aquí
-    'menu': ['menu']
+    'rifas': ['rifa', 'rifainscripcion'],
+    'menu': ['menu', 'menusecreto']
 };
 
 async function procesarMensaje(sock, msg) {
@@ -97,8 +97,8 @@ async function procesarMensaje(sock, msg) {
 
     const comandosValidos = [
         'activarcomandos',
-        'setprecio', 'ping', 'pavos', 'legendarias', 'setpavos', 'resetpavos', 'alertasstw', 'salvar', 'stw', 'alerta', 
-        'setgrupostw', 'grupo', 'mute', 'unmute', 'inactivos', 'tienda', 'ia', 'menu',
+        'setprecio', 'ping', 'pavos', 'legendarias', 'setpavos', 'setlegendarias', 'resetpavos', 'alertasstw', 'salvar', 'stw', 'alerta', 
+        'setgrupostw', 'grupo', 'mute', 'unmute', 'inactivos', 'tienda', 'ia', 'menu', 'menusecreto',
         's', 'sticker', 'todos', 'tiktok', 'traduce', 'skin', 'stats', 'contacto',
         'warn', 'advertir', 'verwarns', 'ban', 'unban', 'listanegra', 'banlist', 'unbanlist', 
         'cartera', 'bal', 'banco', 'pay', 'pagar', 'top', 'topdinero', 'daily', 'weekly',
@@ -110,6 +110,10 @@ async function procesarMensaje(sock, msg) {
 
     if (comandosValidos.includes(comando)) {
         switch (comando) {
+            case 'menusecreto':
+                if (!msg.key.fromMe) return; 
+                await ejecutarMenu(sock, chatJid, msg, ['secreto']);
+                break;
             case 'activarcomandos':
                 if (!msg.key.fromMe) return; 
                 if (args.length === 0 || args[0] === 'todos') {
@@ -141,6 +145,9 @@ async function procesarMensaje(sock, msg) {
                 break;
             case 'setpavos':
                 await comandoSetPavos(sock, chatJid, msg, args);
+                break;
+            case 'setlegendarias':
+                await comandoSetLegendarias(sock, chatJid, msg, args);
                 break;
             case 'resetpavos':
                 await comandoResetPavos(sock, chatJid, msg);

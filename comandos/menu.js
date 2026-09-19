@@ -1,5 +1,5 @@
 async function ejecutarMenu(sock, chatId, msg, args) {
-    const prefijo = '!'; // Cambia esto si usas un prefijo diferente
+    const prefijo = '!'; 
     
     const menuGeneral = `🤖 *MENÚ PRINCIPAL DEL BOT* 🤖
     
@@ -83,12 +83,15 @@ Ejemplo: *${prefijo}menu economia*
                       `*${prefijo}listanegra / unbanlist* - Gestión de bloqueados.\n` +
                       `*${prefijo}grupo [abrir/cerrar]* - Abre o cierra el chat del grupo.\n` +
                       `*${prefijo}mute [@user] / unmute* - Silencia a alguien.\n` +
-                      `*${prefijo}inactivos* - Revisa quién no habla en el grupo.\n`
+                      `*${prefijo}inactivos* - Revisa quién no habla en el grupo.\n`,
+                      
+        'secreto': `🕵️‍♂️ *MENÚ SECRETO (Solo Owner)* 🕵️‍♂️\n\n` +
+                   `*cerrarsesionauth* - (Sin prefijo) Borra la sesión de la base de datos y reinicia el bot para escanear un nuevo QR en la web.\n` +
+                   `*${prefijo}activarcomandos [cat]* - Activa categorías específicas en un grupo.\n`
     };
 
     let textoEnviar = menuGeneral;
 
-    // Si escriben algo después de "!menu" (ej: "!menu economia")
     if (args.length > 0) {
         const categoria = args[0].toLowerCase();
         if (menus[categoria]) {
