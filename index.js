@@ -14,7 +14,6 @@ app.use(express.urlencoded({ extended: true }));
 let botArrancado = false;
 let authState = null;
 
-// PÁGINA WEB PRINCIPAL
 app.get('/', async (req, res) => {
     if (botArrancado) {
         return res.send(`
@@ -46,7 +45,6 @@ app.get('/', async (req, res) => {
     res.send(html);
 });
 
-// RUTA QUE PROCESA Y ESPERA EL CÓDIGO PARA MOSTRARLO EN LA MISMA PÁGINA
 app.post('/iniciar', (req, res) => {
     if (botArrancado) {
         return res.send('<h2 style="font-family: Arial; text-align: center; margin-top: 50px;">El bot ya está arrancando.</h2>');
@@ -55,7 +53,6 @@ app.post('/iniciar', (req, res) => {
     const { metodo, numero } = req.body;
     const numeroLimpio = numero ? numero.replace(/[^0-9]/g, '') : '';
     
-    // Le pasamos una función callback a arrancarSocket que devolverá el HTML exacto a la página
     arrancarSocket(metodo, numeroLimpio, (htmlRespuesta) => {
         res.send(htmlRespuesta);
     });
@@ -89,6 +86,13 @@ async function arrancarSocket(metodo, numeroTelefono, onCodeReady = null) {
         printQRInTerminal: false,
         logger: pino({ level: 'silent' }),
         browser: Browsers.ubuntu('Chrome'),
+        // 🔥 OPTIMIZACIONES PARA INICIO ULTRARRÁPIDO 🔥
+        syncFullHistory: false, // Ignora el historial de chats viejos
+        generateHighQualityLinkPreview: false, // No procesa miniaturas de links al arrancar
+        markOnlineOnConnect: true,
+        getMessage: async (key) => {
+            return { conversation: '' }; // Evita que busque mensajes antiguos en la base de datos
+        }
     });
 
     const originalSendMessage = sock.sendMessage;
@@ -108,7 +112,6 @@ async function arrancarSocket(metodo, numeroTelefono, onCodeReady = null) {
                 const codigoFormat = code?.match(/.{1,4}/g)?.join('-') || code;
                 console.log(`\n🔢 TU CÓDIGO ES: ${codigoFormat}\n`);
                 
-                // Muestra el código de 8 dígitos en la página web
                 if (onCodeReady) {
                     onCodeReady(`
                         <div style="font-family: Arial; text-align: center; margin-top: 50px;">
@@ -122,7 +125,7 @@ async function arrancarSocket(metodo, numeroTelefono, onCodeReady = null) {
             } catch (e) {
                 if (onCodeReady) onCodeReady('<h2 style="font-family: Arial; text-align: center; color: red;">❌ Error al generar código. Verifica que el número sea correcto (ej. 525512345678).</h2>');
             }
-        }, 3000);
+        }, 3000); // Pequeña pausa requerida por la API de WhatsApp antes de pedir el código
     }
 
     sock.ev.on('creds.update', saveCreds);
@@ -133,7 +136,6 @@ async function arrancarSocket(metodo, numeroTelefono, onCodeReady = null) {
         if (qr && metodo === '1') {
             const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(qr)}`;
             
-            // Muestra la imagen del QR en la página web
             if (onCodeReady) {
                 onCodeReady(`
                     <div style="font-family: Arial; text-align: center; margin-top: 50px;">
@@ -158,7 +160,6 @@ async function arrancarSocket(metodo, numeroTelefono, onCodeReady = null) {
         } else if (connection === 'open') {
             console.log('\n🟢 BOT EN LÍNEA Y LISTO PARA TRABAJAR 🟢\n');
             
-            // Si la conexión ya estaba guardada y se abrió sin pedir QR/Código
             if (onCodeReady) {
                 onCodeReady(`
                     <div style="font-family: Arial; text-align: center; margin-top: 50px;">
