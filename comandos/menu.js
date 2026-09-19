@@ -1,36 +1,74 @@
 async function ejecutarMenu(sock, chatId, msg, args) {
     const prefijo = '!'; 
-    
-    const menuGeneral = `🤖 *MENÚ PRINCIPAL DEL BOT* 🤖
-    
-Usa *${prefijo}menu [categoría]* para ver los comandos de cada sección.
-Ejemplo: *${prefijo}menu economia*
+    const sender = msg.key.participant || msg.key.remoteJid;
+    const isGroup = chatId.endsWith('@g.us');
+    let isAdmin = false;
 
-📂 *CATEGORÍAS DISPONIBLES:*
-🎮 *fortnite* - Alertas y pavos (Salvar el Mundo)
-🛒 *tienda* - Tienda diaria de Battle Royale
-🚀 *carry* - Sistema de escuadrones y ayuda
-🎟️ *rifas* - Sistema de sorteos
-💰 *economia* - Minijuegos, dinero y RPG
-🛠️ *utilidades* - Stickers, descargas y traductor
-🤖 *ia* - Inteligencia artificial
-🛡️ *moderacion* - Control del grupo (Admins)
+    // 🔒 VERIFICACIÓN DE PERMISOS EN TIEMPO REAL
+    if (isGroup) {
+        try {
+            const groupMetadata = await sock.groupMetadata(chatId);
+            const participant = groupMetadata.participants.find(p => p.id === sender);
+            isAdmin = participant?.admin === 'admin' || participant?.admin === 'superadmin';
+        } catch (e) {
+            console.log("Error verificando admin:", e);
+        }
+    }
+    if (msg.key.fromMe) isAdmin = true; // Tú siempre eres admin
 
-⚙️ *CONFIGURACIÓN DEL GRUPO (Solo Admins):*
-*${prefijo}activarcomandos [categoría1] [categoria2]* - Activa solo los módulos que quieras.
-*${prefijo}activarcomandos todos* - Habilita todas las funciones del bot en el grupo.`;
+    // 1. MENÚ GENERAL DINÁMICO
+    let menuGeneral = `🤖 *MENÚ PRINCIPAL DEL BOT* 🤖\n\n` +
+    `Usa *${prefijo}menu [categoría]* para ver los comandos de cada sección.\n` +
+    `Ejemplo: *${prefijo}menu economia*\n\n` +
+    `📂 *CATEGORÍAS DISPONIBLES:*\n` +
+    `🎮 *fortnite* - Alertas y pavos (Salvar el Mundo)\n` +
+    `🛒 *tienda* - Tienda diaria de Battle Royale\n` +
+    `🚀 *carry* - Sistema de escuadrones y ayuda\n` +
+    `🎟️ *rifas* - Sistema de sorteos\n` +
+    `💰 *economia* - Minijuegos, dinero y RPG\n` +
+    `🛠️ *utilidades* - Stickers, descargas y traductor\n` +
+    `🤖 *ia* - Inteligencia artificial\n`;
+
+    if (isAdmin && isGroup) {
+        menuGeneral += `🛡️ *moderacion* - Control del grupo (Admins)\n\n` +
+        `⚙️ *CONFIGURACIÓN DEL GRUPO (Solo Admins):*\n` +
+        `*${prefijo}activarcomandos [cat1] [cat2]* - Activa solo los módulos que quieras.\n` +
+        `*${prefijo}activarcomandos todos* - Habilita todas las funciones en el grupo.\n`;
+    }
+
+    // 2. MENÚ FORTNITE DINÁMICO
+    let menuFortnite = `🎮 *MENÚ FORTNITE (STW)* 🎮\n\n` +
+    `*${prefijo}pavos* - Muestra misiones de pavos actuales.\n` +
+    `*${prefijo}legendarias* - Alertas de esquemas y sobrevivientes.\n` +
+    `*${prefijo}alertasstw / salvar* - Resumen general de alertas.\n` +
+    `*${prefijo}alerta [nombre]* - Busca una recompensa específica.\n`;
+
+    if (isAdmin && isGroup) {
+        menuFortnite += `\n⚙️ *Gestión del Grupo (Admins):*\n` +
+        `*${prefijo}setprecio* - Configura precio de venta de pavos.\n` +
+        `*${prefijo}setpavos* - Agrega misiones de PaVos manualmente.\n` +
+        `*${prefijo}setlegendarias* - Agrega Legendarias/Minijefes manualmente.\n` +
+        `*${prefijo}resetpavos* - Vacía todas las alertas manuales del día.\n` +
+        `*${prefijo}setgrupostw* - Activa reportes diarios a las 6:05 PM aquí.\n` +
+        `*${prefijo}unsetgrupostw* - Desactiva los reportes diarios.\n`;
+    }
+
+    // 3. MENÚ MODERACIÓN DINÁMICO
+    let menuModeracion = `🛡️ *MENÚ MODERACIÓN (Admins)* 🛡️\n\n`;
+    if (isAdmin && isGroup) {
+        menuModeracion += `*${prefijo}warn [@user] / verwarns* - Advierte a un usuario.\n` +
+        `*${prefijo}ban [@user] / unban* - Expulsa o readmite.\n` +
+        `*${prefijo}listanegra / unbanlist* - Gestión de bloqueados.\n` +
+        `*${prefijo}grupo [abrir/cerrar]* - Abre o cierra el chat del grupo.\n` +
+        `*${prefijo}mute [@user] / unmute* - Silencia a alguien.\n` +
+        `*${prefijo}inactivos* - Revisa quién no habla en el grupo.\n`;
+    } else {
+        menuModeracion += `❌ Este menú es exclusivo para los administradores del grupo.\n`;
+    }
 
     const menus = {
-        'fortnite': `🎮 *MENÚ FORTNITE (STW)* 🎮\n\n` +
-                    `*${prefijo}pavos* - Muestra misiones de pavos actuales.\n` +
-                    `*${prefijo}legendarias* - Alertas de esquemas y sobrevivientes.\n` +
-                    `*${prefijo}alertasstw / salvar* - Resumen general de alertas.\n` +
-                    `*${prefijo}alerta [nombre]* - Busca una recompensa específica.\n` +
-                    `*${prefijo}setprecio / setpavos* - Configura precio de venta de pavos.\n\n` +
-                    `⚙️ *Gestión del Grupo (Admins):*\n` +
-                    `*${prefijo}setgrupostw* - Activa notificaciones diarias aquí a las 6:05 PM.\n` +
-                    `*${prefijo}unsetgrupostw* - Desactiva las notificaciones diarias en el grupo.\n`,
-                    
+        'fortnite': menuFortnite,
+        'moderacion': menuModeracion,
         'tienda': `🛒 *MENÚ TIENDA BATTLE ROYALE* 🛒\n\n` +
                   `*${prefijo}tienda* - Muestra las categorías disponibles hoy.\n` +
                   `*${prefijo}tienda [categoría]* - Muestra la imagen de esa categoría.\n`,
@@ -79,14 +117,6 @@ Ejemplo: *${prefijo}menu economia*
         'ia': `🤖 *MENÚ INTELIGENCIA ARTIFICIAL* 🤖\n\n` +
               `*${prefijo}ia [pregunta]* - Habla de forma natural con el bot.\n`,
               
-        'moderacion': `🛡️ *MENÚ MODERACIÓN (Admins)* 🛡️\n\n` +
-                      `*${prefijo}warn [@user] / verwarns* - Advierte a un usuario.\n` +
-                      `*${prefijo}ban [@user] / unban* - Expulsa o readmite.\n` +
-                      `*${prefijo}listanegra / unbanlist* - Gestión de bloqueados.\n` +
-                      `*${prefijo}grupo [abrir/cerrar]* - Abre o cierra el chat del grupo.\n` +
-                      `*${prefijo}mute [@user] / unmute* - Silencia a alguien.\n` +
-                      `*${prefijo}inactivos* - Revisa quién no habla en el grupo.\n`,
-                      
         'secreto': `🕵️‍♂️ *MENÚ SECRETO (Solo Owner)* 🕵️‍♂️\n\n` +
                    `*cerrarsesionauth* - (Sin prefijo) Borra la sesión de MongoDB y reinicia el bot para escanear QR nuevo en la web.\n` +
                    `*${prefijo}activarcomandos [cat]* - Activa o desactiva módulos de comandos en un grupo.\n`

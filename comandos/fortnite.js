@@ -6,7 +6,28 @@ function obtenerFechaActual() {
     return new Date().toLocaleDateString('es-ES', opciones);
 }
 
-// 🌐 Extractor de Salvar el Mundo
+// 🔒 FUNCIÓN DE SEGURIDAD PARA COMANDOS ADMINISTRATIVOS
+async function esAdminValido(sock, chatId, msg) {
+    if (!chatId.endsWith('@g.us')) {
+        await sock.sendMessage(chatId, { text: `❌ Este comando solo se puede usar en grupos.` }, { quoted: msg });
+        return false;
+    }
+    if (msg.key.fromMe) return true; // El dueño siempre tiene permiso
+    
+    const remitente = msg.key.participant;
+    try {
+        const groupMetadata = await sock.groupMetadata(chatId);
+        const participante = groupMetadata.participants.find(p => p.id === remitente);
+        if (participante && (participante.admin === 'admin' || participante.admin === 'superadmin')) {
+            return true;
+        }
+    } catch (e) {}
+
+    await sock.sendMessage(chatId, { text: `❌ Comando exclusivo para administradores del grupo.` }, { quoted: msg });
+    return false;
+}
+
+// 🌐 Extractor de Salvar el Mundo (Estable)
 async function obtenerAlertasSTW() {
     let pavos = [];
     let legendarias = []; 
@@ -133,22 +154,15 @@ async function alertasSTW(sock, chatId, msg, categoria = 'todas') {
     await sock.sendMessage(chatId, { text: texto }, { quoted: msg });
 }
 
-// ⚙️ AGREGAR PAVOS MANUALMENTE (CON VERIFICACIÓN DE ESTRUCTURA)
+// ⚙️ AGREGAR PAVOS MANUALMENTE 
 async function comandoSetPavos(sock, chatId, msg, args) {
-    const remitente = msg.key.participant || chatId;
-    if (chatId.endsWith('@g.us')) {
-        try {
-            const groupMetadata = await sock.groupMetadata(chatId);
-            const participante = groupMetadata.participants.find(p => p.id === remitente);
-            if (!(participante && (participante.admin === 'admin' || participante.admin === 'superadmin'))) return;
-        } catch (e) {}
-    }
+    if (!(await esAdminValido(sock, chatId, msg))) return;
 
     const textoArgs = args.join(' ');
     const partes = textoArgs.split('|').map(p => p.trim());
     
     if (partes.length < 4) {
-        return await sock.sendMessage(chatId, { text: `❌ *Estructura incorrecta.*\n\nPara definir PaVos manualmente usa la barra vertical ( | ) para separar los datos:\n\n*!setpavos Zona | Misión | Cantidad | PL*\n\nEjemplo:\n*!setpavos Cumbres Leñosas | Rescata supervivientes | 40 | 124*` }, { quoted: msg });
+        return await sock.sendMessage(chatId, { text: `❌ *Estructura incorrecta.*\n\n*!setpavos Zona | Misión | Cantidad | PL*\n\nEjemplo:\n*!setpavos Cumbres Leñosas | Rescata supervivientes | 40 | 124*` }, { quoted: msg });
     }
 
     let actual = await Config.findOne({ clave: 'stw_pavos_activos' });
@@ -161,20 +175,13 @@ async function comandoSetPavos(sock, chatId, msg, args) {
 
 // ⚙️ AGREGAR LEGENDARIAS MANUALMENTE
 async function comandoSetLegendarias(sock, chatId, msg, args) {
-    const remitente = msg.key.participant || chatId;
-    if (chatId.endsWith('@g.us')) {
-        try {
-            const groupMetadata = await sock.groupMetadata(chatId);
-            const participante = groupMetadata.participants.find(p => p.id === remitente);
-            if (!(participante && (participante.admin === 'admin' || participante.admin === 'superadmin'))) return;
-        } catch (e) {}
-    }
+    if (!(await esAdminValido(sock, chatId, msg))) return;
 
     const textoArgs = args.join(' ');
     const partes = textoArgs.split('|').map(p => p.trim());
     
     if (partes.length < 4) {
-        return await sock.sendMessage(chatId, { text: `❌ *Estructura incorrecta.*\n\nPara definir Legendarias manualmente usa la barra vertical ( | ) para separar:\n\n*!setlegendarias Zona | Misión | Recompensa | PL*\n\nEjemplo:\n*!setlegendarias Cumbres Leñosas | Evacua el refugio | Superviviente Legendario | 160*` }, { quoted: msg });
+        return await sock.sendMessage(chatId, { text: `❌ *Estructura incorrecta.*\n\n*!setlegendarias Zona | Misión | Recompensa | PL*\n\nEjemplo:\n*!setlegendarias Cumbres Leñosas | Evacua el refugio | Superviviente Legendario | 160*` }, { quoted: msg });
     }
 
     let actual = await Config.findOne({ clave: 'stw_legendarias_activas' });
@@ -187,6 +194,8 @@ async function comandoSetLegendarias(sock, chatId, msg, args) {
 
 // 🗑️ VACIAR ALERTAS MANUALES
 async function comandoResetPavos(sock, chatId, msg) {
+    if (!(await esAdminValido(sock, chatId, msg))) return;
+
     await Config.findOneAndDelete({ clave: 'stw_pavos_activos' });
     await Config.findOneAndDelete({ clave: 'stw_legendarias_activas' });
     await sock.sendMessage(chatId, { text: `🗑️ Todas las alertas de PaVos y Legendarias manuales han sido restablecidas (vaciadas).` }, { quoted: msg });
@@ -222,11 +231,13 @@ function iniciarCronAlertasDiarias(sock) {
 }
 
 async function activarAlertasDiarias(sock, chatId, msg) {
+    if (!(await esAdminValido(sock, chatId, msg))) return;
     await Config.findOneAndUpdate({ clave: 'chat_alertas_diarias' }, { valor: chatId }, { upsert: true });
     await sock.sendMessage(chatId, { text: `✅ *Grupo vinculado.* Reportes automáticos diarios a las 6:05 PM configurados.` }, { quoted: msg });
 }
 
 async function desactivarAlertasDiarias(sock, chatId, msg) {
+    if (!(await esAdminValido(sock, chatId, msg))) return;
     await Config.findOneAndDelete({ clave: 'chat_alertas_diarias' });
     await sock.sendMessage(chatId, { text: `🔕 *Alertas desactivadas.* Ya no se enviarán reportes automáticos en este grupo.` }, { quoted: msg });
 }

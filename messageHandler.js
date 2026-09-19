@@ -68,9 +68,6 @@ async function procesarMensaje(sock, msg) {
     if (!usuarioBD) usuarioBD = await User.create({ numero: remitenteReal }); 
     if (usuarioBD.baneado) return;
 
-    let configPavos = await Config.findOne({ clave: 'precio_pavos' });
-    let infoPrecioPavos = configPavos ? configPavos.valor : 'Precio no configurado.';
-
     const textoMinusculas = textoOriginal.toLowerCase();
     const textoLimpio = textoMinusculas.normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
 
@@ -113,7 +110,24 @@ async function procesarMensaje(sock, msg) {
                 await ejecutarMenu(sock, chatJid, msg, ['secreto']);
                 break;
             case 'activarcomandos':
-                if (!msg.key.fromMe) return; 
+                if (chatJid.endsWith('@g.us')) {
+                    const remitente = msg.key.participant || chatJid;
+                    let esAdmin = msg.key.fromMe;
+                    if (!esAdmin) {
+                        try {
+                            const groupMeta = await sock.groupMetadata(chatJid);
+                            const part = groupMeta.participants.find(p => p.id === remitente);
+                            esAdmin = part && (part.admin === 'admin' || part.admin === 'superadmin');
+                        } catch (e) {}
+                    }
+                    if (!esAdmin) {
+                        await sock.sendMessage(chatJid, { text: `❌ Solo los administradores del grupo pueden configurar los comandos.` }, { quoted: msg });
+                        return;
+                    }
+                } else if (!msg.key.fromMe) {
+                    return; // Si es un chat privado y no eres tú, ignorar
+                }
+                
                 if (args.length === 0 || args[0] === 'todos') {
                     await Config.deleteOne({ clave: `comandos_${chatJid}` });
                     await sock.sendMessage(chatJid, { text: '✅ Todos los comandos han sido activados en este grupo.' }, { quoted: msg });
