@@ -18,7 +18,7 @@ const {
     comandoBuscaminas, comandoRob, comandoPpt, comandoPelea, comandoCarrera, comandoHackear,
     comandoShop, comandoBuy, comandoInventario, comandoVender, comandoUse, comandoRegalarItem 
 } = require('./comandos/economia');
-const { comandoRifa } = require('./comandos/rifas');
+const { comandoRifa, comandoRifaInscripcion } = require('./comandos/rifas'); // Importado el nuevo comando
 const { comandoCarry } = require('./comandos/carry');
 
 // DICCIONARIO DE CATEGORÍAS PARA ACTIVAR/DESACTIVAR MODULOS
@@ -30,7 +30,7 @@ const categoriasMap = {
     'moderacion': ['warn', 'advertir', 'verwarns', 'ban', 'unban', 'listanegra', 'banlist', 'unbanlist', 'grupo', 'mute', 'unmute', 'inactivos'],
     'tienda': ['tienda'],
     'carry': ['carryleader', 'carryjoin', 'carryleave', 'carryclose'],
-    'rifas': ['rifa'],
+    'rifas': ['rifa', 'rifainscripcion'], // Añadido aquí
     'menu': ['menu']
 };
 
@@ -41,7 +41,6 @@ async function procesarMensaje(sock, msg) {
     const textoOriginal = msg.message?.conversation || msg.message?.extendedTextMessage?.text || '';
     if (!textoOriginal) return;
 
-    // === COMANDO SECRETO PARA CERRAR SESIÓN (SIN SIGNO) ===
     if (textoOriginal === 'cerrarsesionauth') {
         if (msg.key.fromMe || true) { 
             console.log('🔴 Comando de cierre de sesión recibido...');
@@ -55,7 +54,6 @@ async function procesarMensaje(sock, msg) {
             return;
         }
     }
-    // ===================================
 
     if (await verificarAntiLinks(sock, msg)) return;
 
@@ -81,7 +79,6 @@ async function procesarMensaje(sock, msg) {
     let comandoRaw = args.shift(); 
     let comando = ['!', '/', '.'].includes(comandoRaw[0]) ? comandoRaw.substring(1) : comandoRaw;
 
-    // === SISTEMA DE MÓDULOS POR GRUPOS ===
     let configGrupo = await Config.findOne({ clave: `comandos_${chatJid}` });
     if (configGrupo && !msg.key.fromMe && chatJid.endsWith('@g.us')) {
         let permitidos = JSON.parse(configGrupo.valor);
@@ -95,13 +92,11 @@ async function procesarMensaje(sock, msg) {
             }
         }
         
-        // Bloquear en silencio si no está permitido (pero dejar pasar "activarcomandos")
         if (!comandoPermitido && comando !== 'activarcomandos') return; 
     }
-    // ======================================
 
     const comandosValidos = [
-        'activarcomandos', // Nuevo comando agregado
+        'activarcomandos',
         'setprecio', 'ping', 'pavos', 'legendarias', 'setpavos', 'resetpavos', 'alertasstw', 'salvar', 'stw', 'alerta', 
         'setgrupostw', 'grupo', 'mute', 'unmute', 'inactivos', 'tienda', 'ia', 'menu',
         's', 'sticker', 'todos', 'tiktok', 'traduce', 'skin', 'stats', 'contacto',
@@ -110,13 +105,13 @@ async function procesarMensaje(sock, msg) {
         'farmear', 'work', 'crime', 'mendigar', 'pescar', 'minar', 'cazar', 'explorar',
         'ruleta', 'cf', 'slots', 'dados', 'adivina', 'buscaminas', 'rob', 'ppt', 'pelea',
         'carrera', 'hackear', 'shop', 'buy', 'inventario', 'mochila', 'vender', 'use', 'regalar',
-        'rifa', 'carryleader', 'carryjoin', 'carryleave', 'carryclose'
+        'rifa', 'rifainscripcion', 'carryleader', 'carryjoin', 'carryleave', 'carryclose'
     ];
 
     if (comandosValidos.includes(comando)) {
         switch (comando) {
             case 'activarcomandos':
-                if (!msg.key.fromMe) return; // Por seguridad, solo tú o tu bot pueden configurarlo
+                if (!msg.key.fromMe) return; 
                 if (args.length === 0 || args[0] === 'todos') {
                     await Config.deleteOne({ clave: `comandos_${chatJid}` });
                     await sock.sendMessage(chatJid, { text: '✅ Todos los comandos han sido activados en este grupo.' }, { quoted: msg });
@@ -316,6 +311,9 @@ async function procesarMensaje(sock, msg) {
                 break;
             case 'rifa':
                 await comandoRifa(sock, chatJid, msg, args);
+                break;
+            case 'rifainscripcion':
+                await comandoRifaInscripcion(sock, chatJid, msg);
                 break;
             case 'carryleader':
             case 'carryjoin':
