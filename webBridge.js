@@ -1,6 +1,7 @@
 require('dotenv').config();
 const axios = require('axios');
-const cheerio = require('cheerio');
+const cheerio =*/ require('cheerio'); // (mantén tu importación normal de cheerio)
+const cheerioLoad = require('cheerio');
 const { Config } = require('./database/modelos');
 
 let chatWhatsAppActivo = null;
@@ -9,13 +10,13 @@ let sockWhatsApp = null;
 function traducirYFormatearRecompensas(texto) {
     let t = texto;
     const traducciones = {
-        'Epic Perk-up': 'Perk-Up Épico',
-        'Legendary Perk-up': 'Perk-Up Legendario',
-        'Rare Perk-up': 'Perk-Up Raro',
-        'Uncommon Perk-up': 'Perk-Up Poco común',
-        'AMP-UP': 'Amp-Up',
-        'FROST-UP': 'Frost-Up',
-        'FIRE-UP': 'Fire-Up',
+        'Epic PERK-UP!': 'Perk-Up Épico',
+        'Legendary PERK-UP!': 'Perk-Up Legendario',
+        'Rare PERK-UP!': 'Perk-Up Raro',
+        'Uncommon PERK-UP!': 'Perk-Up Poco común',
+        'AMP-UP!': 'Amp-Up',
+        'FROST-UP!': 'Frost-Up',
+        'FIRE-UP!': 'Fire-Up',
         'RE-PERK!': 'Re-Perk!',
         'Eye of the Storm': 'Ojo de la Tormenta',
         'Pure Drop of Rain': 'Gota de Lluvia Pura',
@@ -24,12 +25,14 @@ function traducirYFormatearRecompensas(texto) {
         'Schematic XP': 'XP de Esquema',
         'Hero XP': 'XP de Héroe',
         'Survivor XP': 'XP de Superviviente',
+        'Venture XP': 'XP de Aventura',
         'Gold': 'Oro',
         'Tickets': 'Tickets',
         'Legendary Survivor': 'Superviviente Legendario',
         'Epic Survivor': 'Superviviente Épico',
         'Legendary Defender': 'Defensor Legendario',
-        'Epic Defender': 'Defensor Épico'
+        'Epic Defender': 'Defensor Épico',
+        'Base Reward': 'Recompensa Base'
     };
     for (const [ing, esp] of Object.entries(traducciones)) {
         t = t.replace(new RegExp(ing, 'gi'), esp);
@@ -39,7 +42,7 @@ function traducirYFormatearRecompensas(texto) {
 
 async function extraerAlertasAPI() {
     try {
-        console.log(`\n--- 🌐 RASPADO QUIRÚRGICO (FILTRO DE CONTENEDORES MÚLTIPLES) ---`);
+        console.log(`\n--- 🌐 RASPADO ESTILO POPMATIC EN CURSO ---`);
         const urlObjetivo = 'https://stw-planner.com/mission-alerts';
         
         const response = await axios.get(urlObjetivo, {
@@ -48,48 +51,42 @@ async function extraerAlertasAPI() {
             }
         });
 
-        const html = response.data;
-        const $ = cheerio.load(html);
-
+        const $ = cheerioLoad.load(response.data);
         let legendariasMap = new Map();
 
         const keywordsMisiones = [
             'fight the storm', 'retrieve the data', 'repair the shelter', 
             'ride the lightning', 'evacuate the shelter', 'deliver the bomb', 
-            'resupply', 'eliminate and collect', 'rescue the survivors', 'hit the road', 'atlas'
+            'resupply', 'eliminate and collect', 'rescue the survivors', 'hit the road', 'atlas', 'trap storm'
         ];
 
-        // Analizamos elementos pequeños o tarjetas individuales
-        $('div, article, li, tr').each((i, el) => {
-            // Ignoramos si el elemento tiene sub-elementos que también son contenedores grandes
-            if ($(el).find('div, article').length > 3) return;
-
+        // Buscamos contenedores que actúen como tarjetas individuales
+        $('div, article').each((i, el) => {
             const txt = $(el).text().replace(/\s+/g, ' ').trim();
-
-            // Ignorar textos que pertenecen a encabezados o categorías generales de la web
-            if (txt.includes('MegaAlert') || txt.includes('STW_') || txt.includes('Stonewood') || txt.includes('Plankerton')) return;
-
-            // Buscamos cuántas veces aparece un número de nivel de poder de 3 dígitos (140 o 160) en el texto
-            const nivelesEnTexto = txt.match(/\b(140|160)\b/g);
-
-            // 🎯 REGLA ESTRICTA: El texto debe tener EXACTAMENTE una sola mención del nivel 140 o 160 
-            // (esto evita por completo que agarre bloques que agrupan varias misiones juntas).
-            if (nivelesEnTexto && nivelesEnTexto.length === 1) {
-                const pl = nivelesEnTexto[0];
+            
+            // Verificamos si la tarjeta contiene el nivel 140 o 160 de forma aislada
+            const plMatch = txt.match(/\b(140|160)\b/);
+            
+            if (plMatch && $(el).children().length < 10) {
+                const pl = plMatch[1];
                 const kwEncontrada = keywordsMisiones.find(k => txt.toLowerCase().includes(k));
 
-                if (kwEncontrada && txt.length < 250) {
+                if (kwEncontrada && txt.length > 15 && txt.length < 350) {
                     let nombreMision = kwEncontrada.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
-                    let textoTraducido = traducirYFormatearRecompensas(txt);
+                    let textoLimpio = traducirYFormatearRecompensas(txt);
 
-                    let claveUnica = `${pl}-${nombreMision}-${txt.substring(0, 20)}`;
+                    let claveUnica = `${pl}-${nombreMision}-${txt.substring(0, 25)}`;
 
                     if (!legendariasMap.has(claveUnica)) {
-                        let etiqueta = pl === '160' ? '🔴 Nivel 160 (Supercargador)' : '⭐ Nivel 140';
+                        let etiqueta = pl === '160' ? '🔴 Nivel 160 (Supercargador)' : '⭐ Nivel 140 (Ventures/Cumbres)';
+                        
+                        // Imprimimos en la consola de Render lo que va detectando para depurar
+                        console.log(`🔍 [DETECTADO] PL: ${pl} | Misión: ${nombreMision}`);
+
                         legendariasMap.set(claveUnica, {
                             pl,
                             mision: nombreMision,
-                            recompensa: `${etiqueta}\n🎯 Misión: ${nombreMision}\n🎁 Recompensas:\n${textoTraducido}`
+                            recompensa: `${etiqueta}\n🎯 *Misión:* ${nombreMision} ⚡ ${pl}\n🎁 *Recompensas:*\n${textoLimpio}`
                         });
                     }
                 }
@@ -98,15 +95,15 @@ async function extraerAlertasAPI() {
 
         const legendariasList = Array.from(legendariasMap.values());
 
-        // Guardar en MongoDB de forma limpia
+        // Guardar en MongoDB
         await Config.findOneAndUpdate({ clave: 'stw_pavos_activos' }, { valor: JSON.stringify([]) }, { upsert: true });
         await Config.findOneAndUpdate({ clave: 'stw_epicas_activas' }, { valor: JSON.stringify([]) }, { upsert: true });
         await Config.findOneAndUpdate({ clave: 'stw_legendarias_activas' }, { valor: JSON.stringify(legendariasList) }, { upsert: true });
         
-        console.log(`✅ [STW QUIRÚRGICO] Total exacto guardado -> Nivel 140 y 160: ${legendariasList.length}`);
+        console.log(`✅ [EXTRACCIÓN EXITOSA] Total de misiones de nivel alto encontradas: ${legendariasList.length}`);
 
     } catch (e) {
-        console.error("❌ Error procesando STW Planner:", e.message);
+        console.error("❌ Error en el raspado:", e.message);
     }
 }
 
@@ -121,4 +118,4 @@ function vincularChatWhatsApp(chatId) {
     console.log(`🔗 Chat vinculado: ${chatId}`);
 }
 
-module.exports = { iniciarPuenteDiscord, vincularChatWhatsApp };
+module.exports = { iniciarPuenteDiscord, vincularChatWhatsApp, extraerAlertasAPI };
