@@ -46,7 +46,8 @@ function traducirRecompensas(texto) {
         'Legendary Survivor': 'Superviviente Legendario',
         'Epic Survivor': 'Superviviente Épico',
         'Legendary Defender': 'Defensor Legendario',
-        'Epic Defender': 'Defensor Épico'
+        'Epic Defender': 'Defensor Épico',
+        'Base Reward': 'Recompensa Base'
     };
     for (const [ing, esp] of Object.entries(traducciones)) {
         t = t.replace(new RegExp(ing, 'gi'), esp);
@@ -56,7 +57,7 @@ function traducirRecompensas(texto) {
 
 async function extraerAlertasAPI() {
     try {
-        console.log(`\n--- 🌐 RASPADO CON FORMATO EXACTO EN ESPAÑOL ---`);
+        console.log(`\n--- 🌐 RASPADO DE BLOQUES EXACTOS (ESTILO TARJETA) ---`);
         const urlObjetivo = 'https://stw-planner.com/mission-alerts';
         
         const response = await axios.get(urlObjetivo, {
@@ -80,8 +81,11 @@ async function extraerAlertasAPI() {
             'lightning in a bottle', 'survivor', 'defender', 'v-buck', 'pavo', 'uncommon', 'rare', 'epic', 'legendary'
         ];
 
+        // Buscamos contenedores de tarjeta y preservamos saltos de línea lógicos
         $('div, article').each((i, el) => {
-            const txt = $(el).text().replace(/\s+/g, ' ').trim();
+            // Obtenemos el texto conservando una separación limpia por líneas
+            const txtOriginal = $(el).text();
+            const txt = txtOriginal.replace(/\s+/g, ' ').trim();
             const plMatch = txt.match(/\b(140|160)\b/);
             
             if (plMatch && $(el).children().length <= 8) {
@@ -89,19 +93,21 @@ async function extraerAlertasAPI() {
                 const kwEncontrada = keywordsMisiones.find(k => txt.toLowerCase().includes(k));
                 const tieneRecompensaUtil = recompensasValidas.some(r => txt.toLowerCase().includes(r));
 
-                if (kwEncontrada && tieneRecompensaUtil && txt.length > 20 && txt.length < 300) {
+                if (kwEncontrada && tieneRecompensaUtil && txt.length > 20 && txt.length < 350) {
                     let nombreMision = kwEncontrada.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
-                    let textoLimpio = traducirRecompensas(txt);
+                    
+                    // Extraemos y traducimos el bloque interno manteniendo orden
+                    let bloqueLimpio = traducirRecompensas(txtOriginal.replace(/\s*\n\s*/g, '\n').trim());
 
                     let claveUnica = `${pl}-${nombreMision}-${txt.substring(0, 20)}`;
 
                     if (!legendariasMap.has(claveUnica)) {
                         let etiqueta = pl === '160' ? '🔴 Nivel 160 (Supercargador)' : '⭐ Nivel 140 (Ventures/Cumbres)';
 
-                        // 🎯 Formato idéntico al que solicitaste
+                        // Estructura exacta basada en el bloque de la tarjeta
                         let tarjetaFormateada = `⚡ *PL:* ${pl} | 🎯 *Misión:* ${nombreMision}\n` +
                                                 `🎁 *Recompensa:* ${etiqueta}\n` +
-                                                `${textoLimpio}`;
+                                                `${bloqueLimpio}`;
 
                         legendariasMap.set(claveUnica, {
                             pl: pl,
@@ -115,12 +121,12 @@ async function extraerAlertasAPI() {
 
         const legendariasList = Array.from(legendariasMap.values());
 
-        // Guardar estructurado en MongoDB para que index.js lo lea sin errores
+        // Guardar en MongoDB
         await Config.findOneAndUpdate({ clave: 'stw_pavos_activos' }, { valor: JSON.stringify([]) }, { upsert: true });
         await Config.findOneAndUpdate({ clave: 'stw_epicas_activas' }, { valor: JSON.stringify([]) }, { upsert: true });
         await Config.findOneAndUpdate({ clave: 'stw_legendarias_activas' }, { valor: JSON.stringify(legendariasList) }, { upsert: true });
         
-        console.log(`✅ [FORMATO EXACTO] Total de misiones guardadas: ${legendariasList.length}`);
+        console.log(`✅ [BLOQUES EXACTOS] Total de misiones guardadas: ${legendariasList.length}`);
 
     } catch (e) {
         console.error("❌ Error en la extracción:", e.message);
