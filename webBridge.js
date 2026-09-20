@@ -6,25 +6,33 @@ const { Config } = require('./database/modelos');
 let chatWhatsAppActivo = null;
 let sockWhatsApp = null;
 
-function traducirRecompensas(texto) {
+function traducirTexto(texto) {
     let t = texto;
     const traducciones = {
-        'uncommon': 'poco común',
-        'rare': 'raro',
-        'epic': 'épico',
-        'legendary': 'legendario',
-        'defender': 'defensor',
-        'survivor': 'superviviente',
-        'lead': 'líder',
-        'grasslands': 'Praderas',
-        'thunder route 99': 'Ruta del Trueno 99',
-        'industrial park': 'Parque Industrial',
-        'suburbs': 'Suburbios',
-        'lakeside': 'Orilla del Lago',
+        'ride the lightning': 'Ride The Lightning',
+        'evacuate the shelter': 'Evacuate The Shelter',
+        'deliver the bomb': 'Deliver The Bomb',
+        'fight the storm': 'Fight The Storm',
+        'repair the shelter': 'Repair The Shelter',
+        'resupply': 'Resupply',
+        'rescue the survivors': 'Rescue The Survivors',
+        'retrieve the data': 'Retrieve The Data',
+        'group': 'Group',
         'ghost town': 'Pueblo Fantasma',
+        'grasslands': 'Praderas',
+        'industrial park': 'Parque Industrial',
+        'lakeside': 'Orilla del Lago',
+        'suburbs': 'Suburbios',
+        'thunder route 99': 'Ruta del Trueno 99',
         'tropical': 'Tropical',
-        'forest': 'Bosque',
-        'autumn suburbs': 'Suburbios Otoñales',
+        'legendary survivor': 'Superviviente Legendario',
+        'epic survivor': 'Superviviente Épico',
+        'legendary defender': 'Defensor Legendario',
+        'epic defender': 'Defensor Épico',
+        'uncommon': 'Poco común',
+        'rare': 'Raro',
+        'epic': 'Épico',
+        'legendary': 'Legendario',
         'Epic PERK-UP!': 'Perk-Up Épico',
         'Legendary PERK-UP!': 'Perk-Up Legendario',
         'Rare PERK-UP!': 'Perk-Up Raro',
@@ -42,22 +50,20 @@ function traducirRecompensas(texto) {
         'Survivor XP': 'XP de Superviviente',
         'Venture XP': 'XP de Aventura',
         'Gold': 'Oro',
-        'Tickets': 'Tickets',
-        'Legendary Survivor': 'Superviviente Legendario',
-        'Epic Survivor': 'Superviviente Épico',
-        'Legendary Defender': 'Defensor Legendario',
-        'Epic Defender': 'Defensor Épico',
-        'Base Reward': 'Recompensa Base'
+        'Tickets': 'Tickets'
     };
+    
+    // Reemplazo inservible a mayúsculas/minúsculas de manera segura
     for (const [ing, esp] of Object.entries(traducciones)) {
-        t = t.replace(new RegExp(ing, 'gi'), esp);
+        const regex = new RegExp(ing, 'gi');
+        t = t.replace(regex, esp);
     }
     return t;
 }
 
 async function extraerAlertasAPI() {
     try {
-        console.log(`\n--- 🌐 RASPADO DE BLOQUES EXACTOS (ESTILO TARJETA) ---`);
+        console.log(`\n--- 🌐 RASPADO QUIRÚRGICO BASADO EN DOM ---`);
         const urlObjetivo = 'https://stw-planner.com/mission-alerts';
         
         const response = await axios.get(urlObjetivo, {
@@ -69,52 +75,45 @@ async function extraerAlertasAPI() {
         const $ = cheerio.load(response.data);
         let legendariasMap = new Map();
 
-        const keywordsMisiones = [
-            'fight the storm', 'retrieve the data', 'repair the shelter', 
-            'ride the lightning', 'evacuate the shelter', 'deliver the bomb', 
-            'resupply', 'eliminate and collect', 'rescue the survivors', 'hit the road', 'atlas', 'trap storm'
-        ];
-
-        const recompensasValidas = [
-            'perk-up', 'amp-up', 'frost-up', 'fire-up', 're-perk', 
-            'storm shard', 'eye of the storm', 'pure drop of rain', 
-            'lightning in a bottle', 'survivor', 'defender', 'v-buck', 'pavo', 'uncommon', 'rare', 'epic', 'legendary'
-        ];
-
-        // Buscamos contenedores de tarjeta y preservamos saltos de línea lógicos
-        $('div, article').each((i, el) => {
-            // Obtenemos el texto conservando una separación limpia por líneas
-            const txtOriginal = $(el).text();
-            const txt = txtOriginal.replace(/\s+/g, ' ').trim();
-            const plMatch = txt.match(/\b(140|160)\b/);
+        // Atacamos directamente el contenedor exacto de cada misión en la web
+        $('div.mission-entry').each((i, el) => {
+            const pl = $(el).find('div.mission-pl').text().trim();
             
-            if (plMatch && $(el).children().length <= 8) {
-                const pl = plMatch[1];
-                const kwEncontrada = keywordsMisiones.find(k => txt.toLowerCase().includes(k));
-                const tieneRecompensaUtil = recompensasValidas.some(r => txt.toLowerCase().includes(r));
+            // Solo nos interesan las de nivel 140 y 160
+            if (pl === '140' || pl === '160') {
+                const zonaTextoRaw = $(el).find('div.mission-zone').text().trim();
+                const zonaTexto = traducirTexto(zonaTextoRaw);
 
-                if (kwEncontrada && tieneRecompensaUtil && txt.length > 20 && txt.length < 350) {
-                    let nombreMision = kwEncontrada.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
-                    
-                    // Extraemos y traducimos el bloque interno manteniendo orden
-                    let bloqueLimpio = traducirRecompensas(txtOriginal.replace(/\s*\n\s*/g, '\n').trim());
-
-                    let claveUnica = `${pl}-${nombreMision}-${txt.substring(0, 20)}`;
-
-                    if (!legendariasMap.has(claveUnica)) {
-                        let etiqueta = pl === '160' ? '🔴 Nivel 160 (Supercargador)' : '⭐ Nivel 140 (Ventures/Cumbres)';
-
-                        // Estructura exacta basada en el bloque de la tarjeta
-                        let tarjetaFormateada = `⚡ *PL:* ${pl} | 🎯 *Misión:* ${nombreMision}\n` +
-                                                `🎁 *Recompensa:* ${etiqueta}\n` +
-                                                `${bloqueLimpio}`;
-
-                        legendariasMap.set(claveUnica, {
-                            pl: pl,
-                            mision: nombreMision,
-                            recompensa: tarjetaFormateada
-                        });
+                // Extraemos todo el texto interno de los elementos de recompensa de la tarjeta
+                let recompensaItems = [];
+                $(el).find('.mission-reward-item, .mission-reward-name').each((j, itemEl) => {
+                    const txtItem = $(itemEl).text().replace(/\s+/g, ' ').trim();
+                    if (txtItem && !recompensaItems.includes(txtItem) && txtItem.length < 30) {
+                        recompensaItems.push(txtItem);
                     }
+                });
+
+                // Limpiamos y traducimos los textos recolectados
+                const recompensaUnida = recompensaItems.map(t => traducirTexto(t)).join(' ');
+                
+                // Extraer el nombre principal de la misión para el título
+                let nombreMisionLimpio = zonaTexto.split('-')[0].replace(/Group/gi, '').trim();
+
+                let claveUnica = `${pl}-${zonaTexto}`;
+
+                if (!legendariasMap.has(claveUnica)) {
+                    let etiqueta = pl === '160' ? '🔴 Nivel 160 (Supercargador)' : '⭐ Nivel 140 (Ventures/Cumbres)';
+
+                    // Formato idéntico al solicitado
+                    let tarjetaFormateada = `⚡ *PL:* ${pl} | 🎯 *Misión:* ${nombreMisionLimpio}\n` +
+                                            `🎁 *Recompensa:* ${etiqueta}\n` +
+                                            `${pl} ${zonaTexto} ${recompensaUnida}`;
+
+                    legendariasMap.set(claveUnica, {
+                        pl: pl,
+                        mision: nombreMisionLimpio,
+                        recompensa: tarjetaFormateada
+                    });
                 }
             }
         });
@@ -126,10 +125,10 @@ async function extraerAlertasAPI() {
         await Config.findOneAndUpdate({ clave: 'stw_epicas_activas' }, { valor: JSON.stringify([]) }, { upsert: true });
         await Config.findOneAndUpdate({ clave: 'stw_legendarias_activas' }, { valor: JSON.stringify(legendariasList) }, { upsert: true });
         
-        console.log(`✅ [BLOQUES EXACTOS] Total de misiones guardadas: ${legendariasList.length}`);
+        console.log(`✅ [EXTRACCIÓN DOM EXITOSA] Total de misiones de nivel alto procesadas: ${legendariasList.length}`);
 
     } catch (e) {
-        console.error("❌ Error en la extracción:", e.message);
+        console.error("❌ Error en la extracción por DOM:", e.message);
     }
 }
 
