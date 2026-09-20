@@ -1,7 +1,6 @@
 require('dotenv').config();
 const axios = require('axios');
-const cheerio =*/ require('cheerio'); // (mantén tu importación normal de cheerio)
-const cheerioLoad = require('cheerio');
+const cheerio = require('cheerio');
 const { Config } = require('./database/modelos');
 
 let chatWhatsAppActivo = null;
@@ -51,7 +50,7 @@ async function extraerAlertasAPI() {
             }
         });
 
-        const $ = cheerioLoad.load(response.data);
+        const $ = cheerio.load(response.data);
         let legendariasMap = new Map();
 
         const keywordsMisiones = [
@@ -60,11 +59,8 @@ async function extraerAlertasAPI() {
             'resupply', 'eliminate and collect', 'rescue the survivors', 'hit the road', 'atlas', 'trap storm'
         ];
 
-        // Buscamos contenedores que actúen como tarjetas individuales
         $('div, article').each((i, el) => {
             const txt = $(el).text().replace(/\s+/g, ' ').trim();
-            
-            // Verificamos si la tarjeta contiene el nivel 140 o 160 de forma aislada
             const plMatch = txt.match(/\b(140|160)\b/);
             
             if (plMatch && $(el).children().length < 10) {
@@ -80,7 +76,6 @@ async function extraerAlertasAPI() {
                     if (!legendariasMap.has(claveUnica)) {
                         let etiqueta = pl === '160' ? '🔴 Nivel 160 (Supercargador)' : '⭐ Nivel 140 (Ventures/Cumbres)';
                         
-                        // Imprimimos en la consola de Render lo que va detectando para depurar
                         console.log(`🔍 [DETECTADO] PL: ${pl} | Misión: ${nombreMision}`);
 
                         legendariasMap.set(claveUnica, {
@@ -95,7 +90,6 @@ async function extraerAlertasAPI() {
 
         const legendariasList = Array.from(legendariasMap.values());
 
-        // Guardar en MongoDB
         await Config.findOneAndUpdate({ clave: 'stw_pavos_activos' }, { valor: JSON.stringify([]) }, { upsert: true });
         await Config.findOneAndUpdate({ clave: 'stw_epicas_activas' }, { valor: JSON.stringify([]) }, { upsert: true });
         await Config.findOneAndUpdate({ clave: 'stw_legendarias_activas' }, { valor: JSON.stringify(legendariasList) }, { upsert: true });
