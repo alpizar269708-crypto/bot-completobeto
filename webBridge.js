@@ -22,7 +22,7 @@ function traducirRecompensa(texto) {
 
 async function extraerAlertasAPI() {
     try {
-        console.log(`\n--- 🌐 OBTENIENDO ALERTAS DE STW PLANNER (ALTA PRECISIÓN) ---`);
+        console.log(`\n--- 🌐 OBTENIENDO ALERTAS (FILTRO ANTI-ANIDAMIENTO) ---`);
         const urlObjetivo = 'https://stw-planner.com/mission-alerts';
         
         const response = await axios.get(urlObjetivo, {
@@ -33,50 +33,79 @@ async function extraerAlertasAPI() {
 
         const html = response.data;
         const $ = cheerio.load(html);
-        let lineas = [];
-
-        // Extraemos todo el texto limpio elemento por elemento
-        $('div, span, p, tr, td, h4, h5').each((i, el) => {
-            const t = $(el).text().trim();
-            if (t.length > 2 && !t.includes('©') && !t.includes('Twigsby') && !t.includes('Cookie')) {
-                lineas.push(t);
-            }
-        });
 
         let pavosList = [];
         let epicasList = [];
         let legendariasList = [];
 
-        // Buscamos de forma exacta las líneas que contengan las misiones de 140 y 160
-        for (let i = 0; i < lineas.length; i++) {
-            let actual = lineas[i];
+        const keywordsMisiones = [
+            'fight the storm', 'retrieve the data', 'repair the shelter', 
+            'ride the lightning', 'evacuate the shelter', 'deliver the bomb', 
+            'resupply', 'eliminate and collect', 'rescue the survivors', 'hit the road'
+        ];
 
-            // Si detectamos una línea que sea exactamente 140 o 160
-            if (actual === '140' || actual === '160') {
-                let nivelPoder = actual;
-                let nombreMision = lineas[i - 1] || 'Misión Cumbres';
-                let recompensaTexto = traducirRecompensa(nombreMision);
+        let tarjetasMisiones = [];
 
-                let etiqueta = nivelPoder === '160' ? '🔴 Nivel 160 (Supercargador)' : '⭐ Nivel 140';
-                
-                // Evitamos duplicados si el mismo bloque se repite en el HTML
-                let claveUnica = `${nivelPoder}-${nombreMision}`;
-                if (!legendariasList.some(m => `${m.pl}-${m.mision}` === claveUnica)) {
-                    legendariasList.push({
-                        pl: nivelPoder,
-                        mision: nombreMision,
-                        recompensa: `${etiqueta} | ${recompensaTexto}`
-                    });
+        // Buscamos cualquier elemento en el DOM
+        $('*').each((i, el) => {
+            const textoBloque = $(el).text().replace(/\s+/g, ' ').trim();
+            
+            const tieneMision = keywordsMisiones.some(k => textoBloque.toLowerCase().includes(k));
+            const matchPl = textoBloque.match(/(?:⚡|PL)?\s*(\d{2,3})\b/);
+
+            if (tieneMision && matchPl) {
+                // Verificamos que ninguno de los hijos tenga la misma info (nos aseguramos de llegar al elemento más específico)
+                const tieneHijosConMision = $(el).children().toArray().some(child => {
+                    const childText = $(child).text().toLowerCase();
+                    return keywordsMisiones.some(k => childText.includes(k));
+                });
+
+                // Si es un nodo específico (no un contenedor gigante) y tiene un tamaño de texto coherente de tarjeta
+                if (!tieneHijosConMision && textoBloque.length < 250) {
+                    const pl = matchPl[1];
+                    const numPl = parseInt(pl);
+
+                    if (numPl >= 1 && numPl <= 160) {
+                        if (!tarjetasMisiones.some(t => t.texto === textoBloque)) {
+                            tarjetasMisiones.push({ pl, texto: textoBloque });
+                        }
+                    }
                 }
             }
-        }
+        });
+
+        tarjetasMisiones.forEach(item => {
+            let numPl = parseInt(item.pl);
+            let misionTexto = item.texto;
+            let recLower = misionTexto.toLowerCase();
+            let recompensaTraducida = traducirRecompensa(misionTexto);
+
+            if (recLower.includes('v-buck') || recLower.includes('vbuck') || recLower.includes('pavo')) {
+                const cantMatch = misionTexto.match(/(\d+)/);
+                const cantidad = cantMatch ? parseInt(cantMatch[1]) : 50;
+                pavosList.push({ pl: item.pl, mision: misionTexto, cantidad, recompensa: 'PaVos', tipo: 'STW Planner' });
+            } else if ((recLower.includes('epic') || recLower.includes('épico')) && numPl < 140) {
+                epicasList.push({ pl: item.pl, mision: misionTexto, recompensa: `🟣 Épico | ${recompensaTraducida}` });
+            } else if (numPl >= 140 || recLower.includes('legendary') || recLower.includes('legendario') || recLower.includes('mythic') || recLower.includes('mítico')) {
+                let etiqueta = numPl === 160 ? '🔴 Nivel 160 (Supercargador)' : (numPl === 140 ? '⭐ Nivel 140' : '🟠 Legendario');
+                if (recLower.includes('mythic') || recLower.includes('mítico')) {
+                    etiqueta = '🟡 Mítico';
+                }
+
+                legendariasList.push({
+                    pl: item.pl,
+                    mision: misionTexto,
+                    recompensa: `${etiqueta} | ${recompensaTraducida}`
+                });
+            }
+        });
 
         // Guardar en MongoDB
         await Config.findOneAndUpdate({ clave: 'stw_pavos_activos' }, { valor: JSON.stringify(pavosList) }, { upsert: true });
         await Config.findOneAndUpdate({ clave: 'stw_epicas_activas' }, { valor: JSON.stringify(epicasList) }, { upsert: true });
         await Config.findOneAndUpdate({ clave: 'stw_legendarias_activas' }, { valor: JSON.stringify(legendariasList) }, { upsert: true });
         
-        console.log(`✅ [STW PLANNER ÉXITO] Guardado exacto -> PaVos: ${pavosList.length} | Nivel 140 y 160 detectados: ${legendariasList.length}`);
+        console.log(`✅ [STW PLANNER PRECISO] Guardado limpio -> PaVos: ${pavosList.length} | Épicas: ${epicasList.length} | Legendarias y Altas (140/160): ${legendariasList.length}`);
 
     } catch (e) {
         console.error("❌ Error procesando STW Planner:", e.message);
