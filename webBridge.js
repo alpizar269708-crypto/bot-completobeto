@@ -39,7 +39,7 @@ function traducirYFormatearRecompensas(texto) {
 
 async function extraerAlertasAPI() {
     try {
-        console.log(`\n--- 🌐 RASPADO ÚNICO Y ESTRICTO DE STW PLANNER ---`);
+        console.log(`\n--- 🌐 RASPADO ESTRICTO (SOLO INICIO 140/160) ---`);
         const urlObjetivo = 'https://stw-planner.com/mission-alerts';
         
         const response = await axios.get(urlObjetivo, {
@@ -51,7 +51,7 @@ async function extraerAlertasAPI() {
         const html = response.data;
         const $ = cheerio.load(html);
 
-        let legendariasMap = new Map(); // Estructura para asegurar 100% de unicidad sin duplicados
+        let legendariasMap = new Map();
 
         const keywordsMisiones = [
             'fight the storm', 'retrieve the data', 'repair the shelter', 
@@ -59,24 +59,24 @@ async function extraerAlertasAPI() {
             'resupply', 'eliminate and collect', 'rescue the survivors', 'hit the road', 'atlas'
         ];
 
-        // Analizamos contenedores individuales limitando la profundidad para evitar duplicados por anidamiento
+        // Analizamos contenedores individuales
         $('div, article, li, tr').each((i, el) => {
-            // Ignoramos contenedores gigantes que agrupan toda la página
             if ($(el).children().length > 15) return; 
 
             const txt = $(el).text().replace(/\s+/g, ' ').trim();
-            const plMatch = txt.match(/\b(140|160)\b/);
+            
+            // 🎯 CAMBIO CLAVE: El texto DEBE COMENZAR exactamente con 140 o 160 (con o sin rayo ⚡)
+            const plMatch = txt.match(/^\s*(?:⚡\s*)?(140|160)\b/);
 
             if (plMatch) {
                 const pl = plMatch[1];
                 const kwEncontrada = keywordsMisiones.find(k => txt.toLowerCase().includes(k));
 
-                if (kwEncontrada && txt.length < 250 && txt.length > 10) {
+                if (kwEncontrada && txt.length < 300 && txt.length > 10) {
                     let nombreMision = kwEncontrada.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
                     let textoTraducido = traducirYFormatearRecompensas(txt);
 
-                    // Clave única estricta basada en el Nivel de Poder y el fragmento principal de la misión
-                    let claveUnica = `${pl}-${txt.substring(0, 30).trim()}`;
+                    let claveUnica = `${pl}-${txt.substring(0, 35).trim()}`;
 
                     if (!legendariasMap.has(claveUnica)) {
                         let etiqueta = pl === '160' ? '🔴 Nivel 160 (Supercargador)' : '⭐ Nivel 140';
@@ -97,7 +97,7 @@ async function extraerAlertasAPI() {
         await Config.findOneAndUpdate({ clave: 'stw_epicas_activas' }, { valor: JSON.stringify([]) }, { upsert: true });
         await Config.findOneAndUpdate({ clave: 'stw_legendarias_activas' }, { valor: JSON.stringify(legendariasList) }, { upsert: true });
         
-        console.log(`✅ [STW EXITO] Total exacto guardado -> Nivel 140 y 160: ${legendariasList.length}`);
+        console.log(`✅ [STW ESTRICTO] Total exacto guardado -> Nivel 140 y 160: ${legendariasList.length}`);
 
     } catch (e) {
         console.error("❌ Error procesando STW Planner:", e.message);
