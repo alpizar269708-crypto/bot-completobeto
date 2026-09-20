@@ -27,12 +27,12 @@ async function esAdminValido(sock, chatId, msg) {
     return false;
 }
 
-// 🌐 EXTRACTOR VÍA API / JSON (Robusto y sin depender de HTML)
+// 🌐 EXTRACTOR ADAPTADO A STW-PLANNER
 async function obtenerAlertasSTW() {
     let pavos = [];
     let legendarias = []; 
 
-    // 1. Cargar manuales (Respaldo inmediato si quieres forzar alguna)
+    // 1. Cargar manuales de respaldo
     try {
         let manualPavos = await Config.findOne({ clave: 'stw_pavos_activos' });
         if (manualPavos && manualPavos.valor) pavos = pavos.concat(JSON.parse(manualPavos.valor));
@@ -41,26 +41,76 @@ async function obtenerAlertasSTW() {
         if (manualLegendarias && manualLegendarias.valor) legendarias = legendarias.concat(JSON.parse(manualLegendarias.valor));
     } catch (e) {}
 
-    // 2. Consulta a API Directa (Fortnite-API o Endpoint JSON de respaldo)
+    // 2. Extraer de STW Planner
     try {
-        // Usamos una fuente estructurada en JSON para evitar rupturas por cambios de diseño web
-        let respuesta = await fetch('https://fortnite-api.com/v1/stw', {
-            headers: { 'User-Agent': 'Mozilla/5.0' }
+        let respuesta = await fetch('https://stw-planner.com/mission-alerts', {
+            headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' }
         });
         
-        if (respuesta.ok) {
-            let json = await respuesta.json();
-            // Procesamiento de datos limpios si la API responde correctamente
-            // (Estructura de respaldo si el endpoint está activo)
+        let html = await respuesta.text();
+        // Limpieza de etiquetas innecesarias
+        let textoPlano = html.replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').toLowerCase();
+
+        // Detección específica basada en la maquetación limpia de STW Planner
+        let misionesGuardadas = new Set();
+
+        // Buscar bloques que contengan PaVos (ej: "50" junto a zonas o iconos)
+        const regexPavosPlanner = /(\d{1,3})\s*(?:v-bucks|vbucks|pavos)/gi;
+        
+        // Como STW Planner agrupa por zonas en el texto, podemos buscar menciones de zonas y niveles de poder (PL)
+        const zonas = ['stonewood', 'plankerton', 'canny valley', 'twine peaks'];
+        
+        // Procesamiento general de líneas o bloques de texto de misiones
+        let bloques = html.split(/<\/div>|<\/section>/i);
+        for (let bloque of bloques) {
+            let txtLimpio = bloque.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').toLowerCase();
+            
+            // Detectar zona
+            let zonaEncontrada = zonas.find(z => txtLimpio.includes(z));
+            if (!zonaEncontrada) continue;
+
+            let zonaEs = zonaEncontrada === 'twine peaks' ? 'Cumbres Leñosas' : 
+                         zonaEncontrada === 'canny valley' ? 'Valle Latoso' : 
+                         zonaEncontrada === 'plankerton' ? 'Valle Plácido' : 'Bosque Pedregoso';
+
+            // Extraer PL (Nivel de poder)
+            let plMatch = txtLimpio.match(/(?:pl|⚡)\s*(\d{1,3})/);
+            let pl = plMatch ? plMatch[1] : '??';
+
+            // Detección de PaVos en el bloque
+            let pavoMatch = txtLimpio.match(/\b(25|30|35|40|50)\b/);
+            if (pavoMatch && (txtLimpio.includes('v-buck') || txtLimpio.includes('vbuck') || txtLimpio.includes('pavo'))) {
+                let cantidad = parseInt(pavoMatch[1]);
+                let idUnico = `pavo-${zonaEs}-${cantidad}-${pl}`;
+                if (!misionesGuardadas.has(idUnico) && cantidad <= 50) {
+                    misionesGuardadas.add(idUnico);
+                    pavos.push({ zona: zonaEs, cantidad: cantidad, pl: pl, mision: 'Misión con PaVos', tipo: 'Automático' });
+                }
+            }
+
+            // Detección de Legendarias / Épicas (como se ve en tus capturas de defensores/sobrevivientes)
+            if (txtLimpio.includes('legendary') || txtLimpio.includes('epic') || txtLimpio.includes('mythic')) {
+                let rareza = txtLimpio.includes('mythic') ? '🟡 Mítico' : txtLimpio.includes('legendary') ? '🟠 Legendario' : '🟣 Épico';
+                let item = txtLimpio.includes('survivor') ? 'Sobreviviente' :
+                           txtLimpio.includes('defender') ? 'Defensor' :
+                           txtLimpio.includes('hero') ? 'Héroe' :
+                           txt.includes('schematic') ? 'Esquema' : 'Recompensa Destacada';
+
+                let idUnico = `rec-${zonaEs}-${rareza}-${item}-${pl}`;
+                if (!misionesGuardadas.has(idUnico)) {
+                    misionesGuardadas.add(idUnico);
+                    legendarias.push({ zona: zonaEs, recompensa: `${rareza} | ${item}`, pl: pl, mision: 'Misión Destacada' });
+                }
+            }
         }
     } catch (e) {
-        console.error("Error conectando a la API de STW:", e);
+        console.error("Error al conectar con STW Planner:", e);
     }
 
     return { pavos, legendarias };
 }
 
-// 📱 FORMATO VISUAL EXACTO QUE TE GUSTA
+// 📱 FORMATO VISUAL EXACTO
 async function alertasSTW(sock, chatId, msg, categoria = 'todas') {
     const datos = await obtenerAlertasSTW();
     const fechaHoy = obtenerFechaActual();
@@ -74,7 +124,7 @@ async function alertasSTW(sock, chatId, msg, categoria = 'todas') {
             let totalPavos = 0;
             datos.pavos.forEach(p => {
                 totalPavos += p.cantidad;
-                texto += `📍 *${p.zona}*\n🪙 *PaVos:* ${p.cantidad}\n⚡ *PL:* ${p.pl}\n🎯 *Misión:* ${p.mision} ${p.tipo ? `_(${p.tipo})_` : ''}\n\n`;
+                texto += `📍 *${p.zona}*\n🪙 *PaVos:* ${p.cantidad}\n⚡ *PL:* ${p.pl}\n🎯 *Misión:* ${p.mision}\n\n`;
             });
             texto += `💰 *Total del día:* ${totalPavos} paVos\n\n`;
         }
@@ -86,20 +136,16 @@ async function alertasSTW(sock, chatId, msg, categoria = 'todas') {
             texto += `_No hay alertas legendarias registradas hoy._\n\n`;
         } else {
             datos.legendarias.forEach(L => {
-                texto += `📍 *${L.zona}*\n🎁 *Da:* ${L.recompensa}\n⚡ *PL:* ${L.pl}\n🎯 *Misión:* ${L.mision}\n\n`;
+                texto += `📍 *${L.zona}*\n🎁 *Da:* ${L.recompensa}\n⚡ *PL:* ${L.pl}\n\n`;
             });
         }
-    }
-
-    if (categoria !== 'pavos' && categoria !== 'legendarias' && categoria !== 'todas' && categoria !== 'importantes') {
-        texto = `🤖 *CONSULTAS DE SALVAR EL MUNDO*\n\nEscribe *!pavos* o *!legendarias* para ver las misiones activas.\n\n`;
     }
 
     texto += `Support-a-Creator: *JASC13* ❤️`;
     await sock.sendMessage(chatId, { text: texto }, { quoted: msg });
 }
 
-// ⚙️ COMANDOS MANUALES Y CRON
+// ⚙️ COMANDOS MANUALES Y CRON (Intocables)
 async function comandoSetPavos(sock, chatId, msg, args) {
     if (!(await esAdminValido(sock, chatId, msg))) return;
     const partes = args.join(' ').split('|').map(p => p.trim());
