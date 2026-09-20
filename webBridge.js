@@ -41,7 +41,7 @@ function traducirYFormatearRecompensas(texto) {
 
 async function extraerAlertasAPI() {
     try {
-        console.log(`\n--- 🌐 RASPADO ESTILO POPMATIC EN CURSO ---`);
+        console.log(`\n--- 🌐 RASPADO FILTRADO (SOLO ALERTAS REALES) ---`);
         const urlObjetivo = 'https://stw-planner.com/mission-alerts';
         
         const response = await axios.get(urlObjetivo, {
@@ -59,6 +59,13 @@ async function extraerAlertasAPI() {
             'resupply', 'eliminate and collect', 'rescue the survivors', 'hit the road', 'atlas', 'trap storm'
         ];
 
+        // Palabras clave obligatorias que indican que SÍ es una alerta de recompensa útil
+        const recompensasValidas = [
+            'perk-up', 'amp-up', 'frost-up', 'fire-up', 're-perk', 
+            'storm shard', 'eye of the storm', 'pure drop of rain', 
+            'lightning in a bottle', 'survivor', 'defender', 'v-buck', 'pavo'
+        ];
+
         $('div, article').each((i, el) => {
             const txt = $(el).text().replace(/\s+/g, ' ').trim();
             const plMatch = txt.match(/\b(140|160)\b/);
@@ -66,8 +73,11 @@ async function extraerAlertasAPI() {
             if (plMatch && $(el).children().length < 10) {
                 const pl = plMatch[1];
                 const kwEncontrada = keywordsMisiones.find(k => txt.toLowerCase().includes(k));
+                
+                // Verificamos que la tarjeta contenga alguna recompensa de alerta real
+                const tieneRecompensaUtil = recompensasValidas.some(r => txt.toLowerCase().includes(r));
 
-                if (kwEncontrada && txt.length > 15 && txt.length < 350) {
+                if (kwEncontrada && tieneRecompensaUtil && txt.length > 15 && txt.length < 350) {
                     let nombreMision = kwEncontrada.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
                     let textoLimpio = traducirYFormatearRecompensas(txt);
 
@@ -76,7 +86,7 @@ async function extraerAlertasAPI() {
                     if (!legendariasMap.has(claveUnica)) {
                         let etiqueta = pl === '160' ? '🔴 Nivel 160 (Supercargador)' : '⭐ Nivel 140 (Ventures/Cumbres)';
                         
-                        console.log(`🔍 [DETECTADO] PL: ${pl} | Misión: ${nombreMision}`);
+                        console.log(`🔍 [ALERTA VÁLIDA] PL: ${pl} | Misión: ${nombreMision}`);
 
                         legendariasMap.set(claveUnica, {
                             pl,
@@ -94,7 +104,7 @@ async function extraerAlertasAPI() {
         await Config.findOneAndUpdate({ clave: 'stw_epicas_activas' }, { valor: JSON.stringify([]) }, { upsert: true });
         await Config.findOneAndUpdate({ clave: 'stw_legendarias_activas' }, { valor: JSON.stringify(legendariasList) }, { upsert: true });
         
-        console.log(`✅ [EXTRACCIÓN EXITOSA] Total de misiones de nivel alto encontradas: ${legendariasList.length}`);
+        console.log(`✅ [EXTRACCIÓN LIMPIA] Total de alertas reales encontradas: ${legendariasList.length}`);
 
     } catch (e) {
         console.error("❌ Error en el raspado:", e.message);
@@ -109,7 +119,6 @@ function iniciarPuenteDiscord(sock) {
 
 function vincularChatWhatsApp(chatId) {
     chatWhatsAppActivo = chatId;
-    console.log(`🔗 Chat vinculado: ${chatId}`);
 }
 
 module.exports = { iniciarPuenteDiscord, vincularChatWhatsApp, extraerAlertasAPI };
