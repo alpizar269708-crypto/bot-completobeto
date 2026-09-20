@@ -22,7 +22,7 @@ function traducirRecompensa(texto) {
 
 async function extraerAlertasAPI() {
     try {
-        console.log(`\n--- 🌐 BUSCANDO DATOS INTERNOS EN STW PLANNER ---`);
+        console.log(`\n--- 🌐 OBTENIENDO ALERTAS DE STW PLANNER ---`);
         const urlObjetivo = 'https://stw-planner.com/mission-alerts';
         
         const response = await axios.get(urlObjetivo, {
@@ -37,62 +37,35 @@ async function extraerAlertasAPI() {
         let pavosList = [];
         let epicasList = [];
         let legendariasList = [];
-        let datosEncontrados = false;
 
-        // Buscamos dentro de todas las etiquetas <script> si hay un JSON con misiones
-        $('script').each((i, el) => {
-            const contenidoScript = $(el).html() || '';
-            if (contenidoScript.includes('160') || contenidoScript.includes('140') || contenidoScript.includes('mission')) {
-                // Intentamos extraer bloques que parezcan arrays u objetos de misiones
-                const matches = contenidoScript.match(/\{[^}]*["'](?:powerLevel|plin|mission|reward)[^}]*\}/g);
-                if (matches) {
-                    datosEncontrados = true;
-                    matches.forEach(m => {
-                        if (m.includes('160') || m.includes('140') || m.toLowerCase().includes('v-buck') || m.toLowerCase().includes('legendary')) {
-                            let textoLimpio = traducirRecompensa(m);
-                            if (m.includes('160')) {
-                                legendariasList.push({ pl: '160', mision: 'Misión Nivel 160 (Supercargador)', recompensa: '🔴 Nivel 160 | ' + textoLimpio });
-                            } else if (m.includes('140')) {
-                                legendariasList.push({ pl: '140', mision: 'Misión Nivel 140', recompensa: '⭐ Nivel 140 | ' + textoLimpio });
-                            }
-                        }
+        // Buscamos elementos que contengan el nivel 140 o 160 y un guión (estructura típica de misión)
+        $('*').each((i, el) => {
+            const txt = $(el).text().replace(/\s+/g, ' ').trim();
+            const plMatch = txt.match(/\b(140|160)\b/);
+
+            if (plMatch && txt.includes('-') && txt.length < 180) {
+                const pl = plMatch[1];
+                
+                // Clave única basada en los primeros caracteres para evitar duplicados por anidamiento HTML
+                const clave = `${pl}-${txt.substring(0, 35)}`;
+                
+                if (!legendariasList.some(item => `${item.pl}-${item.mision.substring(0, 35)}` === clave)) {
+                    let etiqueta = pl === '160' ? '🔴 Nivel 160 (Supercargador)' : '⭐ Nivel 140';
+                    legendariasList.push({
+                        pl,
+                        mision: txt,
+                        recompensa: `${etiqueta} | ${traducirRecompensa(txt)}`
                     });
                 }
             }
         });
-
-        // Si el método de scripts no capturó por formato, hacemos un respaldo rápido buscando textos directos de tarjetas
-        if (legendariasList.length === 0) {
-            console.log("⚠️ Extrayendo por estructura visual directa...");
-            // Buscamos elementos que contengan la estructura de Cumbres (PL 140 y 160)
-            $('*').each((i, el) => {
-                const txt = $(el).text().trim();
-                if ((txt.includes('140') || txt.includes('160')) && (txt.includes('Fight the Storm') || txt.includes('Retrieve the Data') || txt.includes('Repair the Shelter') || txt.includes('Ride the Lightning'))) {
-                    if (txt.length < 150) {
-                        const plMatch = txt.match(/(140|160)/);
-                        if (plMatch) {
-                            const pl = plMatch[1];
-                            const clave = `${pl}-${txt}`;
-                            if (!legendariasList.some(item => `${item.pl}-${item.mision}` === clave)) {
-                                let etiqueta = pl === '160' ? '🔴 Nivel 160 (Supercargador)' : '⭐ Nivel 140';
-                                legendariasList.push({
-                                    pl,
-                                    mision: txt,
-                                    recompensa: `${etiqueta} | ${traducirRecompensa(txt)}`
-                                });
-                            }
-                        }
-                    }
-                }
-            });
-        }
 
         // Guardar en MongoDB
         await Config.findOneAndUpdate({ clave: 'stw_pavos_activos' }, { valor: JSON.stringify(pavosList) }, { upsert: true });
         await Config.findOneAndUpdate({ clave: 'stw_epicas_activas' }, { valor: JSON.stringify(epicasList) }, { upsert: true });
         await Config.findOneAndUpdate({ clave: 'stw_legendarias_activas' }, { valor: JSON.stringify(legendariasList) }, { upsert: true });
         
-        console.log(`✅ [STW PLANNER JSON/RESPALDO] PaVos: ${pavosList.length} | Épicas: ${epicasList.length} | Nivel 140 y 160: ${legendariasList.length}`);
+        console.log(`✅ [STW PLANNER] Guardado exitoso -> PaVos: ${pavosList.length} | Nivel 140 y 160 exactos: ${legendariasList.length}`);
 
     } catch (e) {
         console.error("❌ Error procesando STW Planner:", e.message);
