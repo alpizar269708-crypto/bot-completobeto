@@ -29,7 +29,7 @@ function extraerTextoDeMensaje(msg) {
     if (msg.embeds && msg.embeds.length > 0) {
         msg.embeds.forEach(embed => {
             if (embed.title) textoCompleto += '\n' + embed.title;
-            if (embed.description) textoCompleto += '\n' + embed.description;
+            if (embed.description) textoCompleto += '\n' + embed.description; // <-- Aquí viene toda la lista de Stonewood/Plankerton
             if (embed.fields && Array.isArray(embed.fields)) {
                 embed.fields.forEach(field => {
                     if (field.name) textoCompleto += '\n' + field.name;
