@@ -43,7 +43,7 @@ function obtenerEmojiYTexto(nombreClase, textoOriginal) {
 
 async function extraerAlertasAPI() {
     try {
-        console.log(`\n--- 🌐 RASPADO LIMPIO Y SIN DUPLICADOS ---`);
+        console.log(`\n--- 🌐 RASPADO CON OBJETOS ESTRUCTURADOS ---`);
         const urlObjetivo = 'https://stw-planner.com/mission-alerts';
         
         const response = await axios.get(urlObjetivo, {
@@ -105,16 +105,14 @@ async function extraerAlertasAPI() {
                 if (!legendariasMap.has(claveUnica)) {
                     let etiquetaPl = pl === '160' ? '🔴 *Nivel 160 (Supercargador)*' : '⭐ *Nivel 140 (Ventures/Cumbres)*';
 
-                    // Estructura limpia sin repetir la misión abajo
-                    let tarjetaVisual = `⚡ *PL:* ${pl} | 🎯 *Misión:* ${zonaLimpia}\n` +
-                                        `🎁 *Tipo:* ${etiquetaPl}\n` +
-                                        `${recompensasPrincipales.join(' | ')}` +
-                                        (recompensasBase.length > 0 ? `\n🏛️ *Base:* ${recompensasBase.join(' | ')}` : '');
+                    // Formateamos las recompensas manteniendo las propiedades que index.js espera
+                    let textoRecompensas = `${recompensasPrincipales.join(' | ')}` +
+                                          (recompensasBase.length > 0 ? `\n🏛️ *Base:* ${recompensasBase.join(' | ')}` : '');
 
                     legendariasMap.set(claveUnica, {
-                        pl: pl,
+                        pl: `${pl} (${etiquetaPl})`,
                         mision: zonaLimpia,
-                        recompensa: tarjetaVisual
+                        recompensa: textoRecompensas
                     });
                 }
             }
@@ -122,20 +120,12 @@ async function extraerAlertasAPI() {
 
         const legendariasList = Array.from(legendariasMap.values());
 
-        // Generar fecha actual en español
-        const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: 'America/Mexico_City' };
-        const fechaFormateada = new Date().toLocaleDateString('es-MX', options);
-
-        let mensajeCompleto = `📅 _${fechaFormateada}_\n\n🌟 *ALERTAS LEGENDARIAS*\n\n` +
-                              legendariasList.map(item => item.recompensa).join('\n\n') +
-                              `\n\nSupport-a-Creator: *JASC13* ❤️`;
-
-        // Guardar en MongoDB
+        // Guardamos los objetos correctamente estructurados en la base de datos
         await Config.findOneAndUpdate({ clave: 'stw_pavos_activos' }, { valor: JSON.stringify([]) }, { upsert: true });
         await Config.findOneAndUpdate({ clave: 'stw_epicas_activas' }, { valor: JSON.stringify([]) }, { upsert: true });
-        await Config.findOneAndUpdate({ clave: 'stw_legendarias_activas' }, { valor: JSON.stringify([mensajeCompleto]) }, { upsert: true });
+        await Config.findOneAndUpdate({ clave: 'stw_legendarias_activas' }, { valor: JSON.stringify(legendariasList) }, { upsert: true });
         
-        console.log(`✅ [TARJETAS LIMPIAS] Total de misiones procesadas: ${legendariasList.length}`);
+        console.log(`✅ [ESTRUCTURA DE OBJETOS OK] Total de misiones guardadas: ${legendariasList.length}`);
 
     } catch (e) {
         console.error("❌ Error en la extracción:", e.message);
