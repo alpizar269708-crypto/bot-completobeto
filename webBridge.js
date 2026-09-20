@@ -33,63 +33,74 @@ async function extraerAlertasAPI() {
 
         const html = response.data;
         const $ = cheerio.load(html);
-        let lineas = [];
-
-        // Recolectamos todas las líneas de texto limpias de la web
-        $('div, span, p, tr, td, h4, h5').each((i, el) => {
-            const t = $(el).text().trim();
-            if (t.length > 2 && !t.includes('©') && !t.includes('Twigsby') && !t.includes('Cookie')) {
-                lineas.push(t);
-            }
-        });
-
+        
         let pavosList = [];
         let epicasList = [];
         let legendariasList = [];
 
-        // Analizamos por parejas: [Misión, Nivel de Poder]
-        for (let i = 0; i < lineas.length - 1; i++) {
-            let actual = lineas[i];
-            let siguiente = lineas[i+1];
+        // Palabras clave obligatorias de misiones de STW para filtrar solo tarjetas reales y descartar ruido
+        const keywordsMisiones = [
+            'fight the storm', 'retrieve the data', 'repair the shelter', 
+            'ride the lightning', 'evacuate the shelter', 'deliver the bomb', 
+            'resupply', 'eliminate and collect', 'rescue the survivors', 'hit the road'
+        ];
 
-            let numPl = parseInt(siguiente);
-            // Si el siguiente valor es un Nivel de Poder válido (10 a 160)
-            if (!isNaN(numPl) && numPl >= 10 && numPl <= 160) {
-                let misionEs = actual;
-                let pl = siguiente.toString();
-                let recLower = misionEs.toLowerCase();
+        let tarjetasMisiones = [];
 
-                let recompensaTexto = traducirRecompensa(misionEs);
+        // Buscamos contenedores o bloques que agrupen la información de la misión en la web
+        $('div, section, article').each((i, el) => {
+            const textoBloque = $(el).text().replace(/\s+/g, ' ').trim();
+            
+            // Validamos que el bloque contenga una misión real de STW y un número de poder válido
+            const contieneMision = keywordsMisiones.some(k => textoBloque.toLowerCase().includes(k));
+            const matchPl = textoBloque.match(/\b([1-9][0-9]|1[0-5][0-9]|160)\b/);
+
+            if (contieneMision && matchPl) {
+                // Evitamos duplicados largos asegurando que sea el bloque principal y no sub-elementos repetidos
+                if (!tarjetasMisiones.some(t => t.texto === textoBloque)) {
+                    tarjetasMisiones.push({
+                        pl: matchPl[1],
+                        texto: textoBloque
+                    });
+                }
+            }
+        });
+
+        let misionesProcesadas = [];
+
+        tarjetasMisiones.forEach(item => {
+            let numPl = parseInt(item.pl);
+            let misionTexto = item.texto;
+            let recLower = misionTexto.toLowerCase();
+            let recompensaTraducida = traducirRecompensa(misionTexto);
+
+            // Identificador único para evitar duplicar la misma misión exacta
+            let claveUnica = `${numPl}-${misionTexto.substring(0, 40)}`;
+            if (!misionesProcesadas.includes(claveUnica)) {
+                misionesProcesadas.push(claveUnica);
 
                 if (recLower.includes('v-buck') || recLower.includes('vbuck') || recLower.includes('pavo')) {
-                    const cantMatch = misionEs.match(/(\d+)/);
+                    const cantMatch = misionTexto.match(/(\d+)/);
                     const cantidad = cantMatch ? parseInt(cantMatch[1]) : 50;
-                    pavosList.push({ pl, mision: misionEs, cantidad, recompensa: 'PaVos', tipo: 'STW Planner' });
-                } else if (recLower.includes('epic') || recLower.includes('épico')) {
-                    epicasList.push({ pl, mision: misionEs, recompensa: `🟣 Épico | ${recompensaTexto}` });
-                } else {
-                    // Capturamos todas las demás (incluyendo niveles 140 y 160, legendarias, etc.)
-                    let etiqueta = `⭐ Nivel ${pl}`;
-                    if (recLower.includes('legendary') || recLower.includes('legendario')) {
-                        etiqueta = '🟠 Legendario';
-                    } else if (recLower.includes('mythic') || recLower.includes('mítico')) {
+                    pavosList.push({ pl: item.pl, mision: misionTexto, cantidad, recompensa: 'PaVos', tipo: 'STW Planner' });
+                } else if ((recLower.includes('epic') || recLower.includes('épico')) && !recLower.includes('legendary') && numPl < 140) {
+                    epicasList.push({ pl: item.pl, mision: misionTexto, recompensa: `🟣 Épico | ${recompensaTraducida}` });
+                } else if (numPl >= 140 || recLower.includes('legendary') || recLower.includes('legendario') || recLower.includes('mythic') || recLower.includes('mítico')) {
+                    let etiqueta = numPl === 160 ? '🔴 Nivel 160 (Supercargador)' : (numPl === 140 ? '⭐ Nivel 140' : '🟠 Legendario');
+                    if (recLower.includes('mythic') || recLower.includes('mítico')) {
                         etiqueta = '🟡 Mítico';
                     }
-                    legendariasList.push({ pl, mision: misionEs, recompensa: `${etiqueta} | ${recompensaTexto}` });
+                    legendariasList.push({ pl: item.pl, mision: misionTexto, recompensa: `${etiqueta} | ${recompensaTraducida}` });
                 }
-
-                i++; // Saltamos el número de PL en la siguiente iteración
             }
-        }
+        });
 
-        if (pavosList.length > 0 || epicasList.length > 0 || legendariasList.length > 0) {
-            await Config.findOneAndUpdate({ clave: 'stw_pavos_activos' }, { valor: JSON.stringify(pavosList) }, { upsert: true });
-            await Config.findOneAndUpdate({ clave: 'stw_epicas_activas' }, { valor: JSON.stringify(epicasList) }, { upsert: true });
-            await Config.findOneAndUpdate({ clave: 'stw_legendarias_activas' }, { valor: JSON.stringify(legendariasList) }, { upsert: true });
-            console.log(`✅ [STW PLANNER EXITO] Guardado -> PaVos: ${pavosList.length} | Épicas: ${epicasList.length} | Legendarias/Altas (140-160): ${legendariasList.length}`);
-        } else {
-            console.log(`⚠️ Se leyeron las líneas pero ninguna emparejó con un PL válido.`);
-        }
+        // Guardar en la base de datos de MongoDB
+        await Config.findOneAndUpdate({ clave: 'stw_pavos_activos' }, { valor: JSON.stringify(pavosList) }, { upsert: true });
+        await Config.findOneAndUpdate({ clave: 'stw_epicas_activas' }, { valor: JSON.stringify(epicasList) }, { upsert: true });
+        await Config.findOneAndUpdate({ clave: 'stw_legendarias_activas' }, { valor: JSON.stringify(legendariasList) }, { upsert: true });
+        
+        console.log(`✅ [STW PLANNER FILTRADO] Guardado -> PaVos: ${pavosList.length} | Épicas: ${epicasList.length} | Legendarias y Altas (140-160): ${legendariasList.length}`);
 
     } catch (e) {
         console.error("❌ Error procesando STW Planner:", e.message);
