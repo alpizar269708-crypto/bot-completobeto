@@ -42,29 +42,34 @@ function extraerTextoDeMensaje(msg) {
     return textoCompleto;
 }
 
-// Procesar y buscar coincidencias con el formato de misiones
+// Procesar y buscar coincidencias con el formato de misiones adaptado a Discord
 function procesarTextoMensaje(contenidoCrudo) {
-    console.log(`\n--- 🔍 TEXTO EXTRAÍDO DE DISCORD ---\n${contenidoCrudo}\n-----------------------------------\n`);
+    console.log(`\n--- 🔍 PROCESANDO TEXTO DE DISCORD ---\n${contenidoCrudo}\n--------------------------------------\n`);
     
-    const contenido = contenidoCrudo.replace(/[*_`~]/g, '');
+    // Limpiar formato markdown excesivo pero conservar estructura de líneas
+    const contenido = contenidoCrudo.replace(/[_`~]/g, '');
     const lineas = contenido.split('\n');
     let pavosList = [];
     let legendariasList = [];
 
     lineas.forEach(linea => {
-        const match = linea.match(/(\d+)\s*⚡\s*([A-Za-z0-9]+)\s*-\s*(.+)/);
+        // Regex adaptado para leer tanto "⚡" como formato interno de Discord tipo ":zap:"
+        const match = linea.match(/(\d+)(?:⚡|:zap:)\s*([A-Za-z0-9]+)\s*-\s*(.+)/);
         if (match) {
             const pl = match[1].trim();
             const acro = match[2].trim().toLowerCase();
-            const recompensa = match[3].trim();
+            const recompensa = match[3].trim().replace(/\*\*/g, ''); // Limpiar negritas extra
             const misionEs = acroMap[acro] || match[2].trim();
             const recLower = recompensa.toLowerCase();
 
+            // Detección de PaVos
             if (recLower.includes('v-buck') || recLower.includes('vbuck') || recLower.includes('pavo')) {
                 const cantMatch = recompensa.match(/(\d+)/);
-                const cantidad = cantMatch ? parseInt(cantMatch[1]) : 30;
-                pavosList.push({ pl, mision: misionEs, cantidad, recompensa, tipo: 'Discord' });
-            } else if (recLower.includes('legendary') || recLower.includes('epic') || recLower.includes('mythic')) {
+                const cantidad = cantMatch ? parseInt(cantMatch[1]) : 50;
+                pavosList.push({ pl, mision: misionEs, cantidad, recompensa: 'V-Bucks', tipo: 'Discord' });
+            } 
+            // Detección de Épicas, Legendarias o Míticas
+            else if (recLower.includes('legendary') || recLower.includes('epic') || recLower.includes('mythic')) {
                 let colorEmoji = recLower.includes('mythic') ? '🟡 Mítico' : recLower.includes('legendary') ? '🟠 Legendario' : '🟣 Épico';
                 legendariasList.push({
                     pl,
@@ -83,12 +88,12 @@ async function guardarAlertas(pavosList, legendariasList) {
         try {
             await Config.findOneAndUpdate({ clave: 'stw_pavos_activos' }, { valor: JSON.stringify(pavosList) }, { upsert: true });
             await Config.findOneAndUpdate({ clave: 'stw_legendarias_activas' }, { valor: JSON.stringify(legendariasList) }, { upsert: true });
-            console.log(`✅ Alertas guardadas en BD -> PaVos: ${pavosList.length}, Legendarias: ${legendariasList.length}`);
+            console.log(`✅ ¡Éxito! Alertas guardadas en BD -> PaVos encontrados: ${pavosList.length}, Legendarias/Épicas encontradas: ${legendariasList.length}`);
         } catch (e) {
             console.error("❌ Error guardando en BD:", e);
         }
     } else {
-        console.log(`⚠️ Mensaje leído pero sin coincidencias con el formato de misiones.`);
+        console.log(`⚠️ Se leyó el mensaje pero la regex no capturó ninguna misión válida.`);
     }
 }
 
@@ -97,30 +102,22 @@ discordClient.on('ready', async () => {
     
     try {
         const targetChannelId = process.env.DISCORD_CHANNEL_ID;
-        console.log(`🔍 Intentando buscar el canal ID: ${targetChannelId}`);
-        
         const channel = await discordClient.channels.fetch(targetChannelId);
-        if (!channel) {
-            console.log(`❌ No se encontró el canal con ID ${targetChannelId}`);
-            return;
-        }
-        console.log(`✅ Canal encontrado: ${channel.name || 'Canal sin nombre'} (Tipo: ${channel.type})`);
-
-        const messages = await channel.messages.fetch({ limit: 10 });
-        console.log(`📥 Se obtuvieron ${messages.size} mensajes recientes del canal.`);
-
-        for (const [id, msg] of messages) {
-            const contenidoCompleto = extraerTextoDeMensaje(msg);
-            if (contenidoCompleto) {
-                const { pavosList, legendariasList } = procesarTextoMensaje(contenidoCompleto);
-                if (pavosList.length > 0 || legendariasList.length > 0) {
-                    await guardarAlertas(pavosList, legendariasList);
-                    break;
+        if (channel) {
+            const messages = await channel.messages.fetch({ limit: 15 });
+            for (const [id, msg] of messages) {
+                const contenidoCompleto = extraerTextoDeMensaje(msg);
+                if (contenidoCompleto && (contenidoCompleto.includes('⚡') || contenidoCompleto.includes('V-Bucks') || contenidoCompleto.includes('Legendary'))) {
+                    const { pavosList, legendariasList } = procesarTextoMensaje(contenidoCompleto);
+                    if (pavosList.length > 0 || legendariasList.length > 0) {
+                        await guardarAlertas(pavosList, legendariasList);
+                        break; 
+                    }
                 }
             }
         }
     } catch (e) {
-        console.error("⚠️ ERROR CRÍTICO AL LEER EL HISTORIAL DE DISCORD:", e);
+        console.error("⚠️ Error al obtener historial de Discord:", e);
     }
 });
 
@@ -128,7 +125,6 @@ discordClient.on('messageCreate', async (msg) => {
     const targetChannelId = process.env.DISCORD_CHANNEL_ID;
 
     if (msg.channel.id === targetChannelId) {
-        console.log(`📩 ¡Nuevo mensaje detectado en tiempo real en el canal de alertas!`);
         const contenidoCompleto = extraerTextoDeMensaje(msg);
         if (contenidoCompleto) {
             const { pavosList, legendariasList } = procesarTextoMensaje(contenidoCompleto);
