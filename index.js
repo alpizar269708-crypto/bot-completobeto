@@ -6,7 +6,7 @@ const pino = require('pino');
 const { procesarMensaje } = require('./messageHandler');
 const { verificarNuevoMiembro } = require('./comandos/moderacion');
 const { iniciarCronAlertasDiarias } = require('./comandos/fortnite');
-const { iniciarPuenteDiscord } = require('./discordBridge'); // <-- Integración del puente de Discord
+const { iniciarPuenteDiscord, vincularChatWhatsApp } = require('./webBridge'); // <-- 🌐 Cambiado a webBridge
 const express = require('express');
 
 const app = express();
@@ -172,7 +172,7 @@ async function arrancarSocket(metodo, numeroTelefono, onCodeReady = null) {
             
             iniciarCronAlertasDiarias(sock);
             
-            // 🚀 Inicializa el puente de Discord al abrir la conexión de WhatsApp
+            // 🚀 Inicializa el puente web de STW Planner al abrir WhatsApp
             iniciarPuenteDiscord(sock);
         }
     });
@@ -183,6 +183,11 @@ async function arrancarSocket(metodo, numeroTelefono, onCodeReady = null) {
 
         const textoCompleto = msg.message.conversation || msg.message.extendedTextMessage?.text || '';
         if (msg.key.fromMe && (textoCompleto.includes('¡Pong!') || textoCompleto.includes('🤖'))) return;
+
+        // Si quieres que el bot vincule el chat donde mandas un comando para avisos automáticos web:
+        if (textoCompleto.startsWith('setgrupostw') || textoCompleto.startsWith('!setgrupostw')) {
+            vincularChatWhatsApp(msg.key.remoteJid);
+        }
 
         await procesarMensaje(sock, msg);
     });
