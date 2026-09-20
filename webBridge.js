@@ -1,5 +1,6 @@
 require('dotenv').config();
 const axios = require('axios');
+const cheerio = require('cheerio');
 const { Config } = require('./database/modelos');
 
 let chatWhatsAppActivo = null;
@@ -36,40 +37,77 @@ function traducirRecompensa(texto) {
 
 async function extraerAlertasAPI() {
     try {
-        console.log(`\n--- 🌐 BUSCANDO ENDPOINT DE DATOS DE STW ---`);
-        
-        // Intentamos consultar rutas comunes de API o datos que suelen usar estas webs
-        // STW Planner o herramientas similares suelen consumir JSONs públicos de rotación
-        const urlsPrueba = [
-            'https://stw-planner.com/api/missions', // Posible ruta de API
-            'https://freethevbucks.com/wp-json/',   // Ejemplo de estructura JSON si aplica
-        ];
-
-        // Usaremos una petición genérica para capturar la respuesta y verla en los logs de Render
-        const urlObjetivo = 'https://stw-planner.com/mission-alerts'; // O endpoint JSON si lo detectamos
+        console.log(`\n--- 🌐 OBTENIENDO ALERTAS DE STW PLANNER ---`);
+        const urlObjetivo = 'https://stw-planner.com/mission-alerts';
         
         const response = await axios.get(urlObjetivo, {
             headers: { 
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
-                'Accept': 'application/json, text/plain, */*'
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
             }
         });
 
-        console.log(`\n--- 📦 TIPO DE RESPUESTA RECIBIDA ---`);
-        console.log(typeof response.data);
-        if (typeof response.data === 'object') {
-            console.log(JSON.stringify(response.data).substring(0, 1000));
-        } else {
-            console.log("La respuesta es texto plano o HTML. Buscando patrones de niveles 140/160...");
-            // Buscamos si en el texto plano vienen los niveles altos
-            const texto = response.data;
-            if (texto.includes('140') || texto.includes('160')) {
-                console.log("🔥 ¡Se encontraron menciones de nivel 140 o 160 en la respuesta bruta!");
+        const html = response.data;
+        const $ = cheerio.load(html);
+        let textoCrudo = '';
+
+        // Recorremos elementos contenedores de texto para extraer las misiones completas
+        $('div, span, p, tr, td').each((i, el) => {
+            const t = $(el).text().trim();
+            // Filtramos líneas que contengan indicadores de nivel o recompensas clave
+            if (t.length > 3 && t.length < 150 && (t.includes('⚡') || t.includes('140') || t.includes('160') || t.includes('V-Bucks') || t.includes('Legendary') || t.includes('Epic'))) {
+                textoCrudo += t + '\n';
             }
+        });
+
+        console.log(`\n--- 🔍 MUESTRA DE LÍNEAS FILTRADAS --- \n${textoCrudo.substring(0, 1200)}\n----------------------------------------\n`);
+
+        let pavosList = [];
+        let epicasList = [];
+        let legendariasList = [];
+
+        const lineas = textoCrudo.split('\n');
+        lineas.forEach(linea => {
+            // Buscamos patrones que incluyan niveles altos (ej. 140, 160) y niveles estándar
+            const match = linea.match(/(\d+)\s*(?:⚡)?\s*([A-Za-z0-9]+)?\s*[-–]?\s*(.+)/);
+            if (match) {
+                const pl = match[1].trim();
+                // Si el PL es válido para STW (ej. mayor a 10 y menor o igual a 160)
+                const numPl = parseInt(pl);
+                if (numPl >= 10 && numPl <= 160) {
+                    const acro = (match[2] || 'Misión').trim().toLowerCase();
+                    let recompensa = traducirRecompensa((match[3] || '').trim());
+                    const misionEs = acroMap[acro] || acro;
+                    const recLower = recompensa.toLowerCase();
+
+                    if (recLower.includes('v-buck') || recLower.includes('vbuck') || recLower.includes('pavo')) {
+                        const cantMatch = recompensa.match(/(\d+)/);
+                        const cantidad = cantMatch ? parseInt(cantMatch[1]) : 50;
+                        pavosList.push({ pl, mision: misionEs, cantidad, recompensa: 'PaVos', tipo: 'STW Planner' });
+                    } else if (recLower.includes('epic') || recLower.includes('épico')) {
+                        epicasList.push({ pl, mision: misionEs, recompensa: `🟣 Épico | ${recompensa}` });
+                    } else if (recLower.includes('legendary') || recLower.includes('legendario') || recLower.includes('mythic') || recLower.includes('mítico') || numPl >= 140) {
+                        // Capturamos también las de nivel 140 y 160 aunque el texto no diga explícitamente legendario
+                        let colorEmoji = (recLower.includes('mythic') || recLower.includes('mítico')) ? '🟡 Mítico' : '🟠 Legendario';
+                        if (numPl >= 140 && !recLower.includes('legendary') && !recLower.includes('legendario')) {
+                            colorEmoji = `⭐ Nivel Alto (${numPl})`;
+                        }
+                        legendariasList.push({ pl, mision: misionEs, recompensa: `${colorEmoji} | ${recompensa}` });
+                    }
+                }
+            }
+        });
+
+        if (pavosList.length > 0 || epicasList.length > 0 || legendariasList.length > 0) {
+            await Config.findOneAndUpdate({ clave: 'stw_pavos_activos' }, { valor: JSON.stringify(pavosList) }, { upsert: true });
+            await Config.findOneAndUpdate({ clave: 'stw_epicas_activas' }, { valor: JSON.stringify(epicasList) }, { upsert: true });
+            await Config.findOneAndUpdate({ clave: 'stw_legendarias_activas' }, { valor: JSON.stringify(legendariasList) }, { upsert: true });
+            console.log(`✅ [STW PLANNER] Alertas procesadas -> PaVos: ${pavosList.length} | Épicas: ${epicasList.length} | Legendarias/Altas: ${legendariasList.length}`);
+        } else {
+            console.log(`⚠️ Se leyó la web pero la extracción de líneas requiere un pequeño ajuste.`);
         }
 
     } catch (e) {
-        console.error("❌ Error consultando la fuente:", e.message);
+        console.error("❌ Error procesando datos de STW Planner:", e.message);
     }
 }
 
