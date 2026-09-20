@@ -9,6 +9,22 @@ let sockWhatsApp = null;
 function traducirRecompensas(texto) {
     let t = texto;
     const traducciones = {
+        'uncommon': 'poco común',
+        'rare': 'raro',
+        'epic': 'épico',
+        'legendary': 'legendario',
+        'defender': 'defensor',
+        'survivor': 'superviviente',
+        'lead': 'líder',
+        'grasslands': 'Praderas',
+        'thunder route 99': 'Ruta del Trueno 99',
+        'industrial park': 'Parque Industrial',
+        'suburbs': 'Suburbios',
+        'lakeside': 'Orilla del Lago',
+        'ghost town': 'Pueblo Fantasma',
+        'tropical': 'Tropical',
+        'forest': 'Bosque',
+        'autumn suburbs': 'Suburbios Otoñales',
         'Epic PERK-UP!': 'Perk-Up Épico',
         'Legendary PERK-UP!': 'Perk-Up Legendario',
         'Rare PERK-UP!': 'Perk-Up Raro',
@@ -30,8 +46,7 @@ function traducirRecompensas(texto) {
         'Legendary Survivor': 'Superviviente Legendario',
         'Epic Survivor': 'Superviviente Épico',
         'Legendary Defender': 'Defensor Legendario',
-        'Epic Defender': 'Defensor Épico',
-        'Base Reward': 'Recompensa Base'
+        'Epic Defender': 'Defensor Épico'
     };
     for (const [ing, esp] of Object.entries(traducciones)) {
         t = t.replace(new RegExp(ing, 'gi'), esp);
@@ -41,7 +56,7 @@ function traducirRecompensas(texto) {
 
 async function extraerAlertasAPI() {
     try {
-        console.log(`\n--- 🌐 OBTENIENDO ALERTAS ESTRUCTURADAS ---`);
+        console.log(`\n--- 🌐 RASPADO CON FORMATO EXACTO EN ESPAÑOL ---`);
         const urlObjetivo = 'https://stw-planner.com/mission-alerts';
         
         const response = await axios.get(urlObjetivo, {
@@ -62,7 +77,7 @@ async function extraerAlertasAPI() {
         const recompensasValidas = [
             'perk-up', 'amp-up', 'frost-up', 'fire-up', 're-perk', 
             'storm shard', 'eye of the storm', 'pure drop of rain', 
-            'lightning in a bottle', 'survivor', 'defender', 'v-buck', 'pavo'
+            'lightning in a bottle', 'survivor', 'defender', 'v-buck', 'pavo', 'uncommon', 'rare', 'epic', 'legendary'
         ];
 
         $('div, article').each((i, el) => {
@@ -83,11 +98,15 @@ async function extraerAlertasAPI() {
                     if (!legendariasMap.has(claveUnica)) {
                         let etiqueta = pl === '160' ? '🔴 Nivel 160 (Supercargador)' : '⭐ Nivel 140 (Ventures/Cumbres)';
 
-                        // Guardamos cada propiedad por separado para que index.js las lea correctamente
+                        // 🎯 Formato idéntico al que solicitaste
+                        let tarjetaFormateada = `⚡ *PL:* ${pl} | 🎯 *Misión:* ${nombreMision}\n` +
+                                                `🎁 *Recompensa:* ${etiqueta}\n` +
+                                                `${textoLimpio}`;
+
                         legendariasMap.set(claveUnica, {
                             pl: pl,
                             mision: nombreMision,
-                            recompensa: `${etiqueta}\n${textoLimpio}`
+                            recompensa: tarjetaFormateada
                         });
                     }
                 }
@@ -96,12 +115,12 @@ async function extraerAlertasAPI() {
 
         const legendariasList = Array.from(legendariasMap.values());
 
-        // Guardamos en la base de datos como array de objetos (que es lo que tu index.js espera)
+        // Guardar estructurado en MongoDB para que index.js lo lea sin errores
         await Config.findOneAndUpdate({ clave: 'stw_pavos_activos' }, { valor: JSON.stringify([]) }, { upsert: true });
         await Config.findOneAndUpdate({ clave: 'stw_epicas_activas' }, { valor: JSON.stringify([]) }, { upsert: true });
         await Config.findOneAndUpdate({ clave: 'stw_legendarias_activas' }, { valor: JSON.stringify(legendariasList) }, { upsert: true });
         
-        console.log(`✅ [ESTRUCTURA CORRECTA] Total de misiones guardadas: ${legendariasList.length}`);
+        console.log(`✅ [FORMATO EXACTO] Total de misiones guardadas: ${legendariasList.length}`);
 
     } catch (e) {
         console.error("❌ Error en la extracción:", e.message);
