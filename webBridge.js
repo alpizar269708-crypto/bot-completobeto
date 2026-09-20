@@ -6,21 +6,6 @@ const { Config } = require('./database/modelos');
 let chatWhatsAppActivo = null;
 let sockWhatsApp = null;
 
-const acroMap = {
-    'ets': 'Evacua el refugio',
-    'rtd': 'Recupera los datos',
-    'rtl': 'Monta el relámpago',
-    'fts': 'Lucha contra la tormenta',
-    'c1s': 'Tormenta cat. 1',
-    'c2s': 'Tormenta cat. 2',
-    'c3s': 'Tormenta cat. 3',
-    'c4s': 'Tormenta cat. 4',
-    'rts': 'Repara el refugio',
-    'dtb': 'Entrega el pedido',
-    'etc': 'Elimina y recolecta',
-    'res': 'Reabastecimiento'
-};
-
 function traducirRecompensa(texto) {
     let t = texto;
     t = t.replace(/\(Legendary\)/gi, '(Legendario)')
@@ -48,66 +33,66 @@ async function extraerAlertasAPI() {
 
         const html = response.data;
         const $ = cheerio.load(html);
-        let textoCrudo = '';
+        let lineas = [];
 
-        // Recorremos elementos contenedores de texto para extraer las misiones completas
-        $('div, span, p, tr, td').each((i, el) => {
+        // Recolectamos todas las líneas de texto limpias de la web
+        $('div, span, p, tr, td, h4, h5').each((i, el) => {
             const t = $(el).text().trim();
-            // Filtramos líneas que contengan indicadores de nivel o recompensas clave
-            if (t.length > 3 && t.length < 150 && (t.includes('⚡') || t.includes('140') || t.includes('160') || t.includes('V-Bucks') || t.includes('Legendary') || t.includes('Epic'))) {
-                textoCrudo += t + '\n';
+            if (t.length > 2 && !t.includes('©') && !t.includes('Twigsby') && !t.includes('Cookie')) {
+                lineas.push(t);
             }
         });
-
-        console.log(`\n--- 🔍 MUESTRA DE LÍNEAS FILTRADAS --- \n${textoCrudo.substring(0, 1200)}\n----------------------------------------\n`);
 
         let pavosList = [];
         let epicasList = [];
         let legendariasList = [];
 
-        const lineas = textoCrudo.split('\n');
-        lineas.forEach(linea => {
-            // Buscamos patrones que incluyan niveles altos (ej. 140, 160) y niveles estándar
-            const match = linea.match(/(\d+)\s*(?:⚡)?\s*([A-Za-z0-9]+)?\s*[-–]?\s*(.+)/);
-            if (match) {
-                const pl = match[1].trim();
-                // Si el PL es válido para STW (ej. mayor a 10 y menor o igual a 160)
-                const numPl = parseInt(pl);
-                if (numPl >= 10 && numPl <= 160) {
-                    const acro = (match[2] || 'Misión').trim().toLowerCase();
-                    let recompensa = traducirRecompensa((match[3] || '').trim());
-                    const misionEs = acroMap[acro] || acro;
-                    const recLower = recompensa.toLowerCase();
+        // Analizamos por parejas: [Misión, Nivel de Poder]
+        for (let i = 0; i < lineas.length - 1; i++) {
+            let actual = lineas[i];
+            let siguiente = lineas[i+1];
 
-                    if (recLower.includes('v-buck') || recLower.includes('vbuck') || recLower.includes('pavo')) {
-                        const cantMatch = recompensa.match(/(\d+)/);
-                        const cantidad = cantMatch ? parseInt(cantMatch[1]) : 50;
-                        pavosList.push({ pl, mision: misionEs, cantidad, recompensa: 'PaVos', tipo: 'STW Planner' });
-                    } else if (recLower.includes('epic') || recLower.includes('épico')) {
-                        epicasList.push({ pl, mision: misionEs, recompensa: `🟣 Épico | ${recompensa}` });
-                    } else if (recLower.includes('legendary') || recLower.includes('legendario') || recLower.includes('mythic') || recLower.includes('mítico') || numPl >= 140) {
-                        // Capturamos también las de nivel 140 y 160 aunque el texto no diga explícitamente legendario
-                        let colorEmoji = (recLower.includes('mythic') || recLower.includes('mítico')) ? '🟡 Mítico' : '🟠 Legendario';
-                        if (numPl >= 140 && !recLower.includes('legendary') && !recLower.includes('legendario')) {
-                            colorEmoji = `⭐ Nivel Alto (${numPl})`;
-                        }
-                        legendariasList.push({ pl, mision: misionEs, recompensa: `${colorEmoji} | ${recompensa}` });
+            let numPl = parseInt(siguiente);
+            // Si el siguiente valor es un Nivel de Poder válido (10 a 160)
+            if (!isNaN(numPl) && numPl >= 10 && numPl <= 160) {
+                let misionEs = actual;
+                let pl = siguiente.toString();
+                let recLower = misionEs.toLowerCase();
+
+                let recompensaTexto = traducirRecompensa(misionEs);
+
+                if (recLower.includes('v-buck') || recLower.includes('vbuck') || recLower.includes('pavo')) {
+                    const cantMatch = misionEs.match(/(\d+)/);
+                    const cantidad = cantMatch ? parseInt(cantMatch[1]) : 50;
+                    pavosList.push({ pl, mision: misionEs, cantidad, recompensa: 'PaVos', tipo: 'STW Planner' });
+                } else if (recLower.includes('epic') || recLower.includes('épico')) {
+                    epicasList.push({ pl, mision: misionEs, recompensa: `🟣 Épico | ${recompensaTexto}` });
+                } else {
+                    // Capturamos todas las demás (incluyendo niveles 140 y 160, legendarias, etc.)
+                    let etiqueta = `⭐ Nivel ${pl}`;
+                    if (recLower.includes('legendary') || recLower.includes('legendario')) {
+                        etiqueta = '🟠 Legendario';
+                    } else if (recLower.includes('mythic') || recLower.includes('mítico')) {
+                        etiqueta = '🟡 Mítico';
                     }
+                    legendariasList.push({ pl, mision: misionEs, recompensa: `${etiqueta} | ${recompensaTexto}` });
                 }
+
+                i++; // Saltamos el número de PL en la siguiente iteración
             }
-        });
+        }
 
         if (pavosList.length > 0 || epicasList.length > 0 || legendariasList.length > 0) {
             await Config.findOneAndUpdate({ clave: 'stw_pavos_activos' }, { valor: JSON.stringify(pavosList) }, { upsert: true });
             await Config.findOneAndUpdate({ clave: 'stw_epicas_activas' }, { valor: JSON.stringify(epicasList) }, { upsert: true });
             await Config.findOneAndUpdate({ clave: 'stw_legendarias_activas' }, { valor: JSON.stringify(legendariasList) }, { upsert: true });
-            console.log(`✅ [STW PLANNER] Alertas procesadas -> PaVos: ${pavosList.length} | Épicas: ${epicasList.length} | Legendarias/Altas: ${legendariasList.length}`);
+            console.log(`✅ [STW PLANNER EXITO] Guardado -> PaVos: ${pavosList.length} | Épicas: ${epicasList.length} | Legendarias/Altas (140-160): ${legendariasList.length}`);
         } else {
-            console.log(`⚠️ Se leyó la web pero la extracción de líneas requiere un pequeño ajuste.`);
+            console.log(`⚠️ Se leyeron las líneas pero ninguna emparejó con un PL válido.`);
         }
 
     } catch (e) {
-        console.error("❌ Error procesando datos de STW Planner:", e.message);
+        console.error("❌ Error procesando STW Planner:", e.message);
     }
 }
 
