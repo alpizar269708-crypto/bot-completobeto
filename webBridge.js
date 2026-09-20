@@ -41,22 +41,9 @@ function obtenerEmojiYTexto(nombreClase, textoOriginal) {
     return `🎁 *${textoOriginal.trim()}*`;
 }
 
-function obtenerEmojiMision(nombreZona) {
-    const z = nombreZona.toLowerCase();
-    if (z.includes('ride the lightning')) return '🚚';
-    if (z.includes('evacuate the shelter')) return '🛡️';
-    if (z.includes('deliver the bomb')) return '💣';
-    if (z.includes('fight the storm')) return '🌀';
-    if (z.includes('repair the shelter')) return '🔧';
-    if (z.includes('resupply')) return '📦';
-    if (z.includes('retrieve the data')) return '📡';
-    if (z.includes('rescue the survivors')) return '🏃‍♂️';
-    return '⚡';
-}
-
 async function extraerAlertasAPI() {
     try {
-        console.log(`\n--- 🌐 RASPADO ESTILO TARJETA VISUAL (STW PLANNER) ---`);
+        console.log(`\n--- 🌐 RASPADO LIMPIO Y SIN DUPLICADOS ---`);
         const urlObjetivo = 'https://stw-planner.com/mission-alerts';
         
         const response = await axios.get(urlObjetivo, {
@@ -68,16 +55,13 @@ async function extraerAlertasAPI() {
         const $ = cheerio.load(response.data);
         let legendariasMap = new Map();
 
-        // Recorremos exactamente cada tarjeta de misión de la página
         $('div.mission-entry').each((i, el) => {
             const pl = $(el).find('div.mission-pl').text().trim();
             
-            // Filtramos únicamente las de nivel 140 y 160 de alto valor
             if (pl === '140' || pl === '160') {
                 const zonaRaw = $(el).find('div.mission-zone').text().trim();
-                const emojiMision = obtenerEmojiMision(zonaRaw);
                 
-                // Traducción rápida de zonas comunes al español
+                // Traducción de zonas comunes al español
                 let zonaLimpia = zonaRaw
                     .replace(/group/gi, 'Grupo')
                     .replace(/ghost town/gi, 'Pueblo Fantasma')
@@ -86,12 +70,13 @@ async function extraerAlertasAPI() {
                     .replace(/lakeside/gi, 'Orilla del Lago')
                     .replace(/suburbs/gi, 'Suburbios')
                     .replace(/thunder route 99/gi, 'Ruta del Trueno 99')
-                    .replace(/tropical/gi, 'Tropical');
+                    .replace(/tropical/gi, 'Tropical')
+                    .replace(/forest/gi, 'Bosque');
 
                 let recompensasPrincipales = [];
                 let recompensasBase = [];
 
-                // Extraer recompensas principales (arriba)
+                // Extraer recompensas principales
                 $(el).find('.mission-rewards > .mission-reward-item').each((j, itemEl) => {
                     const title = $(itemEl).attr('title') || '';
                     const innerText = $(itemEl).text().replace(/\s+/g, ' ').trim();
@@ -103,7 +88,7 @@ async function extraerAlertasAPI() {
                     }
                 });
 
-                // Extraer recompensas base (abajo en .mission-reward-item--generic)
+                // Extraer recompensas base
                 $(el).find('.mission-reward-item--generic .mission-reward-item').each((j, baseEl) => {
                     const title = $(baseEl).attr('title') || '';
                     const innerText = $(baseEl).text().replace(/\s+/g, ' ').trim();
@@ -120,11 +105,11 @@ async function extraerAlertasAPI() {
                 if (!legendariasMap.has(claveUnica)) {
                     let etiquetaPl = pl === '160' ? '🔴 *Nivel 160 (Supercargador)*' : '⭐ *Nivel 140 (Ventures/Cumbres)*';
 
-                    // Construimos la tarjeta con formato visual idéntico al de la web
-                    let tarjetaVisual = `${emojiMision} *${pl}* ${zonaLimpia}\n` +
+                    // Estructura limpia sin repetir la misión abajo
+                    let tarjetaVisual = `⚡ *PL:* ${pl} | 🎯 *Misión:* ${zonaLimpia}\n` +
                                         `🎁 *Tipo:* ${etiquetaPl}\n` +
-                                        `${recompensasPrincipales.join(' | ')}\n` +
-                                        (recompensasBase.length > 0 ? `🏛️ *Base:* ${recompensasBase.join(' | ')}` : '');
+                                        `${recompensasPrincipales.join(' | ')}` +
+                                        (recompensasBase.length > 0 ? `\n🏛️ *Base:* ${recompensasBase.join(' | ')}` : '');
 
                     legendariasMap.set(claveUnica, {
                         pl: pl,
@@ -137,15 +122,23 @@ async function extraerAlertasAPI() {
 
         const legendariasList = Array.from(legendariasMap.values());
 
-        // Guardar estructurado en MongoDB
+        // Generar fecha actual en español
+        const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: 'America/Mexico_City' };
+        const fechaFormateada = new Date().toLocaleDateString('es-MX', options);
+
+        let mensajeCompleto = `📅 _${fechaFormateada}_\n\n🌟 *ALERTAS LEGENDARIAS*\n\n` +
+                              legendariasList.map(item => item.recompensa).join('\n\n') +
+                              `\n\nSupport-a-Creator: *JASC13* ❤️`;
+
+        // Guardar en MongoDB
         await Config.findOneAndUpdate({ clave: 'stw_pavos_activos' }, { valor: JSON.stringify([]) }, { upsert: true });
         await Config.findOneAndUpdate({ clave: 'stw_epicas_activas' }, { valor: JSON.stringify([]) }, { upsert: true });
-        await Config.findOneAndUpdate({ clave: 'stw_legendarias_activas' }, { valor: JSON.stringify(legendariasList) }, { upsert: true });
+        await Config.findOneAndUpdate({ clave: 'stw_legendarias_activas' }, { valor: JSON.stringify([mensajeCompleto]) }, { upsert: true });
         
-        console.log(`✅ [TARJETAS VISUALES] Total de misiones procesadas: ${legendariasList.length}`);
+        console.log(`✅ [TARJETAS LIMPIAS] Total de misiones procesadas: ${legendariasList.length}`);
 
     } catch (e) {
-        console.error("❌ Error en la extracción visual:", e.message);
+        console.error("❌ Error en la extracción:", e.message);
     }
 }
 
