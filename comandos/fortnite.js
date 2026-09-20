@@ -27,12 +27,36 @@ async function esAdminValido(sock, chatId, msg) {
     return false;
 }
 
-// 🌐 EXTRACTOR ADAPTADO A STW-PLANNER
+// Traducciones oficiales de zonas y misiones
+const zonasMap = {
+    'stonewood': 'Bosque Pedregoso',
+    'plankerton': 'Valle Plácido',
+    'canny valley': 'Valle Latoso',
+    'twine peaks': 'Cumbres Leñosas'
+};
+
+const misionesMap = {
+    'ride the lightning': 'Monta el relámpago',
+    'fight the storm': 'Lucha contra la tormenta',
+    'category 1 fight the storm': 'Tormenta cat. 1',
+    'category 2 fight the storm': 'Tormenta cat. 2',
+    'category 3 fight the storm': 'Tormenta cat. 3',
+    'category 4 fight the storm': 'Tormenta cat. 4',
+    'evacuate the shelter': 'Evacua el refugio',
+    'repair the shelter': 'Repara el refugio',
+    'deliver the bomb': 'Entrega el pedido',
+    'retrieve the data': 'Recupera los datos',
+    'rescue the survivors': 'Rescata supervivientes',
+    'eliminate and collect': 'Elimina y recolecta',
+    'resupply': 'Reabastecimiento'
+};
+
+// 🌐 EXTRACTOR VÍA API JSON (Robusto y sin depender de HTML)
 async function obtenerAlertasSTW() {
     let pavos = [];
     let legendarias = []; 
 
-    // 1. Cargar manuales de respaldo
+    // 1. Cargar manuales (Respaldo prioritario)
     try {
         let manualPavos = await Config.findOne({ clave: 'stw_pavos_activos' });
         if (manualPavos && manualPavos.valor) pavos = pavos.concat(JSON.parse(manualPavos.valor));
@@ -41,76 +65,72 @@ async function obtenerAlertasSTW() {
         if (manualLegendarias && manualLegendarias.valor) legendarias = legendarias.concat(JSON.parse(manualLegendarias.valor));
     } catch (e) {}
 
-    // 2. Extraer de STW Planner
+    // 2. Consulta a API Directa
     try {
-        let respuesta = await fetch('https://stw-planner.com/mission-alerts', {
-            headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' }
+        let respuesta = await fetch('https://fortnite-api.com/v1/stw', {
+            headers: { 'User-Agent': 'Mozilla/5.0' }
         });
         
-        let html = await respuesta.text();
-        // Limpieza de etiquetas innecesarias
-        let textoPlano = html.replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').toLowerCase();
+        if (respuesta.ok) {
+            let json = await respuesta.json();
+            if (json && json.data && json.data.missions) {
+                json.data.missions.forEach(mission => {
+                    let zonaIngles = (mission.theaterId || mission.zone?.name || '').toLowerCase();
+                    let zonaEs = 'Cumbres Leñosas';
+                    for (let [key, val] of Object.entries(zonasMap)) {
+                        if (zonaIngles.includes(key)) { zonaEs = val; break; }
+                    }
 
-        // Detección específica basada en la maquetación limpia de STW Planner
-        let misionesGuardadas = new Set();
+                    let misionIngles = (mission.name || mission.missionAlternativeName || '').toLowerCase();
+                    let misionEs = 'Misión Activa';
+                    for (let [key, val] of Object.entries(misionesMap)) {
+                        if (misionIngles.includes(key)) { misionEs = val; break; }
+                    }
 
-        // Buscar bloques que contengan PaVos (ej: "50" junto a zonas o iconos)
-        const regexPavosPlanner = /(\d{1,3})\s*(?:v-bucks|vbucks|pavos)/gi;
-        
-        // Como STW Planner agrupa por zonas en el texto, podemos buscar menciones de zonas y niveles de poder (PL)
-        const zonas = ['stonewood', 'plankerton', 'canny valley', 'twine peaks'];
-        
-        // Procesamiento general de líneas o bloques de texto de misiones
-        let bloques = html.split(/<\/div>|<\/section>/i);
-        for (let bloque of bloques) {
-            let txtLimpio = bloque.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').toLowerCase();
-            
-            // Detectar zona
-            let zonaEncontrada = zonas.find(z => txtLimpio.includes(z));
-            if (!zonaEncontrada) continue;
+                    let pl = mission.dangerLevel || mission.pl || '??';
 
-            let zonaEs = zonaEncontrada === 'twine peaks' ? 'Cumbres Leñosas' : 
-                         zonaEncontrada === 'canny valley' ? 'Valle Latoso' : 
-                         zonaEncontrada === 'plankerton' ? 'Valle Plácido' : 'Bosque Pedregoso';
+                    // Analizar recompensas
+                    if (mission.rewards) {
+                        mission.rewards.forEach(reward => {
+                            let itemNombre = (reward.item?.name || reward.name || '').toLowerCase();
+                            let cantidad = reward.item?.quantity || reward.quantity || 0;
+                            let rareza = (reward.item?.rarity || reward.rarity || '').toLowerCase();
 
-            // Extraer PL (Nivel de poder)
-            let plMatch = txtLimpio.match(/(?:pl|⚡)\s*(\d{1,3})/);
-            let pl = plMatch ? plMatch[1] : '??';
+                            // Detección de PaVos
+                            if (itemNombre.includes('v-buck') || itemNombre.includes('vbuck') || itemNombre.includes('pavo')) {
+                                if (cantidad > 0 && cantidad <= 50) {
+                                    pavos.push({ zona: zonaEs, cantidad: cantidad, pl: pl, mision: misionEs, tipo: 'Automático' });
+                                }
+                            }
 
-            // Detección de PaVos en el bloque
-            let pavoMatch = txtLimpio.match(/\b(25|30|35|40|50)\b/);
-            if (pavoMatch && (txtLimpio.includes('v-buck') || txtLimpio.includes('vbuck') || txtLimpio.includes('pavo'))) {
-                let cantidad = parseInt(pavoMatch[1]);
-                let idUnico = `pavo-${zonaEs}-${cantidad}-${pl}`;
-                if (!misionesGuardadas.has(idUnico) && cantidad <= 50) {
-                    misionesGuardadas.add(idUnico);
-                    pavos.push({ zona: zonaEs, cantidad: cantidad, pl: pl, mision: 'Misión con PaVos', tipo: 'Automático' });
-                }
-            }
+                            // Detección de Legendarias / Épicas / Míticas
+                            if (rareza === 'legendary' || rareza === 'epic' || rareza === 'mythic') {
+                                let colorEmoji = rareza === 'mythic' ? '🟡 Mítico' : rareza === 'legendary' ? '🟠 Legendario' : '🟣 Épico';
+                                let tipoItem = itemNombre.includes('survivor') ? 'Sobreviviente' :
+                                               itemNombre.includes('hero') ? 'Héroe' :
+                                               itemNombre.includes('defender') ? 'Defensor' :
+                                               itemNombre.includes('schematic') ? 'Esquema' : 'Recompensa';
 
-            // Detección de Legendarias / Épicas (como se ve en tus capturas de defensores/sobrevivientes)
-            if (txtLimpio.includes('legendary') || txtLimpio.includes('epic') || txtLimpio.includes('mythic')) {
-                let rareza = txtLimpio.includes('mythic') ? '🟡 Mítico' : txtLimpio.includes('legendary') ? '🟠 Legendario' : '🟣 Épico';
-                let item = txtLimpio.includes('survivor') ? 'Sobreviviente' :
-                           txtLimpio.includes('defender') ? 'Defensor' :
-                           txtLimpio.includes('hero') ? 'Héroe' :
-                           txt.includes('schematic') ? 'Esquema' : 'Recompensa Destacada';
-
-                let idUnico = `rec-${zonaEs}-${rareza}-${item}-${pl}`;
-                if (!misionesGuardadas.has(idUnico)) {
-                    misionesGuardadas.add(idUnico);
-                    legendarias.push({ zona: zonaEs, recompensa: `${rareza} | ${item}`, pl: pl, mision: 'Misión Destacada' });
-                }
+                                legendarias.push({
+                                    zona: zonaEs,
+                                    recompensa: `${colorEmoji} | ${tipoItem}`,
+                                    pl: pl,
+                                    mision: misionEs
+                                });
+                            }
+                        });
+                    }
+                });
             }
         }
     } catch (e) {
-        console.error("Error al conectar con STW Planner:", e);
+        console.error("Error conectando a la API de STW:", e);
     }
 
     return { pavos, legendarias };
 }
 
-// 📱 FORMATO VISUAL EXACTO
+// 📱 FORMATO VISUAL EXACTO QUE TE GUSTA
 async function alertasSTW(sock, chatId, msg, categoria = 'todas') {
     const datos = await obtenerAlertasSTW();
     const fechaHoy = obtenerFechaActual();
@@ -124,7 +144,7 @@ async function alertasSTW(sock, chatId, msg, categoria = 'todas') {
             let totalPavos = 0;
             datos.pavos.forEach(p => {
                 totalPavos += p.cantidad;
-                texto += `📍 *${p.zona}*\n🪙 *PaVos:* ${p.cantidad}\n⚡ *PL:* ${p.pl}\n🎯 *Misión:* ${p.mision}\n\n`;
+                texto += `📍 *${p.zona}*\n🪙 *PaVos:* ${p.cantidad}\n⚡ *PL:* ${p.pl}\n🎯 *Misión:* ${p.mision} ${p.tipo ? `_(${p.tipo})_` : ''}\n\n`;
             });
             texto += `💰 *Total del día:* ${totalPavos} paVos\n\n`;
         }
@@ -136,16 +156,20 @@ async function alertasSTW(sock, chatId, msg, categoria = 'todas') {
             texto += `_No hay alertas legendarias registradas hoy._\n\n`;
         } else {
             datos.legendarias.forEach(L => {
-                texto += `📍 *${L.zona}*\n🎁 *Da:* ${L.recompensa}\n⚡ *PL:* ${L.pl}\n\n`;
+                texto += `📍 *${L.zona}*\n🎁 *Da:* ${L.recompensa}\n⚡ *PL:* ${L.pl}\n🎯 *Misión:* ${L.mision}\n\n`;
             });
         }
+    }
+
+    if (categoria !== 'pavos' && categoria !== 'legendarias' && categoria !== 'todas' && categoria !== 'importantes') {
+        texto = `🤖 *CONSULTAS DE SALVAR EL MUNDO*\n\nEscribe *!pavos* o *!legendarias* para ver las misiones activas.\n\n`;
     }
 
     texto += `Support-a-Creator: *JASC13* ❤️`;
     await sock.sendMessage(chatId, { text: texto }, { quoted: msg });
 }
 
-// ⚙️ COMANDOS MANUALES Y CRON (Intocables)
+// ⚙️ COMANDOS MANUALES Y CRON
 async function comandoSetPavos(sock, chatId, msg, args) {
     if (!(await esAdminValido(sock, chatId, msg))) return;
     const partes = args.join(' ').split('|').map(p => p.trim());
