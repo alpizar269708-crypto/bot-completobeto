@@ -6,7 +6,6 @@ function obtenerFechaActual() {
     return new Date().toLocaleDateString('es-ES', opciones);
 }
 
-// 🔒 SEGURIDAD ADMIN
 async function esAdminValido(sock, chatId, msg) {
     if (!chatId.endsWith('@g.us')) {
         await sock.sendMessage(chatId, { text: `❌ Este comando solo se puede usar en grupos.` }, { quoted: msg });
@@ -27,14 +26,17 @@ async function esAdminValido(sock, chatId, msg) {
     return false;
 }
 
-// 🌐 OBTENER ALERTAS DESDE LA BASE DE DATOS (Alimentada por Discord)
 async function obtenerAlertasSTW() {
     let pavos = [];
+    let epicas = [];
     let legendarias = []; 
 
     try {
         let manualPavos = await Config.findOne({ clave: 'stw_pavos_activos' });
         if (manualPavos && manualPavos.valor) pavos = pavos.concat(JSON.parse(manualPavos.valor));
+
+        let manualEpicas = await Config.findOne({ clave: 'stw_epicas_activas' });
+        if (manualEpicas && manualEpicas.valor) epicas = epicas.concat(JSON.parse(manualEpicas.valor));
 
         let manualLegendarias = await Config.findOne({ clave: 'stw_legendarias_activas' });
         if (manualLegendarias && manualLegendarias.valor) legendarias = legendarias.concat(JSON.parse(manualLegendarias.valor));
@@ -42,16 +44,14 @@ async function obtenerAlertasSTW() {
         console.error("Error leyendo alertas de STW:", e);
     }
 
-    return { pavos, legendarias };
+    return { pavos, epicas, legendarias };
 }
 
-// 📱 FORMATO VISUAL EXACTO (Soporta categorización: 'todas' o 'legendarias')
 async function alertasSTW(sock, chatId, msg, categoria = 'todas') {
     const datos = await obtenerAlertasSTW();
     const fechaHoy = obtenerFechaActual();
     let texto = `📅 _${fechaHoy}_\n\n`;
 
-    // 1. Mostrar PaVos si se pide 'todas' o 'pavos'
     if (categoria === 'pavos' || categoria === 'todas') {
         texto += `🎮 *ALERTAS DE PAVOS*\n`;
         if (datos.pavos.length === 0) {
@@ -59,16 +59,26 @@ async function alertasSTW(sock, chatId, msg, categoria = 'todas') {
         } else {
             let totalPavos = 0;
             datos.pavos.forEach(p => {
-                totalPavos += p.cantidad || 30;
-                texto += `⚡ *PL:* ${p.pl} | 🎯 *Misión:* ${p.mision}\n🪙 *PaVos:* ${p.cantidad || 30}\n\n`;
+                totalPavos += p.cantidad || 50;
+                texto += `⚡ *PL:* ${p.pl} | 🎯 *Misión:* ${p.mision}\n🪙 *PaVos:* ${p.cantidad || 50}\n\n`;
             });
             texto += `💰 *Total del día:* ${totalPavos} paVos\n\n`;
         }
     }
 
-    // 2. Mostrar Épicas y Legendarias si se pide 'legendarias' o 'todas'
-    if (categoria === 'legendarias' || categoria === 'todas' || categoria === 'importantes') {
-        texto += `🌟 *ALERTAS ÉPICAS Y LEGENDARIAS*\n`;
+    if (categoria === 'epicas' || categoria === 'todas') {
+        texto += `🟣 *ALERTAS ÉPICAS*\n`;
+        if (datos.epicas.length === 0) {
+            texto += `_No hay alertas épicas registradas._\n\n`;
+        } else {
+            datos.epicas.forEach(e => {
+                texto += `⚡ *PL:* ${e.pl} | 🎯 *Misión:* ${e.mision}\n🎁 *Recompensa:* ${e.recompensa}\n\n`;
+            });
+        }
+    }
+
+    if (categoria === 'legendarias' || categoria === 'todas') {
+        texto += `🌟 *ALERTAS LEGENDARIAS*\n`;
         if (datos.legendarias.length === 0) {
             texto += `_No hay alertas legendarias registradas._\n\n`;
         } else {
@@ -82,14 +92,13 @@ async function alertasSTW(sock, chatId, msg, categoria = 'todas') {
     await sock.sendMessage(chatId, { text: texto }, { quoted: msg });
 }
 
-// ⚙️ COMANDOS MANUALES Y CRON
 async function comandoSetPavos(sock, chatId, msg, args) {
     if (!(await esAdminValido(sock, chatId, msg))) return;
     const partes = args.join(' ').split('|').map(p => p.trim());
-    if (partes.length < 3) return await sock.sendMessage(chatId, { text: `❌ Uso: !setpavos PL | Misión | Cantidad` }, { quoted: msg });
+    if (partes.length < 3) return await sock.sendMessage(chatId, { text: `❌ Uso: setpavos PL | Misión | Cantidad` }, { quoted: msg });
     let actual = await Config.findOne({ clave: 'stw_pavos_activos' });
     let lista = actual ? JSON.parse(actual.valor) : [];
-    lista.push({ pl: partes[0], mision: partes[1], cantidad: parseInt(partes[2]) || 30, tipo: 'Manual' });
+    lista.push({ pl: partes[0], mision: partes[1], cantidad: parseInt(partes[2]) || 50, tipo: 'Manual' });
     await Config.findOneAndUpdate({ clave: 'stw_pavos_activos' }, { valor: JSON.stringify(lista) }, { upsert: true });
     await sock.sendMessage(chatId, { text: `✅ PaVos manuales agregados.` }, { quoted: msg });
 }
@@ -97,7 +106,7 @@ async function comandoSetPavos(sock, chatId, msg, args) {
 async function comandoSetLegendarias(sock, chatId, msg, args) {
     if (!(await esAdminValido(sock, chatId, msg))) return;
     const partes = args.join(' ').split('|').map(p => p.trim());
-    if (partes.length < 3) return await sock.sendMessage(chatId, { text: `❌ Uso: !setlegendarias PL | Misión | Recompensa` }, { quoted: msg });
+    if (partes.length < 3) return await sock.sendMessage(chatId, { text: `❌ Uso: setlegendarias PL | Misión | Recompensa` }, { quoted: msg });
     let actual = await Config.findOne({ clave: 'stw_legendarias_activas' });
     let lista = actual ? JSON.parse(actual.valor) : [];
     lista.push({ pl: partes[0], mision: partes[1], recompensa: partes[2] });
@@ -108,12 +117,13 @@ async function comandoSetLegendarias(sock, chatId, msg, args) {
 async function comandoResetPavos(sock, chatId, msg) {
     if (!(await esAdminValido(sock, chatId, msg))) return;
     await Config.findOneAndDelete({ clave: 'stw_pavos_activos' });
+    await Config.findOneAndDelete({ clave: 'stw_epicas_activas' });
     await Config.findOneAndDelete({ clave: 'stw_legendarias_activas' });
     await sock.sendMessage(chatId, { text: `🗑️ Alertas restablecidas.` }, { quoted: msg });
 }
 
 async function comandoPreguntarAlerta(sock, chatId, msg) {
-    await sock.sendMessage(chatId, { text: `🤖 Escribe *!stw*, *!alertasstw* o *!legendarias*.` }, { quoted: msg });
+    await sock.sendMessage(chatId, { text: `🤖 Escribe *stw*, *legendariasstw* o *epicasstw*.` }, { quoted: msg });
 }
 
 function iniciarCronAlertasDiarias(sock) {
@@ -122,17 +132,17 @@ function iniciarCronAlertasDiarias(sock) {
             const configChat = await Config.findOne({ clave: 'chat_alertas_diarias' });
             if (!configChat || !configChat.valor) return;
             const datos = await obtenerAlertasSTW();
-            let total = datos.pavos.reduce((acc, p) => acc + (p.cantidad || 30), 0);
+            let total = datos.pavos.reduce((acc, p) => acc + (p.cantidad || 50), 0);
 
             let mensajeAuto = `🎮 *REPORTE DIARIO STW (6:05 PM)*\n\n`;
             if (datos.pavos.length > 0) {
                 datos.pavos.forEach(p => {
-                    mensajeAuto += `⚡ PL: ${p.pl} | 🎯 ${p.mision} | 🪙 ${p.cantidad || 30} PaVos\n`;
+                    mensajeAuto += `⚡ PL: ${p.pl} | 🎯 ${p.mision} | 🪙 ${p.cantidad || 50} PaVos\n`;
                 });
                 mensajeAuto += `\n💰 *Total del día:* ${total} paVos\n\n`;
             }
             if (datos.legendarias.length > 0) {
-                mensajeAuto += `🌟 *ÉPICAS Y LEGENDARIAS*\n`;
+                mensajeAuto += `🌟 *LEGENDARIAS*\n`;
                 datos.legendarias.forEach(L => {
                     mensajeAuto += `⚡ PL: ${L.pl} | 🎯 ${L.mision} | 🎁 ${L.recompensa}\n`;
                 });

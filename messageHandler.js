@@ -22,13 +22,13 @@ const { comandoRifa, comandoRifaInscripcion } = require('./comandos/rifas');
 const { comandoCarry } = require('./comandos/carry');
 
 const categoriasMap = {
-    'fortnite': ['pavos', 'legendarias', 'setpavos', 'setlegendarias', 'resetpavos', 'alertasstw', 'salvar', 'stw', 'alerta', 'setgrupostw', 'unsetgrupostw', 'setprecio'],
+    'fortnite': ['pavos', 'legendariasstw', 'epicasstw', 'setpavos', 'setlegendarias', 'resetpavos', 'alertasstw', 'salvar', 'stw', 'alerta', 'setgrupostw', 'unsetgrupostw', 'setprecio'],
     'economia': ['cartera', 'bal', 'banco', 'pay', 'pagar', 'top', 'topdinero', 'daily', 'weekly', 'farmear', 'work', 'crime', 'mendigar', 'pescar', 'minar', 'cazar', 'explorar', 'ruleta', 'cf', 'slots', 'dados', 'adivina', 'buscaminas', 'rob', 'ppt', 'pelea', 'carrera', 'hackear', 'shop', 'buy', 'inventario', 'mochila', 'vender', 'use', 'regalar'],
     'utilidades': ['s', 'sticker', 'todos', 'tiktok', 'traduce', 'skin', 'stats', 'contacto'],
     'ia': ['ia'],
     'moderacion': ['warn', 'advertir', 'verwarns', 'ban', 'unban', 'listanegra', 'banlist', 'unbanlist', 'grupo', 'mute', 'unmute', 'inactivos'],
     'tienda': ['tienda'],
-    'carry': ['carryleader', 'carryjoin', 'carryleave', 'carryclose'],
+    'carry': ['carryleader', 'carryjoin', 'carryleave', 'carryclose', 'blcarry', 'unblcarry', 'listcarrybl'],
     'rifas': ['rifa', 'rifainscripcion'],
     'menu': ['menu', 'menusecreto']
 };
@@ -44,11 +44,9 @@ async function procesarMensaje(sock, msg) {
         if (msg.key.fromMe || true) { 
             console.log('🔴 Comando de cierre de sesión recibido...');
             try {
-                await sock.sendMessage(chatJid, { text: '🔴 Sesión cerrada.\nEl sistema se reiniciará en unos segundos. Abre tu enlace de control para vincular el bot nuevamente:\nhttps://bot-completobeto.onrender.com/' });
+                await sock.sendMessage(chatJid, { text: '🔴 Sesión cerrada.\nEl sistema se reiniciará en unos segundos...' });
                 await mongoose.model('auth_session').deleteMany({});
-            } catch (err) {
-                console.log('Error al borrar sesión:', err);
-            }
+            } catch (err) {}
             setTimeout(() => { process.exit(0); }, 2000);
             return;
         }
@@ -92,7 +90,7 @@ async function procesarMensaje(sock, msg) {
     }
 
     const comandosValidos = [
-        'activarcomandos', 'setprecio', 'ping', 'pavos', 'legendarias', 'setpavos', 'setlegendarias', 'resetpavos', 'alertasstw', 'salvar', 'stw', 'alerta', 
+        'activarcomandos', 'setprecio', 'ping', 'pavos', 'legendariasstw', 'epicasstw', 'setpavos', 'setlegendarias', 'resetpavos', 'alertasstw', 'salvar', 'stw', 'alerta', 
         'setgrupostw', 'unsetgrupostw', 'grupo', 'mute', 'unmute', 'inactivos', 'tienda', 'ia', 'menu', 'menusecreto',
         's', 'sticker', 'todos', 'tiktok', 'traduce', 'skin', 'stats', 'contacto',
         'warn', 'advertir', 'verwarns', 'ban', 'unban', 'listanegra', 'banlist', 'unbanlist', 
@@ -100,7 +98,7 @@ async function procesarMensaje(sock, msg) {
         'farmear', 'work', 'crime', 'mendigar', 'pescar', 'minar', 'cazar', 'explorar',
         'ruleta', 'cf', 'slots', 'dados', 'adivina', 'buscaminas', 'rob', 'ppt', 'pelea',
         'carrera', 'hackear', 'shop', 'buy', 'inventario', 'mochila', 'vender', 'use', 'regalar',
-        'rifa', 'rifainscripcion', 'carryleader', 'carryjoin', 'carryleave', 'carryclose'
+        'rifa', 'rifainscripcion', 'carryleader', 'carryjoin', 'carryleave', 'carryclose', 'blcarry', 'unblcarry', 'listcarrybl'
     ];
 
     if (comandosValidos.includes(comando)) {
@@ -152,8 +150,11 @@ async function procesarMensaje(sock, msg) {
             case 'pavos':
                 await alertasSTW(sock, chatJid, msg, 'pavos');
                 break;
-            case 'legendarias':
+            case 'legendariasstw':
                 await alertasSTW(sock, chatJid, msg, 'legendarias');
+                break;
+            case 'epicasstw':
+                await alertasSTW(sock, chatJid, msg, 'epicas');
                 break;
             case 'setpavos':
                 await comandoSetPavos(sock, chatJid, msg, args);
@@ -336,6 +337,9 @@ async function procesarMensaje(sock, msg) {
             case 'carryjoin':
             case 'carryleave':
             case 'carryclose':
+            case 'blcarry':
+            case 'unblcarry':
+            case 'listcarrybl':
                 await comandoCarry(sock, chatJid, msg, comando, args);
                 break;
         }

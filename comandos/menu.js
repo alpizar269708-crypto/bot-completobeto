@@ -36,7 +36,8 @@ async function ejecutarMenu(sock, chatId, msg, args) {
 
     let menuFortnite = `🎮 *MENÚ FORTNITE (STW)* 🎮\n\n` +
     `*${prefijo}pavos* - Muestra misiones de pavos actuales.\n` +
-    `*${prefijo}legendarias* - Alertas de esquemas y sobrevivientes.\n` +
+    `*${prefijo}epicasstw* - Alertas de misiones épicas.\n` +
+    `*${prefijo}legendariasstw* - Alertas de misiones legendarias.\n` +
     `*${prefijo}alertasstw / salvar* - Resumen general de alertas.\n` +
     `*${prefijo}alerta [nombre]* - Busca una recompensa específica.\n`;
 
@@ -57,7 +58,11 @@ async function ejecutarMenu(sock, chatId, msg, args) {
         `*${prefijo}listanegra / unbanlist* - Gestión de bloqueados.\n` +
         `*${prefijo}grupo [abrir/cerrar]* - Abre o cierra el chat del grupo.\n` +
         `*${prefijo}mute [@user] / unmute* - Silencia a alguien.\n` +
-        `*${prefijo}inactivos* - Revisa quién no habla en el grupo.\n`;
+        `*${prefijo}inactivos* - Revisa quién no habla en el grupo.\n\n` +
+        `🚫 *Gestión de Lista Negra de Carry:*\n` +
+        `*${prefijo}blcarry [@user / num / cita]* - Bloquea a alguien del carry.\n` +
+        `*${prefijo}unblcarry [@user / num / cita]* - Quita de la lista negra de carry.\n` +
+        `*${prefijo}listcarrybl* - Muestra la lista negra de carry del grupo.\n`;
     } else {
         menuModeracion += `❌ Este menú es exclusivo para los administradores del grupo.\n`;
     }

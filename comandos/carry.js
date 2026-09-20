@@ -1,4 +1,37 @@
+const { Config } = require('../database/modelos');
 const escuadronesActivos = new Map();
+
+// Función auxiliar para verificar si el usuario es admin del grupo
+async function esAdminValido(sock, chatId, msg) {
+    if (!chatId.endsWith('@g.us')) return false;
+    if (msg.key.fromMe) return true;
+    const remitente = msg.key.participant;
+    try {
+        const groupMetadata = await sock.groupMetadata(chatId);
+        const participante = groupMetadata.participants.find(p => p.id === remitente);
+        if (participante && (participante.admin === 'admin' || participante.admin === 'superadmin')) {
+            return true;
+        }
+    } catch (e) {}
+    return false;
+}
+
+// Extraer número de usuario de mención, texto o mensaje citado
+function extraerUsuarioObjetivo(msg, args) {
+    // 1. Si responde a un mensaje
+    const quoted = msg.message?.extendedTextMessage?.contextInfo;
+    if (quoted && quoted.participant) {
+        return quoted.participant;
+    }
+    // 2. Si menciona o escribe un número en args
+    if (args.length > 0) {
+        let limpio = args[0].replace(/[^0-9]/g, '');
+        if (limpio.length >= 10) {
+            return limpio + '@s.whatsapp.net';
+        }
+    }
+    return null;
+}
 
 async function comandoCarry(sock, chatId, msg, comando, args = []) {
     const sender = msg.key.participant || msg.key.remoteJid;
@@ -6,36 +39,80 @@ async function comandoCarry(sock, chatId, msg, comando, args = []) {
 
     let escuadron = escuadronesActivos.get(chatId);
 
-    // === LÓGICA DE MENCIONES GLOBALES ===
-    // Obtiene a todos los participantes del grupo para forzar la notificación push
+    // === GESTIÓN DE LISTA NEGRA DE CARRY (SOLO ADMINS) ===
+    if (comando === 'blcarry' || comando === 'unblcarry' || comando === 'listcarrybl') {
+        if (!(await esAdminValido(sock, chatId, msg))) {
+            return await sock.sendMessage(chatId, { text: `❌ Este comando exclusivo de lista negra es solo para administradores.` }, { quoted: msg });
+        }
+
+        let configBL = await Config.findOne({ clave: `carry_bl_${chatId}` });
+        let listaNegra = configBL ? JSON.parse(configBL.valor) : [];
+
+        if (comando === 'listcarrybl') {
+            if (listaNegra.length === 0) {
+                return await sock.sendMessage(chatId, { text: `📋 La lista negra de carry en este grupo está vacía.` }, { quoted: msg });
+            }
+            let txt = `🚫 *LISTA NEGRA DE CARRY*\n\n`;
+            listaNegra.forEach((id, idx) => {
+                txt += `${idx + 1}. @${id.split('@')[0]}\n`;
+            });
+            return await sock.sendMessage(chatId, { text: txt, mentions: listaNegra }, { quoted: msg });
+        }
+
+        let objetivo = extraerUsuarioObjetivo(msg, args);
+        if (!objetivo) {
+            return await sock.sendMessage(chatId, { text: `❌ Debes mencionar a un usuario, escribir su número o responder a un mensaje suyo.` }, { quoted: msg });
+        }
+
+        if (comando === 'blcarry') {
+            if (listaNegra.includes(objetivo)) {
+                return await sock.sendMessage(chatId, { text: `⚠️ El usuario @${objetivo.split('@')[0]} ya está en la lista negra de carry.`, mentions: [objetivo] }, { quoted: msg });
+            }
+            listaNegra.push(objetivo);
+            await Config.findOneAndUpdate({ clave: `carry_bl_${chatId}` }, { valor: JSON.stringify(listaNegra) }, { upsert: true });
+            return await sock.sendMessage(chatId, { text: `🚫 El usuario @${objetivo.split('@')[0]} ha sido agregado a la lista negra de carry.`, mentions: [objetivo] }, { quoted: msg });
+        }
+
+        if (comando === 'unblcarry') {
+            let index = listaNegra.indexOf(objetivo);
+            if (index === -1) {
+                return await sock.sendMessage(chatId, { text: `⚠️ El usuario @${objetivo.split('@')[0]} no estaba en la lista negra.`, mentions: [objetivo] }, { quoted: msg });
+            }
+            listaNegra.splice(index, 1);
+            await Config.findOneAndUpdate({ clave: `carry_bl_${chatId}` }, { valor: JSON.stringify(listaNegra) }, { upsert: true });
+            return await sock.sendMessage(chatId, { text: `✅ El usuario @${objetivo.split('@')[0]} fue removido de la lista negra de carry.`, mentions: [objetivo] }, { quoted: msg });
+        }
+        return;
+    }
+    // =====================================================
+
+    // Verificar si el usuario está en lista negra antes de unirse o crear
+    let configBL = await Config.findOne({ clave: `carry_bl_${chatId}` });
+    let listaNegra = configBL ? JSON.parse(configBL.valor) : [];
+    if (listaNegra.includes(sender)) {
+        return await sock.sendMessage(chatId, { text: `❌ Estás en la lista negra de carry de este grupo y no puedes participar.` }, { quoted: msg });
+    }
+
     let participantesGrupo = [];
     if (chatId.endsWith('@g.us') && (comando === 'carryleader' || comando === 'carryjoin')) {
         try {
             const metadata = await sock.groupMetadata(chatId);
             participantesGrupo = metadata.participants.map(u => u.id);
-        } catch (err) {
-            console.log("No se pudo obtener la metadata del grupo para menciones.");
-        }
+        } catch (err) {}
     }
-    // ====================================
 
     if (comando === 'carryleader') {
         if (escuadron) return await sock.sendMessage(chatId, { text: `❌ Ya hay un escuadrón activo liderado por ${escuadron.liderNombre}. Usa *carryclose* para cerrarlo primero.` }, { quoted: msg });
         
-        let maxEspacios = 3; // Por defecto 3, si no pone número
+        let maxEspacios = 3;
         let motivo = "Salvar el Mundo";
 
-        // Si escribió algo después de "carryleader"
         if (args.length > 0) {
-            // Revisamos si la última palabra es un número (ej. "4")
             let ultimoArg = parseInt(args[args.length - 1]);
-            
             if (!isNaN(ultimoArg)) {
-                maxEspacios = ultimoArg; // Guardamos el número de espacios
-                args.pop(); // Quitamos el número de la lista de palabras
+                maxEspacios = ultimoArg;
+                args.pop();
             }
-            
-            // Si todavía quedan palabras, las unimos como el motivo
             if (args.length > 0) {
                 motivo = args.join(' ');
             }
@@ -51,11 +128,11 @@ async function comandoCarry(sock, chatId, msg, comando, args = []) {
         
         await sock.sendMessage(chatId, { 
             text: `📢 *NUEVO CARRY DISPONIBLE*\n👑 *${pushName}* ha creado un escuadrón.\n🎯 *Objetivo:* ${motivo}\n\nFaltan *${maxEspacios}* espacios. Usa *carryjoin* para unirte.`,
-            mentions: participantesGrupo // Fuerza la notificación a todos
+            mentions: participantesGrupo
         }, { quoted: msg });
 
     } else if (comando === 'carryjoin') {
-        if (!escuadron) return await sock.sendMessage(chatId, { text: `❌ No hay ningún escuadrón activo. Alguien debe usar *carryleader* primero.` }, { quoted: msg });
+        if (!escuadron) return await sock.sendMessage(chatId, { text: `❌ No hay ningún escuadrón activo. Usa *carryleader* primero.` }, { quoted: msg });
         if (escuadron.liderId === sender) return await sock.sendMessage(chatId, { text: `❌ Eres el líder, ya estás en el escuadrón.` }, { quoted: msg });
         if (escuadron.miembros.some(m => m.id === sender)) return await sock.sendMessage(chatId, { text: `❌ Ya estás dentro de este escuadrón.` }, { quoted: msg });
         
@@ -65,10 +142,9 @@ async function comandoCarry(sock, chatId, msg, comando, args = []) {
         if (espaciosRestantes > 0) {
             await sock.sendMessage(chatId, { 
                 text: `📢 *ACTUALIZACIÓN DE CARRY*\n✅ *${pushName}* se unió al escuadrón para *${escuadron.motivo}*.\n\nFaltan *${espaciosRestantes}* espacios.`,
-                mentions: participantesGrupo // Fuerza la notificación a todos
+                mentions: participantesGrupo
             }, { quoted: msg });
         } else {
-            // Cuando se llena, suma a los miembros del grupo y a los del escuadrón para que los arrobas visuales funcionen junto con la notificación global
             let mencionesSquad = [escuadron.liderId, ...escuadron.miembros.map(m => m.id)];
             let todasLasMenciones = [...new Set([...mencionesSquad, ...participantesGrupo])];
             
@@ -81,7 +157,7 @@ async function comandoCarry(sock, chatId, msg, comando, args = []) {
 
             await sock.sendMessage(chatId, { 
                 text: textoLleno, 
-                mentions: todasLasMenciones // Fuerza la notificación a todos + activa etiquetas visuales
+                mentions: todasLasMenciones
             });
             escuadronesActivos.delete(chatId); 
         }

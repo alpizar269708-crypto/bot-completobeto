@@ -7,7 +7,6 @@ const discordClient = new Client({ checkUpdate: false });
 let chatWhatsAppActivo = null;
 let sockWhatsApp = null;
 
-// Diccionario ampliado y 100% en español para mejor interpretación
 const acroMap = {
     'ets': 'Evacua el refugio',
     'rtd': 'Recupera los datos',
@@ -23,7 +22,6 @@ const acroMap = {
     'res': 'Reabastecimiento'
 };
 
-// Traductor y limpiador de términos al español
 function traducirRecompensa(texto) {
     let t = texto;
     t = t.replace(/\(Legendary\)/gi, '(Legendario)')
@@ -38,7 +36,6 @@ function traducirRecompensa(texto) {
     return t;
 }
 
-// Extraer todo el texto de los Embeds y campos de Discord
 function extraerTextoDeMensaje(msg) {
     let textoCompleto = msg.content || '';
 
@@ -58,10 +55,7 @@ function extraerTextoDeMensaje(msg) {
     return textoCompleto;
 }
 
-// Procesar, interpretar y separar Épicas de Legendarias
 function procesarTextoMensaje(contenidoCrudo) {
-    console.log(`\n--- 🔍 PROCESANDO Y SEPARANDO ALERTAS STW ---\n`);
-    
     const contenido = contenidoCrudo.replace(/[_`~]/g, '');
     const lineas = contenido.split('\n');
     let pavosList = [];
@@ -79,13 +73,11 @@ function procesarTextoMensaje(contenidoCrudo) {
             const misionEs = acroMap[acro] || match[2].trim();
             const recLower = recompensa.toLowerCase();
 
-            // 1. Detección de PaVos
             if (recLower.includes('v-buck') || recLower.includes('vbuck') || recLower.includes('pavo')) {
                 const cantMatch = recompensa.match(/(\d+)/);
                 const cantidad = cantMatch ? parseInt(cantMatch[1]) : 50;
                 pavosList.push({ pl, mision: misionEs, cantidad, recompensa: 'PaVos', tipo: 'Discord' });
             } 
-            // 2. Detección exclusiva de Épicas
             else if (recLower.includes('epic') || recLower.includes('épico')) {
                 epicasList.push({
                     pl,
@@ -93,7 +85,6 @@ function procesarTextoMensaje(contenidoCrudo) {
                     recompensa: `🟣 Épico | ${recompensa}`
                 });
             }
-            // 3. Detección de Legendarias o Míticas
             else if (recLower.includes('legendary') || recLower.includes('legendario') || recLower.includes('mythic') || recLower.includes('mítico')) {
                 let colorEmoji = (recLower.includes('mythic') || recLower.includes('mítico')) ? '🟡 Mítico' : '🟠 Legendario';
                 legendariasList.push({
@@ -114,7 +105,7 @@ async function guardarAlertas(pavosList, epicasList, legendariasList) {
             await Config.findOneAndUpdate({ clave: 'stw_pavos_activos' }, { valor: JSON.stringify(pavosList) }, { upsert: true });
             await Config.findOneAndUpdate({ clave: 'stw_epicas_activas' }, { valor: JSON.stringify(epicasList) }, { upsert: true });
             await Config.findOneAndUpdate({ clave: 'stw_legendarias_activas' }, { valor: JSON.stringify(legendariasList) }, { upsert: true });
-            console.log(`✅ Guardado en BD -> PaVos: ${pavosList.length} | Épicas: ${epicasList.length} | Legendarias: ${legendariasList.length}`);
+            console.log(`✅ Alertas actualizadas en BD -> PaVos: ${pavosList.length} | Épicas: ${epicasList.length} | Legendarias: ${legendariasList.length}`);
         } catch (e) {
             console.error("❌ Error guardando en BD:", e);
         }
@@ -122,8 +113,7 @@ async function guardarAlertas(pavosList, epicasList, legendariasList) {
 }
 
 discordClient.on('ready', async () => {
-    console.log(`✅ Conectado a Discord correctamente como: ${discordClient.user.tag}`);
-    
+    console.log(`✅ Conectado a Discord como: ${discordClient.user.tag}`);
     try {
         const targetChannelId = process.env.DISCORD_CHANNEL_ID;
         const channel = await discordClient.channels.fetch(targetChannelId);
@@ -147,9 +137,6 @@ discordClient.on('ready', async () => {
 
 discordClient.on('messageCreate', async (msg) => {
     const targetChannelId = process.env.DISCORD_CHANNEL_ID;
-
----
-
     if (msg.channel.id === targetChannelId) {
         const contenidoCompleto = extraerTextoDeMensaje(msg);
         if (contenidoCompleto) {
@@ -161,9 +148,7 @@ discordClient.on('messageCreate', async (msg) => {
                     await sockWhatsApp.sendMessage(chatWhatsAppActivo, { 
                         text: `🎮 *¡NUEVAS ALERTAS STW DETECTADAS!*\nEscribe *stw* para ver la lista completa.` 
                     });
-                } catch (error) {
-                    console.error("❌ Error al reenviar a WhatsApp:", error);
-                }
+                } catch (error) {}
             }
         }
     }
@@ -178,7 +163,7 @@ function iniciarPuenteDiscord(sock) {
 
 function vincularChatWhatsApp(chatId) {
     chatWhatsAppActivo = chatId;
-    console.log(`🔗 Chat de WhatsApp vinculado para avisos: ${chatId}`);
+    console.log(`🔗 Chat de WhatsApp vinculado: ${chatId}`);
 }
 
 module.exports = { iniciarPuenteDiscord, vincularChatWhatsApp };
