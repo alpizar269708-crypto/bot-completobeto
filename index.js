@@ -6,6 +6,7 @@ const pino = require('pino');
 const { procesarMensaje } = require('./messageHandler');
 const { verificarNuevoMiembro } = require('./comandos/moderacion');
 const { iniciarCronAlertasDiarias } = require('./comandos/fortnite');
+const { iniciarPuenteDiscord } = require('./discordBridge'); // <-- Integración del puente de Discord
 const express = require('express');
 
 const app = express();
@@ -86,12 +87,11 @@ async function arrancarSocket(metodo, numeroTelefono, onCodeReady = null) {
         printQRInTerminal: false,
         logger: pino({ level: 'silent' }),
         browser: Browsers.ubuntu('Chrome'),
-        // 🔥 OPTIMIZACIONES PARA INICIO ULTRARRÁPIDO 🔥
-        syncFullHistory: false, // Ignora el historial de chats viejos
-        generateHighQualityLinkPreview: false, // No procesa miniaturas de links al arrancar
+        syncFullHistory: false,
+        generateHighQualityLinkPreview: false,
         markOnlineOnConnect: true,
         getMessage: async (key) => {
-            return { conversation: '' }; // Evita que busque mensajes antiguos en la base de datos
+            return { conversation: '' };
         }
     });
 
@@ -125,7 +125,7 @@ async function arrancarSocket(metodo, numeroTelefono, onCodeReady = null) {
             } catch (e) {
                 if (onCodeReady) onCodeReady('<h2 style="font-family: Arial; text-align: center; color: red;">❌ Error al generar código. Verifica que el número sea correcto (ej. 525512345678).</h2>');
             }
-        }, 3000); // Pequeña pausa requerida por la API de WhatsApp antes de pedir el código
+        }, 3000);
     }
 
     sock.ev.on('creds.update', saveCreds);
@@ -171,6 +171,9 @@ async function arrancarSocket(metodo, numeroTelefono, onCodeReady = null) {
             }
             
             iniciarCronAlertasDiarias(sock);
+            
+            // 🚀 Inicializa el puente de Discord al abrir la conexión de WhatsApp
+            iniciarPuenteDiscord(sock);
         }
     });
 
