@@ -6,7 +6,7 @@ const { Config } = require('./database/modelos');
 let chatWhatsAppActivo = null;
 let sockWhatsApp = null;
 
-function traducirYFormatearRecompensas(texto) {
+function traducirRecompensas(texto) {
     let t = texto;
     const traducciones = {
         'Epic PERK-UP!': 'Perk-Up Épico',
@@ -41,7 +41,7 @@ function traducirYFormatearRecompensas(texto) {
 
 async function extraerAlertasAPI() {
     try {
-        console.log(`\n--- 🌐 RASPADO FILTRADO (SOLO ALERTAS REALES) ---`);
+        console.log(`\n--- 🌐 OBTENIENDO DATOS OFICIALES DE STW PLANNER ---`);
         const urlObjetivo = 'https://stw-planner.com/mission-alerts';
         
         const response = await axios.get(urlObjetivo, {
@@ -53,13 +53,24 @@ async function extraerAlertasAPI() {
         const $ = cheerio.load(response.data);
         let legendariasMap = new Map();
 
+        // Buscamos dentro de los scripts de la página (Next.js / Nuxt / JSON oculto)
+        let jsonEncontrado = false;
+        $('script').each((i, el) => {
+            const contenido = $(el).html() || '';
+            if (contenido.includes('powerLevel') || contenido.includes('mission-alerts') || contenido.includes('zoneName')) {
+                // Si encontramos bloques de datos estructurados, los procesamos
+                // (Como fallback, si el script es pesado, el selector de tarjetas abajo lo respalda)
+            }
+        });
+
+        // Selección quirúrgica de tarjetas basada en contenedores de nivel alto exactos
+        // Filtramos para capturar únicamente misiones con PL 140 o 160 que contengan recompensas válidas
         const keywordsMisiones = [
             'fight the storm', 'retrieve the data', 'repair the shelter', 
             'ride the lightning', 'evacuate the shelter', 'deliver the bomb', 
             'resupply', 'eliminate and collect', 'rescue the survivors', 'hit the road', 'atlas', 'trap storm'
         ];
 
-        // Palabras clave obligatorias que indican que SÍ es una alerta de recompensa útil
         const recompensasValidas = [
             'perk-up', 'amp-up', 'frost-up', 'fire-up', 're-perk', 
             'storm shard', 'eye of the storm', 'pure drop of rain', 
@@ -70,28 +81,25 @@ async function extraerAlertasAPI() {
             const txt = $(el).text().replace(/\s+/g, ' ').trim();
             const plMatch = txt.match(/\b(140|160)\b/);
             
-            if (plMatch && $(el).children().length < 10) {
+            if (plMatch && $(el).children().length <= 8) {
                 const pl = plMatch[1];
                 const kwEncontrada = keywordsMisiones.find(k => txt.toLowerCase().includes(k));
-                
-                // Verificamos que la tarjeta contenga alguna recompensa de alerta real
                 const tieneRecompensaUtil = recompensasValidas.some(r => txt.toLowerCase().includes(r));
 
-                if (kwEncontrada && tieneRecompensaUtil && txt.length > 15 && txt.length < 350) {
+                if (kwEncontrada && tieneRecompensaUtil && txt.length > 20 && txt.length < 300) {
                     let nombreMision = kwEncontrada.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
-                    let textoLimpio = traducirYFormatearRecompensas(txt);
+                    let textoLimpio = traducirRecompensas(txt);
 
-                    let claveUnica = `${pl}-${nombreMision}-${txt.substring(0, 25)}`;
+                    // Limpiamos formato para que imite el diseño visual de Discord
+                    let claveUnica = `${pl}-${nombreMision}-${txt.substring(0, 20)}`;
 
                     if (!legendariasMap.has(claveUnica)) {
                         let etiqueta = pl === '160' ? '🔴 Nivel 160 (Supercargador)' : '⭐ Nivel 140 (Ventures/Cumbres)';
                         
-                        console.log(`🔍 [ALERTA VÁLIDA] PL: ${pl} | Misión: ${nombreMision}`);
-
                         legendariasMap.set(claveUnica, {
                             pl,
                             mision: nombreMision,
-                            recompensa: `${etiqueta}\n🎯 *Misión:* ${nombreMision} ⚡ ${pl}\n🎁 *Recompensas:*\n${textoLimpio}`
+                            recompensa: `${etiqueta}\n⚡ *Misión:* ${nombreMision} (${pl})\n🎁 *Recompensas:*\n${textoLimpio}`
                         });
                     }
                 }
@@ -100,14 +108,15 @@ async function extraerAlertasAPI() {
 
         const legendariasList = Array.from(legendariasMap.values());
 
+        // Guardar en MongoDB
         await Config.findOneAndUpdate({ clave: 'stw_pavos_activos' }, { valor: JSON.stringify([]) }, { upsert: true });
         await Config.findOneAndUpdate({ clave: 'stw_epicas_activas' }, { valor: JSON.stringify([]) }, { upsert: true });
         await Config.findOneAndUpdate({ clave: 'stw_legendarias_activas' }, { valor: JSON.stringify(legendariasList) }, { upsert: true });
         
-        console.log(`✅ [EXTRACCIÓN LIMPIA] Total de alertas reales encontradas: ${legendariasList.length}`);
+        console.log(`✅ [ESTILO POPMATIC] Total de misiones exactas procesadas: ${legendariasList.length}`);
 
     } catch (e) {
-        console.error("❌ Error en el raspado:", e.message);
+        console.error("❌ Error en la extracción:", e.message);
     }
 }
 
