@@ -39,7 +39,7 @@ function traducirYFormatearRecompensas(texto) {
 
 async function extraerAlertasAPI() {
     try {
-        console.log(`\n--- 🌐 RASPADO ESTRICTO (SOLO INICIO 140/160) ---`);
+        console.log(`\n--- 🌐 RASPADO QUIRÚRGICO (FILTRO DE CONTENEDORES MÚLTIPLES) ---`);
         const urlObjetivo = 'https://stw-planner.com/mission-alerts';
         
         const response = await axios.get(urlObjetivo, {
@@ -59,24 +59,30 @@ async function extraerAlertasAPI() {
             'resupply', 'eliminate and collect', 'rescue the survivors', 'hit the road', 'atlas'
         ];
 
-        // Analizamos contenedores individuales
+        // Analizamos elementos pequeños o tarjetas individuales
         $('div, article, li, tr').each((i, el) => {
-            if ($(el).children().length > 15) return; 
+            // Ignoramos si el elemento tiene sub-elementos que también son contenedores grandes
+            if ($(el).find('div, article').length > 3) return;
 
             const txt = $(el).text().replace(/\s+/g, ' ').trim();
-            
-            // 🎯 CAMBIO CLAVE: El texto DEBE COMENZAR exactamente con 140 o 160 (con o sin rayo ⚡)
-            const plMatch = txt.match(/^\s*(?:⚡\s*)?(140|160)\b/);
 
-            if (plMatch) {
-                const pl = plMatch[1];
+            // Ignorar textos que pertenecen a encabezados o categorías generales de la web
+            if (txt.includes('MegaAlert') || txt.includes('STW_') || txt.includes('Stonewood') || txt.includes('Plankerton')) return;
+
+            // Buscamos cuántas veces aparece un número de nivel de poder de 3 dígitos (140 o 160) en el texto
+            const nivelesEnTexto = txt.match(/\b(140|160)\b/g);
+
+            // 🎯 REGLA ESTRICTA: El texto debe tener EXACTAMENTE una sola mención del nivel 140 o 160 
+            // (esto evita por completo que agarre bloques que agrupan varias misiones juntas).
+            if (nivelesEnTexto && nivelesEnTexto.length === 1) {
+                const pl = nivelesEnTexto[0];
                 const kwEncontrada = keywordsMisiones.find(k => txt.toLowerCase().includes(k));
 
-                if (kwEncontrada && txt.length < 300 && txt.length > 10) {
+                if (kwEncontrada && txt.length < 250) {
                     let nombreMision = kwEncontrada.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
                     let textoTraducido = traducirYFormatearRecompensas(txt);
 
-                    let claveUnica = `${pl}-${txt.substring(0, 35).trim()}`;
+                    let claveUnica = `${pl}-${nombreMision}-${txt.substring(0, 20)}`;
 
                     if (!legendariasMap.has(claveUnica)) {
                         let etiqueta = pl === '160' ? '🔴 Nivel 160 (Supercargador)' : '⭐ Nivel 140';
@@ -97,7 +103,7 @@ async function extraerAlertasAPI() {
         await Config.findOneAndUpdate({ clave: 'stw_epicas_activas' }, { valor: JSON.stringify([]) }, { upsert: true });
         await Config.findOneAndUpdate({ clave: 'stw_legendarias_activas' }, { valor: JSON.stringify(legendariasList) }, { upsert: true });
         
-        console.log(`✅ [STW ESTRICTO] Total exacto guardado -> Nivel 140 y 160: ${legendariasList.length}`);
+        console.log(`✅ [STW QUIRÚRGICO] Total exacto guardado -> Nivel 140 y 160: ${legendariasList.length}`);
 
     } catch (e) {
         console.error("❌ Error procesando STW Planner:", e.message);
