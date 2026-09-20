@@ -7,7 +7,7 @@ const discordClient = new Client({ checkUpdate: false });
 let chatWhatsAppActivo = null;
 let sockWhatsApp = null;
 
-// Diccionario limpio 100% en español (sin inglés en paréntesis)
+// Diccionario ampliado y 100% en español para mejor interpretación
 const acroMap = {
     'ets': 'Evacua el refugio',
     'rtd': 'Recupera los datos',
@@ -19,10 +19,11 @@ const acroMap = {
     'c4s': 'Tormenta cat. 4',
     'rts': 'Repara el refugio',
     'dtb': 'Entrega el pedido',
-    'etc': 'Elimina y recolecta'
+    'etc': 'Elimina y recolecta',
+    'res': 'Reabastecimiento'
 };
 
-// Traductor de términos de recompensas al español
+// Traductor y limpiador de términos al español
 function traducirRecompensa(texto) {
     let t = texto;
     t = t.replace(/\(Legendary\)/gi, '(Legendario)')
@@ -57,13 +58,14 @@ function extraerTextoDeMensaje(msg) {
     return textoCompleto;
 }
 
-// Procesar y traducir todo al español
+// Procesar, interpretar y separar Épicas de Legendarias
 function procesarTextoMensaje(contenidoCrudo) {
-    console.log(`\n--- 🔍 PROCESANDO TEXTO AL ESPAÑOL ---\n`);
+    console.log(`\n--- 🔍 PROCESANDO Y SEPARANDO ALERTAS STW ---\n`);
     
     const contenido = contenidoCrudo.replace(/[_`~]/g, '');
     const lineas = contenido.split('\n');
     let pavosList = [];
+    let epicasList = [];
     let legendariasList = [];
 
     lineas.forEach(linea => {
@@ -72,20 +74,28 @@ function procesarTextoMensaje(contenidoCrudo) {
             const pl = match[1].trim();
             const acro = match[2].trim().toLowerCase();
             let recompensa = match[3].trim().replace(/\*\*/g, '');
-            recompensa = traducirRecompensa(recompensa); // Traducir términos al español
+            recompensa = traducirRecompensa(recompensa);
             
             const misionEs = acroMap[acro] || match[2].trim();
             const recLower = recompensa.toLowerCase();
 
-            // Detección de PaVos
+            // 1. Detección de PaVos
             if (recLower.includes('v-buck') || recLower.includes('vbuck') || recLower.includes('pavo')) {
                 const cantMatch = recompensa.match(/(\d+)/);
                 const cantidad = cantMatch ? parseInt(cantMatch[1]) : 50;
                 pavosList.push({ pl, mision: misionEs, cantidad, recompensa: 'PaVos', tipo: 'Discord' });
             } 
-            // Detección de Épicas, Legendarias o Míticas
-            else if (recLower.includes('legendary') || recLower.includes('epic') || recLower.includes('mythic') || recLower.includes('legendario') || recLower.includes('épico')) {
-                let colorEmoji = recLower.includes('mythic') ? '🟡 Mítico' : (recLower.includes('legendary') || recLower.includes('legendario')) ? '🟠 Legendario' : '🟣 Épico';
+            // 2. Detección exclusiva de Épicas
+            else if (recLower.includes('epic') || recLower.includes('épico')) {
+                epicasList.push({
+                    pl,
+                    mision: misionEs,
+                    recompensa: `🟣 Épico | ${recompensa}`
+                });
+            }
+            // 3. Detección de Legendarias o Míticas
+            else if (recLower.includes('legendary') || recLower.includes('legendario') || recLower.includes('mythic') || recLower.includes('mítico')) {
+                let colorEmoji = (recLower.includes('mythic') || recLower.includes('mítico')) ? '🟡 Mítico' : '🟠 Legendario';
                 legendariasList.push({
                     pl,
                     mision: misionEs,
@@ -95,15 +105,16 @@ function procesarTextoMensaje(contenidoCrudo) {
         }
     });
 
-    return { pavosList, legendariasList };
+    return { pavosList, epicasList, legendariasList };
 }
 
-async function guardarAlertas(pavosList, legendariasList) {
-    if (pavosList.length > 0 || legendariasList.length > 0) {
+async function guardarAlertas(pavosList, epicasList, legendariasList) {
+    if (pavosList.length > 0 || epicasList.length > 0 || legendariasList.length > 0) {
         try {
             await Config.findOneAndUpdate({ clave: 'stw_pavos_activos' }, { valor: JSON.stringify(pavosList) }, { upsert: true });
+            await Config.findOneAndUpdate({ clave: 'stw_epicas_activas' }, { valor: JSON.stringify(epicasList) }, { upsert: true });
             await Config.findOneAndUpdate({ clave: 'stw_legendarias_activas' }, { valor: JSON.stringify(legendariasList) }, { upsert: true });
-            console.log(`✅ Alertas traducidas y guardadas -> PaVos: ${pavosList.length}, Legendarias/Épicas: ${legendariasList.length}`);
+            console.log(`✅ Guardado en BD -> PaVos: ${pavosList.length} | Épicas: ${epicasList.length} | Legendarias: ${legendariasList.length}`);
         } catch (e) {
             console.error("❌ Error guardando en BD:", e);
         }
@@ -121,9 +132,9 @@ discordClient.on('ready', async () => {
             for (const [id, msg] of messages) {
                 const contenidoCompleto = extraerTextoDeMensaje(msg);
                 if (contenidoCompleto && (contenidoCompleto.includes('⚡') || contenidoCompleto.includes('V-Bucks') || contenidoCompleto.includes('Legendary'))) {
-                    const { pavosList, legendariasList } = procesarTextoMensaje(contenidoCompleto);
-                    if (pavosList.length > 0 || legendariasList.length > 0) {
-                        await guardarAlertas(pavosList, legendariasList);
+                    const { pavosList, epicasList, legendariasList } = procesarTextoMensaje(contenidoCompleto);
+                    if (pavosList.length > 0 || epicasList.length > 0 || legendariasList.length > 0) {
+                        await guardarAlertas(pavosList, epicasList, legendariasList);
                         break; 
                     }
                 }
@@ -137,13 +148,15 @@ discordClient.on('ready', async () => {
 discordClient.on('messageCreate', async (msg) => {
     const targetChannelId = process.env.DISCORD_CHANNEL_ID;
 
+---
+
     if (msg.channel.id === targetChannelId) {
         const contenidoCompleto = extraerTextoDeMensaje(msg);
         if (contenidoCompleto) {
-            const { pavosList, legendariasList } = procesarTextoMensaje(contenidoCompleto);
-            await guardarAlertas(pavosList, legendariasList);
+            const { pavosList, epicasList, legendariasList } = procesarTextoMensaje(contenidoCompleto);
+            await guardarAlertas(pavosList, epicasList, legendariasList);
 
-            if ((pavosList.length > 0 || legendariasList.length > 0) && sockWhatsApp && chatWhatsAppActivo) {
+            if ((pavosList.length > 0 || epicasList.length > 0 || legendariasList.length > 0) && sockWhatsApp && chatWhatsAppActivo) {
                 try {
                     await sockWhatsApp.sendMessage(chatWhatsAppActivo, { 
                         text: `🎮 *¡NUEVAS ALERTAS STW DETECTADAS!*\nEscribe *stw* para ver la lista completa.` 
