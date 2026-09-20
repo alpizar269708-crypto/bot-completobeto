@@ -41,7 +41,7 @@ function traducirRecompensas(texto) {
 
 async function extraerAlertasAPI() {
     try {
-        console.log(`\n--- 🌐 OBTENIENDO DATOS OFICIALES DE STW PLANNER ---`);
+        console.log(`\n--- 🌐 OBTENIENDO ALERTAS (FORMATO EXACTO DISCORD) ---`);
         const urlObjetivo = 'https://stw-planner.com/mission-alerts';
         
         const response = await axios.get(urlObjetivo, {
@@ -53,18 +53,6 @@ async function extraerAlertasAPI() {
         const $ = cheerio.load(response.data);
         let legendariasMap = new Map();
 
-        // Buscamos dentro de los scripts de la página (Next.js / Nuxt / JSON oculto)
-        let jsonEncontrado = false;
-        $('script').each((i, el) => {
-            const contenido = $(el).html() || '';
-            if (contenido.includes('powerLevel') || contenido.includes('mission-alerts') || contenido.includes('zoneName')) {
-                // Si encontramos bloques de datos estructurados, los procesamos
-                // (Como fallback, si el script es pesado, el selector de tarjetas abajo lo respalda)
-            }
-        });
-
-        // Selección quirúrgica de tarjetas basada en contenedores de nivel alto exactos
-        // Filtramos para capturar únicamente misiones con PL 140 o 160 que contengan recompensas válidas
         const keywordsMisiones = [
             'fight the storm', 'retrieve the data', 'repair the shelter', 
             'ride the lightning', 'evacuate the shelter', 'deliver the bomb', 
@@ -90,16 +78,21 @@ async function extraerAlertasAPI() {
                     let nombreMision = kwEncontrada.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
                     let textoLimpio = traducirRecompensas(txt);
 
-                    // Limpiamos formato para que imite el diseño visual de Discord
                     let claveUnica = `${pl}-${nombreMision}-${txt.substring(0, 20)}`;
 
                     if (!legendariasMap.has(claveUnica)) {
                         let etiqueta = pl === '160' ? '🔴 Nivel 160 (Supercargador)' : '⭐ Nivel 140 (Ventures/Cumbres)';
                         
+                        // 🎯 Formato idéntico al solicitado por el usuario
+                        let tarjetaFormateada = `⚡ *PL:* ${pl} | 🎯 *Misión:* ${nombreMision}\n` +
+                                                `🎁 *Recompensa:* ${etiqueta}\n` +
+                                                `⚡ *Misión:* ${nombreMision} (${pl})\n` +
+                                                `🎁 *Recompensas:*\n${textoLimpio}`;
+
                         legendariasMap.set(claveUnica, {
                             pl,
                             mision: nombreMision,
-                            recompensa: `${etiqueta}\n⚡ *Misión:* ${nombreMision} (${pl})\n🎁 *Recompensas:*\n${textoLimpio}`
+                            recompensa: tarjetaFormateada
                         });
                     }
                 }
@@ -108,12 +101,21 @@ async function extraerAlertasAPI() {
 
         const legendariasList = Array.from(legendariasMap.values());
 
-        // Guardar en MongoDB
+        // Generar fecha actual en español (ej. domingo, 20 de septiembre de 2026)
+        const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: 'America/Mexico_City' };
+        const fechaFormateada = new Date().toLocaleDateString('es-MX', options);
+
+        // Construir mensaje completo unificado
+        let mensajeCompleto = `📅 _${fechaFormateada}_\n\n🌟 *ALERTAS LEGENDARIAS*\n\n` +
+                              legendariasList.map(item => item.recompensa).join('\n\n') +
+                              `\n\nSupport-a-Creator: *JASC13* ❤️`;
+
+        // Guardar en MongoDB la estructura completa lista para enviar
         await Config.findOneAndUpdate({ clave: 'stw_pavos_activos' }, { valor: JSON.stringify([]) }, { upsert: true });
         await Config.findOneAndUpdate({ clave: 'stw_epicas_activas' }, { valor: JSON.stringify([]) }, { upsert: true });
-        await Config.findOneAndUpdate({ clave: 'stw_legendarias_activas' }, { valor: JSON.stringify(legendariasList) }, { upsert: true });
+        await Config.findOneAndUpdate({ clave: 'stw_legendarias_activas' }, { valor: JSON.stringify([mensajeCompleto]) }, { upsert: true });
         
-        console.log(`✅ [ESTILO POPMATIC] Total de misiones exactas procesadas: ${legendariasList.length}`);
+        console.log(`✅ [FORMATO DISCORD] Alertas procesadas y formateadas exitosamente: ${legendariasList.length}`);
 
     } catch (e) {
         console.error("❌ Error en la extracción:", e.message);
