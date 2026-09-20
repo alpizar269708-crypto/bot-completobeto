@@ -1,12 +1,10 @@
 require('dotenv').config();
 const axios = require('axios');
-const cheerio = require('cheerio');
 const { Config } = require('./database/modelos');
 
 let chatWhatsAppActivo = null;
 let sockWhatsApp = null;
 
-// Diccionario de traducción al español
 const acroMap = {
     'ets': 'Evacua el refugio',
     'rtd': 'Recupera los datos',
@@ -36,77 +34,49 @@ function traducirRecompensa(texto) {
     return t;
 }
 
-async function extraerAlertasWeb() {
+async function extraerAlertasAPI() {
     try {
-        console.log(`\n--- 🌐 CONSULTANDO STW PLANNER ---`);
-        const url = 'https://stw-planner.com/mission-alerts';
-        const { data } = await axios.get(url, {
+        console.log(`\n--- 🌐 BUSCANDO ENDPOINT DE DATOS DE STW ---`);
+        
+        // Intentamos consultar rutas comunes de API o datos que suelen usar estas webs
+        // STW Planner o herramientas similares suelen consumir JSONs públicos de rotación
+        const urlsPrueba = [
+            'https://stw-planner.com/api/missions', // Posible ruta de API
+            'https://freethevbucks.com/wp-json/',   // Ejemplo de estructura JSON si aplica
+        ];
+
+        // Usaremos una petición genérica para capturar la respuesta y verla en los logs de Render
+        const urlObjetivo = 'https://stw-planner.com/mission-alerts'; // O endpoint JSON si lo detectamos
+        
+        const response = await axios.get(urlObjetivo, {
             headers: { 
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8'
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
+                'Accept': 'application/json, text/plain, */*'
             }
         });
 
-        const $ = cheerio.load(data);
-        let textoCrudo = '';
-
-        // Recorremos los elementos de texto clave de la página para capturar la información
-        $('div, span, p, a, td').each((i, el) => {
-            const t = $(el).text().trim();
-            if (t.length > 3 && t.length < 120 && (t.includes('⚡') || t.includes('PL') || t.includes('V-Bucks') || t.includes('Legendary') || t.includes('Epic'))) {
-                textoCrudo += t + '\n';
-            }
-        });
-
-        console.log(`\n--- 🔍 MUESTRA DE TEXTO EXTRAÍDO DE STW PLANNER ---\n${textoCrudo.substring(0, 1500)}\n----------------------------------------------------\n`);
-
-        let pavosList = [];
-        let epicasList = [];
-        let legendariasList = [];
-
-        const lineas = textoCrudo.split('\n');
-        lineas.forEach(linea => {
-            // Buscamos patrones de nivel de poder y misiones
-            const match = linea.match(/(\d+)\s*(?:⚡|PL)?\s*([A-Za-z0-9]+)\s*[-–]?\s*(.+)/);
-            if (match) {
-                const pl = match[1].trim();
-                const acro = match[2].trim().toLowerCase();
-                let recompensa = traducirRecompensa(match[3].trim());
-                const misionEs = acroMap[acro] || match[2].trim();
-                const recLower = recompensa.toLowerCase();
-
-                if (recLower.includes('v-buck') || recLower.includes('vbuck') || recLower.includes('pavo')) {
-                    const cantMatch = recompensa.match(/(\d+)/);
-                    const cantidad = cantMatch ? parseInt(cantMatch[1]) : 50;
-                    pavosList.push({ pl, mision: misionEs, cantidad, recompensa: 'PaVos', tipo: 'STW Planner' });
-                } else if (recLower.includes('epic') || recLower.includes('épico')) {
-                    epicasList.push({ pl, mision: misionEs, recompensa: `🟣 Épico | ${recompensa}` });
-                } else if (recLower.includes('legendary') || recLower.includes('legendario') || recLower.includes('mythic') || recLower.includes('mítico')) {
-                    let colorEmoji = (recLower.includes('mythic') || recLower.includes('mítico')) ? '🟡 Mítico' : '🟠 Legendario';
-                    legendariasList.push({ pl, mision: misionEs, recompensa: `${colorEmoji} | ${recompensa}` });
-                }
-            }
-        });
-
-        // Guardar resultados en MongoDB
-        if (pavosList.length > 0 || epicasList.length > 0 || legendariasList.length > 0) {
-            await Config.findOneAndUpdate({ clave: 'stw_pavos_activos' }, { valor: JSON.stringify(pavosList) }, { upsert: true });
-            await Config.findOneAndUpdate({ clave: 'stw_epicas_activas' }, { valor: JSON.stringify(epicasList) }, { upsert: true });
-            await Config.findOneAndUpdate({ clave: 'stw_legendarias_activas' }, { valor: JSON.stringify(legendariasList) }, { upsert: true });
-            console.log(`✅ [STW PLANNER] Datos guardados -> PaVos: ${pavosList.length} | Épicas: ${epicasList.length} | Legendarias: ${legendariasList.length}`);
+        console.log(`\n--- 📦 TIPO DE RESPUESTA RECIBIDA ---`);
+        console.log(typeof response.data);
+        if (typeof response.data === 'object') {
+            console.log(JSON.stringify(response.data).substring(0, 1000));
         } else {
-            console.log(`⚠️ [STW PLANNER] Se descargó la página pero la expresión regular requiere ajuste según la muestra mostrada arriba.`);
+            console.log("La respuesta es texto plano o HTML. Buscando patrones de niveles 140/160...");
+            // Buscamos si en el texto plano vienen los niveles altos
+            const texto = response.data;
+            if (texto.includes('140') || texto.includes('160')) {
+                console.log("🔥 ¡Se encontraron menciones de nivel 140 o 160 en la respuesta bruta!");
+            }
         }
 
     } catch (e) {
-        console.error("❌ Error haciendo scraping a STW Planner:", e.message);
+        console.error("❌ Error consultando la fuente:", e.message);
     }
 }
 
 function iniciarPuenteDiscord(sock) {
     sockWhatsApp = sock;
-    extraerAlertasWeb();
-    setInterval(extraerAlertasWeb, 60 * 60 * 1000); // Consulta cada hora de forma automática
+    extraerAlertasAPI();
+    setInterval(extraerAlertasAPI, 60 * 60 * 1000);
 }
 
 function vincularChatWhatsApp(chatId) {
