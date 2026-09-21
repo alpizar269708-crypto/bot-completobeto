@@ -6,7 +6,6 @@ const { Config } = require('./database/modelos');
 let chatWhatsAppActivo = null;
 let sockWhatsApp = null;
 
-// Traducción oficial de recompensas al español de Salvar el Mundo
 function traducirYFormatearRecompensa(texto, iconClass) {
     const cls = (iconClass || "").toLowerCase();
     const txt = (texto || "").toLowerCase();
@@ -142,7 +141,7 @@ function traducirMisionYBioma(nombreIngles, textoCompletoZona) {
 
 async function extraerAlertasAPI() {
     try {
-        console.log(`\n--- 🌐 RASPADO CON DISEÑO VERTICAL EXACTO ---`);
+        console.log(`\n--- 🌐 RASPADO CON BLOQUE VERTICAL UNIFICADO ---`);
         const urlObjetivo = 'https://stw-planner.com/mission-alerts';
         
         const response = await axios.get(urlObjetivo, {
@@ -192,7 +191,7 @@ async function extraerAlertasAPI() {
                     let claveUnica = `${pl}-${misionCompletaEsp}`;
 
                     if (!legendariasMap.has(claveUnica) && listaRecompensas.length > 0) {
-                        // Formato vertical estricto con saltos de línea (\n)
+                        // Construimos la tarjeta vertical completa aquí mismo para evitar que otros archivos la desformen
                         let tarjetaVertical = `⚡ *PL:* ${pl}\n` +
                                               `🎯 *Misión:* ${misionCompletaEsp}\n` +
                                               `🎁 *Recompensa:* ${listaRecompensas.join(' | ')}`;
@@ -205,7 +204,6 @@ async function extraerAlertasAPI() {
 
         const tarjetasList = Array.from(legendariasMap.values());
 
-        // Generar fecha actual en español
         const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: 'America/Mexico_City' };
         const fechaFormateada = new Date().toLocaleDateString('es-MX', options);
 
@@ -213,12 +211,18 @@ async function extraerAlertasAPI() {
                               tarjetasList.join('\n\n') +
                               `\n\nSupport-a-Creator: *JASC13* ❤️`;
 
-        // Guardamos el mensaje completo preformateado en MongoDB para que index.js lo envíe tal cual
+        // Guardamos el mensaje ya formateado como texto dentro del campo 'recompensa' de un objeto único
+        const objetoFinal = [{
+            pl: "GENERAL",
+            mision: "Alertas",
+            recompensa: mensajeCompleto
+        }];
+
         await Config.findOneAndUpdate({ clave: 'stw_pavos_activos' }, { valor: JSON.stringify([]) }, { upsert: true });
         await Config.findOneAndUpdate({ clave: 'stw_epicas_activas' }, { valor: JSON.stringify([]) }, { upsert: true });
-        await Config.findOneAndUpdate({ clave: 'stw_legendarias_activas' }, { valor: JSON.stringify([mensajeCompleto]) }, { upsert: true });
+        await Config.findOneAndUpdate({ clave: 'stw_legendarias_activas' }, { valor: JSON.stringify(objetoFinal) }, { upsert: true });
         
-        console.log(`✅ [MENSAJE VERTICAL OK] Total de misiones únicas guardadas: ${tarjetasList.length}`);
+        console.log(`✅ [MENSAJE COMPLETO GUARDADO OK] Total de misiones en la lista: ${tarjetasList.length}`);
 
     } catch (e) {
         console.error("❌ Error en la extracción:", e.message);

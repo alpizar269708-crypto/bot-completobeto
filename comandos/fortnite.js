@@ -60,7 +60,7 @@ async function alertasSTW(sock, chatId, msg, categoria = 'todas') {
             let totalPavos = 0;
             datos.pavos.forEach(p => {
                 totalPavos += p.cantidad || 50;
-                texto += `⚡ *PL:* ${p.pl} | 🎯 *Misión:* ${p.mision}\n🪙 *PaVos:* ${p.cantidad || 50}\n\n`;
+                texto += `⚡ *PL:* ${p.pl}\n🎯 *Misión:* ${p.mision}\n🪙 *PaVos:* ${p.cantidad || 50}\n\n`;
             });
             texto += `💰 *Total del día:* ${totalPavos} paVos\n\n`;
         }
@@ -72,7 +72,7 @@ async function alertasSTW(sock, chatId, msg, categoria = 'todas') {
             texto += `_No hay alertas épicas registradas._\n\n`;
         } else {
             datos.epicas.forEach(e => {
-                texto += `⚡ *PL:* ${e.pl} | 🎯 *Misión:* ${e.mision}\n🎁 *Recompensa:* ${e.recompensa}\n\n`;
+                texto += `⚡ *PL:* ${e.pl}\n🎯 *Misión:* ${e.mision}\n🎁 *Recompensa:* ${e.recompensa}\n\n`;
             });
         }
     }
@@ -83,7 +83,8 @@ async function alertasSTW(sock, chatId, msg, categoria = 'todas') {
             texto += `_No hay alertas legendarias registradas._\n\n`;
         } else {
             datos.legendarias.forEach(L => {
-                texto += `⚡ *PL:* ${L.pl} | 🎯 *Misión:* ${L.mision}\n🎁 *Recompensa:* ${L.recompensa}\n\n`;
+                // Diseño vertical limpio: PL en su línea, Misión en su línea, Recompensa abajo
+                texto += `⚡ *PL:* ${L.pl}\n🎯 *Misión:* ${L.mision}\n🎁 *Recompensa:* ${L.recompensa}\n\n`;
             });
         }
     }
@@ -137,17 +138,17 @@ function iniciarCronAlertasDiarias(sock) {
             let mensajeAuto = `🎮 *REPORTE DIARIO STW (6:05 PM)*\n\n`;
             if (datos.pavos.length > 0) {
                 datos.pavos.forEach(p => {
-                    mensajeAuto += `⚡ PL: ${p.pl} | 🎯 ${p.mision} | 🪙 ${p.cantidad || 50} PaVos\n`;
+                    mensajeAuto += `⚡ PL: ${p.pl}\n🎯 ${p.mision}\n🪙 ${p.cantidad || 50} PaVos\n\n`;
                 });
-                mensajeAuto += `\n💰 *Total del día:* ${total} paVos\n\n`;
+                mensajeAuto += `💰 *Total del día:* ${total} paVos\n\n`;
             }
             if (datos.legendarias.length > 0) {
                 mensajeAuto += `🌟 *LEGENDARIAS*\n`;
                 datos.legendarias.forEach(L => {
-                    mensajeAuto += `⚡ PL: ${L.pl} | 🎯 ${L.mision} | 🎁 ${L.recompensa}\n`;
+                    mensajeAuto += `⚡ PL: ${L.pl}\n🎯 ${L.mision}\n🎁 ${L.recompensa}\n\n`;
                 });
             }
-            mensajeAuto += `\nSupport-a-Creator: *JASC13* ❤️`;
+            mensajeAuto += `Support-a-Creator: *JASC13* ❤️`;
             await sock.sendMessage(configChat.valor, { text: mensajeAuto });
         } catch (error) {}
     }, { scheduled: true, timezone: "America/Mexico_City" });
