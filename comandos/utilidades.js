@@ -1,7 +1,7 @@
 const { downloadMediaMessage } = require('@whiskeysockets/baileys');
 const { Sticker, StickerTypes } = require('wa-sticker-formatter');
 
-// 🎨 1. Sticker (Conversión de imagen/video)
+// 🎨 1. Sticker (Conversión de imagen/video optimizada)
 async function comandoSticker(sock, msg) {
     const chatJid = msg.key.remoteJid;
     try {
@@ -10,10 +10,21 @@ async function comandoSticker(sock, msg) {
         const citadoTipo = msjCitado?.imageMessage || msjCitado?.videoMessage;
 
         if (!msgTipo && !citadoTipo) {
-            return await sock.sendMessage(chatJid, { text: '⚠️ Por favor, responde a una imagen o video con el comando, o envíalo adjunto a la imagen.' }, { quoted: msg });
+            return await sock.sendMessage(chatJid, { text: '⚠️ Por favor, responde a una imagen o video, o envíalo adjunto a la imagen.' }, { quoted: msg });
         }
 
-        await sock.sendMessage(chatJid, { text: '✨ Procesando sticker...' }, { quoted: msg });
+        // 🚀 Detectar si es video para aplicar optimizaciones
+        const esVideo = msg.message?.videoMessage || msjCitado?.videoMessage;
+        
+        if (esVideo) {
+            // Obtener duración del video
+            const duracion = msg.message?.videoMessage?.seconds || msjCitado?.videoMessage?.seconds || 0;
+            if (duracion > 10) {
+                return await sock.sendMessage(chatJid, { text: '⚠️ El video es muy largo. Por favor envía videos de máximo 10 segundos para no saturar el sistema.' }, { quoted: msg });
+            }
+        }
+
+        await sock.sendMessage(chatJid, { text: esVideo ? '✨ Procesando video a sticker (calidad optimizada para velocidad)...' : '✨ Procesando sticker...' }, { quoted: msg });
 
         const msjMultimedia = citadoTipo ? { message: msjCitado } : msg;
 
@@ -24,11 +35,12 @@ async function comandoSticker(sock, msg) {
             { reuploadRequest: sock.updateMediaMessage }
         );
 
+        // ⚡ Configuración agresiva para procesado rápido
         const sticker = new Sticker(buffer, {
-            pack: 'Apoya a un creador', 
-            author: 'JASC13 ♥',
-            type: StickerTypes.FULL, 
-            quality: 50 
+            pack: 'TechMasters & Stream', 
+            author: 'Humberto Alpízar',
+            type: StickerTypes.CROPPED, // Formato cuadrado exacto (procesa más rápido)
+            quality: esVideo ? 10 : 50 // Calidad al mínimo si es video
         });
 
         const stickerBuffer = await sticker.toBuffer();
@@ -36,7 +48,7 @@ async function comandoSticker(sock, msg) {
 
     } catch (e) {
         console.error('Error al crear el sticker:', e);
-        await sock.sendMessage(chatJid, { text: '❌ Error al crear el sticker. Asegúrate de que el archivo no sea demasiado pesado.' }, { quoted: msg });
+        await sock.sendMessage(chatJid, { text: '❌ Error al crear el sticker. Asegúrate de que el formato sea soportado.' }, { quoted: msg });
     }
 }
 
@@ -143,7 +155,7 @@ async function comandoStats(sock, chatId, msg, args) {
     try {
         const respuesta = await fetch(`https://fortnite-api.com/v2/stats/br/v2?name=${encodeURIComponent(nombreUsuario)}`, {
             headers: {
-                'Authorization': 'cbb386fe-de0e-438d-9f71-bf4001b95e9b' 
+                'Authorization': 'cbb386fe-de0e-438d-9f71-bf4001b95e9b' // Reemplaza esto con tu llave real de fortnite-api.com
             }
         });
 
