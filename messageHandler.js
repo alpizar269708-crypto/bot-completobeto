@@ -1,6 +1,6 @@
 const mongoose = require('mongoose'); 
 const { ejecutarMenu } = require('./comandos/menu');
-const { alertasSTW, comandoPreguntarAlerta, comandoSetPavos, comandoSetLegendarias, comandoResetPavos, activarAlertasDiarias, desactivarAlertasDiarias } = require('./comandos/fortnite');
+const { alertasSTW, comandoPLaltas, comandoPreguntarAlerta, comandoSetPavos, comandoSetLegendarias, comandoResetPavos, activarAlertasDiarias, desactivarAlertasDiarias } = require('./comandos/fortnite');
 const { comandoTiendaMenu, comandoTiendaCategoria } = require('./comandos/tienda'); 
 const { 
     comandoSticker, comandoTodos, comandoTiktok, comandoTraduce, comandoSkin, comandoStats, comandoContacto 
@@ -22,7 +22,7 @@ const { comandoRifa, comandoRifaInscripcion, comandoRifaJasc13, comandoMenuRifaJ
 const { comandoCarry } = require('./comandos/carry');
 
 const categoriasMap = {
-    'fortnite': ['pavos', 'legendariasstw', 'epicasstw', 'setpavos', 'setlegendarias', 'resetpavos', 'alertasstw', 'salvar', 'stw', 'alerta', 'setgrupostw', 'unsetgrupostw', 'setprecio'],
+    'fortnite': ['pavos', 'plaltas', 'legendariasstw', 'epicasstw', 'setpavos', 'setlegendarias', 'resetpavos', 'alertasstw', 'salvar', 'stw', 'alerta', 'setgrupostw', 'unsetgrupostw', 'setprecio'],
     'economia': ['cartera', 'bal', 'banco', 'pay', 'pagar', 'top', 'topdinero', 'daily', 'weekly', 'farmear', 'work', 'crime', 'mendigar', 'pescar', 'minar', 'cazar', 'explorar', 'ruleta', 'cf', 'slots', 'dados', 'adivina', 'buscaminas', 'rob', 'ppt', 'pelea', 'carrera', 'hackear', 'shop', 'buy', 'inventario', 'mochila', 'vender', 'use', 'regalar'],
     'utilidades': ['s', 'sticker', 'todos', 'tiktok', 'traduce', 'skin', 'stats', 'contacto'],
     'ia': ['ia'],
@@ -90,7 +90,7 @@ async function procesarMensaje(sock, msg) {
     }
 
     const comandosValidos = [
-        'activarcomandos', 'setprecio', 'ping', 'pavos', 'legendariasstw', 'epicasstw', 'setpavos', 'setlegendarias', 'resetpavos', 'alertasstw', 'salvar', 'stw', 'alerta', 
+        'activarcomandos', 'setprecio', 'ping', 'pavos', 'plaltas', 'legendariasstw', 'epicasstw', 'setpavos', 'setlegendarias', 'resetpavos', 'alertasstw', 'salvar', 'stw', 'alerta', 
         'setgrupostw', 'unsetgrupostw', 'grupo', 'mute', 'unmute', 'inactivos', 'tienda', 'ia', 'menu', 'menusecreto',
         's', 'sticker', 'todos', 'tiktok', 'traduce', 'skin', 'stats', 'contacto',
         'warn', 'advertir', 'verwarns', 'ban', 'unban', 'listanegra', 'banlist', 'unbanlist', 
@@ -149,6 +149,9 @@ async function procesarMensaje(sock, msg) {
                 break;
             case 'pavos':
                 await alertasSTW(sock, chatJid, msg, 'pavos');
+                break;
+            case 'plaltas':
+                await comandoPLaltas(sock, chatJid, msg);
                 break;
             case 'legendariasstw':
                 await alertasSTW(sock, chatJid, msg, 'legendarias');

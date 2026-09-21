@@ -141,7 +141,7 @@ function traducirMisionYBioma(nombreIngles, textoCompletoZona) {
 
 async function extraerAlertasAPI() {
     try {
-        console.log(`\n--- 🌐 RASPADO DE MISIONES INDIVIDUALES LIMPIAS ---`);
+        console.log(`\n--- 🌐 RASPADO DE PLs ALTAS ---`);
         const urlObjetivo = 'https://stw-planner.com/mission-alerts';
         
         const response = await axios.get(urlObjetivo, {
@@ -151,7 +151,7 @@ async function extraerAlertasAPI() {
         });
 
         const $ = cheerio.load(response.data);
-        let legendariasMap = new Map();
+        let plAltasMap = new Map();
 
         const keywordsMisiones = [
             'fight the storm', 'retrieve the data', 'repair the shelter', 
@@ -190,9 +190,8 @@ async function extraerAlertasAPI() {
 
                     let claveUnica = `${pl}-${misionCompletaEsp}`;
 
-                    if (!legendariasMap.has(claveUnica) && listaRecompensas.length > 0) {
-                        // Guardamos objetos individuales limpios
-                        legendariasMap.set(claveUnica, {
+                    if (!plAltasMap.has(claveUnica) && listaRecompensas.length > 0) {
+                        plAltasMap.set(claveUnica, {
                             pl: pl,
                             mision: misionCompletaEsp,
                             recompensa: listaRecompensas.join(' | ')
@@ -202,17 +201,15 @@ async function extraerAlertasAPI() {
             }
         });
 
-        const legendariasList = Array.from(legendariasMap.values());
+        const plAltasList = Array.from(plAltasMap.values());
 
-        // Guardar estrictamente el array de objetos limpios en MongoDB
-        await Config.findOneAndUpdate({ clave: 'stw_pavos_activos' }, { valor: JSON.stringify([]) }, { upsert: true });
-        await Config.findOneAndUpdate({ clave: 'stw_epicas_activas' }, { valor: JSON.stringify([]) }, { upsert: true });
-        await Config.findOneAndUpdate({ clave: 'stw_legendarias_activas' }, { valor: JSON.stringify(legendariasList) }, { upsert: true });
+        // Se guarda estrictamente en stw_plaltas_activas, liberando stw_legendarias_activas para uso manual
+        await Config.findOneAndUpdate({ clave: 'stw_plaltas_activas' }, { valor: JSON.stringify(plAltasList) }, { upsert: true });
         
-        console.log(`✅ [LISTA DE MISIONES OK] Total de misiones guardadas: ${legendariasList.length}`);
+        console.log(`✅ [PL ALTAS EXTRAÍDAS OK] Total de misiones guardadas: ${plAltasList.length}`);
 
     } catch (e) {
-        console.error("❌ Error en la extracción:", e.message);
+        console.error("❌ Error en la extracción de PL altas:", e.message);
     }
 }
 
