@@ -6,40 +6,31 @@ const { Config } = require('./database/modelos');
 let chatWhatsAppActivo = null;
 let sockWhatsApp = null;
 
-function traducirYFormatear(texto) {
+function traducirYFormatearRecompensas(texto) {
     let t = texto;
     const traducciones = {
-        'Deliver the Bomb': 'Deliver The Bomb',
-        'Ride the Lightning': 'Ride The Lightning',
-        'Evacuate the Shelter': 'Evacuate The Shelter',
-        'Fight the Storm': 'Fight The Storm',
-        'Repair the Shelter': 'Repair The Shelter',
-        'Retrieve the Data': 'Retrieve The Data',
-        'Rescue the Survivors': 'Rescue the Survivors',
-        'Resupply': 'Resupply',
-        '(Group)': 'Grupo',
-        'Lakeside': 'Orilla del Lago',
-        'Ghost Town': 'Pueblo Fantasma',
-        'Grasslands': 'Praderas',
-        'Industrial Park': 'Parque Industrial',
-        'Suburbs': 'Suburbios',
-        'Thunder Route 99': 'Ruta del Trueno 99',
-        'Tropical': 'Tropical',
-        'Forest': 'Bosque',
-        'Storm Shard': 'Esquirla de Tormenta',
-        'AMP-UP!': 'Amp-Up',
-        'FROST-UP!': 'Frost-Up',
-        'FIRE-UP!': 'Fire-Up',
-        'RE-PERK!': 'Re-Perk!',
-        'Candy': 'Tickets',
-        'Gold': 'Oro',
-        'Schematic XP': 'XP de Esquema',
-        'Survivor XP': 'XP de Superviviente',
-        'Hero XP': 'XP de Héroe',
-        'Epic Survivor': 'Superviviente Épico',
-        'Legendary Survivor': 'Superviviente Legendario',
-        'Epic Defender': 'Defensor Épico',
-        'Legendary Defender': 'Defensor Legendario'
+        'Epic PERK-UP!': '🟣 *Perk-Up Épico*',
+        'Legendary PERK-UP!': '🟠 *Perk-Up Legendario*',
+        'Rare PERK-UP!': '🔵 *Perk-Up Raro*',
+        'Uncommon PERK-UP!': '🟢 *Perk-Up Poco común*',
+        'AMP-UP!': '⚡ *Amp-Up*',
+        'FROST-UP!': '❄️ *Frost-Up*',
+        'FIRE-UP!': '🔥 *Fire-Up*',
+        'RE-PERK!': '🔄 *Re-Perk!*',
+        'Eye of the Storm': '🌀 *Ojo de la Tormenta*',
+        'Pure Drop of Rain': '💧 *Gota de Lluvia Pura*',
+        'Lightning in a Bottle': '⚡ *Relámpago en Botella*',
+        'Storm Shard': '💎 *Esquirla de Tormenta*',
+        'Schematic XP': '📘 *XP de Esquema*',
+        'Hero XP': '📙 *XP de Héroe*',
+        'Survivor XP': '📗 *XP de Superviviente*',
+        'Venture XP': '🗺️ *XP de Aventura*',
+        'Gold': '🪙 *Oro*',
+        'Tickets': '🎫 *Tickets*',
+        'Legendary Survivor': '👤 *Superviviente Legendario*',
+        'Epic Survivor': '👤 *Superviviente Épico*',
+        'Legendary Defender': '🛡️ *Defensor Legendario*',
+        'Epic Defender': '🛡️ *Defensor Épico*'
     };
     for (const [ing, esp] of Object.entries(traducciones)) {
         t = t.replace(new RegExp(ing, 'gi'), esp);
@@ -47,10 +38,23 @@ function traducirYFormatear(texto) {
     return t;
 }
 
+function obtenerEmojiMision(nombre) {
+    const m = nombre.toLowerCase();
+    if (m.includes('ride the lightning')) return '🚚';
+    if (m.includes('evacuate the shelter')) return '🛡️';
+    if (m.includes('deliver the bomb')) return '💣';
+    if (m.includes('fight the storm')) return '🌀';
+    if (m.includes('repair the shelter')) return '🔧';
+    if (m.includes('resupply')) return '📦';
+    if (m.includes('retrieve the data')) return '📡';
+    if (m.includes('rescue the survivors')) return '🏃‍♂️';
+    return '⚡';
+}
+
 async function extraerAlertasAPI() {
     try {
-        console.log(`\n--- 🌐 RASPADO DESDE SEEBOT.DEV ---`);
-        const urlObjetivo = 'https://seebot.dev/missions.php';
+        console.log(`\n--- 🌐 RASPADO ESTABLE DESDE STW PLANNER ---`);
+        const urlObjetivo = 'https://stw-planner.com/mission-alerts';
         
         const response = await axios.get(urlObjetivo, {
             headers: { 
@@ -61,74 +65,63 @@ async function extraerAlertasAPI() {
         const $ = cheerio.load(response.data);
         let legendariasMap = new Map();
 
-        // Recorremos cada fila de misión basándonos en tu estructura HTML exacta
-        $('tr.missionRow').each((i, el) => {
-            const pl = $(el).find('.missionPl').text().trim();
+        const keywordsMisiones = [
+            'fight the storm', 'retrieve the data', 'repair the shelter', 
+            'ride the lightning', 'evacuate the shelter', 'deliver the bomb', 
+            'resupply', 'eliminate and collect', 'rescue the survivors', 'atlas'
+        ];
+
+        const recompensasValidas = [
+            'perk-up', 'amp-up', 'frost-up', 'fire-up', 're-perk', 
+            'storm shard', 'eye of the storm', 'pure drop of rain', 
+            'lightning in a bottle', 'survivor', 'defender', 'v-buck', 'pavo'
+        ];
+
+        $('div, article').each((i, el) => {
+            const txt = $(el).text().replace(/\s+/g, ' ').trim();
+            const plMatch = txt.match(/\b(140|160)\b/);
             
-            // Filtramos únicamente niveles altos de interés (140 y 160)
-            if (pl === '140' || pl === '160') {
-                const missionRaw = $(el).find('.missionName img').attr('title') || 'Mission';
-                const biomeRaw = $(el).find('.missionBiome').text().trim();
-                
-                let misionLimpia = traducirYFormatear(missionRaw.replace(' (Group)', ' Grupo'));
-                let biomeLimpio = traducirYFormatear(biomeRaw);
+            if (plMatch && $(el).children().length <= 10) {
+                const pl = plMatch[1];
+                const kwEncontrada = keywordsMisiones.find(k => txt.toLowerCase().includes(k));
+                const tieneRecompensaUtil = recompensasValidas.some(r => txt.toLowerCase().includes(r));
 
-                // Extracción de Alertas
-                let alertas = [];
-                $(el).find('.missionAlerts span').each((j, span) => {
-                    const title = $(span).find('img').attr('title') || '';
-                    const qty = $(span).text().trim(); // Ej. "x38"
-                    let cleanTitle = title.split(' (')[0]; // Limpia sufijos como (Epic)
-                    cleanTitle = traducirYFormatear(cleanTitle);
-                    alertas.push(`${qty ? '*' + qty + '*' : ''} ${cleanTitle}`.trim());
-                });
+                if (kwEncontrada && tieneRecompensaUtil && txt.length > 15 && txt.length < 350) {
+                    let nombreMision = kwEncontrada.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+                    let emojiMision = obtenerEmojiMision(nombreMision);
+                    let textoLimpio = traducirYFormatearRecompensas(txt);
 
-                // Extracción de Recompensas Base
-                let recompensas = [];
-                $(el).find('.missionRewards span').each((j, span) => {
-                    const title = $(span).find('img').attr('title') || 'Gold';
-                    const qty = $(span).text().trim();
-                    let cleanTitle = title.split(' (')[0];
-                    cleanTitle = traducirYFormatear(cleanTitle);
-                    recompensas.push(`${qty ? '*' + qty + '*' : ''} ${cleanTitle}`.trim());
-                });
+                    let claveUnica = `${pl}-${nombreMision}-${txt.substring(0, 20)}`;
 
-                let claveUnica = `${pl}-${misionLimpia}-${biomeLimpio}`;
+                    if (!legendariasMap.has(claveUnica)) {
+                        let etiquetaPl = pl === '160' ? '🔴 *Nivel 160 (Supercargador)*' : '⭐ *Nivel 140 (Ventures/Cumbres)*';
 
-                if (!legendariasMap.has(claveUnica)) {
-                    let etiquetaPl = pl === '160' ? '🔴 *Nivel 160 (Supercargador)*' : '⭐ *Nivel 140 (Ventures/Cumbres)*';
-                    
-                    let tarjeta = `⚡ *PL:* ${pl} | 🎯 *Misión:* ${misionLimpia} - ${biomeLimpio}\n` +
-                                  `🎁 *Tipo:* ${etiquetaPl}\n` +
-                                  `✨ *Alertas:* ${alertas.join(' | ')}` +
-                                  (recompensas.length > 0 ? `\n🏛️ *Base:* ${recompensas.join(' | ')}` : '');
+                        // Estructura limpia garantizada para que index.js nunca reciba undefined
+                        let tarjetaFormateada = `${emojiMision} *PL:* ${pl} | 🎯 *Misión:* ${nombreMision}\n` +
+                                                `🎁 *Tipo:* ${etiquetaPl}\n` +
+                                                `🎁 *Recompensas:* ${textoLimpio}`;
 
-                    legendariasMap.set(claveUnica, {
-                        pl: pl,
-                        mision: `${misionLimpia} - ${biomeLimpio}`,
-                        recompensa: tarjeta
-                    });
+                        legendariasMap.set(claveUnica, {
+                            pl: pl,
+                            mision: nombreMision,
+                            recompensa: tarjetaFormateada
+                        });
+                    }
                 }
             }
         });
 
         const legendariasList = Array.from(legendariasMap.values());
 
-        const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: 'America/Mexico_City' };
-        const fechaFormateada = new Date().toLocaleDateString('es-MX', options);
-
-        let mensajeCompleto = `📅 _${fechaFormateada}_\n\n🌟 *ALERTAS LEGENDARIAS*\n\n` +
-                              legendariasList.map(item => item.recompensa).join('\n\n') +
-                              `\n\nSupport-a-Creator: *JASC13* ❤️`;
-
+        // Guardar estrictamente en formato de objetos JSON en MongoDB
         await Config.findOneAndUpdate({ clave: 'stw_pavos_activos' }, { valor: JSON.stringify([]) }, { upsert: true });
         await Config.findOneAndUpdate({ clave: 'stw_epicas_activas' }, { valor: JSON.stringify([]) }, { upsert: true });
-        await Config.findOneAndUpdate({ clave: 'stw_legendarias_activas' }, { valor: JSON.stringify([mensajeCompleto]) }, { upsert: true });
+        await Config.findOneAndUpdate({ clave: 'stw_legendarias_activas' }, { valor: JSON.stringify(legendariasList) }, { upsert: true });
         
-        console.log(`✅ [SEEBOT EXTRACTION OK] Total de misiones procesadas: ${legendariasList.length}`);
+        console.log(`✅ [EXTRACCIÓN EXITOSA] Total de misiones de nivel alto procesadas: ${legendariasList.length}`);
 
     } catch (e) {
-        console.error("❌ Error en el raspado de SeeBot:", e.message);
+        console.error("❌ Error en la extracción:", e.message);
     }
 }
 
