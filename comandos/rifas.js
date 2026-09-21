@@ -105,6 +105,11 @@ async function comandoMenuRifaJasc13(sock, chatId, msg) {
 async function comandoRifaJasc13(sock, chatId, msg, args) {
     const sender = msg.key.participant || msg.key.remoteJid;
 
+    // BLOQUEO ABSOLUTO: Si ya hay un dueño y el remitente NO es el dueño, no puede hacer nada.
+    if (propietarioJasc13 !== null && sender !== propietarioJasc13) {
+        return await sock.sendMessage(chatId, { text: `❌ Acceso denegado. Este comando ya fue reclamado por otro administrador y está bloqueado permanentemente para los demás.` }, { quoted: msg });
+    }
+
     if (!args || args.length === 0) {
         return await sock.sendMessage(chatId, { text: `❌ Comando incompleto. Escribe *menurifajasc13* en chat privado para ver la ayuda.` }, { quoted: msg });
     }
@@ -115,12 +120,12 @@ async function comandoRifaJasc13(sock, chatId, msg, args) {
     if (accion === 'iniciar') {
         propietarioJasc13 = sender;
         participantesJasc13.clear();
-        return await sock.sendMessage(chatId, { text: `🚀 *¡Rifa JASC13 iniciada!* Has quedado vinculado como el único propietario y administrador de esta rifa.` }, { quoted: msg });
+        return await sock.sendMessage(chatId, { text: `🚀 *¡Rifa JASC13 iniciada!* Has quedado vinculado como el único propietario y administrador permanente de esta rifa.` }, { quoted: msg });
     }
 
-    // Candado de seguridad: Solo el propietario original puede ejecutar los comandos de gestión
-    if (!propietarioJasc13 || sender !== propietarioJasc13) {
-        return await sock.sendMessage(chatId, { text: `❌ No tienes autorización para gestionar esta rifa exclusiva.` }, { quoted: msg });
+    // Verificación por si el dueño intenta usar otros comandos sin haber iniciado la rifa primero
+    if (!propietarioJasc13) {
+        return await sock.sendMessage(chatId, { text: `❌ La rifa aún no ha sido iniciada. Ejecuta "rifajasc13 iniciar" primero.` }, { quoted: msg });
     }
 
     if (accion === 'ver') {
