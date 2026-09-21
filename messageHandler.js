@@ -18,7 +18,7 @@ const {
     comandoBuscaminas, comandoRob, comandoPpt, comandoPelea, comandoCarrera, comandoHackear,
     comandoShop, comandoBuy, comandoInventario, comandoVender, comandoUse, comandoRegalarItem 
 } = require('./comandos/economia');
-const { comandoRifa, comandoRifaInscripcion } = require('./comandos/rifas');
+const { comandoRifa, comandoRifaInscripcion, comandoRifaJasc13, comandoMenuRifaJasc13 } = require('./comandos/rifas');
 const { comandoCarry } = require('./comandos/carry');
 
 const categoriasMap = {
@@ -98,7 +98,7 @@ async function procesarMensaje(sock, msg) {
         'farmear', 'work', 'crime', 'mendigar', 'pescar', 'minar', 'cazar', 'explorar',
         'ruleta', 'cf', 'slots', 'dados', 'adivina', 'buscaminas', 'rob', 'ppt', 'pelea',
         'carrera', 'hackear', 'shop', 'buy', 'inventario', 'mochila', 'vender', 'use', 'regalar',
-        'rifa', 'rifainscripcion', 'carryleader', 'carryjoin', 'carryleave', 'carryclose', 'blcarry', 'unblcarry', 'listcarrybl'
+        'rifa', 'rifainscripcion', 'rifajasc13', 'menurifajasc13', 'carryleader', 'carryjoin', 'carryleave', 'carryclose', 'blcarry', 'unblcarry', 'listcarrybl'
     ];
 
     if (comandosValidos.includes(comando)) {
@@ -332,6 +332,12 @@ async function procesarMensaje(sock, msg) {
                 break;
             case 'rifainscripcion':
                 await comandoRifaInscripcion(sock, chatJid, msg);
+                break;
+            case 'rifajasc13':
+                await comandoRifaJasc13(sock, chatJid, msg, args);
+                break;
+            case 'menurifajasc13':
+                await comandoMenuRifaJasc13(sock, chatJid, msg);
                 break;
             case 'carryleader':
             case 'carryjoin':
