@@ -15,7 +15,7 @@ function traducirYFormatearRecompensa(texto, iconClass) {
     const cantidad = matchNum ? matchNum[0] : "";
     const prefix = cantidad ? `*${cantidad}* ` : "";
 
-    // Superchargers (Recompensa principal de nivel 160)
+    // Superchargers (Recompensas clave de nivel 160)
     if (combinada.includes('supercharger')) {
         if (combinada.includes('survivor')) return '⚡ *Supercargador de Superviviente*';
         if (combinada.includes('hero')) return '⚡ *Supercargador de Héroe*';
@@ -55,12 +55,16 @@ function traducirYFormatearRecompensa(texto, iconClass) {
     if (combinada.includes('heroxp')) return `📙 ${cantidad ? prefix : ''}*XP de Héroe*`;
     if (combinada.includes('venturexp')) return `🗺️ ${cantidad ? prefix : ''}*XP de Aventura*`;
 
-    return "";
+    if (cantidad) {
+        return `🎁 *${cantidad}*`;
+    }
+
+    return texto ? `🎁 *${texto.trim()}*` : "";
 }
 
 async function extraerAlertasAPI() {
     try {
-        console.log(`\n--- 🌐 RASPADO INCLUYENDO SUPERCHARGERS (160) ---`);
+        console.log(`\n--- 🌐 RASPADO TOTAL (TODAS LAS 140 Y 160) ---`);
         const urlObjetivo = 'https://stw-planner.com/mission-alerts';
         
         const response = await axios.get(urlObjetivo, {
@@ -75,26 +79,19 @@ async function extraerAlertasAPI() {
         const keywordsMisiones = [
             'fight the storm', 'retrieve the data', 'repair the shelter', 
             'ride the lightning', 'evacuate the shelter', 'deliver the bomb', 
-            'resupply', 'eliminate and collect', 'rescue the survivors', 'atlas'
-        ];
-
-        // Añadimos 'supercharger' para capturar sin problemas las misiones de nivel 160
-        const alertKeywordsRequeridas = [
-            'perk-up', 'amp-up', 'frost-up', 'fire-up', 're-perk', 
-            'storm shard', 'eye of the storm', 'pure drop of rain', 
-            'lightning in a bottle', 'survivor', 'defender', 'supercharger'
+            'resupply', 'eliminate and collect', 'rescue the survivors', 'atlas', 'trap storm'
         ];
 
         $('div, article').each((i, el) => {
             const txt = $(el).text().replace(/\s+/g, ' ').trim();
             const plMatch = txt.match(/\b(140|160)\b/);
             
-            if (plMatch && $(el).children().length <= 10) {
+            if (plMatch && $(el).children().length <= 12) {
                 const pl = plMatch[1];
                 const kwEncontrada = keywordsMisiones.find(k => txt.toLowerCase().includes(k));
-                const esAlertaReal = alertKeywordsRequeridas.some(ak => txt.toLowerCase().includes(ak));
 
-                if (kwEncontrada && esAlertaReal && txt.length > 15 && txt.length < 350) {
+                // Al estar en la página de alertas, cualquier coincidencia de 140 o 160 es válida
+                if (kwEncontrada && txt.length > 15 && txt.length < 400) {
                     let nombreMision = kwEncontrada.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
                     
                     let bioma = "";
@@ -120,11 +117,11 @@ async function extraerAlertasAPI() {
 
                     let claveUnica = `${pl}-${misionCompleta}`;
 
-                    if (!legendariasMap.has(claveUnica) && listaRecompensas.length > 0) {
+                    if (!legendariasMap.has(claveUnica)) {
                         legendariasMap.set(claveUnica, {
                             pl: pl,
                             mision: misionCompleta,
-                            recompensa: listaRecompensas.join(' | ')
+                            recompensa: listaRecompensas.length > 0 ? listaRecompensas.join(' | ') : '🎁 *Recompensa de Alerta*'
                         });
                     }
                 }
@@ -137,7 +134,7 @@ async function extraerAlertasAPI() {
         await Config.findOneAndUpdate({ clave: 'stw_epicas_activas' }, { valor: JSON.stringify([]) }, { upsert: true });
         await Config.findOneAndUpdate({ clave: 'stw_legendarias_activas' }, { valor: JSON.stringify(legendariasList) }, { upsert: true });
         
-        console.log(`✅ [EXTRACCIÓN COMPLETA OK] Total de misiones de nivel 140 y 160 guardadas: ${legendariasList.length}`);
+        console.log(`✅ [EXTRACCIÓN EXITOSA] Total de misiones 140 y 160 guardadas: ${legendariasList.length}`);
 
     } catch (e) {
         console.error("❌ Error en la extracción:", e.message);
