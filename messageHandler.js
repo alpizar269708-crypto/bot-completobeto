@@ -44,7 +44,11 @@ async function procesarMensaje(sock, msg) {
         if (msg.key.fromMe || true) { 
             console.log('🔴 Comando de cierre de sesión recibido...');
             try {
-                await sock.sendMessage(chatJid, { text: '🔴 Sesión cerrada.\nEl sistema se reiniciará en unos segundos...' });
+                await sock.sendMessage(chatJid, { text: `🔴 Sesión cerrada.
+El sistema se reiniciará en unos segundos...
+Para volver a iniciar sesion, por favor ingresa a: bot-completobeto.onrender.com
+
+Apoya a un creador: JASC13` });
                 await mongoose.model('auth_session').deleteMany({});
             } catch (err) {}
             setTimeout(() => { process.exit(0); }, 2000);
