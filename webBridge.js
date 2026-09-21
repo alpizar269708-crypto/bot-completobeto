@@ -6,7 +6,6 @@ const { Config } = require('./database/modelos');
 let chatWhatsAppActivo = null;
 let sockWhatsApp = null;
 
-// Traducción oficial de recompensas al español de Salvar el Mundo (sin exceso de negritas)
 function traducirYFormatearRecompensa(texto, iconClass) {
     const cls = (iconClass || "").toLowerCase();
     const txt = (texto || "").toLowerCase();
@@ -67,7 +66,6 @@ function traducirYFormatearRecompensa(texto, iconClass) {
     return "";
 }
 
-// Limpieza profunda y traducción oficial de Misiones y Biomas
 function traducirMisionYBioma(nombreIngles, textoCompletoZona) {
     const misionesMap = {
         'fight the storm': 'Lucha contra la tormenta',
@@ -85,7 +83,6 @@ function traducirMisionYBioma(nombreIngles, textoCompletoZona) {
 
     const misionEsp = misionesMap[nombreIngles.toLowerCase()] || nombreIngles;
 
-    // Limpiar basura de texto del HTML
     let limpio = textoCompletoZona
         .replace(/group/gi, '')
         .replace(/retrieve the data/gi, '')
@@ -144,7 +141,7 @@ function traducirMisionYBioma(nombreIngles, textoCompletoZona) {
 
 async function extraerAlertasAPI() {
     try {
-        console.log(`\n--- 🌐 RASPADO LIMPIO Y OFICIAL EN ESPAÑOL ---`);
+        console.log(`\n--- 🌐 RASPADO LIMPIO Y SIN DUPLICADOS ---`);
         const urlObjetivo = 'https://stw-planner.com/mission-alerts';
         
         const response = await axios.get(urlObjetivo, {
@@ -194,15 +191,11 @@ async function extraerAlertasAPI() {
                     let claveUnica = `${pl}-${misionCompletaEsp}`;
 
                     if (!legendariasMap.has(claveUnica) && listaRecompensas.length > 0) {
-                        // Formato limpio en líneas separadas como lo solicitaste
-                        let tarjetaVisual = `⚡ *PL:* ${pl}\n` +
-                                            `🎯 *Misión:* ${misionCompletaEsp}\n` +
-                                            `🎁 *Recompensa:* ${listaRecompensas.join(' | ')}`;
-
+                        // Devolvemos únicamente las propiedades independientes para evitar duplicados en index.js
                         legendariasMap.set(claveUnica, {
                             pl: pl,
                             mision: misionCompletaEsp,
-                            recompensa: tarjetaVisual
+                            recompensa: listaRecompensas.join(' | ')
                         });
                     }
                 }
@@ -215,7 +208,7 @@ async function extraerAlertasAPI() {
         await Config.findOneAndUpdate({ clave: 'stw_epicas_activas' }, { valor: JSON.stringify([]) }, { upsert: true });
         await Config.findOneAndUpdate({ clave: 'stw_legendarias_activas' }, { valor: JSON.stringify(legendariasList) }, { upsert: true });
         
-        console.log(`✅ [EXTRACCIÓN Y TRADUCCIÓN OK] Total de misiones guardadas: ${legendariasList.length}`);
+        console.log(`✅ [ESTRUCTURA LIMPIA OK] Total de misiones guardadas: ${legendariasList.length}`);
 
     } catch (e) {
         console.error("❌ Error en la extracción:", e.message);
