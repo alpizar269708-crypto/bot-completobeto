@@ -12,7 +12,6 @@ function formatearRecompensaInteligente(iconClass, textoTexto) {
     const txt = (textoTexto || "").toLowerCase();
     const combinada = cls + " " + txt;
 
-    // Extraer número si existe en el texto
     const matchNum = txt.match(/\d+/);
     const cantidad = matchNum ? matchNum[0] : "";
     const prefix = cantidad ? `*${cantidad}x* ` : "";
@@ -37,7 +36,7 @@ function formatearRecompensaInteligente(iconClass, textoTexto) {
     if (combinada.includes('legendary perk') || combinada.includes('t04_high')) return `🟠 ${prefix}*Perk-Up Legendario*`;
     if (combinada.includes('re-perk') || combinada.includes('alteration')) return `🔄 ${prefix}*Re-Perk!*`;
 
-    // Materiales de evolución y tormenta (mapeados por sus clases reales de STW Planner)
+    // Materiales de evolución y tormenta
     if (combinada.includes('reagent_c') || combinada.includes('t04_high')) return `💎 ${prefix}*Esquirla de Tormenta*`;
     if (combinada.includes('reagent_t03') || combinada.includes('eye')) return `🌀 ${prefix}*Ojo de la Tormenta*`;
     if (combinada.includes('reagent_t01') || combinada.includes('rain')) return `💧 ${prefix}*Gota de Lluvia Pura*`;
@@ -52,7 +51,6 @@ function formatearRecompensaInteligente(iconClass, textoTexto) {
     if (combinada.includes('survivorxp')) return `📗 ${cantidad ? prefix : 'x4 '}*XP de Superviviente*`;
     if (combinada.includes('heroxp')) return `📙 ${cantidad ? prefix : ''}*XP de Héroe*`;
 
-    // Genéricos con cantidad (como x4 o números sueltos)
     if (cantidad && !txt.includes('mission')) {
         return `🎁 *${cantidad}*`;
     }
@@ -62,7 +60,7 @@ function formatearRecompensaInteligente(iconClass, textoTexto) {
 
 async function extraerAlertasAPI() {
     try {
-        console.log(`\n--- 🌐 RASPADO INTELIGENTE Y LIMPIO ---`);
+        console.log(`\n--- 🌐 RASPADO DE OBJETOS ESTRICTOS ---`);
         const urlObjetivo = 'https://stw-planner.com/mission-alerts';
         
         const response = await axios.get(urlObjetivo, {
@@ -80,7 +78,6 @@ async function extraerAlertasAPI() {
             if (pl === '140' || pl === '160') {
                 const zonaRaw = $(el).find('div.mission-zone').text().trim();
                 
-                // Traducción limpia de zonas al español
                 let zonaLimpia = zonaRaw
                     .replace(/group/gi, 'Grupo')
                     .replace(/ghost town/gi, 'Pueblo Fantasma')
@@ -95,7 +92,6 @@ async function extraerAlertasAPI() {
                 let recompensasPrincipales = [];
                 let recompensasBase = [];
 
-                // Extraer recompensas principales vinculando icono y texto
                 $(el).find('.mission-rewards > .mission-reward-item').each((j, itemEl) => {
                     const title = $(itemEl).attr('title') || '';
                     const innerText = $(itemEl).text().replace(/\s+/g, ' ').trim();
@@ -107,7 +103,6 @@ async function extraerAlertasAPI() {
                     }
                 });
 
-                // Extraer recompensas base
                 $(el).find('.mission-reward-item--generic .mission-reward-item').each((j, baseEl) => {
                     const title = $(baseEl).attr('title') || '';
                     const innerText = $(baseEl).text().replace(/\s+/g, ' ').trim();
@@ -122,15 +117,16 @@ async function extraerAlertasAPI() {
                 let claveUnica = `${pl}-${zonaRaw}`;
 
                 if (!legendariasMap.has(claveUnica)) {
-                    // Estructura limpia y directa sin duplicados molestos
-                    let tarjetaVisual = `⚡ *PL:* ${pl} | 🎯 *Misión:* ${zonaLimpia}\n` +
-                                        `🎁 *Recompensas:* ${recompensasPrincipales.join(' | ')}` +
-                                        (recompensasBase.length > 0 ? `\n🏛️ *Base:* ${recompensasBase.join(' | ')}` : '');
+                    let textoRecompensas = `${recompensasPrincipales.join(' | ')}`;
+                    if (recompensasBase.length > 0) {
+                        textoRecompensas += `\n🏛️ *Base:* ${recompensasBase.join(' | ')}`;
+                    }
 
+                    // Aseguramos que los campos coincidan exactamente con lo que index.js mapea
                     legendariasMap.set(claveUnica, {
                         pl: pl,
                         mision: zonaLimpia,
-                        recompensa: tarjetaVisual
+                        recompensa: textoRecompensas
                     });
                 }
             }
@@ -138,23 +134,15 @@ async function extraerAlertasAPI() {
 
         const legendariasList = Array.from(legendariasMap.values());
 
-        // Generar fecha actual en español
-        const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: 'America/Mexico_City' };
-        const fechaFormateada = new Date().toLocaleDateString('es-MX', options);
-
-        let mensajeCompleto = `📅 _${fechaFormateada}_\n\n🌟 *ALERTAS LEGENDARIAS*\n\n` +
-                              legendariasList.map(item => item.recompensa).join('\n\n') +
-                              `\n\nSupport-a-Creator: *JASC13* ❤️`;
-
-        // Guardar en MongoDB
+        // Guardamos estrictamente un array de objetos JSON válidos en MongoDB
         await Config.findOneAndUpdate({ clave: 'stw_pavos_activos' }, { valor: JSON.stringify([]) }, { upsert: true });
         await Config.findOneAndUpdate({ clave: 'stw_epicas_activas' }, { valor: JSON.stringify([]) }, { upsert: true });
-        await Config.findOneAndUpdate({ clave: 'stw_legendarias_activas' }, { valor: JSON.stringify([mensajeCompleto]) }, { upsert: true });
+        await Config.findOneAndUpdate({ clave: 'stw_legendarias_activas' }, { valor: JSON.stringify(legendariasList) }, { upsert: true });
         
-        console.log(`✅ [EXTRACCIÓN INTELIGENTE OK] Total de misiones procesadas: ${legendariasList.length}`);
+        console.log(`✅ [BASE DE DATOS ACTUALIZADA] Total de misiones guardadas: ${legendariasList.length}`);
 
     } catch (e) {
-        console.error("❌ Error en la extracción inteligente:", e.message);
+        console.error("❌ Error en la extracción:", e.message);
     }
 }
 
