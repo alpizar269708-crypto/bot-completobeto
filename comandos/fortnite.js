@@ -52,8 +52,8 @@ async function alertasSTW(sock, chatId, msg, categoria = 'todas') {
     const fechaHoy = obtenerFechaActual();
     let texto = `📅 _${fechaHoy}_\n\n`;
 
-    // Solo muestra la sección si hay registros o si se solicitó explícitamente la categoría
-    if (categoria === 'pavos' || (categoria === 'todas' && datos.pavos.length > 0)) {
+    // 📌 La sección de PaVos SIEMPRE debe estar activa y visible en el comando general
+    if (categoria === 'pavos' || categoria === 'todas') {
         texto += `🎮 *ALERTAS DE PAVOS*\n`;
         if (datos.pavos.length === 0) {
             texto += `_No hay alertas de pavos registradas._\n\n`;
@@ -67,6 +67,7 @@ async function alertasSTW(sock, chatId, msg, categoria = 'todas') {
         }
     }
 
+    // Épicas solo si hay o si se piden explícitamente
     if (categoria === 'epicas' || (categoria === 'todas' && datos.epicas.length > 0)) {
         texto += `🟣 *ALERTAS ÉPICAS*\n`;
         if (datos.epicas.length === 0) {
@@ -78,6 +79,7 @@ async function alertasSTW(sock, chatId, msg, categoria = 'todas') {
         }
     }
 
+    // Legendarias solo si hay o si se piden explícitamente
     if (categoria === 'legendarias' || (categoria === 'todas' && datos.legendarias.length > 0)) {
         texto += `🌟 *ALERTAS LEGENDARIAS*\n`;
         if (datos.legendarias.length === 0) {
@@ -136,12 +138,18 @@ function iniciarCronAlertasDiarias(sock) {
             let total = datos.pavos.reduce((acc, p) => acc + (p.cantidad || 50), 0);
 
             let mensajeAuto = `🎮 *REPORTE DIARIO STW (6:05 PM)*\n\n`;
+            
+            // PaVos siempre en el reporte diario
+            mensajeAuto += `🎮 *ALERTAS DE PAVOS*\n`;
             if (datos.pavos.length > 0) {
                 datos.pavos.forEach(p => {
                     mensajeAuto += `⚡ PL: ${p.pl}\n🎯 ${p.mision}\n🪙 ${p.cantidad || 50} PaVos\n\n`;
                 });
                 mensajeAuto += `💰 *Total del día:* ${total} paVos\n\n`;
+            } else {
+                mensajeAuto += `_No hay alertas de pavos registradas._\n\n`;
             }
+
             if (datos.legendarias.length > 0) {
                 mensajeAuto += `🌟 *LEGENDARIAS*\n`;
                 datos.legendarias.forEach(L => {
