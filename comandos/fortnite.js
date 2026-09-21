@@ -52,7 +52,8 @@ async function alertasSTW(sock, chatId, msg, categoria = 'todas') {
     const fechaHoy = obtenerFechaActual();
     let texto = `📅 _${fechaHoy}_\n\n`;
 
-    if (categoria === 'pavos' || categoria === 'todas') {
+    // Solo muestra la sección si hay registros o si se solicitó explícitamente la categoría
+    if (categoria === 'pavos' || (categoria === 'todas' && datos.pavos.length > 0)) {
         texto += `🎮 *ALERTAS DE PAVOS*\n`;
         if (datos.pavos.length === 0) {
             texto += `_No hay alertas de pavos registradas._\n\n`;
@@ -66,7 +67,7 @@ async function alertasSTW(sock, chatId, msg, categoria = 'todas') {
         }
     }
 
-    if (categoria === 'epicas' || categoria === 'todas') {
+    if (categoria === 'epicas' || (categoria === 'todas' && datos.epicas.length > 0)) {
         texto += `🟣 *ALERTAS ÉPICAS*\n`;
         if (datos.epicas.length === 0) {
             texto += `_No hay alertas épicas registradas._\n\n`;
@@ -77,7 +78,7 @@ async function alertasSTW(sock, chatId, msg, categoria = 'todas') {
         }
     }
 
-    if (categoria === 'legendarias' || categoria === 'todas') {
+    if (categoria === 'legendarias' || (categoria === 'todas' && datos.legendarias.length > 0)) {
         texto += `🌟 *ALERTAS LEGENDARIAS*\n`;
         if (datos.legendarias.length === 0) {
             texto += `_No hay alertas legendarias registradas._\n\n`;
