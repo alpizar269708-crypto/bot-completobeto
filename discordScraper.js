@@ -53,7 +53,7 @@ async function rasparDiscordAlertas() {
             return;
         }
 
-        console.log(`\n--- 🤖 RASPADO DE DIAGNÓSTICO DISCORD ---`);
+        console.log(`\n--- 🤖 RASPADO PRECISO DE DISCORD (LEGENDARIAS Y ÉPICAS) ---`);
         const url = `https://discord.com/api/v9/channels/${DISCORD_CHANNEL_ID}/messages?limit=5`;
         
         const response = await axios.get(url, {
@@ -64,12 +64,9 @@ async function rasparDiscordAlertas() {
         });
 
         const mensajes = response.data;
-        console.log(`📥 Mensajes totales obtenidos de Discord: ${mensajes.length}`);
-
         let alertasLegendariasEpicas = [];
 
-        for (let index = 0; index < mensajes.length; index++) {
-            const msg = mensajes[index];
+        for (const msg of mensajes) {
             let textoCompleto = msg.content || '';
             if (msg.embeds && msg.embeds.length > 0) {
                 msg.embeds.forEach(emb => {
@@ -83,45 +80,45 @@ async function rasparDiscordAlertas() {
                 });
             }
 
-            console.log(`--- Mensaje [${index}] (Longitud caracteres: ${textoCompleto.length}) ---`);
-            if (textoCompleto.length > 0) {
-                console.log(textoCompleto.substring(0, 300) + '...');
-            }
-
-            const lineas = textoCompleto.split('\n');
-            for (const linea of lineas) {
-                const lineaTrim = linea.trim();
-                // Regex de diagnóstico para ver qué líneas fallan o pasan
-                const match = lineaTrim.match(/^(\d+)\s+([A-Za-z0-9]+)\s*-\s*(.*)$/);
+            if (textoCompleto.includes('Twine Peaks') || textoCompleto.includes('Canny Valley') || textoCompleto.includes('Stonewood')) {
+                const lineas = textoCompleto.split('\n');
                 
-                if (match) {
-                    const pl = match[1];
-                    const codigo = match[2].toLowerCase();
-                    const resto = match[3];
-                    const restoLower = resto.toLowerCase();
+                for (const linea of lineas) {
+                    const lineaTrim = linea.trim();
+                    
+                    // 🎯 Regex actualizada para atrapar "140⚡ RtD - ..." o "140:zap: RtD - ..."
+                    const match = lineaTrim.match(/^(\d+)(?:⚡|:zap:)\s*([A-Za-z0-9]+)\s*-\s*(.*)$/);
+                    
+                    if (match) {
+                        const pl = match[1];
+                        const codigo = match[2].toLowerCase();
+                        const resto = match[3];
+                        const restoLower = resto.toLowerCase();
 
-                    if (restoLower.includes('epic') || restoLower.includes('legendary')) {
-                        console.log(`🔍 [MATCH ENCONTRADO]: PL ${pl} | Código ${codigo} | Resto: ${resto}`);
-                        const misionEsp = misionesMap[codigo] || match[2];
-                        const recompensaEsp = traducirRecompensa(resto);
+                        if (restoLower.includes('epic') || restoLower.includes('legendary')) {
+                            const misionEsp = misionesMap[codigo] || match[2];
+                            const recompensaEsp = traducirRecompensa(resto);
 
-                        let tarjeta = `⚡ *PL:* ${pl}\n` +
-                                      `🎯 *Misión/Recompensa:* ${misionEsp} - ${recompensaEsp}\n` +
-                                      `🎁 *Categoría:* ${restoLower.includes('legendary') ? '🌟 *Legendario*' : '🟣 *Épico*'}`;
+                            let tarjeta = `⚡ *PL:* ${pl}\n` +
+                                          `🎯 *Misión:* ${misionEsp}\n` +
+                                          `🎁 *Recompensa:* ${recompensaEsp} (${restoLower.includes('legendary') ? 'Legendario' : 'Épico'})`;
 
-                        if (!alertasLegendariasEpicas.some(a => a.recompensa === tarjeta)) {
-                            alertasLegendariasEpicas.push({
-                                pl: pl,
-                                mision: misionEsp,
-                                recompensa: tarjeta
-                            });
+                            if (!alertasLegendariasEpicas.some(a => a.pl === pl && a.mision === misionEsp && a.recompensa === recompensaEsp)) {
+                                alertasLegendariasEpicas.push({
+                                    pl: pl,
+                                    mision: misionEsp,
+                                    recompensa: recompensaEsp
+                                });
+                            }
                         }
                     }
                 }
+                
+                if (alertasLegendariasEpicas.length > 0) break;
             }
         }
 
-        console.log(`✅ [DIAGNÓSTICO FINAL] Alertas épicas/legendarias detectadas: ${alertasLegendariasEpicas.length}`);
+        console.log(`✅ [DISCORD SCRAPER LEGENDARIAS OK] Total guardadas: ${alertasLegendariasEpicas.length}`);
 
         await Config.findOneAndUpdate(
             { clave: 'stw_legendarias_activas' }, 
