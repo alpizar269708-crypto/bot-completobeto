@@ -25,8 +25,8 @@ async function comandoSticker(sock, msg) {
         );
 
         const sticker = new Sticker(buffer, {
-            pack: 'TechMasters & Stream', 
-            author: 'Humberto Alpízar',
+            pack: 'Apoya a un creador', 
+            author: 'JASC13 ♥',
             type: StickerTypes.FULL, 
             quality: 50 
         });
