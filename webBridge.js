@@ -8,7 +8,7 @@ let sockWhatsApp = null;
 
 async function extraerAlertasAPI() {
     try {
-        console.log(`\n--- 🌐 PASO 1: DIAGNÓSTICO DE SEEBOT ---`);
+        console.log(`\n--- 🌐 PASO 2: DIAGNÓSTICO PROFUNDO DE SEEBOT ---`);
         const urlObjetivo = 'https://seebot.dev/missions.php';
         
         const response = await axios.get(urlObjetivo, {
@@ -19,22 +19,22 @@ async function extraerAlertasAPI() {
 
         const $ = cheerio.load(response.data);
         
-        // Buscamos filas o bloques que contengan 140 o 160 para ver la estructura de SeeBot
-        let encontrados = 0;
-        $('tr, div, table').each((i, el) => {
-            const txt = $(el).text().replace(/\s+/g, ' ').trim();
-            if ((txt.includes('140') || txt.includes('160')) && txt.length < 400) {
-                encontrados++;
-                if (encontrados <= 10) {
-                    console.log(`🔍 [LOG SEEBOT] Elemento: ${txt.substring(0, 150)}`);
-                }
+        console.log(`📄 Título de la página: ${$('title').text().trim()}`);
+        console.log(`📊 Tablas encontradas en el HTML: $('table').length = $('table').length`);
+        
+        let filasTotales = 0;
+        $('tr').each((i, el) => {
+            filasTotales++;
+            const textoFila = $(el).text().replace(/\s+/g, ' ').trim();
+            if (i < 15 && textoFila.length > 0) {
+                console.log(`🔍 [FILA ${i}] ${textoFila.substring(0, 100)}`);
             }
         });
 
-        console.log(`✅ [DIAGNÓSTICO TERMINADO] Total de coincidencias de nivel alto detectadas: ${encontrados}`);
+        console.log(`✅ [DIAGNÓSTICO 2 TERMINADO] Total de filas (tr) analizadas: ${filasTotales}`);
 
     } catch (e) {
-        console.error("❌ Error al conectar con SeeBot:", e.message);
+        console.error("❌ Error al conectar con SeeBot en el Paso 2:", e.message);
     }
 }
 
