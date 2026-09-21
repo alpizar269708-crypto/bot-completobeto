@@ -15,6 +15,15 @@ function traducirYFormatearRecompensa(texto, iconClass) {
     const cantidad = matchNum ? matchNum[0] : "";
     const prefix = cantidad ? `*${cantidad}* ` : "";
 
+    // Superchargers (Recompensa principal de nivel 160)
+    if (combinada.includes('supercharger')) {
+        if (combinada.includes('survivor')) return '⚡ *Supercargador de Superviviente*';
+        if (combinada.includes('hero')) return '⚡ *Supercargador de Héroe*';
+        if (combinada.includes('weapon')) return '⚡ *Supercargador de Arma*';
+        if (combinada.includes('trap')) return '⚡ *Supercargador de Trampa*';
+        return '⚡ *Supercargador*';
+    }
+
     if (combinada.includes('workerbasic') || combinada.includes('survivor')) {
         if (combinada.includes('legendary')) return '👤 *Superviviente Legendario*';
         if (combinada.includes('epic')) return '👤 *Superviviente Épico*';
@@ -51,7 +60,7 @@ function traducirYFormatearRecompensa(texto, iconClass) {
 
 async function extraerAlertasAPI() {
     try {
-        console.log(`\n--- 🌐 RASPADO CON FILTRO ESTRICTO DE ALERTAS ---`);
+        console.log(`\n--- 🌐 RASPADO INCLUYENDO SUPERCHARGERS (160) ---`);
         const urlObjetivo = 'https://stw-planner.com/mission-alerts';
         
         const response = await axios.get(urlObjetivo, {
@@ -69,11 +78,11 @@ async function extraerAlertasAPI() {
             'resupply', 'eliminate and collect', 'rescue the survivors', 'atlas'
         ];
 
-        // Palabras clave obligatorias que demuestran que SÍ es una alerta real con recompensa valiosa
+        // Añadimos 'supercharger' para capturar sin problemas las misiones de nivel 160
         const alertKeywordsRequeridas = [
             'perk-up', 'amp-up', 'frost-up', 'fire-up', 're-perk', 
             'storm shard', 'eye of the storm', 'pure drop of rain', 
-            'lightning in a bottle', 'survivor', 'defender'
+            'lightning in a bottle', 'survivor', 'defender', 'supercharger'
         ];
 
         $('div, article').each((i, el) => {
@@ -83,8 +92,6 @@ async function extraerAlertasAPI() {
             if (plMatch && $(el).children().length <= 10) {
                 const pl = plMatch[1];
                 const kwEncontrada = keywordsMisiones.find(k => txt.toLowerCase().includes(k));
-                
-                // Verificamos que la tarjeta contenga explícitamente una recompensa de alerta útil
                 const esAlertaReal = alertKeywordsRequeridas.some(ak => txt.toLowerCase().includes(ak));
 
                 if (kwEncontrada && esAlertaReal && txt.length > 15 && txt.length < 350) {
@@ -113,7 +120,6 @@ async function extraerAlertasAPI() {
 
                     let claveUnica = `${pl}-${misionCompleta}`;
 
-                    // Solo aceptamos si extrajo al menos una recompensa válida de alerta
                     if (!legendariasMap.has(claveUnica) && listaRecompensas.length > 0) {
                         legendariasMap.set(claveUnica, {
                             pl: pl,
@@ -131,7 +137,7 @@ async function extraerAlertasAPI() {
         await Config.findOneAndUpdate({ clave: 'stw_epicas_activas' }, { valor: JSON.stringify([]) }, { upsert: true });
         await Config.findOneAndUpdate({ clave: 'stw_legendarias_activas' }, { valor: JSON.stringify(legendariasList) }, { upsert: true });
         
-        console.log(`✅ [FILTRO ESTRICTO OK] Total de alertas reales guardadas: ${legendariasList.length}`);
+        console.log(`✅ [EXTRACCIÓN COMPLETA OK] Total de misiones de nivel 140 y 160 guardadas: ${legendariasList.length}`);
 
     } catch (e) {
         console.error("❌ Error en la extracción:", e.message);
