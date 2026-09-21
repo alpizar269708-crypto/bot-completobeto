@@ -2,8 +2,8 @@ require('dotenv').config();
 const axios = require('axios');
 const { Config } = require('./database/modelos');
 
-// Credenciales
-const USER_TOKEN = process.env.DISCORD_USER_TOKEN || 'NzUyMzE2MjQ0Nzg2NDEzNjEw.GNUSl8.r4v3lo_gzSxXiQ1QV8TuLyhxFzAhhRNfLEN0pc';
+// Credenciales seguras leídas estrictamente desde las variables de entorno (.env)
+const USER_TOKEN = process.env.DISCORD_USER_TOKEN;
 const DISCORD_CHANNEL_ID = process.env.DISCORD_CHANNEL_ID || '400635216978509824';
 
 // Traductor completo e integral sin ninguna abreviatura
@@ -56,6 +56,11 @@ function expandirYTraducirLinea(lineaTexto) {
 
 async function rasparDiscordAlertas() {
     try {
+        if (!USER_TOKEN) {
+            console.error("❌ [DISCORD ERROR] No se encontró la variable DISCORD_USER_TOKEN en el archivo .env");
+            return;
+        }
+
         console.log(`\n--- 🤖 RASPADO Y TRADUCCIÓN PROFUNDA DESDE DISCORD ---`);
         const url = `https://discord.com/api/v9/channels/${DISCORD_CHANNEL_ID}/messages?limit=15`;
         
@@ -72,7 +77,6 @@ async function rasparDiscordAlertas() {
         // Identificar el mensaje correcto del ciclo de las 6:00 PM (actual o del día anterior)
         for (const msg of mensajes) {
             const contenido = msg.content || '';
-            // Validar que pertenezca al bloque de Twine Peaks / Canny Valley o contenga recompensas de nivel alto
             if (contenido.includes('Twine Peaks') || contenido.includes('Canny Valley') || contenido.includes('⚡')) {
                 const lineas = contenido.split('\n');
                 
@@ -104,7 +108,6 @@ async function rasparDiscordAlertas() {
                     }
                 }
                 
-                // Si encontramos un bloque con datos procesados, terminamos la búsqueda del mensaje activo
                 if (alertasLegendariasEpicas.length > 0) break;
             }
         }
