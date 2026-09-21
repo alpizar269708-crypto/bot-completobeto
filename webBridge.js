@@ -6,54 +6,61 @@ const { Config } = require('./database/modelos');
 let chatWhatsAppActivo = null;
 let sockWhatsApp = null;
 
-function traducirYFormatearRecompensas(texto) {
-    let t = texto;
-    const traducciones = {
-        'Epic PERK-UP!': '🟣 *Perk-Up Épico*',
-        'Legendary PERK-UP!': '🟠 *Perk-Up Legendario*',
-        'Rare PERK-UP!': '🔵 *Perk-Up Raro*',
-        'Uncommon PERK-UP!': '🟢 *Perk-Up Poco común*',
-        'AMP-UP!': '⚡ *Amp-Up*',
-        'FROST-UP!': '❄️ *Frost-Up*',
-        'FIRE-UP!': '🔥 *Fire-Up*',
-        'RE-PERK!': '🔄 *Re-Perk!*',
-        'Eye of the Storm': '🌀 *Ojo de la Tormenta*',
-        'Pure Drop of Rain': '💧 *Gota de Lluvia Pura*',
-        'Lightning in a Bottle': '⚡ *Relámpago en Botella*',
-        'Storm Shard': '💎 *Esquirla de Tormenta*',
-        'Schematic XP': '📘 *XP de Esquema*',
-        'Hero XP': '📙 *XP de Héroe*',
-        'Survivor XP': '📗 *XP de Superviviente*',
-        'Venture XP': '🗺️ *XP de Aventura*',
-        'Gold': '🪙 *Oro*',
-        'Tickets': '🎫 *Tickets*',
-        'Legendary Survivor': '👤 *Superviviente Legendario*',
-        'Epic Survivor': '👤 *Superviviente Épico*',
-        'Legendary Defender': '🛡️ *Defensor Legendario*',
-        'Epic Defender': '🛡️ *Defensor Épico*'
-    };
-    for (const [ing, esp] of Object.entries(traducciones)) {
-        t = t.replace(new RegExp(ing, 'gi'), esp);
-    }
-    return t;
-}
+function traducirYFormatearRecompensa(texto, iconClass) {
+    const cls = (iconClass || "").toLowerCase();
+    const txt = (texto || "").toLowerCase();
+    const combinada = cls + " " + txt;
 
-function obtenerEmojiMision(nombre) {
-    const m = nombre.toLowerCase();
-    if (m.includes('ride the lightning')) return '🚚';
-    if (m.includes('evacuate the shelter')) return '🛡️';
-    if (m.includes('deliver the bomb')) return '💣';
-    if (m.includes('fight the storm')) return '🌀';
-    if (m.includes('repair the shelter')) return '🔧';
-    if (m.includes('resupply')) return '📦';
-    if (m.includes('retrieve the data')) return '📡';
-    if (m.includes('rescue the survivors')) return '🏃‍♂️';
-    return '⚡';
+    const matchNum = txt.match(/\d+/);
+    const cantidad = matchNum ? matchNum[0] : "";
+    const prefix = cantidad ? `*${cantidad}* ` : "";
+
+    // Supervivientes y Defensores
+    if (combinada.includes('workerbasic') || combinada.includes('survivor')) {
+        if (combinada.includes('legendary')) return '👤 *Superviviente Legendario*';
+        if (combinada.includes('epic')) return '👤 *Superviviente Épico*';
+        return '👤 *Superviviente*';
+    }
+    if (combinada.includes('defender')) {
+        if (combinada.includes('legendary')) return '🛡️ *Defensor Legendario*';
+        if (combinada.includes('epic')) return '🛡️ *Defensor Épico*';
+        return '🛡️ *Defensor*';
+    }
+
+    // Perk-Ups y Elementos
+    if (combinada.includes('frost-up') || combinada.includes('ele_water')) return `❄️ ${prefix}*Frost-Up*`;
+    if (combinada.includes('fire-up') || combinada.includes('ele_fire')) return `🔥 ${prefix}*Fire-Up*`;
+    if (combinada.includes('amp-up') || combinada.includes('ele_nature')) return `⚡ ${prefix}*Amp-Up*`;
+    if (combinada.includes('epic perk') || combinada.includes('t03_high')) return `🟣 ${prefix}*Perk-Up Épico*`;
+    if (combinada.includes('legendary perk') || combinada.includes('t04_high')) return `🟠 ${prefix}*Perk-Up Legendario*`;
+    if (combinada.includes('re-perk') || combinada.includes('alteration')) return `🔄 ${prefix}*Re-Perk!*`;
+
+    // Materiales de evolución y tormenta
+    if (combinada.includes('reagent_c') || combinada.includes('storm shard')) return `💎 ${prefix}*Esquirla de Tormenta*`;
+    if (combinada.includes('reagent_t03') || combinada.includes('eye')) return `🌀 ${prefix}*Ojo de la Tormenta*`;
+    if (combinada.includes('reagent_t01') || combinada.includes('rain')) return `💧 ${prefix}*Gota de Lluvia Pura*`;
+    if (combinada.includes('reagent_t02') || combinada.includes('lightning')) return `⚡ ${prefix}*Relámpago en Botella*`;
+
+    // Monedas y Tickets
+    if (combinada.includes('ticket') || combinada.includes('campaign_event_currency')) return `🎫 ${prefix}*Tickets*`;
+    if (combinada.includes('gold') || combinada.includes('eventscaling')) return cantidad ? `🪙 ${prefix}*Oro*` : '🪙 *Oro*';
+
+    // XP
+    if (combinada.includes('schematicxp')) return `📘 ${cantidad ? prefix : 'x5 '}*XP de Esquema*`;
+    if (combinada.includes('survivorxp')) return `📗 ${cantidad ? prefix : 'x4 '}*XP de Superviviente*`;
+    if (combinada.includes('heroxp')) return `📙 ${cantidad ? prefix : ''}*XP de Héroe*`;
+    if (combinada.includes('venturexp')) return `🗺️ ${cantidad ? prefix : ''}*XP de Aventura*`;
+
+    if (cantidad) {
+        return `🎁 *${cantidad}*`;
+    }
+
+    return texto ? `🎁 *${texto.trim()}*` : "";
 }
 
 async function extraerAlertasAPI() {
     try {
-        console.log(`\n--- 🌐 RASPADO ESTABLE DESDE STW PLANNER ---`);
+        console.log(`\n--- 🌐 RASPADO LIMPIO (CAMPOS SEPARADOS) ---`);
         const urlObjetivo = 'https://stw-planner.com/mission-alerts';
         
         const response = await axios.get(urlObjetivo, {
@@ -71,12 +78,6 @@ async function extraerAlertasAPI() {
             'resupply', 'eliminate and collect', 'rescue the survivors', 'atlas'
         ];
 
-        const recompensasValidas = [
-            'perk-up', 'amp-up', 'frost-up', 'fire-up', 're-perk', 
-            'storm shard', 'eye of the storm', 'pure drop of rain', 
-            'lightning in a bottle', 'survivor', 'defender', 'v-buck', 'pavo'
-        ];
-
         $('div, article').each((i, el) => {
             const txt = $(el).text().replace(/\s+/g, ' ').trim();
             const plMatch = txt.match(/\b(140|160)\b/);
@@ -84,27 +85,41 @@ async function extraerAlertasAPI() {
             if (plMatch && $(el).children().length <= 10) {
                 const pl = plMatch[1];
                 const kwEncontrada = keywordsMisiones.find(k => txt.toLowerCase().includes(k));
-                const tieneRecompensaUtil = recompensasValidas.some(r => txt.toLowerCase().includes(r));
 
-                if (kwEncontrada && tieneRecompensaUtil && txt.length > 15 && txt.length < 350) {
+                if (kwEncontrada && txt.length > 15 && txt.length < 350) {
                     let nombreMision = kwEncontrada.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
-                    let emojiMision = obtenerEmojiMision(nombreMision);
-                    let textoLimpio = traducirYFormatearRecompensas(txt);
+                    
+                    // Extraer bioma si existe (ej. Autumn Suburbs, Ghost Town, etc.)
+                    let bioma = "";
+                    const partesZona = txt.split('-');
+                    if (partesZona.length > 1) {
+                        bioma = partesZona[1].replace(/\d+/g, '').trim();
+                        bioma = bioma.charAt(0).toUpperCase() + bioma.slice(1);
+                    }
 
-                    let claveUnica = `${pl}-${nombreMision}-${txt.substring(0, 20)}`;
+                    let misionCompleta = bioma ? `${nombreMision} - ${bioma}` : nombreMision;
 
-                    if (!legendariasMap.has(claveUnica)) {
-                        let etiquetaPl = pl === '160' ? '🔴 *Nivel 160 (Supercargador)*' : '⭐ *Nivel 140 (Ventures/Cumbres)*';
+                    // Extraer recompensas individuales limpias
+                    let listaRecompensas = [];
+                    $(el).find('.mission-reward-item').each((j, itemEl) => {
+                        const title = $(itemEl).attr('title') || '';
+                        const innerText = $(itemEl).text().replace(/\s+/g, ' ').trim();
+                        const iconClass = $(itemEl).find('.mission-reward-icon').attr('class') || '';
 
-                        // Estructura limpia garantizada para que index.js nunca reciba undefined
-                        let tarjetaFormateada = `${emojiMision} *PL:* ${pl} | 🎯 *Misión:* ${nombreMision}\n` +
-                                                `🎁 *Tipo:* ${etiquetaPl}\n` +
-                                                `🎁 *Recompensas:* ${textoLimpio}`;
+                        const formateado = traducirYFormatearRecompensa(innerText || title, iconClass);
+                        if (formateado && !listaRecompensas.includes(formateado)) {
+                            listaRecompensas.push(formateado);
+                        }
+                    });
 
+                    let claveUnica = `${pl}-${misionCompleta}`;
+
+                    if (!legendariasMap.has(claveUnica) && listaRecompensas.length > 0) {
+                        // Separamos estrictamente para que index.js pinte solo lo necesario
                         legendariasMap.set(claveUnica, {
                             pl: pl,
-                            mision: nombreMision,
-                            recompensa: tarjetaFormateada
+                            mision: misionCompleta,
+                            recompensa: listaRecompensas.join(' | ')
                         });
                     }
                 }
@@ -113,12 +128,12 @@ async function extraerAlertasAPI() {
 
         const legendariasList = Array.from(legendariasMap.values());
 
-        // Guardar estrictamente en formato de objetos JSON en MongoDB
+        // Guardar estrictamente en formato de objetos limpios
         await Config.findOneAndUpdate({ clave: 'stw_pavos_activos' }, { valor: JSON.stringify([]) }, { upsert: true });
         await Config.findOneAndUpdate({ clave: 'stw_epicas_activas' }, { valor: JSON.stringify([]) }, { upsert: true });
         await Config.findOneAndUpdate({ clave: 'stw_legendarias_activas' }, { valor: JSON.stringify(legendariasList) }, { upsert: true });
         
-        console.log(`✅ [EXTRACCIÓN EXITOSA] Total de misiones de nivel alto procesadas: ${legendariasList.length}`);
+        console.log(`✅ [EXTRACCIÓN LIMPIA OK] Total de misiones guardadas: ${legendariasList.length}`);
 
     } catch (e) {
         console.error("❌ Error en la extracción:", e.message);
