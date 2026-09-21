@@ -53,7 +53,6 @@ async function rasparDiscordAlertas() {
             return;
         }
 
-        console.log(`\n--- 🤖 RASPADO PRECISO DE DISCORD (LEGENDARIAS Y ÉPICAS) ---`);
         const url = `https://discord.com/api/v9/channels/${DISCORD_CHANNEL_ID}/messages?limit=5`;
         
         const response = await axios.get(url, {
@@ -64,7 +63,8 @@ async function rasparDiscordAlertas() {
         });
 
         const mensajes = response.data;
-        let alertasLegendariasEpicas = [];
+        let alertasLegendarias = [];
+        let alertasEpicas = [];
 
         for (const msg of mensajes) {
             let textoCompleto = msg.content || '';
@@ -85,8 +85,6 @@ async function rasparDiscordAlertas() {
                 
                 for (const linea of lineas) {
                     const lineaTrim = linea.trim();
-                    
-                    // 🎯 Regex actualizada para atrapar "140⚡ RtD - ..." o "140:zap: RtD - ..."
                     const match = lineaTrim.match(/^(\d+)(?:⚡|:zap:)\s*([A-Za-z0-9]+)\s*-\s*(.*)$/);
                     
                     if (match) {
@@ -95,36 +93,34 @@ async function rasparDiscordAlertas() {
                         const resto = match[3];
                         const restoLower = resto.toLowerCase();
 
-                        if (restoLower.includes('epic') || restoLower.includes('legendary')) {
+                        if (restoLower.includes('legendary')) {
                             const misionEsp = misionesMap[codigo] || match[2];
                             const recompensaEsp = traducirRecompensa(resto);
 
-                            let tarjeta = `⚡ *PL:* ${pl}\n` +
-                                          `🎯 *Misión:* ${misionEsp}\n` +
-                                          `🎁 *Recompensa:* ${recompensaEsp} (${restoLower.includes('legendary') ? 'Legendario' : 'Épico'})`;
+                            if (!alertasLegendarias.some(a => a.pl === pl && a.mision === misionEsp && a.recompensa === recompensaEsp)) {
+                                alertasLegendarias.push({ pl: pl, mision: misionEsp, recompensa: recompensaEsp });
+                            }
+                        } 
+                        else if (restoLower.includes('epic')) {
+                            const misionEsp = misionesMap[codigo] || match[2];
+                            const recompensaEsp = traducirRecompensa(resto);
 
-                            if (!alertasLegendariasEpicas.some(a => a.pl === pl && a.mision === misionEsp && a.recompensa === recompensaEsp)) {
-                                alertasLegendariasEpicas.push({
-                                    pl: pl,
-                                    mision: misionEsp,
-                                    recompensa: recompensaEsp
-                                });
+                            if (!alertasEpicas.some(a => a.pl === pl && a.mision === misionEsp && a.recompensa === recompensaEsp)) {
+                                alertasEpicas.push({ pl: pl, mision: misionEsp, recompensa: recompensaEsp });
                             }
                         }
                     }
                 }
                 
-                if (alertasLegendariasEpicas.length > 0) break;
+                if (alertasLegendarias.length > 0 || alertasEpicas.length > 0) break;
             }
         }
 
-        console.log(`✅ [DISCORD SCRAPER LEGENDARIAS OK] Total guardadas: ${alertasLegendariasEpicas.length}`);
+        // Guardar cada categoría en su respectiva clave de la base de datos
+        await Config.findOneAndUpdate({ clave: 'stw_legendarias_activas' }, { valor: JSON.stringify(alertasLegendarias) }, { upsert: true });
+        await Config.findOneAndUpdate({ clave: 'stw_epicas_activas' }, { valor: JSON.stringify(alertasEpicas) }, { upsert: true });
 
-        await Config.findOneAndUpdate(
-            { clave: 'stw_legendarias_activas' }, 
-            { valor: JSON.stringify(alertasLegendariasEpicas) }, 
-            { upsert: true }
-        );
+        console.log(`✅ [DISCORD SCRAPER OK] Legendarias guardadas: ${alertasLegendarias.length} | Épicas guardadas: ${alertasEpicas.length}`);
 
     } catch (error) {
         console.error("❌ Error al raspar Discord:", error.message);
