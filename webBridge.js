@@ -6,6 +6,7 @@ const { Config } = require('./database/modelos');
 let chatWhatsAppActivo = null;
 let sockWhatsApp = null;
 
+// Traducción oficial de recompensas al español de Salvar el Mundo
 function traducirYFormatearRecompensa(texto, iconClass) {
     const cls = (iconClass || "").toLowerCase();
     const txt = (texto || "").toLowerCase();
@@ -141,7 +142,7 @@ function traducirMisionYBioma(nombreIngles, textoCompletoZona) {
 
 async function extraerAlertasAPI() {
     try {
-        console.log(`\n--- 🌐 RASPADO LIMPIO Y SIN DUPLICADOS ---`);
+        console.log(`\n--- 🌐 RASPADO CON DISEÑO VERTICAL EXACTO ---`);
         const urlObjetivo = 'https://stw-planner.com/mission-alerts';
         
         const response = await axios.get(urlObjetivo, {
@@ -191,24 +192,33 @@ async function extraerAlertasAPI() {
                     let claveUnica = `${pl}-${misionCompletaEsp}`;
 
                     if (!legendariasMap.has(claveUnica) && listaRecompensas.length > 0) {
-                        // Devolvemos únicamente las propiedades independientes para evitar duplicados en index.js
-                        legendariasMap.set(claveUnica, {
-                            pl: pl,
-                            mision: misionCompletaEsp,
-                            recompensa: listaRecompensas.join(' | ')
-                        });
+                        // Formato vertical estricto con saltos de línea (\n)
+                        let tarjetaVertical = `⚡ *PL:* ${pl}\n` +
+                                              `🎯 *Misión:* ${misionCompletaEsp}\n` +
+                                              `🎁 *Recompensa:* ${listaRecompensas.join(' | ')}`;
+
+                        legendariasMap.set(claveUnica, tarjetaVertical);
                     }
                 }
             }
         });
 
-        const legendariasList = Array.from(legendariasMap.values());
+        const tarjetasList = Array.from(legendariasMap.values());
 
+        // Generar fecha actual en español
+        const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: 'America/Mexico_City' };
+        const fechaFormateada = new Date().toLocaleDateString('es-MX', options);
+
+        let mensajeCompleto = `📅 _${fechaFormateada}_\n\n🌟 *ALERTAS LEGENDARIAS*\n\n` +
+                              tarjetasList.join('\n\n') +
+                              `\n\nSupport-a-Creator: *JASC13* ❤️`;
+
+        // Guardamos el mensaje completo preformateado en MongoDB para que index.js lo envíe tal cual
         await Config.findOneAndUpdate({ clave: 'stw_pavos_activos' }, { valor: JSON.stringify([]) }, { upsert: true });
         await Config.findOneAndUpdate({ clave: 'stw_epicas_activas' }, { valor: JSON.stringify([]) }, { upsert: true });
-        await Config.findOneAndUpdate({ clave: 'stw_legendarias_activas' }, { valor: JSON.stringify(legendariasList) }, { upsert: true });
+        await Config.findOneAndUpdate({ clave: 'stw_legendarias_activas' }, { valor: JSON.stringify([mensajeCompleto]) }, { upsert: true });
         
-        console.log(`✅ [ESTRUCTURA LIMPIA OK] Total de misiones guardadas: ${legendariasList.length}`);
+        console.log(`✅ [MENSAJE VERTICAL OK] Total de misiones únicas guardadas: ${tarjetasList.length}`);
 
     } catch (e) {
         console.error("❌ Error en la extracción:", e.message);
