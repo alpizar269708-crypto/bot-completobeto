@@ -83,7 +83,6 @@ async function alertasSTW(sock, chatId, msg, categoria = 'todas') {
             texto += `_No hay alertas legendarias registradas._\n\n`;
         } else {
             datos.legendarias.forEach(L => {
-                // Diseño vertical limpio: PL en su línea, Misión en su línea, Recompensa abajo
                 texto += `⚡ *PL:* ${L.pl}\n🎯 *Misión:* ${L.mision}\n🎁 *Recompensa:* ${L.recompensa}\n\n`;
             });
         }

@@ -141,7 +141,7 @@ function traducirMisionYBioma(nombreIngles, textoCompletoZona) {
 
 async function extraerAlertasAPI() {
     try {
-        console.log(`\n--- 🌐 RASPADO CON BLOQUE VERTICAL UNIFICADO ---`);
+        console.log(`\n--- 🌐 RASPADO DE MISIONES INDIVIDUALES LIMPIAS ---`);
         const urlObjetivo = 'https://stw-planner.com/mission-alerts';
         
         const response = await axios.get(urlObjetivo, {
@@ -191,38 +191,25 @@ async function extraerAlertasAPI() {
                     let claveUnica = `${pl}-${misionCompletaEsp}`;
 
                     if (!legendariasMap.has(claveUnica) && listaRecompensas.length > 0) {
-                        // Construimos la tarjeta vertical completa aquí mismo para evitar que otros archivos la desformen
-                        let tarjetaVertical = `⚡ *PL:* ${pl}\n` +
-                                              `🎯 *Misión:* ${misionCompletaEsp}\n` +
-                                              `🎁 *Recompensa:* ${listaRecompensas.join(' | ')}`;
-
-                        legendariasMap.set(claveUnica, tarjetaVertical);
+                        // Guardamos objetos individuales limpios
+                        legendariasMap.set(claveUnica, {
+                            pl: pl,
+                            mision: misionCompletaEsp,
+                            recompensa: listaRecompensas.join(' | ')
+                        });
                     }
                 }
             }
         });
 
-        const tarjetasList = Array.from(legendariasMap.values());
+        const legendariasList = Array.from(legendariasMap.values());
 
-        const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: 'America/Mexico_City' };
-        const fechaFormateada = new Date().toLocaleDateString('es-MX', options);
-
-        let mensajeCompleto = `📅 _${fechaFormateada}_\n\n🌟 *ALERTAS LEGENDARIAS*\n\n` +
-                              tarjetasList.join('\n\n') +
-                              `\n\nSupport-a-Creator: *JASC13* ❤️`;
-
-        // Guardamos el mensaje ya formateado como texto dentro del campo 'recompensa' de un objeto único
-        const objetoFinal = [{
-            pl: "GENERAL",
-            mision: "Alertas",
-            recompensa: mensajeCompleto
-        }];
-
+        // Guardar estrictamente el array de objetos limpios en MongoDB
         await Config.findOneAndUpdate({ clave: 'stw_pavos_activos' }, { valor: JSON.stringify([]) }, { upsert: true });
         await Config.findOneAndUpdate({ clave: 'stw_epicas_activas' }, { valor: JSON.stringify([]) }, { upsert: true });
-        await Config.findOneAndUpdate({ clave: 'stw_legendarias_activas' }, { valor: JSON.stringify(objetoFinal) }, { upsert: true });
+        await Config.findOneAndUpdate({ clave: 'stw_legendarias_activas' }, { valor: JSON.stringify(legendariasList) }, { upsert: true });
         
-        console.log(`✅ [MENSAJE COMPLETO GUARDADO OK] Total de misiones en la lista: ${tarjetasList.length}`);
+        console.log(`✅ [LISTA DE MISIONES OK] Total de misiones guardadas: ${legendariasList.length}`);
 
     } catch (e) {
         console.error("❌ Error en la extracción:", e.message);
