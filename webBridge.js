@@ -6,7 +6,7 @@ const { Config } = require('./database/modelos');
 let chatWhatsAppActivo = null;
 let sockWhatsApp = null;
 
-// Traducción oficial de recompensas al español de Salvar el Mundo
+// Traducción oficial de recompensas al español de Salvar el Mundo (sin exceso de negritas)
 function traducirYFormatearRecompensa(texto, iconClass) {
     const cls = (iconClass || "").toLowerCase();
     const txt = (texto || "").toLowerCase();
@@ -26,49 +26,49 @@ function traducirYFormatearRecompensa(texto, iconClass) {
     }
 
     if (combinada.includes('supercharger')) {
-        if (combinada.includes('survivor')) return '⚡ *Supercargador de Superviviente*';
-        if (combinada.includes('hero')) return '⚡ *Supercargador de Héroe*';
-        if (combinada.includes('weapon')) return '⚡ *Supercargador de Arma*';
-        if (combinada.includes('trap')) return '⚡ *Supercargador de Trampa*';
-        return '⚡ *Supercargador*';
+        if (combinada.includes('survivor')) return '⚡ Supercargador de superviviente';
+        if (combinada.includes('hero')) return '⚡ Supercargador de héroe';
+        if (combinada.includes('weapon')) return '⚡ Supercargador de arma';
+        if (combinada.includes('trap')) return '⚡ Supercargador de trampa';
+        return '⚡ Supercargador';
     }
 
     if (combinada.includes('workerbasic') || combinada.includes('survivor')) {
-        if (combinada.includes('legendary')) return '👤 *Superviviente legendario*';
-        if (combinada.includes('epic')) return '👤 *Superviviente épico*';
-        return '👤 *Superviviente*';
+        if (combinada.includes('legendary')) return '👤 Superviviente legendario';
+        if (combinada.includes('epic')) return '👤 Superviviente épico';
+        return '👤 Superviviente';
     }
     if (combinada.includes('defender')) {
-        if (combinada.includes('legendary')) return '🛡️ *Defensor legendario*';
-        if (combinada.includes('epic')) return '🛡️ *Defensor épico*';
-        return '🛡️ *Defensor*';
+        if (combinada.includes('legendary')) return '🛡️ Defensor legendario';
+        if (combinada.includes('epic')) return '🛡️ Defensor épico';
+        return '🛡️ Defensor';
     }
 
-    if (combinada.includes('frost-up') || combinada.includes('ele_water')) return `❄️ ${prefix}*Frost-Up*`;
-    if (combinada.includes('fire-up') || combinada.includes('ele_fire')) return `🔥 ${prefix}*Fire-Up*`;
-    if (combinada.includes('amp-up') || combinada.includes('ele_nature')) return `⚡ ${prefix}*Amp-Up*`;
-    if (combinada.includes('epic perk') || combinada.includes('t03_high')) return `🟣 ${prefix}*Modificación épica*`;
-    if (combinada.includes('legendary perk') || combinada.includes('t04_high')) return `🟠 ${prefix}*Modificación legendaria*`;
-    if (combinada.includes('re-perk') || combinada.includes('alteration')) return `🔄 ${prefix}*Re-modificación*`;
+    if (combinada.includes('frost-up') || combinada.includes('ele_water')) return `❄️ ${prefix}Frost-Up`;
+    if (combinada.includes('fire-up') || combinada.includes('ele_fire')) return `🔥 ${prefix}Fire-Up`;
+    if (combinada.includes('amp-up') || combinada.includes('ele_nature')) return `⚡ ${prefix}Amp-Up`;
+    if (combinada.includes('epic perk') || combinada.includes('t03_high')) return `🟣 ${prefix}Modificación épica`;
+    if (combinada.includes('legendary perk') || combinada.includes('t04_high')) return `🟠 ${prefix}Modificación legendaria`;
+    if (combinada.includes('re-perk') || combinada.includes('alteration')) return `🔄 ${prefix}Re-modificación`;
 
-    if (combinada.includes('reagent_c') || combinada.includes('storm shard')) return `💎 ${prefix}*Esquirla de tormenta*`;
-    if (combinada.includes('reagent_t03') || combinada.includes('eye')) return `🌀 ${prefix}*Ojo de la tormenta*`;
-    if (combinada.includes('reagent_t01') || combinada.includes('rain')) return `💧 ${prefix}*Gota de lluvia pura*`;
-    if (combinada.includes('reagent_t02') || combinada.includes('lightning')) return `⚡ ${prefix}*Relámpago en botella*`;
+    if (combinada.includes('reagent_c') || combinada.includes('storm shard')) return `💎 ${prefix}Esquirla de tormenta`;
+    if (combinada.includes('reagent_t03') || combinada.includes('eye')) return `🌀 ${prefix}Ojo de la tormenta`;
+    if (combinada.includes('reagent_t01') || combinada.includes('rain')) return `💧 ${prefix}Gota de lluvia pura`;
+    if (combinada.includes('reagent_t02') || combinada.includes('lightning')) return `⚡ ${prefix}Relámpago en botella`;
 
-    if (combinada.includes('ticket') || combinada.includes('campaign_event_currency')) return `🎫 ${prefix}*Billetes*`;
-    if (combinada.includes('gold') || combinada.includes('eventscaling')) return cantidad ? `🪙 ${prefix}*Oro*` : '🪙 *Oro*';
+    if (combinada.includes('ticket') || combinada.includes('campaign_event_currency')) return `🎫 ${prefix}Billetes`;
+    if (combinada.includes('gold') || combinada.includes('eventscaling')) return cantidad ? `🪙 ${prefix}Oro` : '🪙 Oro';
 
-    if (combinada.includes('schematicxp')) return `📘 ${cantidad ? prefix : 'x5 '}*XP de plano*`;
-    if (combinada.includes('survivorxp')) return `📗 ${cantidad ? prefix : 'x4 '}*XP de superviviente*`;
-    if (combinada.includes('heroxp')) return `📙 ${cantidad ? prefix : ''}*XP de héroe*`;
-    if (combinada.includes('venturexp')) return `🗺️ ${cantidad ? prefix : ''}*XP de aventura*`;
+    if (combinada.includes('schematicxp')) return `📘 ${cantidad ? prefix : 'x5 '}XP de plano`;
+    if (combinada.includes('survivorxp')) return `📗 ${cantidad ? prefix : 'x4 '}XP de superviviente`;
+    if (combinada.includes('heroxp')) return `📙 ${cantidad ? prefix : ''}XP de héroe`;
+    if (combinada.includes('venturexp')) return `🗺️ ${cantidad ? prefix : ''}XP de aventura`;
 
     return "";
 }
 
-// Traducción oficial de Misiones y Biomas al español de Fortnite
-function traducirMisionYBioma(nombreIngles, biomaIngles) {
+// Limpieza profunda y traducción oficial de Misiones y Biomas
+function traducirMisionYBioma(nombreIngles, textoCompletoZona) {
     const misionesMap = {
         'fight the storm': 'Lucha contra la tormenta',
         'retrieve the data': 'Recupera los datos',
@@ -83,44 +83,68 @@ function traducirMisionYBioma(nombreIngles, biomaIngles) {
         'trap storm': 'Tormenta de trampas'
     };
 
+    const misionEsp = misionesMap[nombreIngles.toLowerCase()] || nombreIngles;
+
+    // Limpiar basura de texto del HTML
+    let limpio = textoCompletoZona
+        .replace(/group/gi, '')
+        .replace(/retrieve the data/gi, '')
+        .replace(/evacuate the shelter/gi, '')
+        .replace(/deliver the bomb/gi, '')
+        .replace(/ride the lightning/gi, '')
+        .replace(/repair the shelter/gi, '')
+        .replace(/fight the storm/gi, '')
+        .replace(/legendary survivor/gi, '')
+        .replace(/epic survivor/gi, '')
+        .replace(/legendary defender/gi, '')
+        .replace(/epic defender/gi, '')
+        .replace(/uncommon survivor/gi, '')
+        .replace(/rare survivor/gi, '')
+        .replace(/\b(x\s*)+/gi, '')
+        .replace(/[-–]/g, '')
+        .trim();
+
     const biomasMap = {
-        'grasslands': 'Praderas',
+        'thunder route 99': 'Ruta del Trueno 99',
+        'thunder route': 'Ruta del Trueno 99',
         'industrial park': 'Parque industrial',
+        'ghost town': 'Pueblo fantasma',
+        'autumn suburbs': 'Suburbios otoñales',
+        'autumn city': 'Ciudad otoñal',
+        'grasslands': 'Praderas',
         'desert': 'Desierto',
         'city': 'Ciudad',
-        'ghost town': 'Pueblo fantasma',
-        'thunder route 99': 'Ruta del Trueno 99',
         'lakeside': 'Orilla del lago',
         'tropical': 'Tropical',
         'forest': 'Bosque',
-        'suburbs': 'Suburbios',
-        'autumn suburbs': 'Suburbios otoñales',
-        'autumn city': 'Ciudad otoñal'
+        'suburbs': 'Suburbios'
     };
 
-    const misionEsp = misionesMap[nombreIngles.toLowerCase()] || nombreIngles;
+    let biomaEsp = "";
+    const lowerLimpio = limpio.toLowerCase();
     
-    // Buscar coincidencia exacta o parcial limpia para el bioma
-    let biomaLimpio = biomaIngles.toLowerCase().replace(/[\(\)]/g, '').trim();
-    let biomaEsp = biomasMap[biomaLimpio];
-
-    if (!biomaEsp) {
-        // Buscar si contiene alguna clave conocida de bioma
-        for (const [key, val] of Object.entries(biomasMap)) {
-            if (biomaLimpio.includes(key)) {
-                biomaEsp = val;
-                break;
-            }
+    for (const [key, val] of Object.entries(biomasMap)) {
+        if (lowerLimpio.includes(key)) {
+            biomaEsp = val;
+            break;
         }
     }
 
-    biomaEsp = biomaEsp || biomaIngles;
-    return `${misionEsp} - ${biomaEsp}`;
+    if (!biomaEsp) {
+        biomaEsp = limpio.split('  ')[0].trim() || "Zona desconocida";
+    }
+
+    let bunkerStr = "";
+    if (lowerLimpio.includes('bunker') || lowerLimpio.includes('búnker')) {
+        bunkerStr = " (Búnker)";
+    }
+
+    return `${misionEsp} - ${biomaEsp}${bunkerStr}`;
 }
 
 async function extraerAlertasAPI() {
     try {
-        console.log(`\n--- 🌐 TRADUCCIÓN OFICIAL COMPLETA A ESPAÑOL ---`);
+        console.log(`\n--- 🌐 RASPADO LIMPIO Y OFICIAL EN ESPAÑOL ---`);
         const urlObjetivo = 'https://stw-planner.com/mission-alerts';
         
         const response = await axios.get(urlObjetivo, {
@@ -150,10 +174,9 @@ async function extraerAlertasAPI() {
                     let biomaCrudo = "";
                     const partesZona = txt.split('-');
                     if (partesZona.length > 1) {
-                        biomaCrudo = partesZona[1].replace(/\d+/g, '').trim();
+                        biomaCrudo = partesZona[1].trim();
                     }
 
-                    // Obtener nombre y bioma traducidos oficialmente
                     let misionCompletaEsp = traducirMisionYBioma(kwEncontrada, biomaCrudo);
 
                     let listaRecompensas = [];
@@ -171,10 +194,15 @@ async function extraerAlertasAPI() {
                     let claveUnica = `${pl}-${misionCompletaEsp}`;
 
                     if (!legendariasMap.has(claveUnica) && listaRecompensas.length > 0) {
+                        // Formato limpio en líneas separadas como lo solicitaste
+                        let tarjetaVisual = `⚡ *PL:* ${pl}\n` +
+                                            `🎯 *Misión:* ${misionCompletaEsp}\n` +
+                                            `🎁 *Recompensa:* ${listaRecompensas.join(' | ')}`;
+
                         legendariasMap.set(claveUnica, {
                             pl: pl,
                             mision: misionCompletaEsp,
-                            recompensa: listaRecompensas.join(' | ')
+                            recompensa: tarjetaVisual
                         });
                     }
                 }
@@ -187,10 +215,10 @@ async function extraerAlertasAPI() {
         await Config.findOneAndUpdate({ clave: 'stw_epicas_activas' }, { valor: JSON.stringify([]) }, { upsert: true });
         await Config.findOneAndUpdate({ clave: 'stw_legendarias_activas' }, { valor: JSON.stringify(legendariasList) }, { upsert: true });
         
-        console.log(`✅ [TRADUCCIÓN COMPLETA OK] Total de misiones guardadas: ${legendariasList.length}`);
+        console.log(`✅ [EXTRACCIÓN Y TRADUCCIÓN OK] Total de misiones guardadas: ${legendariasList.length}`);
 
     } catch (e) {
-        console.error("❌ Error en la traducción:", e.message);
+        console.error("❌ Error en la extracción:", e.message);
     }
 }
 
