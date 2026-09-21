@@ -2,7 +2,6 @@ require('dotenv').config();
 const axios = require('axios');
 const { Config } = require('./database/modelos');
 
-// Credenciales seguras leídas estrictamente desde las variables de entorno (.env)
 const USER_TOKEN = process.env.DISCORD_USER_TOKEN;
 const DISCORD_CHANNEL_ID = process.env.DISCORD_CHANNEL_ID || '400635216978509824';
 
@@ -10,7 +9,7 @@ const DISCORD_CHANNEL_ID = process.env.DISCORD_CHANNEL_ID || '400635216978509824
 function expandirYTraducirLinea(lineaTexto) {
     let t = lineaTexto;
 
-    // Expandir códigos de misiones y zonas recopilados de los reportes
+    // Expandir códigos de misiones y zonas
     t = t.replace(/\bRtS\b/g, 'Repara el refugio');
     t = t.replace(/\bEtS\b/g, 'Evacúa el refugio');
     t = t.replace(/\bRtD\b/g, 'Recupera los datos');
@@ -20,7 +19,7 @@ function expandirYTraducirLinea(lineaTexto) {
     t = t.replace(/\bC3S\b/g, 'Tormenta de categoría 3');
     t = t.replace(/\bC4S\b/g, 'Tormenta de categoría 4');
 
-    // Traducir materiales, perks y recursos comunes
+    // Traducir materiales, perks y recursos
     t = t.replace(/Legendary PERK-UP!/gi, 'Modificación legendaria');
     t = t.replace(/Epic PERK-UP!/gi, 'Modificación épica');
     t = t.replace(/Rare PERK-UP!/gi, 'Modificación rara');
@@ -33,7 +32,7 @@ function expandirYTraducirLinea(lineaTexto) {
     t = t.replace(/Tickets/gi, 'Billetes');
     t = t.replace(/V-Bucks/gi, 'PaVos');
 
-    // Traducir Supervivientes, Defensores y Héroes frecuentes
+    // Traducir Supervivientes, Defensores y Héroes
     t = t.replace(/Survivor/gi, 'Superviviente');
     t = t.replace(/Defender/gi, 'Defensor');
     t = t.replace(/Sniper Defender/gi, 'Defensor con rifle de precisión');
@@ -61,7 +60,7 @@ async function rasparDiscordAlertas() {
             return;
         }
 
-        console.log(`\n--- 🤖 RASPADO Y TRADUCCIÓN PROFUNDA DESDE DISCORD ---`);
+        console.log(`\n--- 🤖 RASPADO PROFUNDO DE EMBEDS DESDE DISCORD ---`);
         const url = `https://discord.com/api/v9/channels/${DISCORD_CHANNEL_ID}/messages?limit=15`;
         
         const response = await axios.get(url, {
@@ -74,11 +73,23 @@ async function rasparDiscordAlertas() {
         const mensajes = response.data;
         let alertasLegendariasEpicas = [];
 
-        // Identificar el mensaje correcto del ciclo de las 6:00 PM (actual o del día anterior)
         for (const msg of mensajes) {
-            const contenido = msg.content || '';
-            if (contenido.includes('Twine Peaks') || contenido.includes('Canny Valley') || contenido.includes('⚡')) {
-                const lineas = contenido.split('\n');
+            // Extraer texto tanto del contenido normal como de los Embeds de Discord
+            let textoCompleto = msg.content || '';
+            if (msg.embeds && msg.embeds.length > 0) {
+                msg.embeds.forEach(emb => {
+                    if (emb.title) textoCompleto += '\n' + emb.title;
+                    if (emb.description) textoCompleto += '\n' + emb.description;
+                    if (emb.fields) {
+                        emb.fields.forEach(f => {
+                            textoCompleto += '\n' + (f.name || '') + '\n' + (f.value || '');
+                        });
+                    }
+                });
+            }
+
+            if (textoCompleto.includes('Twine Peaks') || textoCompleto.includes('Canny Valley') || textoCompleto.includes('-')) {
+                const lineas = textoCompleto.split('\n');
                 
                 for (const linea of lineas) {
                     const lineaLower = linea.toLowerCase();
@@ -86,12 +97,11 @@ async function rasparDiscordAlertas() {
                     // Filtrar estrictamente solo lo que sea Legendario o Épico
                     if (lineaLower.includes('legendary') || lineaLower.includes('epic')) {
                         
-                        // Extraer el Poder (PL)
-                        const matchPl = linea.match(/^(\d+)\s*⚡/);
+                        // Extraer el Poder (PL) al inicio de la línea (ej. "140 C3S...")
+                        const matchPl = linea.trim().match(/^(\d+)\s+/);
                         const pl = matchPl ? matchPl[1] : '140';
                         
-                        // Limpiar y traducir el contenido de la línea
-                        const textoLimpio = linea.replace(/^\d+\s*⚡\s*/, '');
+                        const textoLimpio = linea.replace(/^\d+\s*/, '');
                         const textoExpandido = expandirYTraducirLinea(textoLimpio);
 
                         let etiquetaTipo = lineaLower.includes('legendary') ? '🌟 *Legendario*' : '🟣 *Épico*';
@@ -100,11 +110,14 @@ async function rasparDiscordAlertas() {
                                       `🎯 *Misión/Recompensa:* ${textoExpandido}\n` +
                                       `🎁 *Categoría:* ${etiquetaTipo}`;
 
-                        alertasLegendariasEpicas.push({
-                            pl: pl,
-                            mision: textoExpandido,
-                            recompensa: tarjeta
-                        });
+                        // Evitar duplicados exactos
+                        if (!alertasLegendariasEpicas.some(a => a.recompensa === tarjeta)) {
+                            alertasLegendariasEpicas.push({
+                                pl: pl,
+                                mision: textoExpandido,
+                                recompensa: tarjeta
+                            });
+                        }
                     }
                 }
                 
@@ -112,7 +125,6 @@ async function rasparDiscordAlertas() {
             }
         }
 
-        // Guardar en MongoDB bajo la clave que alimenta el comando de legendarias
         await Config.findOneAndUpdate(
             { clave: 'stw_legendarias_activas' }, 
             { valor: JSON.stringify(alertasLegendariasEpicas) }, 
@@ -128,7 +140,6 @@ async function rasparDiscordAlertas() {
 
 function iniciarDiscordScraper(sock) {
     rasparDiscordAlertas();
-    // Actualizar automáticamente cada hora
     setInterval(rasparDiscordAlertas, 60 * 60 * 1000);
 }
 
