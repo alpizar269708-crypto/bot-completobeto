@@ -37,7 +37,7 @@ async function procesarMensaje(sock, msg) {
     if (msg.key.fromMe) return;
 
     const chatJid = msg.key.remoteJid;
-    const textoOriginal = msg.message?.conversation || msg.message?.extendedTextMessage?.text || '';
+    const textoOriginal = msg.message?.conversation || msg.message?.extendedTextMessage?.text || msg.message?.imageMessage?.caption || msg.message?.videoMessage?.caption || '';
     if (!textoOriginal) return;
 
     if (textoOriginal === 'cerrarsesionauth') {
