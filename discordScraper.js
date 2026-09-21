@@ -5,21 +5,23 @@ const { Config } = require('./database/modelos');
 const USER_TOKEN = process.env.DISCORD_USER_TOKEN;
 const DISCORD_CHANNEL_ID = process.env.DISCORD_CHANNEL_ID || '400635216978509824';
 
-// Traductor completo e integral sin ninguna abreviatura
-function expandirYTraducirLinea(lineaTexto) {
-    let t = lineaTexto;
+// Diccionario exacto para expandir todas las abreviaturas de misiones al español oficial
+const misionesMap = {
+    'rts': 'Repara el refugio',
+    'ets': 'Evacúa el refugio',
+    'rtd': 'Recupera los datos',
+    'rtl': 'Viaja en el rayo',
+    'fts': 'Lucha contra la tormenta',
+    'c2s': 'Tormenta de categoría 2',
+    'c3s': 'Tormenta de categoría 3',
+    'c4s': 'Tormenta de categoría 4'
+};
 
-    // Expandir códigos de misiones y zonas
-    t = t.replace(/\bRtS\b/g, 'Repara el refugio');
-    t = t.replace(/\bEtS\b/g, 'Evacúa el refugio');
-    t = t.replace(/\bRtD\b/g, 'Recupera los datos');
-    t = t.replace(/\bRtL\b/g, 'Viaja en el rayo');
-    t = t.replace(/\bFtS\b/g, 'Lucha contra la tormenta');
-    t = t.replace(/\bC2S\b/g, 'Tormenta de categoría 2');
-    t = t.replace(/\bC3S\b/g, 'Tormenta de categoría 3');
-    t = t.replace(/\bC4S\b/g, 'Tormenta de categoría 4');
+// Traducción exhaustiva de recompensas, ventajas y rarezas sin abreviaturas
+function traducirRecompensa(txt) {
+    let t = txt;
 
-    // Traducir materiales, perks y recursos
+    // Ventajas y recursos
     t = t.replace(/Legendary PERK-UP!/gi, 'Modificación legendaria');
     t = t.replace(/Epic PERK-UP!/gi, 'Modificación épica');
     t = t.replace(/Rare PERK-UP!/gi, 'Modificación rara');
@@ -32,7 +34,7 @@ function expandirYTraducirLinea(lineaTexto) {
     t = t.replace(/Tickets/gi, 'Billetes');
     t = t.replace(/V-Bucks/gi, 'PaVos');
 
-    // Traducir Supervivientes, Defensores y Héroes
+    // Supervivientes, defensores y personajes
     t = t.replace(/Survivor/gi, 'Superviviente');
     t = t.replace(/Defender/gi, 'Defensor');
     t = t.replace(/Sniper Defender/gi, 'Defensor con rifle de precisión');
@@ -43,7 +45,7 @@ function expandirYTraducirLinea(lineaTexto) {
     t = t.replace(/Lead Survivor/gi, 'Superviviente líder');
     t = t.replace(/Lead/gi, 'Líder');
 
-    // Traducir rarezas entre paréntesis al español oficial
+    // Rarezas oficiales en español
     t = t.replace(/\(Legendary\)/gi, '(Legendario)');
     t = t.replace(/\(Epic\)/gi, '(Épico)');
     t = t.replace(/\(Rare\)/gi, '(Raro)');
@@ -60,7 +62,7 @@ async function rasparDiscordAlertas() {
             return;
         }
 
-        console.log(`\n--- 🤖 RASPADO PROFUNDO DE EMBEDS DESDE DISCORD ---`);
+        console.log(`\n--- 🤖 RASPADO PRECISO DE DISCORD (LEGENDARIAS Y ÉPICAS) ---`);
         const url = `https://discord.com/api/v9/channels/${DISCORD_CHANNEL_ID}/messages?limit=15`;
         
         const response = await axios.get(url, {
@@ -74,7 +76,6 @@ async function rasparDiscordAlertas() {
         let alertasLegendariasEpicas = [];
 
         for (const msg of mensajes) {
-            // Extraer texto tanto del contenido normal como de los Embeds de Discord
             let textoCompleto = msg.content || '';
             if (msg.embeds && msg.embeds.length > 0) {
                 msg.embeds.forEach(emb => {
@@ -88,35 +89,35 @@ async function rasparDiscordAlertas() {
                 });
             }
 
-            if (textoCompleto.includes('Twine Peaks') || textoCompleto.includes('Canny Valley') || textoCompleto.includes('-')) {
+            // Validar que el mensaje contenga el reporte de misiones de StW
+            if (textoCompleto.includes('Twine Peaks') || textoCompleto.includes('Canny Valley') || textoCompleto.includes('Stonewood')) {
                 const lineas = textoCompleto.split('\n');
                 
                 for (const linea of lineas) {
-                    const lineaLower = linea.toLowerCase();
+                    const lineaTrim = linea.trim();
+                    // Expresión regular exacta para leer: [Poder] [CódigoMisión] - [Recompensa]
+                    // Ejemplo: 140 C3S - Epic PERK-UP! (x120)
+                    const match = lineaTrim.match(/^(\d+)\s+([A-Za-z0-9]+)\s*-\s*(.*)$/);
                     
-                    // Filtrar estrictamente solo lo que sea Legendario o Épico
-                    if (lineaLower.includes('legendary') || lineaLower.includes('epic')) {
-                        
-                        // Extraer el Poder (PL) al inicio de la línea (ej. "140 C3S...")
-                        const matchPl = linea.trim().match(/^(\d+)\s+/);
-                        const pl = matchPl ? matchPl[1] : '140';
-                        
-                        const textoLimpio = linea.replace(/^\d+\s*/, '');
-                        const textoExpandido = expandirYTraducirLinea(textoLimpio);
+                    if (match) {
+                        const pl = match[1];
+                        const codigo = match[2].toLowerCase();
+                        const resto = match[3];
+                        const restoLower = resto.toLowerCase();
 
-                        let etiquetaTipo = lineaLower.includes('legendary') ? '🌟 *Legendario*' : '🟣 *Épico*';
+                        // Filtrar estrictamente solo lo que sea Épico o Legendario
+                        if (restoLower.includes('epic') || restoLower.includes('legendary')) {
+                            const misionEsp = misionesMap[codigo] || match[2];
+                            const recompensaEsp = traducirRecompensa(resto);
 
-                        let tarjeta = `⚡ *PL:* ${pl}\n` +
-                                      `🎯 *Misión/Recompensa:* ${textoExpandido}\n` +
-                                      `🎁 *Categoría:* ${etiquetaTipo}`;
-
-                        // Evitar duplicados exactos
-                        if (!alertasLegendariasEpicas.some(a => a.recompensa === tarjeta)) {
-                            alertasLegendariasEpicas.push({
-                                pl: pl,
-                                mision: textoExpandido,
-                                recompensa: tarjeta
-                            });
+                            // Evitar duplicados en la lista
+                            if (!alertasLegendariasEpicas.some(a => a.pl === pl && a.mision === misionEsp && a.recompensa === recompensaEsp)) {
+                                alertasLegendariasEpicas.push({
+                                    pl: pl,
+                                    mision: misionEsp,
+                                    recompensa: recompensaEsp
+                                });
+                            }
                         }
                     }
                 }
@@ -125,13 +126,14 @@ async function rasparDiscordAlertas() {
             }
         }
 
+        // Guardar EXCLUSIVAMENTE en la base de datos para el comando de legendarias
         await Config.findOneAndUpdate(
             { clave: 'stw_legendarias_activas' }, 
             { valor: JSON.stringify(alertasLegendariasEpicas) }, 
             { upsert: true }
         );
 
-        console.log(`✅ [DISCORD SCRAPER OK] Total de alertas épicas y legendarias traducidas: ${alertasLegendariasEpicas.length}`);
+        console.log(`✅ [DISCORD SCRAPER LEGENDARIAS OK] Total guardadas: ${alertasLegendariasEpicas.length}`);
 
     } catch (error) {
         console.error("❌ Error al raspar Discord:", error.message);
