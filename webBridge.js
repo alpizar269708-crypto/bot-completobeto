@@ -8,7 +8,7 @@ let sockWhatsApp = null;
 
 async function extraerAlertasAPI() {
     try {
-        console.log(`\n--- 🌐 PASO 2: DIAGNÓSTICO PROFUNDO DE SEEBOT ---`);
+        console.log(`\n--- 🌐 PASO 3: INSPECCIÓN DE CONTENEDORES DIV EN SEEBOT ---`);
         const urlObjetivo = 'https://seebot.dev/missions.php';
         
         const response = await axios.get(urlObjetivo, {
@@ -19,22 +19,31 @@ async function extraerAlertasAPI() {
 
         const $ = cheerio.load(response.data);
         
-        console.log(`📄 Título de la página: ${$('title').text().trim()}`);
-        console.log(`📊 Tablas encontradas en el HTML: $('table').length = $('table').length`);
-        
-        let filasTotales = 0;
-        $('tr').each((i, el) => {
-            filasTotales++;
-            const textoFila = $(el).text().replace(/\s+/g, ' ').trim();
-            if (i < 15 && textoFila.length > 0) {
-                console.log(`🔍 [FILA ${i}] ${textoFila.substring(0, 100)}`);
+        // Buscamos elementos div que contengan texto y tengan alguna clase asignada
+        let divsConClase = 0;
+        let muestrasEncontradas = 0;
+
+        $('div').each((i, el) => {
+            const cls = $(el).attr('class');
+            const txt = $(el).text().replace(/\s+/g, ' ').trim();
+            
+            if (cls) {
+                divsConClase++;
+            }
+
+            // Si el texto incluye los niveles altos que nos interesan y es un bloque conciso
+            if ((txt.includes('140') || txt.includes('160')) && txt.length > 5 && txt.length < 200) {
+                muestrasEncontradas++;
+                if (muestrasEncontradas <= 10) {
+                    console.log(`🔍 [DIV CLASE: "${cls || 'ninguna'}"] -> ${txt}`);
+                }
             }
         });
 
-        console.log(`✅ [DIAGNÓSTICO 2 TERMINADO] Total de filas (tr) analizadas: ${filasTotales}`);
+        console.log(`✅ [DIAGNÓSTICO 3 TERMINADO] Divs con clase: ${divsConClase} | Coincidencias de nivel alto en divs: ${muestrasEncontradas}`);
 
     } catch (e) {
-        console.error("❌ Error al conectar con SeeBot en el Paso 2:", e.message);
+        console.error("❌ Error en el Paso 3 de SeeBot:", e.message);
     }
 }
 
