@@ -15,7 +15,16 @@ function traducirYFormatearRecompensa(texto, iconClass) {
     const cantidad = matchNum ? matchNum[0] : "";
     const prefix = cantidad ? `*${cantidad}* ` : "";
 
-    // Superchargers (Recompensas clave de nivel 160)
+    // Filtro para ignorar texto basura de modificadores que no son recompensas
+    if (combinada.includes('ice storm') || combinada.includes('epic mini-boss') || 
+        combinada.includes('slowing pools') || combinada.includes('wall weakening') || 
+        combinada.includes('deathburst') || combinada.includes('acid pools') || 
+        combinada.includes('metal corrosion') || combinada.includes('smoke screens') ||
+        combinada.includes('fire storm') || combinada.includes('uncharted') || 
+        combinada.includes('adept') || combinada.includes('powerful') || combinada.includes('frenzied')) {
+        return "";
+    }
+
     if (combinada.includes('supercharger')) {
         if (combinada.includes('survivor')) return '⚡ *Supercargador de Superviviente*';
         if (combinada.includes('hero')) return '⚡ *Supercargador de Héroe*';
@@ -55,16 +64,12 @@ function traducirYFormatearRecompensa(texto, iconClass) {
     if (combinada.includes('heroxp')) return `📙 ${cantidad ? prefix : ''}*XP de Héroe*`;
     if (combinada.includes('venturexp')) return `🗺️ ${cantidad ? prefix : ''}*XP de Aventura*`;
 
-    if (cantidad) {
-        return `🎁 *${cantidad}*`;
-    }
-
-    return texto ? `🎁 *${texto.trim()}*` : "";
+    return "";
 }
 
 async function extraerAlertasAPI() {
     try {
-        console.log(`\n--- 🌐 RASPADO TOTAL (TODAS LAS 140 Y 160) ---`);
+        console.log(`\n--- 🌐 RASPADO LIMPIO Y SIN DUPLICADOS ---`);
         const urlObjetivo = 'https://stw-planner.com/mission-alerts';
         
         const response = await axios.get(urlObjetivo, {
@@ -90,14 +95,13 @@ async function extraerAlertasAPI() {
                 const pl = plMatch[1];
                 const kwEncontrada = keywordsMisiones.find(k => txt.toLowerCase().includes(k));
 
-                // Al estar en la página de alertas, cualquier coincidencia de 140 o 160 es válida
                 if (kwEncontrada && txt.length > 15 && txt.length < 400) {
                     let nombreMision = kwEncontrada.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
                     
                     let bioma = "";
                     const partesZona = txt.split('-');
                     if (partesZona.length > 1) {
-                        bioma = partesZona[1].replace(/\d+/g, '').trim();
+                        bioma = partesZona[1].replace(/\d+/g, '').trim().split(' ')[0]; // Tomar solo la primera palabra del bioma para limpiar basura
                         bioma = bioma.charAt(0).toUpperCase() + bioma.slice(1);
                     }
 
@@ -115,13 +119,15 @@ async function extraerAlertasAPI() {
                         }
                     });
 
-                    let claveUnica = `${pl}-${misionCompleta}`;
+                    // Clave estricta basada solo en PL y Misión para evitar duplicados
+                    let claveUnica = `${pl}-${nombreMision}-${bioma}`;
 
-                    if (!legendariasMap.has(claveUnica)) {
+                    // Solo guardamos si realmente encontró recompensas válidas (evita las tarjetas vacías)
+                    if (!legendariasMap.has(claveUnica) && listaRecompensas.length > 0) {
                         legendariasMap.set(claveUnica, {
                             pl: pl,
                             mision: misionCompleta,
-                            recompensa: listaRecompensas.length > 0 ? listaRecompensas.join(' | ') : '🎁 *Recompensa de Alerta*'
+                            recompensa: listaRecompensas.join(' | ')
                         });
                     }
                 }
@@ -134,7 +140,7 @@ async function extraerAlertasAPI() {
         await Config.findOneAndUpdate({ clave: 'stw_epicas_activas' }, { valor: JSON.stringify([]) }, { upsert: true });
         await Config.findOneAndUpdate({ clave: 'stw_legendarias_activas' }, { valor: JSON.stringify(legendariasList) }, { upsert: true });
         
-        console.log(`✅ [EXTRACCIÓN EXITOSA] Total de misiones 140 y 160 guardadas: ${legendariasList.length}`);
+        console.log(`✅ [EXTRACCIÓN LIMPIA OK] Total de misiones únicas guardadas: ${legendariasList.length}`);
 
     } catch (e) {
         console.error("❌ Error en la extracción:", e.message);
