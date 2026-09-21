@@ -1,12 +1,42 @@
 const { downloadMediaMessage } = require('@whiskeysockets/baileys');
+const { Sticker, StickerTypes } = require('wa-sticker-formatter');
 
 // 🎨 1. Sticker (Conversión de imagen/video)
 async function comandoSticker(sock, msg) {
+    const chatJid = msg.key.remoteJid;
     try {
-        await sock.sendMessage(msg.key.remoteJid, { text: '✨ Procesando sticker...' }, { quoted: msg });
-        // Nota: Puedes integrar aquí tu lógica actual de conversión de stickers o usar wa-sticker-formatter
+        const msgTipo = msg.message?.imageMessage || msg.message?.videoMessage;
+        const msjCitado = msg.message?.extendedTextMessage?.contextInfo?.quotedMessage;
+        const citadoTipo = msjCitado?.imageMessage || msjCitado?.videoMessage;
+
+        if (!msgTipo && !citadoTipo) {
+            return await sock.sendMessage(chatJid, { text: '⚠️ Por favor, responde a una imagen o video con el comando, o envíalo adjunto a la imagen.' }, { quoted: msg });
+        }
+
+        await sock.sendMessage(chatJid, { text: '✨ Procesando sticker...' }, { quoted: msg });
+
+        const msjMultimedia = citadoTipo ? { message: msjCitado } : msg;
+
+        const buffer = await downloadMediaMessage(
+            msjMultimedia,
+            'buffer',
+            { },
+            { reuploadRequest: sock.updateMediaMessage }
+        );
+
+        const sticker = new Sticker(buffer, {
+            pack: 'TechMasters & Stream', 
+            author: 'Humberto Alpízar',
+            type: StickerTypes.FULL, 
+            quality: 50 
+        });
+
+        const stickerBuffer = await sticker.toBuffer();
+        await sock.sendMessage(chatJid, { sticker: stickerBuffer }, { quoted: msg });
+
     } catch (e) {
-        await sock.sendMessage(msg.key.remoteJid, { text: '❌ Error al crear el sticker.' }, { quoted: msg });
+        console.error('Error al crear el sticker:', e);
+        await sock.sendMessage(chatJid, { text: '❌ Error al crear el sticker. Asegúrate de que el archivo no sea demasiado pesado.' }, { quoted: msg });
     }
 }
 
@@ -113,7 +143,7 @@ async function comandoStats(sock, chatId, msg, args) {
     try {
         const respuesta = await fetch(`https://fortnite-api.com/v2/stats/br/v2?name=${encodeURIComponent(nombreUsuario)}`, {
             headers: {
-                'Authorization': 'cbb386fe-de0e-438d-9f71-bf4001b95e9b' // Reemplaza esto con tu llave real de fortnite-api.com
+                'Authorization': 'cbb386fe-de0e-438d-9f71-bf4001b95e9b' 
             }
         });
 
