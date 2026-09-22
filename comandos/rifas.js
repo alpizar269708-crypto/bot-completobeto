@@ -9,9 +9,42 @@ async function obtenerPropietarioRifas() {
 }
 
 async function comandoAbrirRifa(sock, chatId, msg) {
-    if (chatId.endsWith('@g.us')) return;
-
     const sender = msg.key.participant || msg.key.remoteJid;
+
+    if (chatId.endsWith('@g.us')) {
+        try {
+            const groupMetadata = await sock.groupMetadata(chatId);
+            const participant = groupMetadata.participants.find(p => p.id === sender);
+            const isAdmin = participant?.admin === 'admin' || participant?.admin === 'superadmin';
+
+            if (!isAdmin) {
+                return await sock.sendMessage(chatId, {
+                    text: '❌ Permiso denegado. Solo los administradores del grupo pueden iniciar la rifa.'
+                }, { quoted: msg });
+            }
+
+            await Config.findOneAndUpdate(
+                { clave: `rifa_propietario_${chatId}` },
+                { valor: sender },
+                { upsert: true }
+            );
+
+            rifasAbiertas.add(chatId);
+            await Config.findOneAndUpdate(
+                { clave: `rifa_abierta_${chatId}` },
+                { valor: 'true' },
+                { upsert: true }
+            );
+
+            return await sock.sendMessage(chatId, {
+                text: '🔓 *Rifa iniciada en este grupo.* Ya se puede usar *rifainscripcion*.'
+            }, { quoted: msg });
+        } catch (e) {
+            console.error("Error al verificar admin al iniciar rifa:", e);
+            return;
+        }
+    }
+
     let propietario = await obtenerPropietarioRifas();
 
     if (!propietario) {
@@ -29,7 +62,6 @@ async function comandoAbrirRifa(sock, chatId, msg) {
         text: '🔓 *Rifa habilitada.*\n\nAhora usa *activarrifaaqui* dentro del grupo donde quieras abrir la inscripción.'
     }, { quoted: msg });
 }
-
 async function comandoActivarRifaAqui(sock, chatId, msg) {
     if (!chatId.endsWith('@g.us')) return;
 
@@ -132,12 +164,26 @@ async function comandoRifa(sock, chatId, msg, args) {
         await sock.sendMessage(chatId, { text: `🧹 *¡Rifa vaciada!* Se han eliminado a todos los participantes. La lista está en cero.` }, { quoted: msg });
 
     } else if (accion === 'sortear') {
-        // Solo puede sortear la persona que abrió y activó la rifa.
-        const propietario = await obtenerPropietarioRifas();
         const sender = msg.key.participant || msg.key.remoteJid;
 
-        if (!propietario || sender !== propietario) {
-            return await sock.sendMessage(chatId, { text: `❌ Permiso denegado. Solo la persona que abrió y activó esta rifa puede realizar el sorteo.` }, { quoted: msg });
+        if (chatId.endsWith('@g.us')) {
+            try {
+                const groupMetadata = await sock.groupMetadata(chatId);
+                const participant = groupMetadata.participants.find(p => p.id === sender);
+                const isAdmin = participant?.admin === 'admin' || participant?.admin === 'superadmin';
+
+                if (!isAdmin) {
+                    return await sock.sendMessage(chatId, { text: `❌ Permiso denegado. Solo los administradores del grupo pueden realizar el sorteo.` }, { quoted: msg });
+                }
+            } catch (e) {
+                console.error("Error al verificar admin al sortear rifa:", e);
+                return;
+            }
+        } else {
+            const propietario = await obtenerPropietarioRifas();
+            if (!propietario || sender !== propietario) {
+                return await sock.sendMessage(chatId, { text: `❌ Permiso denegado. Solo la persona que abrió la rifa puede realizar el sorteo.` }, { quoted: msg });
+            }
         }
 
         if (participantes.length === 0) return await sock.sendMessage(chatId, { text: `❌ No hay nadie en la rifa para sortear.` }, { quoted: msg });
@@ -145,7 +191,9 @@ async function comandoRifa(sock, chatId, msg, args) {
         const ganador = participantes[Math.floor(Math.random() * participantes.length)];
         
         await sock.sendMessage(chatId, { 
-            text: `🎉 *¡TENEMOS GANADOR!*\n\n🏆 El ganador de la rifa es: @${ganador.id.split('@')[0]} 🎊`,
+            text: `🎉 *¡TENEMOS GANADOR!*
+
+🏆 El ganador de la rifa es: @${ganador.id.split('@')[0]} 🎊`,
             mentions: [ganador.id]
         });
 
