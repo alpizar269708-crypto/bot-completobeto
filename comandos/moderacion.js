@@ -95,7 +95,7 @@ async function verificarNuevoMiembro(sock, update) {
             try {
                 const textoBienvenida = bienvenidaPersonalizada?.valor
                     ? bienvenidaPersonalizada.valor.replace(/\\{usuario\\}/gi, `@${jid.split('@')[0]}`)
-                    : `👋 Bienvenido/a @${jid.split('@')[0]} al grupo. ¡Esperamos que disfrutes y participes! ❤️`;
+                    : `Bienvenido/a @${jid.split('@')[0]} a la escupidera de Salty, esperamos que seas lo suficientemente rudo para estar aquí.`;
 
                 await sock.sendMessage(chatId, {
                     text: textoBienvenida,
