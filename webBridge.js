@@ -832,60 +832,150 @@ async function extraerAlertasAPI() {
                 source: m.source
             }));
 
-        // "PL altas" en el bot significa alertas con recompensas realmente útiles,
-        // no simplemente misiones PL 140/160.
-        const RECOMPENSAS_CHIDAS = [
-            /v[\\s-]?bucks|vbucks|v bucks/i,
-            /legendary|legendaria|legendario/i,
-            /epic|épica|épico/i,
-            /supercharger|supercargador/i,
-            /re-perk|reperk|re-modificación/i,
-            /perk-up|perkup|modificación/i,
-            /survivor|superviviente/i,
-            /defender|defensor/i,
-            /hero|héroe/i,
-            /schematic|esquema|plano/i,
-            /evo material|material de evolución/i,
-            /storm shard|esquirla de tormenta/i,
-            /lightning in a bottle|relámpago en botella/i,
-            /pure drop of rain|gota de lluvia pura/i,
-            /eye of the storm|ojo de la tormenta/i,
-            /x 4|x4/i,
-            /llama/i
-        ];
+        // PLALTAS = únicamente alertas realmente destacables.
+        // No significa "todas las misiones PL 140/160".
+        function evaluarAlertaChida(mision) {
+            const recompensa = String(mision.recompensa || '').toLowerCase();
+            const tipoAlerta = String(mision.tipoAlerta || '').toLowerCase();
+            const raw = JSON.stringify(mision.recompensas || []).toLowerCase();
+            const combinado = [recompensa, tipoAlerta, raw].join(' ');
 
-        function esAlertaChida(mision) {
-            const campos = [
-                mision.recompensa,
-                mision.tipoAlerta,
-                JSON.stringify(mision.recompensas || [])
-            ].filter(Boolean).join(' ');
+            // 1) PaVos: siempre mostrar.
+            if (mision.vbucks || /v[\\s-]?bucks|vbucks|v bucks/.test(combinado)) {
+                return {
+                    mostrar: true,
+                    nivel: 100,
+                    motivo: '🪙 PaVos'
+                };
+            }
 
-            return RECOMPENSAS_CHIDAS.some(regex => regex.test(campos));
+            // 2) Supercargadores: siempre mostrar.
+            if (/supercharger|supercargador/.test(combinado)) {
+                return {
+                    mostrar: true,
+                    nivel: 95,
+                    motivo: '⚡ Supercargador'
+                };
+            }
+
+            // 3) Recompensa legendaria concreta: siempre mostrar.
+            if (/legendary|legendaria|legendario/.test(combinado)) {
+                const concreta =
+                    /survivor|superviviente|hero|héroe|defender|defensor|schematic|esquema|plano/.test(combinado);
+
+                if (concreta) {
+                    return {
+                        mostrar: true,
+                        nivel: 90,
+                        motivo: '🟠 Recompensa legendaria'
+                    };
+                }
+
+                // También mostramos un arma/personaje legendario aunque el parser
+                // no haya podido clasificar exactamente el tipo.
+                return {
+                    mostrar: true,
+                    nivel: 88,
+                    motivo: '🟠 Recompensa legendaria'
+                };
+            }
+
+            // 4) Épicas: solo en PL alto y cuando sean personaje/equipo.
+            const esEpica = /epic|épica|épico/.test(combinado);
+            const esPersonajeOEquipo =
+                /survivor|superviviente|hero|héroe|defender|defensor|schematic|esquema|plano/.test(combinado);
+
+            if (
+                esEpica &&
+                esPersonajeOEquipo &&
+                Number(mision.pl) >= 100
+            ) {
+                return {
+                    mostrar: true,
+                    nivel: 75,
+                    motivo: '🟣 Recompensa épica'
+                };
+            }
+
+            // 5) Alertas Mega/Mini-Boss de PL >= 140: se consideran destacables
+            // aunque la recompensa textual no venga bien etiquetada.
+            if (
+                Number(mision.pl) >= 140 &&
+                /mega|miniboss|mini boss/.test(combinado)
+            ) {
+                return {
+                    mostrar: true,
+                    nivel: 70,
+                    motivo: '💀 Alerta especial PL alto'
+                };
+            }
+
+            // Todo lo demás (oro, perk-up, reperk, materiales comunes,
+            // defensores/supervivientes comunes, etc.) queda fuera.
+            return {
+                mostrar: false,
+                nivel: 0,
+                motivo: ''
+            };
+        }
+
+        function prepararAlertaChida(mision, fallback = null) {
+            const evaluada = evaluarAlertaChida(mision);
+
+            if (!evaluada.mostrar) {
+                return null;
+            }
+
+            const recompensaOriginal =
+                String(mision.recompensa || '').trim();
+
+            const recompensaMostrar =
+                recompensaOriginal && recompensaOriginal !== 'Misión'
+                    ? recompensaOriginal
+                    : evaluada.motivo;
+
+            return {
+                pl: mision.pl,
+                mision: mision.mision,
+                ubicacion: mision.ubicacion,
+                zona: mision.zona,
+                recompensa: recompensaMostrar,
+                nivelAlerta: evaluada.nivel,
+                motivo: evaluada.motivo,
+                source: mision.source || fallback || 'https://stw-planner.com/mission-alerts'
+            };
         }
 
         let plAltas = todas
-            .filter(esAlertaChida)
-            .map(m => ({
-                pl: m.pl,
-                mision: m.mision,
-                ubicacion: m.ubicacion,
-                zona: m.zona,
-                recompensa: m.recompensa,
-                source: m.source
-            }));
+            .map(m => prepararAlertaChida(m))
+            .filter(Boolean);
 
-        // Además usamos los elementos de recompensa reales de las tarjetas
-        // para no perder héroes, supervivientes, defensores o esquemas.
+        // Recuperamos la recompensa real de la tarjeta cuando existe.
         const plAltasDOM = await extraerPLAltasDOM();
 
         if (plAltasDOM.length > 0) {
-            const domChidas = plAltasDOM.filter(esAlertaChida);
+            const domPreparadas = plAltasDOM
+                .map(m => prepararAlertaChida(m, m.source))
+                .filter(Boolean);
 
-            if (domChidas.length > 0) {
-                plAltas = domChidas;
+            if (domPreparadas.length > 0) {
+                plAltas = domPreparadas;
             }
         }
+
+        // Orden: primero PaVos, después legendarias/supercargadores,
+        // después épicas y por último alertas especiales.
+        plAltas.sort((a, b) => {
+            if (b.nivelAlerta !== a.nivelAlerta) {
+                return b.nivelAlerta - a.nivelAlerta;
+            }
+
+            if (Number(b.pl) !== Number(a.pl)) {
+                return Number(b.pl) - Number(a.pl);
+            }
+
+            return String(a.zona).localeCompare(String(b.zona));
+        });
 
         plAltas = deduplicarSTW(plAltas);
 
