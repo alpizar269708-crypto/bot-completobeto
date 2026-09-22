@@ -11,7 +11,7 @@ async function esAdminValido(sock, chatId, msg) {
         await sock.sendMessage(chatId, { text: `❌ Este comando solo se puede usar en grupos.` }, { quoted: msg });
         return false;
     }
-    if (msg.key.fromMe) return true; 
+    if (msg.key.fromMe) return true;
     
     const remitente = msg.key.participant;
     try {
@@ -195,7 +195,6 @@ async function alertasSTW(sock, chatId, msg, categoria = 'todas') {
     const fechaHoy = obtenerFechaActual();
     const lineasPavos = [`📅 _${fechaHoy}_`, ''];
 
-    // PaVos: construir el mensaje por líneas para garantizar saltos reales.
     if (categoria === 'pavos' || categoria === 'todas') {
         lineasPavos.push('🎮 *ALERTAS DE PAVOS*');
 
@@ -219,9 +218,6 @@ async function alertasSTW(sock, chatId, msg, categoria = 'todas') {
     }
 
     let texto = lineasPavos.join('\n');
-
-    // El resto de alertas se agrega al mismo mensaje.
-    
 
     if (categoria === 'epicas' || (categoria === 'todas' && datos.epicas.length > 0)) {
         texto += `🟣 *ALERTAS ÉPICAS*\n`;
@@ -249,8 +245,6 @@ async function alertasSTW(sock, chatId, msg, categoria = 'todas') {
     await sock.sendMessage(chatId, { text: texto }, { quoted: msg });
 }
 
-
-// === NUEVA FUNCIÓN PARA EL COMANDO PLALTAS ===
 async function comandoDestacadasSTW(sock, chatId, msg) {
     const fechaHoy = obtenerFechaActual();
     let texto = `📅 _${fechaHoy}_\n\n🔥 *ALERTAS DESTACADAS — RECOMPENSAS BUENAS*\n\n`;
@@ -274,11 +268,6 @@ async function comandoDestacadasSTW(sock, chatId, msg) {
     await sock.sendMessage(chatId, { text: texto }, { quoted: msg });
 }
 
-
-
-
-
-
 async function comandoPreguntarAlerta(sock, chatId, msg) {
     await sock.sendMessage(chatId, { text: `🤖 Escribe *stw*, *DestacadasSTW* o *legendariasstw*.` }, { quoted: msg });
 }
@@ -288,42 +277,82 @@ function iniciarCronAlertasDiarias(sock) {
         try {
             const configChat = await Config.findOne({ clave: 'chat_alertas_diarias' });
             if (!configChat || !configChat.valor) return;
+
+            let grupos = [];
+            try {
+                grupos = JSON.parse(configChat.valor);
+                if (!Array.isArray(grupos)) grupos = [configChat.valor];
+            } catch (e) {
+                // Compatibilidad con la configuración antigua de un solo grupo.
+                grupos = [configChat.valor];
+            }
+
+            grupos = [...new Set(grupos.filter(id => typeof id === 'string' && id.endsWith('@g.us')))];
+            if (grupos.length === 0) return;
+
             const datos = await obtenerAlertasSTW();
             let total = datos.pavos.reduce((acc, p) => acc + (p.cantidad || 50), 0);
 
-            let mensajeAuto = `🎮 *REPORTE DIARIO STW (6:02 PM)*\n\n`;
-            mensajeAuto += `🎮 *ALERTAS DE PAVOS*\n`;
+            let mensajeAuto = `🎮 *ALERTAS DE PAVOS — 6:02 PM*\n\n`;
             if (datos.pavos.length > 0) {
                 datos.pavos.forEach(p => {
-                    mensajeAuto += `⚡ PL: ${p.pl}\n🎯 ${p.mision}\n🪙 ${p.cantidad || 50} PaVos\n\n`;
+                    mensajeAuto += `⚡ *PL:* ${p.pl}\n🎯 *Misión:* ${p.mision}\n🪙 *PaVos:* ${p.cantidad || 50}\n\n`;
                 });
                 mensajeAuto += `💰 *Total del día:* ${total} paVos\n\n`;
             } else {
                 mensajeAuto += `_No hay alertas de pavos registradas._\n\n`;
             }
 
-            if (datos.legendarias.length > 0) {
-                mensajeAuto += `🌟 *LEGENDARIAS*\n`;
-                datos.legendarias.forEach(L => {
-                    mensajeAuto += formatearAlertaSTW(L);
-                });
-            }
             mensajeAuto += `Support-a-Creator: *JASC13* ❤️`;
-            await sock.sendMessage(configChat.valor, { text: mensajeAuto });
-        } catch (error) {}
+
+            for (const grupo of grupos) {
+                try {
+                    await sock.sendMessage(grupo, { text: mensajeAuto });
+                } catch (e) {
+                    console.error(`Error enviando alerta automática a ${grupo}:`, e.message);
+                }
+            }
+        } catch (error) {
+            console.error('Error en reporte automático STW:', error.message);
+        }
     }, { scheduled: true, timezone: "America/Mexico_City" });
 }
 
 async function activarAlertasDiarias(sock, chatId, msg) {
     if (!(await esAdminValido(sock, chatId, msg))) return;
-    await Config.findOneAndUpdate({ clave: 'chat_alertas_diarias' }, { valor: chatId }, { upsert: true });
-    await sock.sendMessage(chatId, { text: `✅ *Grupo vinculado.* Reportes automáticos diarios configurados.` }, { quoted: msg });
+
+    let grupos = await leerConfigJSON('chat_alertas_diarias');
+    if (!grupos.includes(chatId)) {
+        grupos.push(chatId);
+        await Config.findOneAndUpdate(
+            { clave: 'chat_alertas_diarias' },
+            { valor: JSON.stringify(grupos) },
+            { upsert: true }
+        );
+    }
+
+    await sock.sendMessage(chatId, {
+        text: `✅ *Alertas de PaVos activadas en este grupo.*\n\n📅 Recibirán la alerta automática todos los días a las *6:02 PM* (hora de Ciudad de México).\n🪙 El aviso contendrá *únicamente las alertas de PaVos*.`
+    }, { quoted: msg });
 }
 
 async function desactivarAlertasDiarias(sock, chatId, msg) {
     if (!(await esAdminValido(sock, chatId, msg))) return;
-    await Config.findOneAndDelete({ clave: 'chat_alertas_diarias' });
-    await sock.sendMessage(chatId, { text: `🔕 *Alertas desactivadas en este grupo.*` }, { quoted: msg });
+
+    let grupos = await leerConfigJSON('chat_alertas_diarias');
+    grupos = grupos.filter(id => id !== chatId);
+
+    if (grupos.length === 0) {
+        await Config.findOneAndDelete({ clave: 'chat_alertas_diarias' });
+    } else {
+        await Config.findOneAndUpdate(
+            { clave: 'chat_alertas_diarias' },
+            { valor: JSON.stringify(grupos) },
+            { upsert: true }
+        );
+    }
+
+    await sock.sendMessage(chatId, { text: `🔕 *Alertas de PaVos desactivadas en este grupo.*` }, { quoted: msg });
 }
 
 module.exports = { 
