@@ -128,9 +128,8 @@ function obtenerRecompensasValiosasSTW(item) {
     const valiosas = recompensas.filter(r => {
         if (!r || !r.tipo) return false;
 
-        // Ocultar recompensas genéricas/comunes (oro, XP, moneda de misión,
-        // etc.) que el parser identifica como "other".
-        if (r.tipo === 'other') return false;
+        // No mostrar recompensas genéricas ni recompensas con rareza común.
+        if (r.tipo === 'other' || r.rareza === 'common' || r.rareza === 'uncommon') return false;
 
         if (['hero', 'survivor', 'defender', 'schematic'].includes(r.tipo)) {
             return ['mythic', 'legendary', 'epic', 'rare'].includes(r.rareza);
