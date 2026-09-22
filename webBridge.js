@@ -590,7 +590,7 @@ async function descargarSTW(url) {
 
 
 function normalizarRecompensaSTW(nombre, rareza, tipo) {
-    const limpio = limpiarTextoSTW(nombre);
+    let limpio = limpiarTextoSTW(nombre);
     if (!limpio) return '';
 
     if (tipo === 'vbucks') {
@@ -598,11 +598,11 @@ function normalizarRecompensaSTW(nombre, rareza, tipo) {
     }
 
     const rarezaTexto =
-        rareza === 'legendary' ? '🟠 Legendaria' :
-        rareza === 'epic' ? '🟣 Épica' :
-        rareza === 'rare' ? '🔵 Rara' :
-        rareza === 'uncommon' ? '🟢 Poco común' :
-        '⚪ Común';
+        rareza === 'legendary' ? '🟠 Héroe/objeto legendario' :
+        rareza === 'epic' ? '🟣 Héroe/objeto épico' :
+        rareza === 'rare' ? '🔵 Héroe/objeto raro' :
+        rareza === 'uncommon' ? '🟢 Héroe/objeto poco común' :
+        '⚪ Héroe/objeto común';
 
     const tipoTexto = {
         hero: 'Héroe',
@@ -619,11 +619,57 @@ function normalizarRecompensaSTW(nombre, rareza, tipo) {
         other: 'Recompensa'
     }[tipo] || 'Recompensa';
 
-    if (/^\d+$/.test(limpio) && tipo !== 'vbucks') {
-        return rarezaTexto + ' ' + tipoTexto + ' x' + limpio;
+    // STW Planner entrega normalmente "legendary Colonel Wildcat",
+    // "legendary survivor", "epic Striker A.C.", etc. Quitamos del nombre
+    // las palabras que ya mostramos traducidas en la etiqueta.
+    limpio = limpio
+        .replace(/^(legendary|epic|rare|uncommon|common)\\s+/i, '')
+        .trim();
+
+    if (tipo === 'hero' || tipo === 'survivor' || tipo === 'defender' || tipo === 'schematic') {
+        limpio = limpio
+            .replace(/^(hero|survivor|defender|schematic)\\s*:?\\s*/i, '')
+            .trim();
     }
 
-    return rarezaTexto + ' ' + tipoTexto + ': ' + limpio;
+    // Cuando no queda nombre propio, mostramos solo el tipo traducido.
+    if (!limpio || /^(legendary|epic|rare|uncommon|common)$/i.test(limpio)) {
+        const prefijo =
+            rareza === 'legendary' ? '🟠' :
+            rareza === 'epic' ? '🟣' :
+            rareza === 'rare' ? '🔵' :
+            rareza === 'uncommon' ? '🟢' :
+            '⚪';
+
+        const rarezaEs =
+            rareza === 'legendary' ? 'legendario' :
+            rareza === 'epic' ? 'épico' :
+            rareza === 'rare' ? 'raro' :
+            rareza === 'uncommon' ? 'poco común' :
+            'común';
+
+        return prefijo + ' ' + tipoTexto + ' ' + rarezaEs;
+    }
+
+    const prefijo =
+        rareza === 'legendary' ? '🟠' :
+        rareza === 'epic' ? '🟣' :
+        rareza === 'rare' ? '🔵' :
+        rareza === 'uncommon' ? '🟢' :
+        '⚪';
+
+    const rarezaEs =
+        rareza === 'legendary' ? 'legendario' :
+        rareza === 'epic' ? 'épico' :
+        rareza === 'rare' ? 'raro' :
+        rareza === 'uncommon' ? 'poco común' :
+        'común';
+
+    if (/^\\d+$/.test(limpio) && tipo !== 'vbucks') {
+        return prefijo + ' ' + tipoTexto + ' ' + rarezaEs + ' x' + limpio;
+    }
+
+    return prefijo + ' ' + tipoTexto + ' ' + rarezaEs + ': ' + limpio;
 }
 
 function detectarTipoRecompensaSTW(iconClasses, dataFilter, rawName) {
