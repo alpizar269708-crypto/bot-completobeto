@@ -172,51 +172,115 @@ async function comandoRestaurarBienvenida(sock, chatId, msg) {
     await sock.sendMessage(chatId, { text: '🔄 Bienvenida restaurada al mensaje por defecto.' }, { quoted: msg });
 }
 
-async function verificarAntiLinks(sock, msg) {
-    const texto = msg.message.conversation || msg.message.extendedTextMessage?.text || '';
-    const remitente = msg.key.participant || msg.key.remoteJid;
-    const chatJid = msg.key.remoteJid;
-    const esGrupo = chatJid.endsWith('@g.us');
-
-    if (!esGrupo) return false;
-    if (await esAdmin(sock, chatJid, remitente)) return false;
-
-    const regexLink = /(https?:\/\/[^\s]+)|(chat\.whatsapp\.com\/[^\s]+)/gi;
-
-    if (regexLink.test(texto)) {
-        try {
-            await sock.sendMessage(chatJid, { delete: msg.key });
-        } catch (error) {
-            console.log('No se pudo borrar el mensaje.');
-        }
-
-        let usuarioBD = await User.findOne({ numero: remitente });
-        if (!usuarioBD) {
-            usuarioBD = await User.create({ numero: remitente, warns: [] });
-        }
-
-        if (!Array.isArray(usuarioBD.warns)) usuarioBD.warns = [];
-
-        usuarioBD.warns.push({ motivo: 'Envío de enlaces prohibidos', fecha: new Date() });
-        usuarioBD.markModified('warns');
-        const totalWarns = usuarioBD.warns.length;
-
-        let mensajeAviso = `⚠️ @${remitente.split('@')[0]} Enviar enlaces está prohibido.\n` +
-                           `📌 *Advertencias:* ${totalWarns}/3`;
-
-        if (totalWarns >= 3) {
-            await banearYExpulsar(sock, remitente, 'Acumulación de 3 advertencias por enlaces prohibidos');
-            mensajeAviso += `\n\n🚨 *Límite alcanzado:* El usuario ha sido agregado a la lista negra y expulsado de todos los grupos.`;
-        }
-
-        await usuarioBD.save();
-        await sock.sendMessage(chatJid, { text: mensajeAviso, mentions: [remitente] });
-        
-        return true; 
-    }
-    return false;
+async function normalizarLinkListaBlanca(link) {
+    return (link || '').trim().replace(/[),.;!?]+$/g, '').toLowerCase();
 }
 
+async function obtenerLinksListaBlanca() {
+    const config = await Config.findOne({ clave: 'links_lista_blanca' });
+    if (!config?.valor) return [];
+    try {
+        const lista = JSON.parse(config.valor);
+        return Array.isArray(lista) ? lista.map(normalizarLinkListaBlanca) : [];
+    } catch (error) {
+        return [];
+    }
+}
+
+async function comandoListaBlancaLinks(sock, chatId, msg, args = []) {
+    const esGrupo = chatId.endsWith('@g.us');
+    const remitente = msg.key.participant || chatId;
+    if (esGrupo && !(await esAdmin(sock, chatId, remitente))) {
+        await sock.sendMessage(chatId, { text: '❌ Solo los administradores pueden gestionar la lista blanca de links.' }, { quoted: msg });
+        return;
+    }
+    const accion = (args[0] || '').toLowerCase();
+    const link = normalizarLinkListaBlanca(args.slice(1).join(' '));
+    if (!accion || accion === 'ayuda') {
+        await sock.sendMessage(chatId, { text: '🟢 *LISTA BLANCA DE LINKS*\n\nEstructura guardada: *links_lista_blanca* → un arreglo JSON de links permitidos.\n\n➕ *listablanca agregar [link]*\nEjemplo: *listablanca agregar https://ejemplo.com/*\n\n➖ *listablanca quitar [link]*\n👀 *listablanca ver*\n🧹 *listablanca vaciar*\n\nPuedes agregar literalmente cualquier link que quieras permitir.' }, { quoted: msg });
+        return;
+    }
+    if (accion === 'ver') {
+        const lista = await obtenerLinksListaBlanca();
+        const texto = lista.length ? `🟢 *LINKS EN LISTA BLANCA* (${lista.length}):\n\n${lista.map((l, i) => `*${i + 1}.* ${l}`).join('\n')}` : '🟢 La lista blanca de links está vacía.';
+        await sock.sendMessage(chatId, { text: texto }, { quoted: msg });
+        return;
+    }
+    if (accion === 'vaciar') {
+        await Config.deleteOne({ clave: 'links_lista_blanca' });
+        await sock.sendMessage(chatId, { text: '🧹 Lista blanca de links vaciada.' }, { quoted: msg });
+        return;
+    }
+    const accionesAgregar = ['agregar', 'añadir', 'add'];
+    const accionesQuitar = ['quitar', 'eliminar', 'remove'];
+    if (!accionesAgregar.includes(accion) && !accionesQuitar.includes(accion)) {
+        await sock.sendMessage(chatId, { text: '❌ Acción no válida. Usa: *listablanca agregar [link]*, *quitar [link]*, *ver* o *vaciar*.' }, { quoted: msg });
+        return;
+    }
+    if (!link) {
+        await sock.sendMessage(chatId, { text: '❌ Debes indicar el link.\nEjemplo: *listablanca agregar https://ejemplo.com/*' }, { quoted: msg });
+        return;
+    }
+    const listaActual = await obtenerLinksListaBlanca();
+    if (accionesAgregar.includes(accion)) {
+        if (listaActual.includes(link)) {
+            await sock.sendMessage(chatId, { text: 'ℹ️ Ese link ya está en la lista blanca.' }, { quoted: msg });
+            return;
+        }
+        listaActual.push(link);
+        await Config.findOneAndUpdate({ clave: 'links_lista_blanca' }, { valor: JSON.stringify(listaActual) }, { upsert: true });
+        await sock.sendMessage(chatId, { text: `✅ Link agregado a la lista blanca.\n\n🔗 ${link}\n\nAhora ese link no será borrado por el anti-links.` }, { quoted: msg });
+        return;
+    }
+    const indice = listaActual.indexOf(link);
+    if (indice === -1) {
+        await sock.sendMessage(chatId, { text: '❌ Ese link no está en la lista blanca.' }, { quoted: msg });
+        return;
+    }
+    listaActual.splice(indice, 1);
+    if (listaActual.length === 0) await Config.deleteOne({ clave: 'links_lista_blanca' });
+    else await Config.findOneAndUpdate({ clave: 'links_lista_blanca' }, { valor: JSON.stringify(listaActual) }, { upsert: true });
+    await sock.sendMessage(chatId, { text: `✅ Link eliminado de la lista blanca.\n\n🔗 ${link}` }, { quoted: msg });
+}
+
+async function verificarAntiLinks(sock, msg) {
+    const texto = msg.message?.conversation || msg.message?.extendedTextMessage?.text || msg.message?.imageMessage?.caption || msg.message?.videoMessage?.caption || msg.message?.documentMessage?.caption || '';
+    const remitente = msg.key.participant || msg.key.remoteJid;
+    const chatJid = msg.key.remoteJid;
+    if (!chatJid.endsWith('@g.us')) return false;
+
+    const regexLink = /(?:https?:\/\/|www\.)[^\s]+|(?:chat\.whatsapp\.com|wa\.me|t\.me)\/[^\s]+|(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}(?:\/[^\s]*)?/gi;
+    const coincidencias = texto.match(regexLink) || [];
+    if (coincidencias.length === 0) return false;
+
+    const listaBlanca = await obtenerLinksListaBlanca();
+    const linksNoPermitidos = coincidencias.filter(linkDetectado => {
+        const linkNormalizado = normalizarLinkListaBlanca(linkDetectado);
+        return !listaBlanca.some(linkPermitido => linkNormalizado === linkPermitido || linkNormalizado.startsWith(`${linkPermitido}/`));
+    });
+    if (linksNoPermitidos.length === 0) return false;
+
+    try {
+        await sock.sendMessage(chatJid, { delete: msg.key });
+    } catch (error) {
+        console.log(`No se pudo borrar el mensaje con link en ${chatJid}: ${error?.message || error}`);
+    }
+
+    let usuarioBD = await User.findOne({ numero: remitente });
+    if (!usuarioBD) usuarioBD = await User.create({ numero: remitente, warns: [] });
+    if (!Array.isArray(usuarioBD.warns)) usuarioBD.warns = [];
+    usuarioBD.warns.push({ motivo: 'Envío de enlaces no autorizados', fecha: new Date() });
+    usuarioBD.markModified('warns');
+    const totalWarns = usuarioBD.warns.length;
+    let mensajeAviso = `⚠️ @${remitente.split('@')[0]} Enviar enlaces no autorizados está prohibido.\n📌 *Advertencias:* ${totalWarns}/3`;
+    if (totalWarns >= 3) {
+        await banearYExpulsar(sock, remitente, 'Acumulación de 3 advertencias por enlaces no autorizados');
+        mensajeAviso += '\n\n🚨 *Límite alcanzado:* El usuario ha sido agregado a la lista negra y expulsado de todos los grupos.';
+    }
+    await usuarioBD.save();
+    await sock.sendMessage(chatJid, { text: mensajeAviso, mentions: [remitente] });
+    return true;
+}
 // 🛡️ Filtro Anti-Spam Automático
 async function verificarAntiSpam(sock, msg) {
     const chatJid = msg.key.remoteJid;
