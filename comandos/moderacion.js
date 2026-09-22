@@ -172,8 +172,8 @@ async function comandoRestaurarBienvenida(sock, chatId, msg) {
     await sock.sendMessage(chatId, { text: '🔄 Bienvenida restaurada al mensaje por defecto.' }, { quoted: msg });
 }
 
-async function normalizarLinkListaBlanca(link) {
-    return (link || '').trim().replace(/[),.;!?]+$/g, '').toLowerCase();
+function normalizarLinkListaBlanca(link) {
+    return String(link || '').trim().replace(/[),.;!?]+$/g, '').toLowerCase();
 }
 
 async function obtenerLinksListaBlanca() {
