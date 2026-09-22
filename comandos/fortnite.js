@@ -163,17 +163,22 @@ function formatearMultiplicadorSTW(item) {
 function formatearAlertaSTW(item, encabezado = '') {
     let texto = '';
 
-    if (encabezado) texto += encabezado + '\\n';
-    texto += `⚡ *PL:* ${item.pl}\\n`;
-    if (item.zona) texto += `🌍 *Zona:* ${item.zona}\\n`;
+    if (encabezado) texto += encabezado + '\n';
+    texto += `⚡ *PL:* ${item.pl}\n`;
+    if (item.zona) texto += `🌍 *Zona:* ${item.zona}\n`;
+
     texto += formatearMultiplicadorSTW(item);
+
+    if (item.mision) {
+        texto += `🎯 *Misión:* ${item.mision}\n`;
+    }
 
     const recompensas = obtenerRecompensasValiosasSTW(item);
     if (recompensas.length > 0) {
-        texto += `🎁 *Recompensa:* ${recompensas.join(' | ')}\\n`;
+        texto += `🎁 *Recompensa:* ${recompensas.join(' | ')}\n`;
     }
 
-    texto += '\\n';
+    texto += '\n';
     return texto;
 }
 
