@@ -136,7 +136,7 @@ async function alertasSTW(sock, chatId, msg, categoria = 'todas') {
 // === NUEVA FUNCIÓN PARA EL COMANDO PLALTAS ===
 async function comandoPLaltas(sock, chatId, msg) {
     const fechaHoy = obtenerFechaActual();
-    let texto = `📅 _${fechaHoy}_\n\n🌟 *ALERTAS PLs ALTAS (140 y 160)*\n\n`;
+    let texto = `📅 _${fechaHoy}_\n\n🔥 *ALERTAS DESTACADAS — RECOMPENSAS BUENAS*\n\n`;
 
     try {
         const datos = await obtenerAlertasSTW();
@@ -146,7 +146,12 @@ async function comandoPLaltas(sock, chatId, msg) {
             texto += `_No hay alertas de PLs altas registradas en este momento._\n\n`;
         } else {
             listaPlAltas.forEach(item => {
-                texto += `⚡ *PL:* ${item.pl}\n🎯 *Misión:* ${item.mision}\n🎁 *Recompensa:* ${item.recompensa}\n\n`;
+                texto += `⭐ *ALERTA DESTACADA*\n`;
+                texto += `⚡ *PL:* ${item.pl}\n`;
+                if (item.zona) texto += `🌍 *Zona:* ${item.zona}\n`;
+                if (item.ubicacion) texto += `📍 *Ubicación:* ${item.ubicacion}\n`;
+                texto += `🎯 *Misión:* ${item.mision}\n`;
+                texto += `🎁 *Recompensa:* ${item.recompensa || item.motivo || 'Recompensa destacada'}\n\n`;
             });
         }
     } catch (e) {
