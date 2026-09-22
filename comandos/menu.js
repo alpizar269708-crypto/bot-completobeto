@@ -56,7 +56,11 @@ async function ejecutarMenu(sock, chatId, msg, args) {
         `*${prefijo}listanegra / unbanlist* - Gestión de bloqueados.\n` +
         `*${prefijo}grupo [abrir/cerrar]* - Abre o cierra el chat del grupo.\n` +
         `*${prefijo}mute [@user] / unmute* - Silencia a alguien.\n` +
-        `*${prefijo}inactivos* - Revisa quién no habla en el grupo.\n\n` +
+        `*${prefijo}inactivos* - Revisa quién no habla en el grupo.\n` +
+        `*${prefijo}desactivarbienvenida* - Desactiva la bienvenida en este grupo.\n` +
+        `*${prefijo}activarbienvenida* - Vuelve a activar la bienvenida.\n` +
+        `*${prefijo}personalizarbienvenida [mensaje]* - Personaliza la bienvenida; usa {usuario} para mencionar al nuevo integrante.\n` +
+        `*${prefijo}restaurarbienvenida* - Regresa al mensaje de bienvenida por defecto.\n\n` +
         `🚫 *Gestión de Lista Negra de Carry:*\n` +
         `*${prefijo}blcarry [@user / num / cita]* - Bloquea a alguien del carry.\n` +
         `*${prefijo}unblcarry [@user / num / cita]* - Quita de la lista negra de carry.\n` +
