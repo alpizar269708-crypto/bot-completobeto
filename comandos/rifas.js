@@ -344,14 +344,14 @@ async function comandoRifaJasc13(sock, chatId, msg, args) {
 
         const mentions = ganadores;
         let mensajeGanador = ganadores.length === 1
-            ? `🎉 *¡TENEMOS GANADOR DE LA RIFA EXCLUSIVA!* 🎉\\n\\n`
-            : `🎉 *¡TENEMOS ${ganadores.length} GANADORES DE LA RIFA EXCLUSIVA!* 🎉\\n\\n`;
+            ? `🎉 *¡TENEMOS GANADOR DE LA RIFA EXCLUSIVA!* 🎉\n\n`
+            : `🎉 *¡TENEMOS ${ganadores.length} GANADORES DE LA RIFA EXCLUSIVA!* 🎉\n\n`;
 
         ganadores.forEach((ganadorId, index) => {
-            mensajeGanador += `🏆 *Ganador ${index + 1}:* @${ganadorId.split('@')[0]} 🎊\\n`;
+            mensajeGanador += `🏆 *Ganador ${index + 1}:* @${ganadorId.split('@')[0]} 🎊\n`;
         });
 
-        mensajeGanador += `\\n❤️ ¡Muchas gracias por apoyar usando el código de creador *JASC13*!\\n`;
+        mensajeGanador += `\n❤️ ¡Muchas gracias por apoyar usando el código de creador *JASC13*!\n`;
         mensajeGanador += `🎮 Sigue utilizando el código en la tienda de Fortnite para ganar más recompensas y participar en futuras rifas.`;
 
         // Notificar en el chat actual etiquetando a todos los ganadores.
@@ -361,7 +361,7 @@ async function comandoRifaJasc13(sock, chatId, msg, args) {
         for (const ganadorId of ganadores) {
             try {
                 await sock.sendMessage(ganadorId, {
-                    text: `🎉 ¡Felicidades! Has sido seleccionado como ganador de la rifa exclusiva con el código de creador JASC13.\\n\\n❤️ ¡Gracias por tu apoyo continuo!\\n\\n🎮 Sigue usando el código *JASC13* en Fortnite para obtener más beneficios.`
+                    text: `🎉 ¡Felicidades! Has sido seleccionado como ganador de la rifa exclusiva con el código de creador JASC13.\n\n❤️ ¡Gracias por tu apoyo continuo!\n\n🎮 Sigue usando el código *JASC13* en Fortnite para obtener más beneficios.`
                 });
             } catch (e) {
                 console.error("Error al enviar mensaje privado al ganador de la rifa:", e);
