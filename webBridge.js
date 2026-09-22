@@ -617,6 +617,7 @@ async function extraerPLAltasDOM() {
         $('article, div').each((i, el) => {
             const texto = $(el).text().replace(/\s+/g, ' ').trim();
 
+            if ($(el).children().length > 12) return;
             if (texto.length < 20 || texto.length > 500) return;
 
             const plMatch = texto.match(/\b(140|160)\b/);
