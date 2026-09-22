@@ -9,7 +9,7 @@ const { responderConIA } = require('./comandos/ia');
 const { 
     verificarAntiLinks, verificarAntiSpam, comandoWarn, comandoVerWarns, comandoBan, 
     comandoUnban, comandoListaNegra, comandoUnbanList, comandoGrupo, comandoMute, 
-    comandoUnmute, verificarMute, comandoInactivos 
+    comandoUnmute, verificarMute, comandoInactivos, comandoDesactivarBienvenida, comandoActivarBienvenida, comandoPersonalizarBienvenida, comandoRestaurarBienvenida 
 } = require('./comandos/moderacion');
 const { User, Config } = require('./database/modelos');
 const { 
@@ -106,8 +106,28 @@ Apoya a un creador: JASC13` });
         'ruleta', 'cf', 'slots', 'dados', 'adivina', 'buscaminas', 'rob', 'ppt', 'pelea',
         'carrera', 'hackear', 'shop', 'buy', 'inventario', 'mochila', 'vender', 'use', 'regalar',
         'rifa', 'rifainscripcion', 'rifajasc13', 'abrirrifa', 'activarrifaaqui', 'menurifajasc13', 'carryleader', 'carryjoin', 'carryleave', 'carryclose', 'blcarry', 'unblcarry', 'listcarrybl',
-        'vertodosconandos', 'vertodoscomandos', 'salvar'
+        'vertodosconandos', 'vertodoscomandos', 'desactivarbienvenida', 'activarbienvenida', 'personalizarbienvenida', 'restaurarbienvenida', 'salvar'
     ];
+
+    if (comando === 'desactivarbienvenida') {
+        await comandoDesactivarBienvenida(sock, chatJid, msg);
+        return;
+    }
+
+    if (comando === 'activarbienvenida') {
+        await comandoActivarBienvenida(sock, chatJid, msg);
+        return;
+    }
+
+    if (comando === 'personalizarbienvenida') {
+        await comandoPersonalizarBienvenida(sock, chatJid, msg, args.join(' '));
+        return;
+    }
+
+    if (comando === 'restaurarbienvenida') {
+        await comandoRestaurarBienvenida(sock, chatJid, msg);
+        return;
+    }
 
     if (comando === 'abrirrifa') {
         await comandoAbrirRifa(sock, chatJid, msg);
