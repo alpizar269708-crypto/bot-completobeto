@@ -103,7 +103,7 @@ Apoya a un creador: JASC13` });
     const esComandoPropioPermitido = msg.key.fromMe && comandoPropioPermitido.has(textoComandoPrevio);
 
     // La lista blanca se procesa antes del anti-links para permitir agregar cualquier URL.
-    if (!esComandoPropioPermitido && textoComandoPrevio === 'listablanca') {
+    if (textoComandoPrevio === 'listablanca') {
         const partesListaBlanca = textoOriginal.trim().split(/\s+/);
         await comandoListaBlancaLinks(sock, chatJid, msg, partesListaBlanca.slice(1));
         return;
