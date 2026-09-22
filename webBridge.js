@@ -502,12 +502,52 @@ async function extraerAlertasAPI() {
         const todas = parsearPaginaSTW(htmlPrincipal, 'all');
         const pavosPagina = parsearPavosSTW(htmlPavos);
 
-        if (todas.length === 0 && pavosPagina.length === 0) {
+        // STW Planner actualmente muestra la misión de PaVos también en la
+        // página principal de Mission Alerts. Conservamos ambas fuentes para
+        // evitar que un cambio de estructura en /v-buck-missions deje los
+        // PaVos en cero.
+        const pavosDesdePrincipal = todas
+            .filter(m => m.vbucks || m.tipoAlerta === 'vbucks')
+            .map(m => ({
+                pl: m.pl,
+                mision: m.mision,
+                misionOriginal: m.misionOriginal,
+                ubicacion: m.ubicacion,
+                zona: m.zona,
+                cantidad: m.cantidadVbucks || 50,
+                recompensa: 'PaVos',
+                tipo: 'STW Planner',
+                source: m.source || urlPrincipal,
+                extraidoEn: m.extraidoEn || new Date().toISOString()
+            }));
+
+        if (todas.length === 0 && pavosPagina.length === 0 && pavosDesdePrincipal.length === 0) {
             console.warn('⚠️ STW Planner devolvió 0 misiones. No se modifican los datos anteriores.');
             return;
         }
 
-        const pavosFinal = deduplicarSTW(pavosPagina);
+        const mapaPavos = new Map();
+        for (const p of [...pavosPagina, ...pavosDesdePrincipal]) {
+            const clave = [
+                p.pl ?? '',
+                p.mision ?? '',
+                p.ubicacion ?? '',
+                p.zona ?? ''
+            ].join('|').toLowerCase();
+
+            if (!mapaPavos.has(clave)) {
+                mapaPavos.set(clave, p);
+                continue;
+            }
+
+            // Conserva la versión con cantidad válida y la fuente más directa.
+            const anterior = mapaPavos.get(clave);
+            if ((!anterior.cantidad || anterior.cantidad <= 0) && p.cantidad > 0) {
+                mapaPavos.set(clave, p);
+            }
+        }
+
+        const pavosFinal = Array.from(mapaPavos.values());
         const tiposBuenos = ['hero', 'survivor', 'defender', 'schematic'];
 
         const epicas = todas
