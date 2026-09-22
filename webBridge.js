@@ -516,6 +516,64 @@ function deduplicarSTW(lista) {
     return Array.from(mapa.values());
 }
 
+// PLALTAS necesita una deduplicación por misión, no por recompensa.
+// STW Planner publica la misión de PaVos dos veces en /mission-alerts:
+// una como bloque especial (50 PaVos) y otra como mission-entry normal
+// (50 PaVos + materiales). Para PLALTAS deben contarse como UNA sola alerta.
+function deduplicarPLAltasSTW(lista) {
+    const mapa = new Map();
+
+    for (const item of lista) {
+        if (!item) continue;
+
+        const esVbucks = Boolean(
+            item.vbucks ||
+            item.tipoAlerta === 'vbucks' ||
+            /PaVos|vbucks|v-bucks/i.test(String(item.recompensa || ''))
+        );
+
+        const claveBase = [
+            item.zona || '',
+            item.pl || '',
+            item.mision || '',
+            item.ubicacion || ''
+        ].join('|').toLowerCase();
+
+        // Para PaVos, ignoramos la cadena completa de recompensas porque
+        // el bloque especial y el normal tienen recompensas distintas.
+        const clave = esVbucks
+            ? 'vbucks|' + claveBase
+            : 'normal|' + claveBase + '|' + String(item.recompensa || '').toLowerCase();
+
+        const anterior = mapa.get(clave);
+
+        if (!anterior) {
+            mapa.set(clave, item);
+            continue;
+        }
+
+        // Si hay dos versiones de la misma alerta de PaVos, preferimos
+        // la que muestre menos recompensas: corresponde al bloque especial
+        // de 50 PaVos y evita mostrar materiales como si fueran parte de
+        // la recompensa destacada.
+        if (esVbucks) {
+            const anteriorCount = Array.isArray(anterior.recompensas)
+                ? anterior.recompensas.length
+                : String(anterior.recompensa || '').split('|').length;
+
+            const actualCount = Array.isArray(item.recompensas)
+                ? item.recompensas.length
+                : String(item.recompensa || '').split('|').length;
+
+            if (actualCount < anteriorCount) {
+                mapa.set(clave, item);
+            }
+        }
+    }
+
+    return Array.from(mapa.values());
+}
+
 async function descargarSTW(url) {
     const response = await axios.get(url, {
         timeout: 30000,
@@ -1430,7 +1488,7 @@ async function extraerAlertasAPI() {
 
             return String(a.zona).localeCompare(String(b.zona));
         });
-        plAltas = deduplicarSTW(plAltas);
+        plAltas = deduplicarPLAltasSTW(plAltas);
 
         await Config.findOneAndUpdate(
             { clave: 'stw_pavos_scrapeados' },
