@@ -97,7 +97,7 @@ async function comandoMenuRifaJasc13(sock, chatId, msg) {
         `• *rifajasc13 ver* - Muestra la lista de participantes, puntos y boletos actuales.\n` +
         `• *rifajasc13 quitar [número]* - Elimina a un participante de la lista.\n` +
         `• *rifajasc13 vaciar* - Limpia toda la lista de participantes.\n` +
-        `• *rifajasc13 sortear* - Realiza el sorteo ponderado, notifica al ganador, le recuerda usar el código JASC13 y reinicia la lista.`;
+        `• *rifajasc13 sortear [ganadores]* - Realiza el sorteo ponderado con la cantidad de ganadores indicada (por defecto 1), notifica a todos y reinicia la lista.`;
     
     await sock.sendMessage(chatId, { text: menuTexto }, { quoted: msg });
 }
@@ -217,37 +217,94 @@ async function comandoRifaJasc13(sock, chatId, msg, args) {
             return await sock.sendMessage(chatId, { text: `❌ No hay participantes en la rifa JASC13 para sortear.` }, { quoted: msg });
         }
 
-        // Generar tómbola ponderada por boletos (1 boleto = 1 entrada en la tómbola)
-        let tombola = [];
+        // rifajasc13 sortear -> 1 ganador
+        // rifajasc13 sortear 10 -> 10 ganadores distintos
+        const cantidadSolicitada = args[1] === undefined ? 1 : parseInt(args[1], 10);
+
+        if (!Number.isInteger(cantidadSolicitada) || cantidadSolicitada < 1) {
+            return await sock.sendMessage(chatId, { text: `❌ Indica una cantidad válida de ganadores (ej. *rifajasc13 sortear 10*).` }, { quoted: msg });
+        }
+
+        // Sorteo ponderado por boletos: cada 1000 puntos = 1 boleto.
+        const boletosPorParticipante = new Map();
+
         for (const [id, data] of participantesJasc13.entries()) {
             const boletos = Math.floor(data.puntos / 1000);
-            for (let b = 0; b < Math.max(1, boletos); b++) {
-                tombola.push(id);
+            if (boletos > 0) {
+                boletosPorParticipante.set(id, boletos);
             }
         }
 
-        if (tombola.length === 0) {
+        if (boletosPorParticipante.size === 0) {
             return await sock.sendMessage(chatId, { text: `❌ Los participantes aún no acumulan suficientes boletos para el sorteo.` }, { quoted: msg });
         }
 
-        const ganadorId = tombola[Math.floor(Math.random() * tombola.length)];
-        
-        let mensajeGanador = `🎉 *¡TENEMOS GANADOR DE LA RIFA EXCLUSIVA!* 🎉\n\n` +
-            `🏆 El ganador es: @${ganadorId.split('@')[0]} 🎊\n\n` +
-            `❤️ ¡Muchas gracias por apoyar usando el código de creador *JASC13*!\n` +
-            `🎮 Sigue utilizando el código en la tienda de Fortnite para ganar más recompensas y participar en futuras rifas.`;
-
-        // Notificar en el chat actual etiquetando al ganador
-        await sock.sendMessage(chatId, { text: mensajeGanador, mentions: [ganadorId] });
-
-        // Enviar notificación directa al chat privado del ganador
-        try {
-            await sock.sendMessage(ganadorId, { text: `🎉 ¡Felicidades! Has sido seleccionado como el ganador de la rifa exclusiva con el código de creador JASC13.\n\n❤️ ¡Gracias por tu apoyo continuo!\n\n🎮 Sigue usando el código *JASC13* en Fortnite para obtener más beneficios.` });
-        } catch (e) {
-            console.error("Error al enviar mensaje privado al ganador de la rifa:", e);
+        if (cantidadSolicitada > boletosPorParticipante.size) {
+            return await sock.sendMessage(chatId, {
+                text: `❌ No hay suficientes participantes con boletos para elegir *${cantidadSolicitada}* ganadores. Actualmente hay *${boletosPorParticipante.size}*.`
+            }, { quoted: msg });
         }
 
-        // Reiniciar la lista automáticamente después de sortear
+        // Elegimos ganadores sin repetir personas. La probabilidad sigue
+        // siendo proporcional a la cantidad de boletos de cada participante.
+        const disponibles = new Map(boletosPorParticipante);
+        const ganadores = [];
+
+        for (let ronda = 0; ronda < cantidadSolicitada; ronda++) {
+            let totalBoletosDisponibles = 0;
+
+            for (const boletos of disponibles.values()) {
+                totalBoletosDisponibles += boletos;
+            }
+
+            let objetivo = Math.random() * totalBoletosDisponibles;
+            let ganadorId = null;
+
+            for (const [id, boletos] of disponibles.entries()) {
+                objetivo -= boletos;
+                if (objetivo < 0) {
+                    ganadorId = id;
+                    break;
+                }
+            }
+
+            if (!ganadorId) break;
+
+            ganadores.push(ganadorId);
+            disponibles.delete(ganadorId);
+        }
+
+        if (ganadores.length === 0) {
+            return await sock.sendMessage(chatId, { text: `❌ No fue posible realizar el sorteo.` }, { quoted: msg });
+        }
+
+        const mentions = ganadores;
+        let mensajeGanador = ganadores.length === 1
+            ? `🎉 *¡TENEMOS GANADOR DE LA RIFA EXCLUSIVA!* 🎉\\n\\n`
+            : `🎉 *¡TENEMOS ${ganadores.length} GANADORES DE LA RIFA EXCLUSIVA!* 🎉\\n\\n`;
+
+        ganadores.forEach((ganadorId, index) => {
+            mensajeGanador += `🏆 *Ganador ${index + 1}:* @${ganadorId.split('@')[0]} 🎊\\n`;
+        });
+
+        mensajeGanador += `\\n❤️ ¡Muchas gracias por apoyar usando el código de creador *JASC13*!\\n`;
+        mensajeGanador += `🎮 Sigue utilizando el código en la tienda de Fortnite para ganar más recompensas y participar en futuras rifas.`;
+
+        // Notificar en el chat actual etiquetando a todos los ganadores.
+        await sock.sendMessage(chatId, { text: mensajeGanador, mentions });
+
+        // Enviar notificación directa a cada ganador.
+        for (const ganadorId of ganadores) {
+            try {
+                await sock.sendMessage(ganadorId, {
+                    text: `🎉 ¡Felicidades! Has sido seleccionado como ganador de la rifa exclusiva con el código de creador JASC13.\\n\\n❤️ ¡Gracias por tu apoyo continuo!\\n\\n🎮 Sigue usando el código *JASC13* en Fortnite para obtener más beneficios.`
+                });
+            } catch (e) {
+                console.error("Error al enviar mensaje privado al ganador de la rifa:", e);
+            }
+        }
+
+        // Reiniciar la lista automáticamente después de sortear.
         participantesJasc13.clear();
         await sock.sendMessage(chatId, { text: `🔄 *La lista de la rifa JASC13 se ha reiniciado a cero* para la siguiente edición.` });
     }
