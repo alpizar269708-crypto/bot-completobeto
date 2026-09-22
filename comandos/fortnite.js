@@ -88,9 +88,19 @@ function deduplicarPlAltasVbucks(lista) {
     return Array.from(mapa.values());
 }
 
-async function obtenerAlertasSTW() {
-    // Los comandos leen únicamente el último raspado guardado en MongoDB.
-    // STW Planner se actualiza de forma independiente cada 6 horas.
+async function obtenerAlertasSTW(actualizarEnVivo = false) {
+    // Los comandos de consulta pueden pedir datos frescos de STW Planner.
+    // El raspado periódico y las alertas automáticas pueden usar los datos
+    // guardados para no generar peticiones innecesarias.
+    if (actualizarEnVivo) {
+        try {
+            const { extraerAlertasAPI } = require('../webBridge');
+            await extraerAlertasAPI();
+        } catch (e) {
+            console.error('⚠️ No se pudo refrescar STW Planner en vivo:', e.message);
+        }
+    }
+
     const [
         scrapePavos,
         scrapeEpicas,
@@ -182,7 +192,7 @@ function formatearAlertaSTW(item, encabezado = '') {
 }
 
 async function alertasSTW(sock, chatId, msg, categoria = 'todas') {
-    const datos = await obtenerAlertasSTW();
+    const datos = await obtenerAlertasSTW(true);
     const fechaHoy = obtenerFechaActual();
     const lineasPavos = [`📅 _${fechaHoy}_`, ''];
 
@@ -241,7 +251,7 @@ async function comandoDestacadasSTW(sock, chatId, msg) {
     let texto = `📅 _${fechaHoy}_\n\n🔥 *ALERTAS DESTACADAS — RECOMPENSAS BUENAS*\n\n`;
 
     try {
-        const datos = await obtenerAlertasSTW();
+        const datos = await obtenerAlertasSTW(true);
         const listaPlAltas = datos.plAltas || [];
 
         if (listaPlAltas.length === 0) {
@@ -280,7 +290,7 @@ async function enviarAlertaPavosAutomatica(sock, enviarAunqueNoHayaPavos = false
         grupos = [...new Set(grupos.filter(id => typeof id === 'string' && id.endsWith('@g.us')))];
         if (grupos.length === 0) return false;
 
-        const datos = await obtenerAlertasSTW();
+        const datos = await obtenerAlertasSTW(false);
 
         // La primera alerta de las 6:02 PM siempre se envía, haya o no PaVos.
         // En los reintentos solo se envía cuando aparecen PaVos.
