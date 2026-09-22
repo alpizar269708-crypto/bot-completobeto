@@ -18,7 +18,7 @@ const {
     comandoBuscaminas, comandoRob, comandoPpt, comandoPelea, comandoCarrera, comandoHackear,
     comandoShop, comandoBuy, comandoInventario, comandoVender, comandoUse, comandoRegalarItem 
 } = require('./comandos/economia');
-const { comandoRifa, comandoRifaInscripcion, comandoRifaJasc13, comandoMenuRifaJasc13, comandoAbrirRifa, comandoActivarRifaAqui } = require('./comandos/rifas');
+const { comandoRifa, comandoRifaInscripcion, comandoRifaJasc13, comandoMenuRifaJasc13, comandoAbrirRifa, comandoActivarRifaAqui, comandoCerrarRifa } = require('./comandos/rifas');
 const { comandoCarry } = require('./comandos/carry');
 
 const categoriasMap = {
@@ -29,7 +29,7 @@ const categoriasMap = {
     'moderacion': ['warn', 'advertir', 'verwarns', 'limpiarwarns', 'ban', 'unban', 'listanegra', 'banlist', 'unbanlist', 'grupo', 'mute', 'unmute', 'inactivos', 'listablanca'],
     'tienda': ['tienda'],
     'carry': ['carryleader', 'carryjoin', 'carryleave', 'carryclose', 'blcarry', 'unblcarry', 'listcarrybl'],
-    'rifas': ['rifa', 'rifainscripcion'],
+    'rifas': ['rifa', 'rifainscripcion', 'cerrarrifa'],
     'menu': ['menu', 'menusecreto']
 };
 
@@ -121,7 +121,7 @@ Apoya a un creador: JASC13` });
         'farmear', 'work', 'crime', 'mendigar', 'pescar', 'minar', 'cazar', 'explorar',
         'ruleta', 'cf', 'slots', 'dados', 'adivina', 'buscaminas', 'rob', 'ppt', 'pelea',
         'carrera', 'hackear', 'shop', 'buy', 'inventario', 'mochila', 'vender', 'use', 'regalar',
-        'rifa', 'rifainscripcion', 'rifajasc13', 'abrirrifa', 'activarrifaaqui', 'menurifajasc13', 'carryleader', 'carryjoin', 'carryleave', 'carryclose', 'blcarry', 'unblcarry', 'listcarrybl',
+        'rifa', 'rifainscripcion', 'cerrarrifa', 'rifajasc13', 'abrirrifa', 'activarrifaaqui', 'menurifajasc13', 'carryleader', 'carryjoin', 'carryleave', 'carryclose', 'blcarry', 'unblcarry', 'listcarrybl',
         'vertodosconandos', 'vertodoscomandos', 'listablanca', 'desactivarbienvenida', 'activarbienvenida', 'personalizarbienvenida', 'restaurarbienvenida', 'salvar'
     ];
 
@@ -152,6 +152,11 @@ Apoya a un creador: JASC13` });
 
     if (comando === 'activarrifaaqui') {
         await comandoActivarRifaAqui(sock, chatJid, msg);
+        return;
+    }
+
+    if (comando === 'cerrarrifa') {
+        await comandoCerrarRifa(sock, chatJid, msg);
         return;
     }
 
@@ -214,6 +219,7 @@ Apoya a un creador: JASC13` });
             ['regalar', 'Regala un objeto a otro usuario.'],
             ['rifa', 'Administra la rifa: ver, quitar, vaciar o sortear.'],
             ['rifainscripcion', 'Permite inscribirse en la rifa activa.'],
+            ['cerrarrifa', 'Cierra la rifa general e impide nuevas inscripciones sin borrar a los participantes actuales.'],
             ['rifajasc13', 'Gestiona la rifa especial de JASC13.'],
             ['menurifajasc13', 'Muestra el menú de la rifa JASC13.'],
             ['abrirrifa', 'Inicia una rifa; en grupos la puede iniciar un administrador.'],
