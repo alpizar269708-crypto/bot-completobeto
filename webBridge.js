@@ -530,51 +530,459 @@ async function descargarSTW(url) {
     return response.data;
 }
 
-function parsearPaginaSTW(html, fuente = 'all') {
-    const $ = cheerio.load(html);
-    const lineas = obtenerLineasSTW($);
 
-    let zonaActual = '';
-    let tipoActual = fuente === 'vbucks' ? 'vbucks' : 'normal';
-    const misiones = [];
+function normalizarRecompensaSTW(nombre, rareza, tipo) {
+    const limpio = limpiarTextoSTW(nombre);
+    if (!limpio) return '';
 
-    for (let i = 0; i < lineas.length; i++) {
-        const linea = lineas[i];
-        const lower = linea.toLowerCase();
+    if (tipo === 'vbucks') {
+        return '🪙 ' + limpio + ' PaVos';
+    }
 
-        if (ZONAS_STW.includes(lower)) {
-            zonaActual = lower === 'venture'
-                ? 'Venture'
-                : linea
-                    .split(' ')
-                    .map(p => p.charAt(0).toUpperCase() + p.slice(1).toLowerCase())
-                    .join(' ');
-            tipoActual = fuente === 'vbucks' ? 'vbucks' : 'normal';
-            continue;
-        }
+    const rarezaTexto =
+        rareza === 'legendary' ? '🟠 Legendaria' :
+        rareza === 'epic' ? '🟣 Épica' :
+        rareza === 'rare' ? '🔵 Rara' :
+        rareza === 'uncommon' ? '🟢 Poco común' :
+        '⚪ Común';
 
-        const nuevoTipo = detectarTipoLineaSTW(linea, tipoActual);
+    const tipoTexto = {
+        hero: 'Héroe',
+        survivor: 'Superviviente',
+        defender: 'Defensor',
+        schematic: 'Esquema',
+        supercharger: 'Supercargador',
+        x4: 'Recompensa x4',
+        evolution: 'Material de evolución',
+        perkup: 'Perk-Up',
+        reperk: 'Re-Perk',
+        ore: 'Mineral/Cristal',
+        llama: 'Llama',
+        other: 'Recompensa'
+    }[tipo] || 'Recompensa';
 
-        if (nuevoTipo !== tipoActual) {
-            tipoActual = nuevoTipo;
-            continue;
-        }
+    if (/^\d+$/.test(limpio) && tipo !== 'vbucks') {
+        return rarezaTexto + ' ' + tipoTexto + ' x' + limpio;
+    }
 
-        const info = extraerMisionDeLinea(linea);
+    return rarezaTexto + ' ' + tipoTexto + ': ' + limpio;
+}
 
-        if (!info) continue;
+function detectarTipoRecompensaSTW(iconClasses, dataFilter, rawName) {
+    const clases = (
+        String(iconClasses || '') + ' ' +
+        String(dataFilter || '') + ' ' +
+        String(rawName || '')
+    ).toLowerCase();
 
-        const mision = construirMisionSTW(
-            lineas,
-            i,
-            zonaActual || 'Desconocida',
-            tipoActual
+    if (/currency_mtxswap|vbucks|v-bucks|v bucks/.test(clases)) return 'vbucks';
+    if (/supercharger|supercargador/.test(clases)) return 'supercharger';
+    if (/\bhero\b/.test(clases)) return 'hero';
+    if (/survivor|workerbasic|managerengineer/.test(clases)) return 'survivor';
+    if (/\bdefender\b/.test(clases)) return 'defender';
+    if (/schematic/.test(clases)) return 'schematic';
+    if (/\bgroup\b/.test(clases)) return 'x4';
+    if (/reperk|re-perk/.test(clases)) return 'reperk';
+    if (/perkup|perk-up/.test(clases)) return 'perkup';
+    if (/ore|crystal/.test(clases)) return 'ore';
+    if (/reagent_c_|reagent_alteration_|evolution/.test(clases)) return 'evolution';
+    if (/llama/.test(clases)) return 'llama';
+
+    return 'other';
+}
+
+function detectarRarezaSTW(atributos, rewardTypeTexto) {
+    const texto = (
+        String(atributos || '') + ' ' +
+        String(rewardTypeTexto || '')
+    ).toLowerCase();
+
+    if (/\blegendary\b/.test(texto)) return 'legendary';
+    if (/\bepic\b/.test(texto)) return 'epic';
+    if (/\brare\b/.test(texto)) return 'rare';
+    if (/\buncommon\b/.test(texto)) return 'uncommon';
+    if (/\bcommon\b/.test(texto)) return 'common';
+
+    return null;
+}
+
+function extraerRecompensasMissionEntrySTW($, missionEntry) {
+    const recompensas = [];
+    const dataFilter = $(missionEntry).attr('data-filter') || '';
+
+    $(missionEntry)
+        .find('.mission-rewards > .mission-reward-item')
+        .each((index, rewardEl) => {
+            if ($(rewardEl).closest('.mission-reward-item--generic').length) {
+                return;
+            }
+
+            const icon = $(rewardEl).find('.mission-reward-icon').first();
+            const iconClasses = icon.attr('class') || '';
+
+            const rewardType = $(rewardEl).find('.reward-type').first();
+            const rewardTypeTexto = rewardType.length
+                ? rewardType.text().replace(/\s+/g, ' ').trim()
+                : '';
+
+            let rewardName = rewardTypeTexto;
+
+            if (!rewardName) {
+                rewardName = $(rewardEl)
+                    .find('.mission-reward-name')
+                    .text()
+                    .replace(/\s+/g, ' ')
+                    .trim();
+            }
+
+            const tipo = detectarTipoRecompensaSTW(
+                iconClasses,
+                dataFilter,
+                rewardName
+            );
+
+            let rareza = detectarRarezaSTW(
+                $(missionEntry).attr('class') || '',
+                rewardTypeTexto
+            );
+
+            if (/^legendary\b/i.test(rewardTypeTexto)) rareza = 'legendary';
+            else if (/^epic\b/i.test(rewardTypeTexto)) rareza = 'epic';
+            else if (/^rare\b/i.test(rewardTypeTexto)) rareza = 'rare';
+            else if (/^uncommon\b/i.test(rewardTypeTexto)) rareza = 'uncommon';
+            else if (/^common\b/i.test(rewardTypeTexto)) rareza = 'common';
+
+            const cantidadMatch = rewardName.match(/\b\d{1,4}\b/);
+            const cantidad = cantidadMatch ? Number(cantidadMatch[0]) : null;
+
+            const nombre = normalizarRecompensaSTW(
+                rewardName,
+                rareza,
+                tipo
+            );
+
+            if (!nombre) return;
+
+            recompensas.push({
+                nombre,
+                raw: rewardName,
+                rareza,
+                tipo,
+                cantidad,
+                iconClasses
+            });
+        });
+
+    const unicas = [];
+    const vistos = new Set();
+
+    for (const recompensa of recompensas) {
+        const key = [
+            recompensa.nombre,
+            recompensa.rareza || '',
+            recompensa.tipo
+        ].join('|').toLowerCase();
+
+        if (vistos.has(key)) continue;
+        vistos.add(key);
+        unicas.push(recompensa);
+    }
+
+    return unicas;
+}
+
+function extraerMisionEntrySTW($, missionEntry, zona, tipoAlerta) {
+    const atributos = $(missionEntry).attr('class') || '';
+    const dataFilter = $(missionEntry).attr('data-filter') || '';
+    const title = $(missionEntry).attr('title') || '';
+
+    const pl = Number(
+        $(missionEntry)
+            .find('.mission-pl')
+            .first()
+            .text()
+            .trim()
+    );
+
+    if (!Number.isInteger(pl) || pl < 1 || pl > 160) {
+        return null;
+    }
+
+    const missionZone = $(missionEntry).find('.mission-zone').first();
+
+    let partes = [];
+
+    if (missionZone.length) {
+        const htmlZone = missionZone.html() || '';
+
+        partes = htmlZone
+            .replace(/<br\s*\/?>/gi, '\n')
+            .replace(/<[^>]+>/g, ' ')
+            .split(/\n+/)
+            .map(limpiarTextoSTW)
+            .filter(Boolean);
+    }
+
+    let textoMision = partes.length
+        ? partes[partes.length - 1]
+        : title;
+
+    textoMision = limpiarTextoSTW(textoMision);
+
+    if (!textoMision) return null;
+
+    const separado = textoMision.match(/^(.+?)\s+-\s+(.+)$/);
+
+    let nombreMision = separado
+        ? separado[1].trim()
+        : textoMision;
+
+    const ubicacion = separado
+        ? separado[2].trim()
+        : '';
+
+    nombreMision = nombreMision
+        .replace(/\s+Group$/i, '')
+        .trim();
+
+    const recompensas = extraerRecompensasMissionEntrySTW(
+        $,
+        missionEntry
+    );
+
+    const esVbucks =
+        /\bvbucks\b|v-bucks|v bucks|currency_mtxswap/i.test(
+            atributos + ' ' + dataFilter + ' ' +
+            recompensas.map(r => r.iconClasses).join(' ')
         );
 
-        if (mision) {
-            misiones.push(mision);
-        }
+    let alerta = tipoAlerta || 'normal';
+
+    if (esVbucks) alerta = 'vbucks';
+    else if (/\blegendary\b/i.test(atributos)) alerta = 'legendary';
+    else if (/\bepic\b/i.test(atributos)) alerta = 'epic';
+
+    const recompensaVbucks = recompensas.find(
+        r => r.tipo === 'vbucks'
+    );
+
+    const recompensaTexto = recompensas
+        .map(r => r.nombre)
+        .filter(Boolean)
+        .join(' | ');
+
+    return {
+        id: crypto.createHash('sha1')
+            .update([
+                zona,
+                pl,
+                nombreMision,
+                ubicacion,
+                recompensaTexto
+            ].join('|'))
+            .digest('hex')
+            .slice(0, 14),
+
+        zona,
+        pl,
+        mision: traducirMisionYBioma(
+            nombreMision,
+            ubicacion
+        ),
+        misionOriginal: nombreMision,
+        ubicacion,
+
+        categoria: dataFilter
+            .split(/\s+/)
+            .filter(Boolean),
+
+        tipoAlerta: alerta,
+
+        vbucks: esVbucks,
+        cantidadVbucks: esVbucks
+            ? (
+                recompensaVbucks?.cantidad ||
+                Number(
+                    $(missionEntry)
+                        .find('.mission-reward-name')
+                        .first()
+                        .text()
+                        .trim()
+                ) ||
+                50
+            )
+            : null,
+
+        rareza: detectarRarezaSTW(
+            atributos,
+            recompensas.map(r => (
+                (r.rareza || '') + ' ' + r.raw
+            )).join(' ')
+        ),
+
+        recompensas,
+        recompensa: recompensaTexto || 'Misión',
+
+        source: 'https://stw-planner.com/mission-alerts',
+        extraidoEn: new Date().toISOString()
+    };
+}
+
+function parsearPaginaSTW(html, fuente = 'all') {
+    const $ = cheerio.load(html);
+    const misiones = [];
+
+    $('.card--container.card--mission').each((cardIndex, card) => {
+        const zona =
+            limpiarTextoSTW(
+                $(card).find('.mission-title').first().text()
+            ) ||
+            limpiarTextoSTW($(card).attr('data-filter')) ||
+            'Desconocida';
+
+        $(card)
+            .find('.mission-types > div[data-filter-group="alertType"]')
+            .each((typeIndex, typeContainer) => {
+                const tipoAlertaRaw =
+                    $(typeContainer).attr('data-filter') || '';
+
+                let tipoAlerta = 'normal';
+
+                if (/storm_miniboss/i.test(tipoAlertaRaw)) {
+                    tipoAlerta = 'miniboss';
+                } else if (/mega/i.test(tipoAlertaRaw)) {
+                    tipoAlerta = 'mega';
+                } else if (/elemental/i.test(tipoAlertaRaw)) {
+                    tipoAlerta = 'elemental';
+                } else if (/storm_/i.test(tipoAlertaRaw)) {
+                    tipoAlerta = 'storm';
+                }
+
+                $(typeContainer)
+                    .find('.mission-entry')
+                    .each((missionIndex, missionEntry) => {
+                        const mision = extraerMisionEntrySTW(
+                            $,
+                            missionEntry,
+                            zona,
+                            fuente === 'vbucks'
+                                ? 'vbucks'
+                                : tipoAlerta
+                        );
+
+                        if (mision) {
+                            misiones.push(mision);
+                        }
+                    });
+            });
+    });
+
+    // Fallback: por si STW Planner cambia la envoltura de los grupos.
+    if (!misiones.length) {
+        $('.mission-entry').each((index, missionEntry) => {
+            const card = $(missionEntry).closest(
+                '.card--container.card--mission'
+            );
+
+            const zona =
+                limpiarTextoSTW(
+                    card.find('.mission-title').first().text()
+                ) || 'Desconocida';
+
+            const mision = extraerMisionEntrySTW(
+                $,
+                missionEntry,
+                zona,
+                fuente === 'vbucks' ? 'vbucks' : 'normal'
+            );
+
+            if (mision) {
+                misiones.push(mision);
+            }
+        });
     }
+
+    // Misión especial de V-Bucks de la cabecera.
+    $('.special-reward-entry .mission-entry').each((index, missionEntry) => {
+        const special = $(missionEntry).closest('.special-reward-entry');
+
+        const titulo = limpiarTextoSTW(
+            special.find('.special-title').first().text()
+        );
+
+        const pl = Number(
+            $(missionEntry)
+                .find('.mission-pl')
+                .first()
+                .text()
+                .trim()
+        );
+
+        const zoneHtml =
+            $(missionEntry).find('.mission-zone').first().html() || '';
+
+        const partes = zoneHtml
+            .replace(/<br\s*\/?>/gi, '\n')
+            .replace(/<[^>]+>/g, ' ')
+            .split(/\n+/)
+            .map(limpiarTextoSTW)
+            .filter(Boolean);
+
+        const completo = partes[partes.length - 1] || 'Fight the Storm - Desconocida';
+        const separada = completo.match(/^(.+?)\s+-\s+(.+)$/);
+
+        const nombre = separada ? separada[1].trim() : completo;
+        const ubicacion = separada ? separada[2].trim() : '';
+        const zona = partes[0] || 'Desconocida';
+
+        const cantidadMatch = titulo.match(/\d{1,4}/);
+        const cantidad = cantidadMatch ? Number(cantidadMatch[0]) : 50;
+
+        if (
+            Number.isInteger(pl) &&
+            pl >= 1 &&
+            pl <= 160
+        ) {
+            misiones.push({
+                id: crypto.createHash('sha1')
+                    .update([
+                        'vbucks',
+                        zona,
+                        pl,
+                        nombre,
+                        ubicacion,
+                        cantidad
+                    ].join('|'))
+                    .digest('hex')
+                    .slice(0, 14),
+
+                zona,
+                pl,
+                mision: traducirMisionYBioma(
+                    nombre,
+                    ubicacion
+                ),
+                misionOriginal: nombre,
+                ubicacion,
+                categoria: ['vbucks'],
+                tipoAlerta: 'vbucks',
+                vbucks: true,
+                cantidadVbucks: cantidad,
+                rareza: null,
+                recompensas: [{
+                    nombre: '🪙 ' + cantidad + ' PaVos',
+                    raw: String(cantidad),
+                    rareza: null,
+                    tipo: 'vbucks',
+                    cantidad,
+                    iconClasses: 'currency_mtxswap'
+                }],
+                recompensa: '🪙 ' + cantidad + ' PaVos',
+                source: 'https://stw-planner.com/mission-alerts/v-buck-missions',
+                extraidoEn: new Date().toISOString()
+            });
+        }
+    });
 
     return deduplicarSTW(misiones);
 }
