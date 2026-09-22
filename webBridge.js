@@ -832,8 +832,40 @@ async function extraerAlertasAPI() {
                 source: m.source
             }));
 
+        // "PL altas" en el bot significa alertas con recompensas realmente útiles,
+        // no simplemente misiones PL 140/160.
+        const RECOMPENSAS_CHIDAS = [
+            /v[\\s-]?bucks|vbucks|v bucks/i,
+            /legendary|legendaria|legendario/i,
+            /epic|épica|épico/i,
+            /supercharger|supercargador/i,
+            /re-perk|reperk|re-modificación/i,
+            /perk-up|perkup|modificación/i,
+            /survivor|superviviente/i,
+            /defender|defensor/i,
+            /hero|héroe/i,
+            /schematic|esquema|plano/i,
+            /evo material|material de evolución/i,
+            /storm shard|esquirla de tormenta/i,
+            /lightning in a bottle|relámpago en botella/i,
+            /pure drop of rain|gota de lluvia pura/i,
+            /eye of the storm|ojo de la tormenta/i,
+            /x 4|x4/i,
+            /llama/i
+        ];
+
+        function esAlertaChida(mision) {
+            const campos = [
+                mision.recompensa,
+                mision.tipoAlerta,
+                JSON.stringify(mision.recompensas || [])
+            ].filter(Boolean).join(' ');
+
+            return RECOMPENSAS_CHIDAS.some(regex => regex.test(campos));
+        }
+
         let plAltas = todas
-            .filter(m => Number(m.pl) >= 140)
+            .filter(esAlertaChida)
             .map(m => ({
                 pl: m.pl,
                 mision: m.mision,
@@ -843,13 +875,19 @@ async function extraerAlertasAPI() {
                 source: m.source
             }));
 
-        // Para PL 140/160 usamos además los elementos de recompensa
-        // reales de cada tarjeta de STW Planner.
+        // Además usamos los elementos de recompensa reales de las tarjetas
+        // para no perder héroes, supervivientes, defensores o esquemas.
         const plAltasDOM = await extraerPLAltasDOM();
 
         if (plAltasDOM.length > 0) {
-            plAltas = plAltasDOM;
+            const domChidas = plAltasDOM.filter(esAlertaChida);
+
+            if (domChidas.length > 0) {
+                plAltas = domChidas;
+            }
         }
+
+        plAltas = deduplicarSTW(plAltas);
 
         await Config.findOneAndUpdate(
             { clave: 'stw_pavos_scrapeados' },
