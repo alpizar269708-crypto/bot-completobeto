@@ -615,6 +615,7 @@ async function comandoInactivos(sock, chatId, msg) {
 module.exports = { 
     verificarAntiLinks, 
     verificarAntiSpam,
+    comandoListaBlancaLinks,
     comandoWarn, 
     comandoLimpiarWarns,
     comandoVerWarns, 
@@ -627,5 +628,9 @@ module.exports = {
     comandoMute,
     comandoUnmute,
     verificarMute,
-    comandoInactivos
+    comandoInactivos,
+    comandoDesactivarBienvenida,
+    comandoActivarBienvenida,
+    comandoPersonalizarBienvenida,
+    comandoRestaurarBienvenida
 };
