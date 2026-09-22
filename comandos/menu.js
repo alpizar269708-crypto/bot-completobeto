@@ -36,7 +36,7 @@ async function ejecutarMenu(sock, chatId, msg, args) {
 
     let menuFortnite = `🎮 *MENÚ FORTNITE (STW)* 🎮\n\n` +
     `*${prefijo}pavos* - Muestra misiones de pavos actuales.\n` +
-    `*${prefijo}PLaltas* - Misiones automáticas de PL 140/160.\n` +
+    `*${prefijo}Destacadas STW* - Misiones automáticas de PL 140/160.\n` +
     `*${prefijo}epicasstw* - Alertas de misiones épicas.\n` +
     `*${prefijo}legendariasstw* - Alertas de misiones legendarias.\n` +
     `*${prefijo}alertasstw / salvar* - Resumen general de alertas.\n` +
