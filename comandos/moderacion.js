@@ -388,6 +388,29 @@ async function comandoWarn(sock, numero, msg, args = []) {
     await sock.sendMessage(chatJid, { text: respuesta, mentions: [objetivo] }, { quoted: msg });
 }
 
+async function comandoLimpiarWarns(sock, numero, msg, args = []) {
+    const chatJid = msg.key.remoteJid;
+    const remitente = msg.key.participant || chatJid;
+    if (chatJid.endsWith('@g.us') && !(await esAdmin(sock, chatJid, remitente))) {
+        await sock.sendMessage(chatJid, { text: '❌ Solo los administradores pueden limpiar los warns.' }, { quoted: msg });
+        return;
+    }
+    const objetivo = obtenerObjetivo(msg, args);
+    if (!objetivo) {
+        await sock.sendMessage(chatJid, { text: '❌ Debes mencionar o responder al usuario al que quieres limpiar los warns.\nEjemplo: *limpiarwarns @usuario*' }, { quoted: msg });
+        return;
+    }
+    const usuarioBD = await User.findOne({ numero: objetivo });
+    if (!usuarioBD) {
+        await sock.sendMessage(chatJid, { text: `ℹ️ @${objetivo.split('@')[0]} no tiene un registro de usuario ni warns.`, mentions: [objetivo] }, { quoted: msg });
+        return;
+    }
+    usuarioBD.warns = [];
+    usuarioBD.markModified('warns');
+    await usuarioBD.save();
+    await sock.sendMessage(chatJid, { text: `✅ Se borraron todos los warns de @${objetivo.split('@')[0]}.\n📌 Warns actuales: *0/3*`, mentions: [objetivo] }, { quoted: msg });
+}
+
 async function comandoVerWarns(sock, numero, msg, args = []) {
     const chatJid = msg.key.remoteJid;
     const objetivo = obtenerObjetivo(msg, args) || msg.key.participant || chatJid;
@@ -593,6 +616,7 @@ module.exports = {
     verificarAntiLinks, 
     verificarAntiSpam,
     comandoWarn, 
+    comandoLimpiarWarns,
     comandoVerWarns, 
     comandoBan, 
     comandoUnban, 
