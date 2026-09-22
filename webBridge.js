@@ -355,6 +355,34 @@ function extraerMisionEntrySTW($, missionEntry, zona, tipoAlerta) {
         extraidoEn: new Date().toISOString()
     };
 }
+function deduplicarSTW(lista) {
+    const mapa = new Map();
+
+    for (const item of Array.isArray(lista) ? lista : []) {
+        if (!item) continue;
+
+        const clave = item.id
+            ? String(item.id)
+            : [
+                item.zona ?? '',
+                item.pl ?? '',
+                item.mision ?? '',
+                item.ubicacion ?? '',
+                item.recompensa ?? '',
+                item.cantidad ?? '',
+                item.rareza ?? '',
+                item.tipo ?? '',
+                item.esX4 ? 'x4' : ''
+            ].join('|').toLowerCase();
+
+        if (!mapa.has(clave)) {
+            mapa.set(clave, item);
+        }
+    }
+
+    return Array.from(mapa.values());
+}
+
 function parsearPaginaSTW(html, fuente = 'all') {
     const $ = cheerio.load(html);
     const misiones = [];
