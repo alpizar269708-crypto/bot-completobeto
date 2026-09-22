@@ -7,66 +7,6 @@ const { Config } = require('./database/modelos');
 let chatWhatsAppActivo = null;
 let sockWhatsApp = null;
 
-function traducirYFormatearRecompensa(texto, iconClass) {
-    const cls = (iconClass || "").toLowerCase();
-    const txt = (texto || "").toLowerCase();
-    const combinada = cls + " " + txt;
-
-    const matchNum = txt.match(/\d+/);
-    const cantidad = matchNum ? matchNum[0] : "";
-    const prefix = cantidad ? `*${cantidad}* ` : "";
-
-    if (combinada.includes('ice storm') || combinada.includes('epic mini-boss') || 
-        combinada.includes('slowing pools') || combinada.includes('wall weakening') || 
-        combinada.includes('deathburst') || combinada.includes('acid pools') || 
-        combinada.includes('metal corrosion') || combinada.includes('smoke screens') ||
-        combinada.includes('fire storm') || combinada.includes('uncharted') || 
-        combinada.includes('adept') || combinada.includes('powerful') || combinada.includes('frenzied')) {
-        return "";
-    }
-
-    if (combinada.includes('supercharger')) {
-        if (combinada.includes('survivor')) return '⚡ Supercargador de superviviente';
-        if (combinada.includes('hero')) return '⚡ Supercargador de héroe';
-        if (combinada.includes('weapon')) return '⚡ Supercargador de arma';
-        if (combinada.includes('trap')) return '⚡ Supercargador de trampa';
-        return '⚡ Supercargador';
-    }
-
-    if (combinada.includes('workerbasic') || combinada.includes('survivor')) {
-        if (combinada.includes('legendary')) return '👤 Superviviente legendario';
-        if (combinada.includes('epic')) return '👤 Superviviente épico';
-        return '👤 Superviviente';
-    }
-    if (combinada.includes('defender')) {
-        if (combinada.includes('legendary')) return '🛡️ Defensor legendario';
-        if (combinada.includes('epic')) return '🛡️ Defensor épico';
-        return '🛡️ Defensor';
-    }
-
-    if (combinada.includes('frost-up') || combinada.includes('ele_water')) return `❄️ ${prefix}Frost-Up`;
-    if (combinada.includes('fire-up') || combinada.includes('ele_fire')) return `🔥 ${prefix}Fire-Up`;
-    if (combinada.includes('amp-up') || combinada.includes('ele_nature')) return `⚡ ${prefix}Amp-Up`;
-    if (combinada.includes('epic perk') || combinada.includes('t03_high')) return `🟣 ${prefix}Modificación épica`;
-    if (combinada.includes('legendary perk') || combinada.includes('t04_high')) return `🟠 ${prefix}Modificación legendaria`;
-    if (combinada.includes('re-perk') || combinada.includes('alteration')) return `🔄 ${prefix}Re-modificación`;
-
-    if (combinada.includes('reagent_c') || combinada.includes('storm shard')) return `💎 ${prefix}Esquirla de tormenta`;
-    if (combinada.includes('reagent_t03') || combinada.includes('eye')) return `🌀 ${prefix}Ojo de la tormenta`;
-    if (combinada.includes('reagent_t01') || combinada.includes('rain')) return `💧 ${prefix}Gota de lluvia pura`;
-    if (combinada.includes('reagent_t02') || combinada.includes('lightning')) return `⚡ ${prefix}Relámpago en botella`;
-
-    if (combinada.includes('ticket') || combinada.includes('campaign_event_currency')) return `🎫 ${prefix}Billetes`;
-    if (combinada.includes('gold') || combinada.includes('eventscaling')) return cantidad ? `🪙 ${prefix}Oro` : '🪙 Oro';
-
-    if (combinada.includes('schematicxp')) return `📘 ${cantidad ? prefix : 'x5 '}XP de plano`;
-    if (combinada.includes('survivorxp')) return `📗 ${cantidad ? prefix : 'x4 '}XP de superviviente`;
-    if (combinada.includes('heroxp')) return `📙 ${cantidad ? prefix : ''}XP de héroe`;
-    if (combinada.includes('venturexp')) return `🗺️ ${cantidad ? prefix : ''}XP de aventura`;
-
-    return "";
-}
-
 function traducirMisionYBioma(nombreIngles, textoCompletoZona) {
     const misionesMap = {
         'fight the storm': 'Lucha contra la tormenta',
@@ -415,7 +355,119 @@ function extraerMisionEntrySTW($, missionEntry, zona, tipoAlerta) {
         extraidoEn: new Date().toISOString()
     };
 }
-function parsearPaginaSTW(html, fuente = 'all') {,    const $ = cheerio.load(html);,    const misiones = [];,,    $('.card--container.card--mission').each((cardIndex, card) => {,        const zona = limpiarTextoSTW($(card).find('.mission-title').first().text()) || limpiarTextoSTW($(card).attr('data-filter')) || 'Desconocida';,,        $(card).find('.mission-types > div[data-filter-group="alertType"]').each((typeIndex, typeContainer) => {,            const tipoAlertaRaw = $(typeContainer).attr('data-filter') || '';,            $(typeContainer).find('.mission-entry').each((missionIndex, missionEntry) => {,                const mision = extraerMisionEntrySTW($, missionEntry, zona, fuente === 'vbucks' ? 'vbucks' : tipoAlertaRaw);,                if (mision) misiones.push(mision);,            });,        });,    });,,    $('.special-reward-entry .mission-entry').each((index, missionEntry) => {,        const special = $(missionEntry).closest('.special-reward-entry');,        const titulo = limpiarTextoSTW(special.find('.special-title').first().text());,        const pl = Number($(missionEntry).find('.mission-pl').first().text().trim());,        const zoneHtml = $(missionEntry).find('.mission-zone').first().html() || '';,        const partes = zoneHtml.replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]+>/g, ' ').split(/\n+/).map(limpiarTextoSTW).filter(Boolean);,        const completo = partes[partes.length - 1] || 'Fight the Storm - Desconocida';,        const separada = completo.match(/^(.+?)\s+-\s+(.+)$/);,        const nombre = separada ? separada[1].trim() : completo;,        const ubicacion = separada ? separada[2].trim() : '';,        const zona = partes[0] || 'Desconocida';,        const cantidadMatch = titulo.match(/\d{1,4}/);,        const cantidad = cantidadMatch ? Number(cantidadMatch[0]) : 50;,,        if (Number.isInteger(pl) && pl >= 1 && pl <= 160) {,            misiones.push({,                id: crypto.createHash('sha1').update(['vbucks', zona, pl, nombre, ubicacion, cantidad].join('|')).digest('hex').slice(0, 14),,                zona, pl,,                mision: traducirMisionYBioma(nombre, ubicacion),,                misionOriginal: nombre,,                ubicacion,,                categoria: ['vbucks'],,                tipoAlerta: 'vbucks',,                tipoAlertaTexto: 'PaVos',,                vbucks: true,,                cantidadVbucks: cantidad,,                esX4: false,,                rareza: null,,                recompensas: [{ nombre: '🪙 ' + cantidad + ' PaVos', raw: String(cantidad), rareza: null, tipo: 'vbucks', cantidad, iconClasses: 'currency_mtxswap' }],,                modificadores: [],,                recompensa: '🪙 ' + cantidad + ' PaVos',,                source: 'https://stw-planner.com/mission-alerts/v-buck-missions',,                extraidoEn: new Date().toISOString(),            });,        },    });,,    return deduplicarSTW(misiones);,},,function parsearPavosSTW(html) {,    const misiones = parsearPaginaSTW(html, 'vbucks');,    const mapa = new Map();,    for (const m of misiones) {,        if (!(m.vbucks || m.tipoAlerta === 'vbucks')) continue;,        const clave = [m.pl, m.mision, m.ubicacion].join('|').toLowerCase();,        if (!mapa.has(clave)) {,            mapa.set(clave, { pl: m.pl, mision: m.mision, misionOriginal: m.misionOriginal, ubicacion: m.ubicacion, zona: m.zona, cantidad: m.cantidadVbucks || 50, recompensa: 'PaVos', tipo: 'STW Planner', source: 'https://stw-planner.com/mission-alerts/v-buck-missions', extraidoEn: new Date().toISOString() });,        },    },    return Array.from(mapa.values());,},async 
+function parsearPaginaSTW(html, fuente = 'all') {
+    const $ = cheerio.load(html);
+    const misiones = [];
+
+    $('.card--container.card--mission').each((cardIndex, card) => {
+        const zona = limpiarTextoSTW($(card).find('.mission-title').first().text()) || limpiezaTextoFallback($(card).attr('data-filter')) || 'Desconocida';
+
+        $(card).find('.mission-types > div[data-filter-group="alertType"]').each((typeIndex, typeContainer) => {
+            const tipoAlertaRaw = $(typeContainer).attr('data-filter') || '';
+
+            $(typeContainer).find('.mission-entry').each((missionIndex, missionEntry) => {
+                const mision = extraerMisionEntrySTW(
+                    $,
+                    missionEntry,
+                    zona,
+                    fuente === 'vbucks' ? 'vbucks' : tipoAlertaRaw
+                );
+
+                if (mision) misiones.push(mision);
+            });
+        });
+    });
+
+    $('.special-reward-entry .mission-entry').each((index, missionEntry) => {
+        const special = $(missionEntry).closest('.special-reward-entry');
+        const titulo = limpiarTextoSTW(special.find('.special-title').first().text());
+        const pl = Number($(missionEntry).find('.mission-pl').first().text().trim());
+
+        const zoneHtml = $(missionEntry).find('.mission-zone').first().html() || '';
+        const partes = zoneHtml
+            .replace(/<br\s*\/?>/gi, '\n')
+            .replace(/<[^>]+>/g, ' ')
+            .split(/\n+/)
+            .map(limpiarTextoSTW)
+            .filter(Boolean);
+
+        const completo = partes[partes.length - 1] || 'Fight the Storm - Desconocida';
+        const separada = completo.match(/^(.+?)\s+-\s+(.+)$/);
+        const nombre = separada ? separada[1].trim() : completo;
+        const ubicacion = separada ? separada[2].trim() : '';
+        const zona = partes[0] || 'Desconocida';
+        const cantidadMatch = titulo.match(/\d{1,4}/);
+        const cantidad = cantidadMatch ? Number(cantidadMatch[0]) : 50;
+
+        if (Number.isInteger(pl) && pl >= 1 && pl <= 160) {
+            misiones.push({
+                id: crypto.createHash('sha1')
+                    .update(['vbucks', zona, pl, nombre, ubicacion, cantidad].join('|'))
+                    .digest('hex')
+                    .slice(0, 14),
+                zona,
+                pl,
+                mision: traducirMisionYBioma(nombre, ubicacion),
+                misionOriginal: nombre,
+                ubicacion,
+                categoria: ['vbucks'],
+                tipoAlerta: 'vbucks',
+                tipoAlertaTexto: 'PaVos',
+                vbucks: true,
+                cantidadVbucks: cantidad,
+                esX4: false,
+                rareza: null,
+                recompensas: [{
+                    nombre: '🪙 ' + cantidad + ' PaVos',
+                    raw: String(cantidad),
+                    rareza: null,
+                    tipo: 'vbucks',
+                    cantidad,
+                    iconClasses: 'currency_mtxswap'
+                }],
+                modificadores: [],
+                recompensa: '🪙 ' + cantidad + ' PaVos',
+                source: 'https://stw-planner.com/mission-alerts/v-buck-missions',
+                extraidoEn: new Date().toISOString()
+            });
+        }
+    });
+
+    return deduplicarSTW(misiones);
+}
+
+function parsearPavosSTW(html) {
+    const misiones = parsearPaginaSTW(html, 'vbucks');
+    const mapa = new Map();
+
+    for (const m of misiones) {
+        if (!(m.vbucks || m.tipoAlerta === 'vbucks')) continue;
+
+        const clave = [m.pl, m.mision, m.ubicacion].join('|').toLowerCase();
+
+        if (!mapa.has(clave)) {
+            mapa.set(clave, {
+                pl: m.pl,
+                mision: m.mision,
+                misionOriginal: m.misionOriginal,
+                ubicacion: m.ubicacion,
+                zona: m.zona,
+                cantidad: m.cantidadVbucks || 50,
+                recompensa: 'PaVos',
+                tipo: 'STW Planner',
+                source: 'https://stw-planner.com/mission-alerts/v-buck-missions',
+                extraidoEn: new Date().toISOString()
+            });
+        }
+    }
+
+    return Array.from(mapa.values());
+}
+
+function limpiezaTextoFallback(texto) {
+    return limpiarTextoSTW(texto);
+}
+
 async function extraerAlertasAPI() {
     try {
         console.log('\n--- 🌐 RASPADO STW PLANNER ---');
