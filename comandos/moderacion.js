@@ -4,6 +4,7 @@ const { User, Config } = require('../database/modelos');
 const mutesActivos = new Map();
 // Memoria temporal para el anti-spam (Key: chatId_remitente -> Array de timestamps)
 const spamRegistro = new Map();
+const cacheListaBlanca = { valor: null, expira: 0 };
 
 async function esAdmin(sock, chatId, userId) {
     try {
@@ -177,12 +178,24 @@ function normalizarLinkListaBlanca(link) {
 }
 
 async function obtenerLinksListaBlanca() {
-    const config = await Config.findOne({ clave: 'links_lista_blanca' });
-    if (!config?.valor) return [];
+    if (cacheListaBlanca.valor && cacheListaBlanca.expira > Date.now()) {
+        return cacheListaBlanca.valor;
+    }
+    const config = await Config.findOne({ clave: 'links_lista_blanca' }).lean();
+    if (!config?.valor) {
+        cacheListaBlanca.valor = [];
+        cacheListaBlanca.expira = Date.now() + 5000;
+        return [];
+    }
     try {
         const lista = JSON.parse(config.valor);
-        return Array.isArray(lista) ? lista.map(normalizarLinkListaBlanca) : [];
+        const normalizada = Array.isArray(lista) ? lista.map(normalizarLinkListaBlanca) : [];
+        cacheListaBlanca.valor = normalizada;
+        cacheListaBlanca.expira = Date.now() + 5000;
+        return normalizada;
     } catch (error) {
+        cacheListaBlanca.valor = [];
+        cacheListaBlanca.expira = Date.now() + 5000;
         return [];
     }
 }
@@ -190,7 +203,7 @@ async function obtenerLinksListaBlanca() {
 async function comandoListaBlancaLinks(sock, chatId, msg, args = []) {
     const esGrupo = chatId.endsWith('@g.us');
     const remitente = msg.key.participant || chatId;
-    if (esGrupo && !(await esAdmin(sock, chatId, remitente))) {
+    if (esGrupo && !msg.key.fromMe && !(await esAdmin(sock, chatId, remitente))) {
         await sock.sendMessage(chatId, { text: '❌ Solo los administradores pueden gestionar la lista blanca de links.' }, { quoted: msg });
         return;
     }
@@ -208,6 +221,8 @@ async function comandoListaBlancaLinks(sock, chatId, msg, args = []) {
     }
     if (accion === 'vaciar') {
         await Config.deleteOne({ clave: 'links_lista_blanca' });
+        cacheListaBlanca.valor = [];
+        cacheListaBlanca.expira = Date.now() + 5000;
         await sock.sendMessage(chatId, { text: '🧹 Lista blanca de links vaciada.' }, { quoted: msg });
         return;
     }
@@ -229,6 +244,8 @@ async function comandoListaBlancaLinks(sock, chatId, msg, args = []) {
         }
         listaActual.push(link);
         await Config.findOneAndUpdate({ clave: 'links_lista_blanca' }, { valor: JSON.stringify(listaActual) }, { upsert: true });
+        cacheListaBlanca.valor = listaActual;
+        cacheListaBlanca.expira = Date.now() + 5000;
         await sock.sendMessage(chatId, { text: `✅ Link agregado a la lista blanca.\n\n🔗 ${link}\n\nAhora ese link no será borrado por el anti-links.` }, { quoted: msg });
         return;
     }
@@ -238,8 +255,13 @@ async function comandoListaBlancaLinks(sock, chatId, msg, args = []) {
         return;
     }
     listaActual.splice(indice, 1);
-    if (listaActual.length === 0) await Config.deleteOne({ clave: 'links_lista_blanca' });
-    else await Config.findOneAndUpdate({ clave: 'links_lista_blanca' }, { valor: JSON.stringify(listaActual) }, { upsert: true });
+    if (listaActual.length === 0) {
+        await Config.deleteOne({ clave: 'links_lista_blanca' });
+    } else {
+        await Config.findOneAndUpdate({ clave: 'links_lista_blanca' }, { valor: JSON.stringify(listaActual) }, { upsert: true });
+    }
+    cacheListaBlanca.valor = listaActual;
+    cacheListaBlanca.expira = Date.now() + 5000;
     await sock.sendMessage(chatId, { text: `✅ Link eliminado de la lista blanca.\n\n🔗 ${link}` }, { quoted: msg });
 }
 
