@@ -3,6 +3,7 @@ require('dotenv').config();
 const axios = require('axios');
 const cheerio = require('cheerio');
 const { Config } = require('./database/modelos');
+const cron = require('node-cron');
 
 let chatWhatsAppActivo = null;
 let sockWhatsApp = null;
@@ -677,8 +678,15 @@ async function extraerAlertasAPI() {
 }
 function iniciarPuenteDiscord(sock) {
     sockWhatsApp = sock;
+
+    // Un raspado al arrancar para que el bot tenga datos disponibles.
+    // Después, STW Planner se actualiza únicamente cada 6 horas, siempre
+    // al minuto 01 de la hora de México: 00:01, 06:01, 12:01 y 18:01.
     extraerAlertasAPI();
-    setInterval(extraerAlertasAPI, 10 * 60 * 1000);
+
+    cron.schedule('1 */6 * * *', async () => {
+        await extraerAlertasAPI();
+    }, { scheduled: true, timezone: 'America/Mexico_City' });
 }
 
 function vincularChatWhatsApp(chatId) {
