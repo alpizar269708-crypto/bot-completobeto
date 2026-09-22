@@ -62,6 +62,41 @@ async function comandoAbrirRifa(sock, chatId, msg) {
         text: '🔓 *Rifa habilitada.*\n\nAhora usa *activarrifaaqui* dentro del grupo donde quieras abrir la inscripción.'
     }, { quoted: msg });
 }
+async function comandoCerrarRifa(sock, chatId, msg) {
+    const sender = msg.key.participant || msg.key.remoteJid;
+
+    if (chatId.endsWith('@g.us')) {
+        try {
+            const groupMetadata = await sock.groupMetadata(chatId);
+            const participant = groupMetadata.participants.find(p => p.id === sender);
+            const isAdmin = participant?.admin === 'admin' || participant?.admin === 'superadmin';
+
+            if (!isAdmin) {
+                return await sock.sendMessage(chatId, {
+                    text: '❌ Permiso denegado. Solo los administradores del grupo pueden cerrar la rifa.'
+                }, { quoted: msg });
+            }
+        } catch (e) {
+            console.error("Error al verificar admin al cerrar rifa:", e);
+            return;
+        }
+    } else {
+        const propietario = await obtenerPropietarioRifas();
+        if (!propietario || sender !== propietario) return;
+    }
+
+    rifasAbiertas.delete(chatId);
+    await Config.findOneAndUpdate(
+        { clave: `rifa_abierta_${chatId}` },
+        { valor: 'false' },
+        { upsert: true }
+    );
+
+    await sock.sendMessage(chatId, {
+        text: '🔒 *Rifa cerrada.* Nadie puede inscribirse mientras permanezca cerrada. Los participantes actuales se conservan.'
+    }, { quoted: msg });
+}
+
 async function comandoActivarRifaAqui(sock, chatId, msg) {
     if (!chatId.endsWith('@g.us')) return;
 
@@ -465,4 +500,4 @@ async function comandoRifaJasc13(sock, chatId, msg, args) {
     }
 }
 
-module.exports = { comandoRifa, comandoRifaInscripcion, comandoRifaJasc13, comandoMenuRifaJasc13, comandoAbrirRifa, comandoActivarRifaAqui };
+module.exports = { comandoRifa, comandoRifaInscripcion, comandoRifaJasc13, comandoMenuRifaJasc13, comandoAbrirRifa, comandoActivarRifaAqui, comandoCerrarRifa };
