@@ -224,7 +224,7 @@ Apoya a un creador: JASC13` });
             ...comandosInfo.map(([cmd, descripcion], i) => `${i + 1}. *${cmd}* — ${descripcion}`),
             '',
             'Apoya a un creador: *JASC13* ❤️'
-        ].join('\\n');
+        ].join('\n');
 
         await sock.sendMessage(chatJid, { text: texto }, { quoted: msg });
         return;
