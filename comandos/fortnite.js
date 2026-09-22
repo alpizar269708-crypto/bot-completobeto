@@ -272,52 +272,79 @@ async function comandoPreguntarAlerta(sock, chatId, msg) {
     await sock.sendMessage(chatId, { text: `🤖 Escribe *stw*, *DestacadasSTW* o *legendariasstw*.` }, { quoted: msg });
 }
 
-function iniciarCronAlertasDiarias(sock) {
-    cron.schedule('2 18 * * *', async () => {
+async function enviarAlertaPavosAutomatica(sock) {
+    try {
+        const configChat = await Config.findOne({ clave: 'chat_alertas_diarias' });
+        if (!configChat || !configChat.valor) return false;
+
+        let grupos = [];
         try {
-            const configChat = await Config.findOne({ clave: 'chat_alertas_diarias' });
-            if (!configChat || !configChat.valor) return;
-
-            let grupos = [];
-            try {
-                grupos = JSON.parse(configChat.valor);
-                if (!Array.isArray(grupos)) grupos = [configChat.valor];
-            } catch (e) {
-                // Compatibilidad con la configuración antigua de un solo grupo.
-                grupos = [configChat.valor];
-            }
-
-            grupos = [...new Set(grupos.filter(id => typeof id === 'string' && id.endsWith('@g.us')))];
-            if (grupos.length === 0) return;
-
-            const datos = await obtenerAlertasSTW();
-            let total = datos.pavos.reduce((acc, p) => acc + (p.cantidad || 50), 0);
-
-            let mensajeAuto = `🎮 *ALERTAS DE PAVOS — 6:02 PM*\n\n`;
-            if (datos.pavos.length > 0) {
-                datos.pavos.forEach(p => {
-                    mensajeAuto += `⚡ *PL:* ${p.pl}\n🎯 *Misión:* ${p.mision}\n🪙 *PaVos:* ${p.cantidad || 50}\n\n`;
-                });
-                mensajeAuto += `💰 *Total del día:* ${total} paVos\n\n`;
-            } else {
-                mensajeAuto += `_No hay alertas de pavos registradas._\n\n`;
-            }
-
-            mensajeAuto += `Support-a-Creator: *JASC13* ❤️`;
-
-            for (const grupo of grupos) {
-                try {
-                    await sock.sendMessage(grupo, { text: mensajeAuto });
-                } catch (e) {
-                    console.error(`Error enviando alerta automática a ${grupo}:`, e.message);
-                }
-            }
-        } catch (error) {
-            console.error('Error en reporte automático STW:', error.message);
+            grupos = JSON.parse(configChat.valor);
+            if (!Array.isArray(grupos)) grupos = [configChat.valor];
+        } catch (e) {
+            // Compatibilidad con la configuración antigua de un solo grupo.
+            grupos = [configChat.valor];
         }
-    }, { scheduled: true, timezone: "America/Mexico_City" });
+
+        grupos = [...new Set(grupos.filter(id => typeof id === 'string' && id.endsWith('@g.us')))];
+        if (grupos.length === 0) return false;
+
+        const datos = await obtenerAlertasSTW();
+
+        // Si no hay PaVos, no se envía nada: el sistema reintentará cada 90 segundos.
+        if (datos.pavos.length === 0) return false;
+
+        const total = datos.pavos.reduce((acc, p) => acc + (p.cantidad || 50), 0);
+        let mensajeAuto = `🎮 *ALERTAS DE PAVOS — 6:02 PM*\n\n`;
+
+        datos.pavos.forEach(p => {
+            mensajeAuto += `⚡ *PL:* ${p.pl}\n🎯 *Misión:* ${p.mision}\n🪙 *PaVos:* ${p.cantidad || 50}\n\n`;
+        });
+
+        mensajeAuto += `💰 *Total del día:* ${total} paVos\n\n`;
+        mensajeAuto += `Support-a-Creator: *JASC13* ❤️`;
+
+        for (const grupo of grupos) {
+            try {
+                await sock.sendMessage(grupo, { text: mensajeAuto });
+            } catch (e) {
+                console.error(`Error enviando alerta automática a ${grupo}:`, e.message);
+            }
+        }
+
+        return true;
+    } catch (error) {
+        console.error('Error en alerta automática de PaVos:', error.message);
+        return false;
+    }
 }
 
+function iniciarCronAlertasDiarias(sock) {
+    cron.schedule('2 18 * * *', async () => {
+        // Hora de México: 18:02, 18:03:30, 18:05:00, 18:06:30,
+        // 18:08:00, 18:09:30 y 18:11:00.
+        const intervaloReintentoMs = 90 * 1000;
+        const limiteMs = 9 * 60 * 1000;
+        const inicio = Date.now();
+
+        const enviado = await enviarAlertaPavosAutomatica(sock);
+        if (enviado) return;
+
+        const reintentar = async () => {
+            const transcurrido = Date.now() - inicio;
+            if (transcurrido > limiteMs) return;
+
+            const seEnvio = await enviarAlertaPavosAutomatica(sock);
+            if (seEnvio) return;
+
+            if (Date.now() - inicio < limiteMs) {
+                setTimeout(reintentar, intervaloReintentoMs);
+            }
+        };
+
+        setTimeout(reintentar, intervaloReintentoMs);
+    }, { scheduled: true, timezone: "America/Mexico_City" });
+}
 async function activarAlertasDiarias(sock, chatId, msg) {
     if (!(await esAdminValido(sock, chatId, msg))) return;
 
