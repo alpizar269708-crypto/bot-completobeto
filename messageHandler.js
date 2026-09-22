@@ -106,18 +106,22 @@ Apoya a un creador: JASC13` });
         return;
     }
 
-    if (!esComandoPropioPermitido && await verificarAntiSpam(sock, msg)) return;
-
     const textoMinusculas = textoOriginal.toLowerCase();
     const textoLimpio = textoMinusculas.normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
 
     let args = textoLimpio.split(/ +/);
     let comandoRaw = args.shift();
     let comando = normalizarComando(comandoRaw);
+    const esComandoValido = comandosValidos.has(comando);
 
-    // Si no es un comando conocido, no consultamos MongoDB. Esto evita cargar la base
-    // de datos por cada mensaje normal del grupo.
-    if (!comandosValidos.has(comando)) return;
+    // El anti-spam necesita consultar los administradores del grupo en WhatsApp.
+    // Esa consulta es costosa y hacía que CADA comando esperara a groupMetadata().
+    // Los mensajes que ya sabemos que son comandos no pasan por ese filtro:
+    // la protección anti-spam sigue activa para los mensajes normales.
+    if (!esComandoPropioPermitido && !esComandoValido && await verificarAntiSpam(sock, msg)) return;
+
+    // Si no es un comando conocido, no consultamos MongoDB.
+    if (!esComandoValido) return;
 
     let configGrupo = await Config.findOne({ clave: `comandos_${chatJid}` });
     if (configGrupo && !msg.key.fromMe && chatJid.endsWith('@g.us')) {
