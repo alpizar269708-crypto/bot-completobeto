@@ -122,43 +122,99 @@ async function obtenerAlertasSTW(actualizarEnVivo = true) {
     };
 }
 
+function obtenerRecompensasValiosasSTW(item) {
+    const recompensas = Array.isArray(item.recompensas) ? item.recompensas : [];
+
+    const valiosas = recompensas.filter(r => {
+        if (!r || !r.tipo) return false;
+
+        // Ocultar recompensas genéricas/comunes (oro, XP, moneda de misión,
+        // etc.) que el parser identifica como "other".
+        if (r.tipo === 'other') return false;
+
+        if (['hero', 'survivor', 'defender', 'schematic'].includes(r.tipo)) {
+            return ['mythic', 'legendary', 'epic', 'rare'].includes(r.rareza);
+        }
+
+        // Recompensas de recursos útiles del propio STW Planner.
+        return ['supercharger', 'evolution', 'perkup', 'elemental', 'reperk', 'ore', 'llama'].includes(r.tipo);
+    });
+
+    const unicas = [];
+    const vistos = new Set();
+
+    for (const recompensa of valiosas) {
+        const clave = String(recompensa.nombre || '').trim().toLowerCase();
+        if (!clave || vistos.has(clave)) continue;
+        vistos.add(clave);
+        unicas.push(recompensa.nombre);
+    }
+
+    return unicas;
+}
+
+function formatearMultiplicadorSTW(item) {
+    const multiplicador = Number(item.multiplicadorRecompensa);
+    if (multiplicador === 4) return '✖️ *Recompensa x4:* Sí\\n';
+    if (multiplicador === 5) return '✖️ *Recompensa x5:* Sí\\n';
+    return '';
+}
+
+function formatearAlertaSTW(item, encabezado = '') {
+    let texto = '';
+
+    if (encabezado) texto += encabezado + '\\n';
+    texto += `⚡ *PL:* ${item.pl}\\n`;
+    if (item.zona) texto += `🌍 *Zona:* ${item.zona}\\n`;
+    texto += formatearMultiplicadorSTW(item);
+
+    const recompensas = obtenerRecompensasValiosasSTW(item);
+    if (recompensas.length > 0) {
+        texto += `🎁 *Recompensa:* ${recompensas.join(' | ')}\\n`;
+    }
+
+    texto += '\\n';
+    return texto;
+}
+
 async function alertasSTW(sock, chatId, msg, categoria = 'todas') {
     const datos = await obtenerAlertasSTW();
     const fechaHoy = obtenerFechaActual();
-    let texto = `📅 _${fechaHoy}_\n\n`;
+    let texto = `📅 _${fechaHoy}_\\n\\n`;
 
+    // Los PaVos conservan su formato actual.
     if (categoria === 'pavos' || categoria === 'todas') {
-        texto += `🎮 *ALERTAS DE PAVOS*\n`;
+        texto += `🎮 *ALERTAS DE PAVOS*\\n`;
         if (datos.pavos.length === 0) {
-            texto += `_No hay alertas de pavos registradas._\n\n`;
+            texto += `_No hay alertas de pavos registradas._\\n\\n`;
         } else {
             let totalPavos = 0;
             datos.pavos.forEach(p => {
                 totalPavos += p.cantidad || 50;
-                texto += `⚡ *PL:* ${p.pl}\n🎯 *Misión:* ${p.mision}\n🪙 *PaVos:* ${p.cantidad || 50}\n\n`;
+                texto += `⚡ *PL:* ${p.pl}\\n🎯 *Misión:* ${p.mision}\\n🪙 *PaVos:* ${p.cantidad || 50}\\n\\n`;
             });
-            texto += `💰 *Total del día:* ${totalPavos} paVos\n\n`;
+            texto += `💰 *Total del día:* ${totalPavos} paVos\\n\\n`;
         }
     }
 
     if (categoria === 'epicas' || (categoria === 'todas' && datos.epicas.length > 0)) {
-        texto += `🟣 *ALERTAS ÉPICAS*\n`;
+        texto += `🟣 *ALERTAS ÉPICAS*\\n`;
         if (datos.epicas.length === 0) {
-            texto += `_No hay alertas épicas registradas._\n\n`;
+            texto += `_No hay alertas épicas registradas._\\n\\n`;
         } else {
             datos.epicas.forEach(e => {
-                texto += `⚡ *PL:* ${e.pl}\n🎯 *Misión:* ${e.mision}\n🎁 *Recompensa:* ${e.recompensa}\n\n`;
+                texto += formatearAlertaSTW(e);
             });
         }
     }
 
     if (categoria === 'legendarias' || (categoria === 'todas' && datos.legendarias.length > 0)) {
-        texto += `🌟 *ALERTAS LEGENDARIAS*\n`;
+        texto += `🌟 *ALERTAS LEGENDARIAS*\\n`;
         if (datos.legendarias.length === 0) {
-            texto += `_No hay alertas legendarias registradas._\n\n`;
+            texto += `_No hay alertas legendarias registradas._\\n\\n`;
         } else {
             datos.legendarias.forEach(L => {
-                texto += `⚡ *PL:* ${L.pl}\n🎯 *Misión:* ${L.mision}\n🎁 *Recompensa:* ${L.recompensa}\n\n`;
+                texto += formatearAlertaSTW(L);
             });
         }
     }
@@ -166,45 +222,33 @@ async function alertasSTW(sock, chatId, msg, categoria = 'todas') {
     texto += `Support-a-Creator: *JASC13* ❤️`;
     await sock.sendMessage(chatId, { text: texto }, { quoted: msg });
 }
+
 
 // === NUEVA FUNCIÓN PARA EL COMANDO PLALTAS ===
 async function comandoPLaltas(sock, chatId, msg) {
     const fechaHoy = obtenerFechaActual();
-    let texto = `📅 _${fechaHoy}_\n\n🔥 *ALERTAS DESTACADAS — RECOMPENSAS BUENAS*\n\n`;
+    let texto = `📅 _${fechaHoy}_\\n\\n🔥 *ALERTAS DESTACADAS — RECOMPENSAS BUENAS*\\n\\n`;
 
     try {
         const datos = await obtenerAlertasSTW();
-        let listaPlAltas = datos.plAltas || [];
+        const listaPlAltas = datos.plAltas || [];
 
         if (listaPlAltas.length === 0) {
-            texto += `_No hay alertas de PLs altas registradas en este momento._\n\n`;
+            texto += `_No hay alertas destacadas registradas en este momento._\\n\\n`;
         } else {
             listaPlAltas.forEach(item => {
-                texto += `⭐ *ALERTA DESTACADA*\n`;
-                texto += `⚡ *PL:* ${item.pl}\n`;
-                if (item.zona) texto += `🌍 *Zona:* ${item.zona}\n`;
-                if (item.ubicacion) texto += `📍 *Ubicación:* ${item.ubicacion}\n`;
-                if (item.tipoAlertaTexto && item.tipoAlertaTexto !== 'PaVos') {
-                    texto += `🚨 *Tipo de alerta:* ${item.tipoAlertaTexto}\n`;
-                }
-                if (item.esX4) {
-                    texto += `✖️ *Recompensa x4:* Sí\n`;
-                }
-                texto += `🎯 *Misión:* ${item.mision}\n`;
-                texto += `🎁 *Recompensa:* ${item.recompensa || item.motivo || 'Recompensa destacada'}\n`;
-                if (Array.isArray(item.modificadores) && item.modificadores.length > 0) {
-                    texto += `⚠️ *Modificadores:* ${item.modificadores.join(' • ')}\n`;
-                }
-                texto += `\n`;
+                texto += formatearAlertaSTW(item, '⭐ *ALERTA DESTACADA*');
             });
         }
     } catch (e) {
-        texto += `_Error al cargar las alertas de PL altas._\n\n`;
+        texto += `_Error al cargar las alertas destacadas._\\n\\n`;
     }
 
     texto += `Support-a-Creator: *JASC13* ❤️`;
     await sock.sendMessage(chatId, { text: texto }, { quoted: msg });
 }
+
+
 
 
 
@@ -233,9 +277,9 @@ function iniciarCronAlertasDiarias(sock) {
             }
 
             if (datos.legendarias.length > 0) {
-                mensajeAuto += `🌟 *LEGENDARIAS*\n`;
+                mensajeAuto += `🌟 *LEGENDARIAS*\\n`;
                 datos.legendarias.forEach(L => {
-                    mensajeAuto += `⚡ PL: ${L.pl}\n🎯 ${L.mision}\n🎁 ${L.recompensa}\n\n`;
+                    mensajeAuto += formatearAlertaSTW(L);
                 });
             }
             mensajeAuto += `Support-a-Creator: *JASC13* ❤️`;
