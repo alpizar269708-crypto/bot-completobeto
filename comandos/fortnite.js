@@ -211,8 +211,18 @@ async function comandoPLaltas(sock, chatId, msg) {
                 texto += `⚡ *PL:* ${item.pl}\n`;
                 if (item.zona) texto += `🌍 *Zona:* ${item.zona}\n`;
                 if (item.ubicacion) texto += `📍 *Ubicación:* ${item.ubicacion}\n`;
+                if (item.tipoAlertaTexto && item.tipoAlertaText !== 'PaVos') {
+                    texto += `🚨 *Tipo de alerta:* ${item.tipoAlertaTexto}\n`;
+                }
+                if (item.esX4) {
+                    texto += `✖️ *Recompensa x4:* Sí\n`;
+                }
                 texto += `🎯 *Misión:* ${item.mision}\n`;
-                texto += `🎁 *Recompensa:* ${item.recompensa || item.motivo || 'Recompensa destacada'}\n\n`;
+                texto += `🎁 *Recompensa:* ${item.recompensa || item.motivo || 'Recompensa destacada'}\n`;
+                if (Array.isArray(item.modificadores) && item.modificadores.length > 0) {
+                    texto += `⚠️ *Modificadores:* ${item.modificadores.join(' • ')}\n`;
+                }
+                texto += `\n`;
             });
         }
     } catch (e) {
