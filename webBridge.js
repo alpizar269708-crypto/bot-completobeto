@@ -301,6 +301,21 @@ function extraerModificadoresMissionEntrySTW($, missionEntry) {
     return modificadores;
 }
 
+function detectarMultiplicadorRecompensaSTW($, missionEntry, dataFilter, title) {
+    const filtro = String(dataFilter || '').toLowerCase();
+    const titulo = String(title || '').toLowerCase();
+
+    if (/(^|\s)group(\s|$)/.test(filtro) || /(^|\s)x4(\s|$)/.test(filtro) || /\bx4\b/.test(titulo) || /group$/.test(titulo)) {
+        return 4;
+    }
+
+    if (/(^|\s)x5(\s|$)/.test(filtro) || /(^|\s)group5(\s|$)/.test(filtro) || /(^|\s)group_5(\s|$)/.test(filtro) || /\bx5\b/.test(titulo)) {
+        return 5;
+    }
+
+    return null;
+}
+
 function extraerMisionEntrySTW($, missionEntry, zona, tipoAlerta) {
     const atributos = $(missionEntry).attr('class') || '';
     const dataFilter = $(missionEntry).attr('data-filter') || '';
@@ -326,7 +341,8 @@ function extraerMisionEntrySTW($, missionEntry, zona, tipoAlerta) {
     const recompensas = extraerRecompensasMissionEntrySTW($, missionEntry);
     const modificadores = extraerModificadoresMissionEntrySTW($, missionEntry);
     const esVbucks = recompensas.some(r => r.tipo === 'vbucks') || /\bvbucks\b|v-bucks|v bucks|currency_mtxswap/i.test(atributos);
-    const esX4 = /(?:^|\s)group(?:\s|$)/i.test(dataFilter) || /Group$/i.test(title);
+    const multiplicadorRecompensa = detectarMultiplicadorRecompensaSTW($, missionEntry, dataFilter, title);
+    const esX4 = multiplicadorRecompensa === 4;
     const tipoAlertaReal = detectarTipoAlertaSTW(tipoAlerta);
     const recompensaVbucks = recompensas.find(r => r.tipo === 'vbucks');
     const recompensaTexto = recompensas.map(r => r.nombre).filter(Boolean).join(' | ');
@@ -347,6 +363,7 @@ function extraerMisionEntrySTW($, missionEntry, zona, tipoAlerta) {
         vbucks: esVbucks,
         cantidadVbucks: esVbucks ? (recompensaVbucks?.cantidad || Number($(missionEntry).find('.mission-reward-name').first().text().trim()) || 50) : null,
         esX4,
+        multiplicadorRecompensa,
         recompensas,
         modificadores,
         rareza: recompensas.find(r => r.rareza === 'mythic')?.rareza || recompensas.find(r => r.rareza === 'legendary')?.rareza || recompensas.find(r => r.rareza === 'epic')?.rareza || recompensas.find(r => r.rareza === 'rare')?.rareza || recompensas.find(r => r.rareza === 'uncommon')?.rareza || recompensas.find(r => r.rareza === 'common')?.rareza || null,
@@ -565,11 +582,11 @@ async function extraerAlertasAPI() {
 
         const epicas = todas
             .filter(m => m.recompensas.some(r => r.rareza === 'epic' && tiposBuenos.includes(r.tipo)))
-            .map(m => ({ pl: m.pl, mision: m.mision, ubicacion: m.ubicacion, zona: m.zona, recompensa: m.recompensa, rareza: 'epic', tipoAlerta: m.tipoAlerta, tipoAlertaTexto: m.tipoAlertaTexto, modificadores: m.modificadores, source: m.source }));
+            .map(m => ({ pl: m.pl, mision: m.mision, ubicacion: m.ubicacion, zona: m.zona, recompensa: m.recompensa, recompensas: m.recompensas, multiplicadorRecompensa: m.multiplicadorRecompensa, esX4: m.esX4, rareza: 'epic', tipoAlerta: m.tipoAlerta, tipoAlertaTexto: m.tipoAlertaTexto, modificadores: m.modificadores, source: m.source }));
 
         const legendarias = todas
             .filter(m => m.recompensas.some(r => r.rareza === 'legendary' && tiposBuenos.includes(r.tipo)))
-            .map(m => ({ pl: m.pl, mision: m.mision, ubicacion: m.ubicacion, zona: m.zona, recompensa: m.recompensa, rareza: 'legendary', tipoAlerta: m.tipoAlerta, tipoAlertaTexto: m.tipoAlertaTexto, modificadores: m.modificadores, source: m.source }));
+            .map(m => ({ pl: m.pl, mision: m.mision, ubicacion: m.ubicacion, zona: m.zona, recompensa: m.recompensa, recompensas: m.recompensas, multiplicadorRecompensa: m.multiplicadorRecompensa, esX4: m.esX4, rareza: 'legendary', tipoAlerta: m.tipoAlerta, tipoAlertaTexto: m.tipoAlertaTexto, modificadores: m.modificadores, source: m.source }));
 
         function evaluarAlertaChida(mision) {
             // PLaltas SOLO admite recompensas épicas o legendarias de Héroe,
@@ -627,6 +644,7 @@ async function extraerAlertasAPI() {
                 tipoAlerta: mision.tipoAlerta,
                 tipoAlertaTexto: mision.tipoAlertaTexto,
                 esX4: Boolean(mision.esX4),
+                multiplicadorRecompensa: mision.multiplicadorRecompensa || null,
                 modificadores: Array.isArray(mision.modificadores) ? mision.modificadores : [],
                 // Guardamos todas las recompensas, no solamente las destacadas.
                 recompensas: recompensasTodas,
