@@ -45,9 +45,6 @@ async function ejecutarMenu(sock, chatId, msg, args) {
     if (isAdmin && isGroup) {
         menuFortnite += `\n⚙️ *Gestión del Grupo (Admins):*\n` +
         `*${prefijo}setprecio* - Configura precio de venta de pavos.\n` +
-        `*${prefijo}setpavos* - Agrega misiones de PaVos manualmente.\n` +
-        `*${prefijo}setlegendarias* - Agrega Legendarias/Minijefes manualmente.\n` +
-        `*${prefijo}resetpavos* - Vacía todas las alertas manuales del día.\n` +
         `*${prefijo}setgrupostw* - Activa reportes diarios a las 6:05 PM aquí.\n` +
         `*${prefijo}unsetgrupostw* - Desactiva los reportes diarios.\n`;
     }
