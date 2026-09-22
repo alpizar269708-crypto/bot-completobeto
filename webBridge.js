@@ -598,6 +598,165 @@ function parsearPavosSTW(html) {
         }));
 }
 
+async function extraerPLAltasDOM() {
+    try {
+        const url = 'https://stw-planner.com/mission-alerts';
+        const response = await axios.get(url, {
+            timeout: 30000,
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/153 Safari/537.36',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                'Accept-Language': 'en-US,en;q=0.9,es;q=0.8',
+                'Cache-Control': 'no-cache'
+            }
+        });
+
+        const $ = cheerio.load(response.data);
+        const mapa = new Map();
+
+        $('article, div').each((i, el) => {
+            const texto = $(el).text().replace(/\s+/g, ' ').trim();
+
+            if (texto.length < 20 || texto.length > 500) return;
+
+            const plMatch = texto.match(/\b(140|160)\b/);
+            if (!plMatch) return;
+
+            const lower = texto.toLowerCase();
+
+            const misiones = [
+                'fight the storm',
+                'retrieve the data',
+                'repair the shelter',
+                'ride the lightning',
+                'evacuate the shelter',
+                'deliver the bomb',
+                'resupply',
+                'eliminate and collect',
+                'rescue the survivors',
+                'build the radar',
+                'destroy the encampments',
+                'refuel the homebase',
+                'hit the road',
+                'rescue the survivors',
+                'atlas'
+            ];
+
+            const nombre = misiones.find(m =>
+                lower.includes(m)
+            );
+
+            if (!nombre) return;
+
+            const idx = lower.indexOf(nombre);
+            const desdeMision = texto.slice(idx);
+
+            const partes = desdeMision.split(/\s*-\s*/);
+            if (partes.length < 2) return;
+
+            const encabezado = partes[0].trim();
+            const ubicacion = partes[1]
+                .split(/\b(?:common|uncommon|rare|epic|legendary|mythic)\b/i)[0]
+                .trim();
+
+            const misionEsp = traducirMisionYBioma(
+                encabezado,
+                ubicacion
+            );
+
+            const recompensas = [];
+
+            $(el).find(
+                '.mission-reward-item, [class*="mission-reward-item"]'
+            ).each((j, rewardEl) => {
+                const title = $(rewardEl).attr('title') || '';
+                const innerText = $(rewardEl)
+                    .text()
+                    .replace(/\s+/g, ' ')
+                    .trim();
+
+                const alt = $(rewardEl)
+                    .find('img')
+                    .attr('alt') || '';
+
+                const iconClass = $(rewardEl)
+                    .find('.mission-reward-icon')
+                    .attr('class') || '';
+
+                const bruto = [innerText, title, alt]
+                    .filter(Boolean)
+                    .join(' ')
+                    .replace(/\s+/g, ' ')
+                    .trim();
+
+                if (!bruto) return;
+
+                let formateado =
+                    traducirYFormatearRecompensa(
+                        innerText || title || alt,
+                        iconClass
+                    );
+
+                if (
+                    !formateado &&
+                    /v[\s-]?bucks|vbucks|v bucks/i.test(bruto)
+                ) {
+                    const cantidad =
+                        (bruto.match(/\b(\d{1,3})\b/) || [])[1] || '50';
+
+                    formateado = `🪙 *${cantidad}* PaVos`;
+                }
+
+                if (!formateado) {
+                    const rareza =
+                        /\blegendary\b/i.test(bruto)
+                            ? 'legendary'
+                            : /\bepic\b/i.test(bruto)
+                                ? 'epic'
+                                : '';
+
+                    if (rareza) {
+                        formateado =
+                            rareza === 'legendary'
+                                ? '🟠 Recompensa legendaria'
+                                : '🟣 Recompensa épica';
+                    }
+                }
+
+                if (
+                    formateado &&
+                    !recompensas.includes(formateado)
+                ) {
+                    recompensas.push(formateado);
+                }
+            });
+
+            if (!recompensas.length) return;
+
+            const pl = Number(plMatch[1]);
+            const clave = `${pl}-${misionEsp}`;
+
+            if (!mapa.has(clave)) {
+                mapa.set(clave, {
+                    pl,
+                    mision: misionEsp,
+                    recompensa: recompensas.join(' | '),
+                    source: url
+                });
+            }
+        });
+
+        return Array.from(mapa.values());
+    } catch (error) {
+        console.error(
+            '❌ Error extrayendo recompensas PL altas:',
+            error.message
+        );
+
+        return [];
+    }
+}
+
 async function extraerAlertasAPI() {
     try {
         console.log('\n--- 🌐 RASPADO STW PLANNER ---');
@@ -672,7 +831,7 @@ async function extraerAlertasAPI() {
                 source: m.source
             }));
 
-        const plAltas = todas
+        let plAltas = todas
             .filter(m => Number(m.pl) >= 140)
             .map(m => ({
                 pl: m.pl,
@@ -682,6 +841,14 @@ async function extraerAlertasAPI() {
                 recompensa: m.recompensa,
                 source: m.source
             }));
+
+        // Para PL 140/160 usamos además los elementos de recompensa
+        // reales de cada tarjeta de STW Planner.
+        const plAltasDOM = await extraerPLAltasDOM();
+
+        if (plAltasDOM.length > 0) {
+            plAltas = plAltasDOM;
+        }
 
         await Config.findOneAndUpdate(
             { clave: 'stw_pavos_scrapeados' },
