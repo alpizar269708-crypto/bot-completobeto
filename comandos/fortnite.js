@@ -211,7 +211,7 @@ async function comandoPLaltas(sock, chatId, msg) {
                 texto += `⚡ *PL:* ${item.pl}\n`;
                 if (item.zona) texto += `🌍 *Zona:* ${item.zona}\n`;
                 if (item.ubicacion) texto += `📍 *Ubicación:* ${item.ubicacion}\n`;
-                if (item.tipoAlertaTexto && item.tipoAlertaText !== 'PaVos') {
+                if (item.tipoAlertaTexto && item.tipoAlertaTexto !== 'PaVos') {
                     texto += `🚨 *Tipo de alerta:* ${item.tipoAlertaTexto}\n`;
                 }
                 if (item.esX4) {
