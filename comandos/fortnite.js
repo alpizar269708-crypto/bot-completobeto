@@ -290,6 +290,15 @@ async function enviarAlertaPavosAutomatica(sock, enviarAunqueNoHayaPavos = false
         grupos = [...new Set(grupos.filter(id => typeof id === 'string' && id.endsWith('@g.us')))];
         if (grupos.length === 0) return false;
 
+        // Justo antes de la alerta automática hacemos un raspado en vivo de STW Planner.
+        // Así el mensaje de las 18:02 usa los datos más recientes disponibles en ese preciso momento.
+        try {
+            const { extraerAlertasAPI } = require('../webBridge');
+            await extraerAlertasAPI();
+        } catch (e) {
+            console.error('⚠️ No se pudo hacer el raspado previo a la alerta automática:', e.message);
+        }
+
         const datos = await obtenerAlertasSTW(false);
 
         // La primera alerta de las 6:02 PM siempre se envía, haya o no PaVos.
