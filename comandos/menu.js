@@ -52,6 +52,7 @@ async function ejecutarMenu(sock, chatId, msg, args) {
     let menuModeracion = `🛡️ *MENÚ MODERACIÓN (Admins)* 🛡️\n\n`;
     if (isAdmin && isGroup) {
         menuModeracion += `*${prefijo}warn [@user] / verwarns* - Advierte a un usuario.\n` +
+        `*${prefijo}limpiarwarns [@user]* - Borra todos los warns del usuario y lo deja en 0/3.\n` +
         `*${prefijo}ban [@user] / unban* - Expulsa o readmite.\n` +
         `*${prefijo}listanegra / unbanlist* - Gestión de bloqueados.\n` +
         `*${prefijo}grupo [abrir/cerrar]* - Abre o cierra el chat del grupo.\n` +
