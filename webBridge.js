@@ -535,7 +535,7 @@ function parsearPaginaSTW(html, fuente = 'all') {
     const lineas = obtenerLineasSTW($);
 
     let zonaActual = '';
-    let tipoActual = 'normal';
+    let tipoActual = fuente === 'vbucks' ? 'vbucks' : 'normal';
     const misiones = [];
 
     for (let i = 0; i < lineas.length; i++) {
