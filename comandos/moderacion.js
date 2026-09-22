@@ -174,6 +174,10 @@ async function comandoRestaurarBienvenida(sock, chatId, msg) {
 }
 
 function normalizarLinkListaBlanca(link) {
+    // Compatibilidad con entradas antiguas que hayan quedado como objetos.
+    if (link && typeof link === 'object') {
+        link = link.url || link.link || link.href || '';
+    }
     return String(link || '').trim().replace(/[),.;!?]+$/g, '').toLowerCase();
 }
 
@@ -249,11 +253,22 @@ async function comandoListaBlancaLinks(sock, chatId, msg, args = []) {
         await sock.sendMessage(chatId, { text: `✅ Link agregado a la lista blanca.\n\n🔗 ${link}\n\nAhora ese link no será borrado por el anti-links.` }, { quoted: msg });
         return;
     }
-    const indice = listaActual.indexOf(link);
+    // También permite quitar por número: *listablanca quitar 1*
+    // Esto es útil para eliminar una entrada directamente desde la lista mostrada.
+    const numeroEntrada = Number(args[1]);
+    let indice = -1;
+    if (Number.isInteger(numeroEntrada) && numeroEntrada >= 1 && numeroEntrada <= listaActual.length) {
+        indice = numeroEntrada - 1;
+    } else {
+        indice = listaActual.indexOf(link);
+    }
+
     if (indice === -1) {
-        await sock.sendMessage(chatId, { text: '❌ Ese link no está en la lista blanca.' }, { quoted: msg });
+        await sock.sendMessage(chatId, { text: '❌ Esa entrada no está en la lista blanca. Puedes usar *listablanca quitar 1* para quitarla por número.' }, { quoted: msg });
         return;
     }
+
+    const linkEliminado = listaActual[indice];
     listaActual.splice(indice, 1);
     if (listaActual.length === 0) {
         await Config.deleteOne({ clave: 'links_lista_blanca' });
@@ -262,7 +277,7 @@ async function comandoListaBlancaLinks(sock, chatId, msg, args = []) {
     }
     cacheListaBlanca.valor = listaActual;
     cacheListaBlanca.expira = Date.now() + 5000;
-    await sock.sendMessage(chatId, { text: `✅ Link eliminado de la lista blanca.\n\n🔗 ${link}` }, { quoted: msg });
+    await sock.sendMessage(chatId, { text: `✅ Link eliminado de la lista blanca.\n\n🔗 ${linkEliminado || link}` }, { quoted: msg });
 }
 
 async function verificarAntiLinks(sock, msg) {
