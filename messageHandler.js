@@ -33,6 +33,19 @@ const categoriasMap = {
     'menu': ['menu', 'menusecreto']
 };
 
+const comandosValidos = new Set([
+        'activarcomandos', 'setprecio', 'ping', 'pavos', 'destacadasstw', 'legendariasstw', 'epicasstw', 'alertasstw', 'stw', 'alerta', 
+        'setgrupostw', 'unsetgrupostw', 'grupo', 'mute', 'unmute', 'inactivos', 'tienda', 'ia', 'menu', 'menusecreto',
+        's', 'sticker', 'todos', 'tiktok', 'traduce', 'skin', 'stats', 'contacto',
+        'warn', 'advertir', 'verwarns', 'limpiarwarns', 'ban', 'unban', 'listanegra', 'banlist', 'unbanlist', 
+        'cartera', 'bal', 'banco', 'pay', 'pagar', 'top', 'topdinero', 'daily', 'weekly',
+        'farmear', 'work', 'crime', 'mendigar', 'pescar', 'minar', 'cazar', 'explorar',
+        'ruleta', 'cf', 'slots', 'dados', 'adivina', 'buscaminas', 'rob', 'ppt', 'pelea',
+        'carrera', 'hackear', 'shop', 'buy', 'inventario', 'mochila', 'vender', 'use', 'regalar',
+        'rifa', 'rifainscripcion', 'cerrarrifa', 'rifajasc13', 'abrirrifa', 'activarrifaaqui', 'menurifajasc13', 'carryleader', 'carryjoin', 'carryleave', 'carryclose', 'blcarry', 'unblcarry', 'listcarrybl',
+        'vertodosconandos', 'vertodoscomandos', 'listablanca', 'desactivarbienvenida', 'activarbienvenida', 'personalizarbienvenida', 'restaurarbienvenida', 'salvar'
+]);
+
 async function procesarMensaje(sock, msg) {
     if (msg.key.fromMe) return;
 
@@ -85,16 +98,16 @@ Apoya a un creador: JASC13` });
 
     if (await verificarAntiSpam(sock, msg)) return;
 
-    let usuarioBD = await User.findOne({ numero: remitenteReal });
-    if (!usuarioBD) usuarioBD = await User.create({ numero: remitenteReal }); 
-    if (usuarioBD.baneado) return;
-
     const textoMinusculas = textoOriginal.toLowerCase();
     const textoLimpio = textoMinusculas.normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
 
     let args = textoLimpio.split(/ +/);
     let comandoRaw = args.shift();
     let comando = normalizarComando(comandoRaw);
+
+    // Si no es un comando conocido, no consultamos MongoDB. Esto evita cargar la base
+    // de datos por cada mensaje normal del grupo.
+    if (!comandosValidos.has(comando)) return;
 
     let configGrupo = await Config.findOne({ clave: `comandos_${chatJid}` });
     if (configGrupo && !msg.key.fromMe && chatJid.endsWith('@g.us')) {
@@ -112,18 +125,11 @@ Apoya a un creador: JASC13` });
         if (!comandoPermitido && comando !== 'activarcomandos') return; 
     }
 
-    const comandosValidos = [
-        'activarcomandos', 'setprecio', 'ping', 'pavos', 'destacadasstw', 'legendariasstw', 'epicasstw', 'alertasstw', 'stw', 'alerta', 
-        'setgrupostw', 'unsetgrupostw', 'grupo', 'mute', 'unmute', 'inactivos', 'tienda', 'ia', 'menu', 'menusecreto',
-        's', 'sticker', 'todos', 'tiktok', 'traduce', 'skin', 'stats', 'contacto',
-        'warn', 'advertir', 'verwarns', 'limpiarwarns', 'ban', 'unban', 'listanegra', 'banlist', 'unbanlist', 
-        'cartera', 'bal', 'banco', 'pay', 'pagar', 'top', 'topdinero', 'daily', 'weekly',
-        'farmear', 'work', 'crime', 'mendigar', 'pescar', 'minar', 'cazar', 'explorar',
-        'ruleta', 'cf', 'slots', 'dados', 'adivina', 'buscaminas', 'rob', 'ppt', 'pelea',
-        'carrera', 'hackear', 'shop', 'buy', 'inventario', 'mochila', 'vender', 'use', 'regalar',
-        'rifa', 'rifainscripcion', 'cerrarrifa', 'rifajasc13', 'abrirrifa', 'activarrifaaqui', 'menurifajasc13', 'carryleader', 'carryjoin', 'carryleave', 'carryclose', 'blcarry', 'unblcarry', 'listcarrybl',
-        'vertodosconandos', 'vertodoscomandos', 'listablanca', 'desactivarbienvenida', 'activarbienvenida', 'personalizarbienvenida', 'restaurarbienvenida', 'salvar'
-    ];
+    // Solo los comandos llegan hasta aquí; los mensajes normales ya salieron arriba.
+    let usuarioBD = await User.findOne({ numero: remitenteReal });
+    if (!usuarioBD) usuarioBD = await User.create({ numero: remitenteReal });
+    if (usuarioBD.baneado) return;
+
 
     if (comando === 'desactivarbienvenida') {
         await comandoDesactivarBienvenida(sock, chatJid, msg);
@@ -254,7 +260,7 @@ Apoya a un creador: JASC13` });
         return;
     }
 
-    if (comandosValidos.includes(comando)) {
+    if (comandosValidos.has(comando)) {
         switch (comando) {
             case 'menusecreto':
                 if (!msg.key.fromMe) return; 
