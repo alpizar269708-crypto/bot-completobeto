@@ -1,4 +1,4 @@
-const { User } = require('../database/modelos');
+const { User, Config } = require('../database/modelos');
 
 // Memoria temporal para los mutes activos
 const mutesActivos = new Map();
@@ -67,6 +67,15 @@ async function verificarNuevoMiembro(sock, update) {
     const chatId = update.id;
     const nuevosParticipantes = update.participants;
 
+    // En comunidades no enviar bienvenidas a la sección de Avisos.
+    try {
+        const metadata = await sock.groupMetadata(chatId);
+        if (metadata?.isCommunityAnnounce === true) return;
+    } catch (error) {}
+
+    const bienvenidaDesactivada = await Config.findOne({ clave: `bienvenida_desactivada_${chatId}` });
+    const bienvenidaPersonalizada = await Config.findOne({ clave: `bienvenida_personalizada_${chatId}` });
+
     for (const participante of nuevosParticipantes) {
         const jid = typeof participante === 'string' ? participante : (participante.id || participante.phoneNumber);
         if (!jid) continue;
@@ -75,18 +84,21 @@ async function verificarNuevoMiembro(sock, update) {
         if (usuarioBD && usuarioBD.baneado) {
             try {
                 await sock.groupParticipantsUpdate(chatId, [jid], 'remove');
-                await sock.sendMessage(chatId, { 
+                await sock.sendMessage(chatId, {
                     text: `🚨 @${jid.split('@')[0]} está en la lista negra (Motivo: ${usuarioBD.banMotivo}) y no puede permanecer en este grupo. Expulsado automáticamente.`,
                     mentions: [jid]
                 });
             } catch (error) {
                 console.log('No se pudo expulsar al usuario renegado.');
             }
-        } else {
-            // 🌟 Bienvenida personalizada con etiqueta
+        } else if (!bienvenidaDesactivada || bienvenidaDesactivada.valor !== 'true') {
             try {
-                await sock.sendMessage(chatId, { 
-                    text: `Bienvenido/a @${jid.split('@')[0]} a la escupidera de Salty, esperamos que seas lo suficientemente rudo para estar aquí.`,
+                const textoBienvenida = bienvenidaPersonalizada?.valor
+                    ? bienvenidaPersonalizada.valor.replace(/\\{usuario\\}/gi, `@${jid.split('@')[0]}`)
+                    : `👋 Bienvenido/a @${jid.split('@')[0]} al grupo. ¡Esperamos que disfrutes y participes! ❤️`;
+
+                await sock.sendMessage(chatId, {
+                    text: textoBienvenida,
                     mentions: [jid]
                 });
             } catch (error) {
@@ -94,6 +106,70 @@ async function verificarNuevoMiembro(sock, update) {
             }
         }
     }
+}
+
+async function comandoDesactivarBienvenida(sock, chatId, msg) {
+    if (!chatId.endsWith('@g.us')) {
+        await sock.sendMessage(chatId, { text: '❌ Este comando solo se usa en grupos.' }, { quoted: msg });
+        return;
+    }
+
+    if (!(await esAdmin(sock, chatId, msg.key.participant))) {
+        await sock.sendMessage(chatId, { text: '❌ Solo los administradores del grupo pueden configurar la bienvenida.' }, { quoted: msg });
+        return;
+    }
+
+    await Config.findOneAndUpdate(
+        { clave: `bienvenida_desactivada_${chatId}` },
+        { valor: 'true' },
+        { upsert: true }
+    );
+
+    await sock.sendMessage(chatId, { text: '🔕 Bienvenida desactivada en este grupo.\n\nPara volver a activarla, usa *activarbienvenida*.' }, { quoted: msg });
+}
+
+async function comandoActivarBienvenida(sock, chatId, msg) {
+    if (!chatId.endsWith('@g.us')) return;
+    if (!(await esAdmin(sock, chatId, msg.key.participant))) return;
+
+    await Config.deleteOne({ clave: `bienvenida_desactivada_${chatId}` });
+    await sock.sendMessage(chatId, { text: '🔔 Bienvenida activada. Se usará el mensaje personalizado si existe; de lo contrario, el mensaje por defecto.' }, { quoted: msg });
+}
+
+async function comandoPersonalizarBienvenida(sock, chatId, msg, texto) {
+    if (!chatId.endsWith('@g.us')) {
+        await sock.sendMessage(chatId, { text: '❌ Este comando solo se usa en grupos.' }, { quoted: msg });
+        return;
+    }
+
+    if (!(await esAdmin(sock, chatId, msg.key.participant))) {
+        await sock.sendMessage(chatId, { text: '❌ Solo los administradores del grupo pueden personalizar la bienvenida.' }, { quoted: msg });
+        return;
+    }
+
+    const mensaje = (texto || '').trim();
+    if (!mensaje) {
+        await sock.sendMessage(chatId, { text: '❌ Escribe el mensaje después del comando.\nEjemplo: *personalizarbienvenida Hola {usuario}, bienvenido al grupo ❤️*\n\nPuedes usar *{usuario}* para mencionar automáticamente al nuevo integrante.' }, { quoted: msg });
+        return;
+    }
+
+    await Config.findOneAndUpdate(
+        { clave: `bienvenida_personalizada_${chatId}` },
+        { valor: mensaje },
+        { upsert: true }
+    );
+    await Config.deleteOne({ clave: `bienvenida_desactivada_${chatId}` });
+
+    await sock.sendMessage(chatId, { text: '✅ Bienvenida personalizada guardada y activada.\nUsa *{usuario}* donde quieras mencionar al nuevo integrante.' }, { quoted: msg });
+}
+
+async function comandoRestaurarBienvenida(sock, chatId, msg) {
+    if (!chatId.endsWith('@g.us')) return;
+    if (!(await esAdmin(sock, chatId, msg.key.participant))) return;
+
+    await Config.deleteOne({ clave: `bienvenida_personalizada_${chatId}` });
+    await Config.deleteOne({ clave: `bienvenida_desactivada_${chatId}` });
+    await sock.sendMessage(chatId, { text: '🔄 Bienvenida restaurada al mensaje por defecto.' }, { quoted: msg });
 }
 
 async function verificarAntiLinks(sock, msg) {
