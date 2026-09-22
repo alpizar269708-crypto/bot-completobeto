@@ -263,9 +263,21 @@ async function comandoRifa(sock, chatId, msg, args) {
             mentions: [ganador.id]
         });
 
-        // Vaciar la lista y su almacenamiento persistente después del sorteo.
+        // Finalizar la rifa automáticamente: cerrar inscripciones y limpiar la lista.
+        // Esto equivale a ejecutar "cerrarrifa" después de seleccionar al ganador.
         rifasActivas.delete(chatId);
         await Config.findOneAndDelete({ clave: `rifa_participantes_${chatId}` });
+
+        rifasAbiertas.delete(chatId);
+        await Config.findOneAndUpdate(
+            { clave: `rifa_abierta_${chatId}` },
+            { valor: 'false' },
+            { upsert: true }
+        );
+
+        await sock.sendMessage(chatId, {
+            text: '🔒 *Rifa finalizada y cerrada automáticamente.* La lista fue limpiada y ya no se aceptan nuevas inscripciones. Para una nueva rifa, un administrador deberá volver a abrirla.'
+        });
     }
 }
 
