@@ -192,14 +192,14 @@ async function comandoPreguntarAlerta(sock, chatId, msg) {
 }
 
 function iniciarCronAlertasDiarias(sock) {
-    cron.schedule('5 18 * * *', async () => {
+    cron.schedule('2 18 * * *', async () => {
         try {
             const configChat = await Config.findOne({ clave: 'chat_alertas_diarias' });
             if (!configChat || !configChat.valor) return;
             const datos = await obtenerAlertasSTW();
             let total = datos.pavos.reduce((acc, p) => acc + (p.cantidad || 50), 0);
 
-            let mensajeAuto = `🎮 *REPORTE DIARIO STW (6:05 PM)*\n\n`;
+            let mensajeAuto = `🎮 *REPORTE DIARIO STW (6:02 PM)*\n\n`;
             mensajeAuto += `🎮 *ALERTAS DE PAVOS*\n`;
             if (datos.pavos.length > 0) {
                 datos.pavos.forEach(p => {
