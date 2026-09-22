@@ -321,7 +321,19 @@ function iniciarCronAlertasDiarias(sock) {
 async function activarAlertasDiarias(sock, chatId, msg) {
     if (!(await esAdminValido(sock, chatId, msg))) return;
 
-    let grupos = await leerConfigJSON('chat_alertas_diarias');
+    const configActual = await Config.findOne({ clave: 'chat_alertas_diarias' });
+    let grupos = [];
+
+    if (configActual?.valor) {
+        try {
+            const parsed = JSON.parse(configActual.valor);
+            grupos = Array.isArray(parsed) ? parsed : [configActual.valor];
+        } catch (e) {
+            grupos = [configActual.valor];
+        }
+    }
+
+    grupos = [...new Set(grupos.filter(id => typeof id === 'string' && id.endsWith('@g.us')))];
     if (!grupos.includes(chatId)) {
         grupos.push(chatId);
         await Config.findOneAndUpdate(
