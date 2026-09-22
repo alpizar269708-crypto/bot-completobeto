@@ -193,22 +193,35 @@ function formatearAlertaSTW(item, encabezado = '') {
 async function alertasSTW(sock, chatId, msg, categoria = 'todas') {
     const datos = await obtenerAlertasSTW();
     const fechaHoy = obtenerFechaActual();
-    let texto = `📅 _${fechaHoy}_\n\n`;
+    const lineasPavos = [`📅 _${fechaHoy}_`, ''];
 
-    // Los PaVos conservan su formato actual.
+    // PaVos: construir el mensaje por líneas para garantizar saltos reales.
     if (categoria === 'pavos' || categoria === 'todas') {
-        texto += `🎮 *ALERTAS DE PAVOS*\n`;
+        lineasPavos.push('🎮 *ALERTAS DE PAVOS*');
+
         if (datos.pavos.length === 0) {
-            texto += `_No hay alertas de pavos registradas._\n\n`;
+            lineasPavos.push('_No hay alertas de pavos registradas._', '');
         } else {
             let totalPavos = 0;
+
             datos.pavos.forEach(p => {
                 totalPavos += p.cantidad || 50;
-                texto += `⚡ *PL:* ${p.pl}\n🎯 *Misión:* ${p.mision}\n🪙 *PaVos:* ${p.cantidad || 50}\n\n`;
+                lineasPavos.push(
+                    `⚡ *PL:* ${p.pl}`,
+                    `🎯 *Misión:* ${p.mision}`,
+                    `🪙 *PaVos:* ${p.cantidad || 50}`,
+                    ''
+                );
             });
-            texto += `💰 *Total del día:* ${totalPavos} paVos\n\n`;
+
+            lineasPavos.push(`💰 *Total del día:* ${totalPavos} paVos`, '');
         }
     }
+
+    let texto = lineasPavos.join('\\n');
+
+    // El resto de alertas se agrega al mismo mensaje.
+    
 
     if (categoria === 'epicas' || (categoria === 'todas' && datos.epicas.length > 0)) {
         texto += `🟣 *ALERTAS ÉPICAS*\n`;
