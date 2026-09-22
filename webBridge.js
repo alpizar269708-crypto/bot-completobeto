@@ -491,27 +491,36 @@ async function extraerAlertasAPI() {
             .map(m => ({ pl: m.pl, mision: m.mision, ubicacion: m.ubicacion, zona: m.zona, recompensa: m.recompensa, rareza: 'legendary', tipoAlerta: m.tipoAlerta, tipoAlertaTexto: m.tipoAlertaTexto, modificadores: m.modificadores, source: m.source }));
 
         function evaluarAlertaChida(mision) {
-            if (mision.vbucks) return { mostrar: true, nivel: 100, motivo: '🪙 PaVos', destacadas: mision.recompensas.filter(r => r.tipo === 'vbucks') };
-
+            // PLaltas SOLO admite recompensas épicas o legendarias de Héroe,
+            // Superviviente, Defensor o Esquema. PaVos, x4 y otras recompensas
+            // no califican por sí solas.
             const buenas = mision.recompensas.filter(r => tiposBuenos.includes(r.tipo));
             const legendarias = buenas.filter(r => r.rareza === 'legendary');
             const epicas = buenas.filter(r => r.rareza === 'epic');
 
-            if (mision.esX4) {
-                return { mostrar: true, nivel: 97, motivo: '✖️ Recompensa x4', destacadas: [...legendarias, ...epicas] };
+            if (legendarias.length === 0 && epicas.length === 0) {
+                return { mostrar: false, nivel: 0, motivo: '', destacadas: [] };
             }
 
             const legendariasNoDefensor = legendarias.filter(r => ['hero', 'survivor', 'schematic'].includes(r.tipo));
-            if (legendariasNoDefensor.length) return { mostrar: true, nivel: 95, motivo: '🟠 Recompensa legendaria', destacadas: legendariasNoDefensor };
+            if (legendariasNoDefensor.length) {
+                return { mostrar: true, nivel: 95, motivo: '🟠 Recompensa legendaria', destacadas: legendariasNoDefensor };
+            }
 
             const defensoresLegendarios = legendarias.filter(r => r.tipo === 'defender');
-            if (defensoresLegendarios.length && Number(mision.pl) >= 124) return { mostrar: true, nivel: 92, motivo: '🟠 Defensor legendario', destacadas: defensoresLegendarios };
+            if (defensoresLegendarios.length && Number(mision.pl) >= 124) {
+                return { mostrar: true, nivel: 92, motivo: '🟠 Defensor legendario', destacadas: defensoresLegendarios };
+            }
 
             const epicasUtiles = epicas.filter(r => ['hero', 'survivor', 'schematic'].includes(r.tipo));
-            if (epicasUtiles.length && Number(mision.pl) >= 100) return { mostrar: true, nivel: 85, motivo: '🟣 Recompensa épica', destacadas: epicasUtiles };
+            if (epicasUtiles.length && Number(mision.pl) >= 100) {
+                return { mostrar: true, nivel: 85, motivo: '🟣 Recompensa épica', destacadas: epicasUtiles };
+            }
 
             const defensoresEpicos = epicas.filter(r => r.tipo === 'defender');
-            if (defensoresEpicos.length && Number(mision.pl) >= 124) return { mostrar: true, nivel: 82, motivo: '🟣 Defensor épico', destacadas: defensoresEpicos };
+            if (defensoresEpicos.length && Number(mision.pl) >= 124) {
+                return { mostrar: true, nivel: 82, motivo: '🟣 Defensor épico', destacadas: defensoresEpicos };
+            }
 
             return { mostrar: false, nivel: 0, motivo: '', destacadas: [] };
         }
