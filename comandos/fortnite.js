@@ -61,6 +61,56 @@ function combinarSinDuplicados(...listas) {
     return Array.from(mapa.values());
 }
 
+// PLALTAS: STW Planner puede guardar dos representaciones de la misma
+// misión de PaVos (bloque especial y mission-entry normal). Al mostrar el
+// comando, se agrupan por la misión y se conserva la versión más limpia.
+function deduplicarPlAltasVbucks(lista) {
+    const mapa = new Map();
+
+    for (const item of Array.isArray(lista) ? lista : []) {
+        const textoRecompensa = String(item.recompensa || '');
+        const esVbucks = /PaVos|vbucks|v-bucks/i.test(textoRecompensa);
+
+        const claveBase = [
+            item.zona ?? '',
+            item.pl ?? '',
+            item.mision ?? '',
+            item.ubicacion ?? ''
+        ].join('|').toLowerCase();
+
+        const clave = esVbucks
+            ? 'vbucks|' + claveBase
+            : 'normal|' + claveBase + '|' + textoRecompensa.toLowerCase();
+
+        const anterior = mapa.get(clave);
+
+        if (!anterior) {
+            mapa.set(clave, item);
+            continue;
+        }
+
+        if (esVbucks) {
+            const cantidadRecompensasAnterior = String(
+                anterior.recompensa || ''
+            )
+                .split('|')
+                .filter(Boolean)
+                .length;
+
+            const cantidadRecompensasActual = textoRecompensa
+                .split('|')
+                .filter(Boolean)
+                .length;
+
+            if (cantidadRecompensasActual < cantidadRecompensasAnterior) {
+                mapa.set(clave, item);
+            }
+        }
+    }
+
+    return Array.from(mapa.values());
+}
+
 async function obtenerAlertasSTW() {
     const [
         scrapePavos,
@@ -84,7 +134,7 @@ async function obtenerAlertasSTW() {
         pavos: combinarSinDuplicados(scrapePavos, manualPavos),
         epicas: combinarSinDuplicados(scrapeEpicas, manualEpicas),
         legendarias: combinarSinDuplicados(scrapeLegendarias, manualLegendarias),
-        plAltas: combinarSinDuplicados(scrapePlAltas)
+        plAltas: deduplicarPlAltasVbucks(scrapePlAltas)
     };
 }
 
