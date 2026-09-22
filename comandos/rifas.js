@@ -140,6 +140,9 @@ async function comandoRifa(sock, chatId, msg, args) {
             text: `🎉 *¡TENEMOS GANADOR!*\n\n🏆 El ganador de la rifa es: @${ganador.id.split('@')[0]} 🎊`,
             mentions: [ganador.id]
         });
+
+        // Vaciar la lista después de realizar el sorteo.
+        rifasActivas.delete(chatId);
     }
 }
 
