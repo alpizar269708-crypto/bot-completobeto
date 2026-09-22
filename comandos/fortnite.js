@@ -26,25 +26,66 @@ async function esAdminValido(sock, chatId, msg) {
     return false;
 }
 
-async function obtenerAlertasSTW() {
-    let pavos = [];
-    let epicas = [];
-    let legendarias = []; 
-
+async function leerConfigJSON(clave) {
     try {
-        let manualPavos = await Config.findOne({ clave: 'stw_pavos_activos' });
-        if (manualPavos && manualPavos.valor) pavos = pavos.concat(JSON.parse(manualPavos.valor));
-
-        let manualEpicas = await Config.findOne({ clave: 'stw_epicas_activas' });
-        if (manualEpicas && manualEpicas.valor) epicas = epicas.concat(JSON.parse(manualEpicas.valor));
-
-        let manualLegendarias = await Config.findOne({ clave: 'stw_legendarias_activas' });
-        if (manualLegendarias && manualLegendarias.valor) legendarias = legendarias.concat(JSON.parse(manualLegendarias.valor));
+        const doc = await Config.findOne({ clave });
+        if (!doc || !doc.valor) return [];
+        const parsed = JSON.parse(doc.valor);
+        return Array.isArray(parsed) ? parsed : [];
     } catch (e) {
-        console.error("Error leyendo alertas de STW:", e);
+        console.error(`Error leyendo ${clave}:`, e.message);
+        return [];
+    }
+}
+
+function combinarSinDuplicados(...listas) {
+    const mapa = new Map();
+
+    for (const lista of listas) {
+        for (const item of lista) {
+            const clave = JSON.stringify({
+                pl: item.pl ?? null,
+                mision: item.mision ?? '',
+                ubicacion: item.ubicacion ?? '',
+                recompensa: item.recompensa ?? '',
+                cantidad: item.cantidad ?? null,
+                rareza: item.rareza ?? ''
+            });
+
+            if (!mapa.has(clave)) {
+                mapa.set(clave, item);
+            }
+        }
     }
 
-    return { pavos, epicas, legendarias };
+    return Array.from(mapa.values());
+}
+
+async function obtenerAlertasSTW() {
+    const [
+        scrapePavos,
+        scrapeEpicas,
+        scrapeLegendarias,
+        scrapePlAltas,
+        manualPavos,
+        manualEpicas,
+        manualLegendarias
+    ] = await Promise.all([
+        leerConfigJSON('stw_pavos_scrapeados'),
+        leerConfigJSON('stw_epicas_scrapeadas'),
+        leerConfigJSON('stw_legendarias_scrapeadas'),
+        leerConfigJSON('stw_plaltas_scrapeadas'),
+        leerConfigJSON('stw_pavos_activos'),
+        leerConfigJSON('stw_epicas_activas'),
+        leerConfigJSON('stw_legendarias_activas')
+    ]);
+
+    return {
+        pavos: combinarSinDuplicados(scrapePavos, manualPavos),
+        epicas: combinarSinDuplicados(scrapeEpicas, manualEpicas),
+        legendarias: combinarSinDuplicados(scrapeLegendarias, manualLegendarias),
+        plAltas: combinarSinDuplicados(scrapePlAltas)
+    };
 }
 
 async function alertasSTW(sock, chatId, msg, categoria = 'todas') {
@@ -98,8 +139,8 @@ async function comandoPLaltas(sock, chatId, msg) {
     let texto = `📅 _${fechaHoy}_\n\n🌟 *ALERTAS PLs ALTAS (140 y 160)*\n\n`;
 
     try {
-        let docPlAltas = await Config.findOne({ clave: 'stw_plaltas_activas' });
-        let listaPlAltas = docPlAltas && docPlAltas.valor ? JSON.parse(docPlAltas.valor) : [];
+        const datos = await obtenerAlertasSTW();
+        let listaPlAltas = datos.plAltas || [];
 
         if (listaPlAltas.length === 0) {
             texto += `_No hay alertas de PLs altas registradas en este momento._\n\n`;
@@ -143,7 +184,6 @@ async function comandoResetPavos(sock, chatId, msg) {
     await Config.findOneAndDelete({ clave: 'stw_pavos_activos' });
     await Config.findOneAndDelete({ clave: 'stw_epicas_activas' });
     await Config.findOneAndDelete({ clave: 'stw_legendarias_activas' });
-    await Config.findOneAndDelete({ clave: 'stw_plaltas_activas' });
     await sock.sendMessage(chatId, { text: `🗑️ Alertas restablecidas.` }, { quoted: msg });
 }
 
