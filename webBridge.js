@@ -143,189 +143,353 @@ function traducirMisionYBioma(nombreIngles, textoCompletoZona) {
 function limpiarTextoSTW(texto) {
     return String(texto || '')
         .replace(/\u00a0/g, ' ')
-        .replace(/[\r\n\t]+/g, ' ')
+        .replace(/[ \r\n\t]+/g, ' ')
         .replace(/\s+/g, ' ')
         .trim();
 }
 
-function detectarMisionSTW(texto) {
-    const limpio = limpiarTextoSTW(texto);
-    const nombres = [
-        'fight the storm',
-        'retrieve the data',
-        'repair the shelter',
-        'ride the lightning',
-        'evacuate the shelter',
-        'deliver the bomb',
-        'resupply',
-        'eliminate and collect',
-        'rescue the survivors',
-        'build the radar',
-        'destroy the encampments',
-        'refuel the homebase',
-        'hit the road',
-        'atlas'
-    ];
+function textoConSaltos($, node) {
+    const blockTags = new Set([
+        'ADDRESS','ARTICLE','ASIDE','BLOCKQUOTE','DIV','DL','DT','DD',
+        'FIELDSET','FIGURE','FIGCAPTION','FOOTER','FORM','H1','H2','H3',
+        'H4','H5','H6','HEADER','HR','LI','MAIN','NAV','OL','P','PRE',
+        'SECTION','TABLE','TBODY','THEAD','TFOOT','TR','UL'
+    ]);
 
-    for (const nombre of nombres) {
-        const escaped = nombre.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        const regex = new RegExp(
-            '((?:category\\s+[1-4]\\s+)?' +
-            escaped +
-            '(?:\\s+group)?\\s*-\\s*)(.{2,90}?)(?=\\s+\\d{1,3}\\b|\\s+(?:common|uncommon|rare|epic|legendary|mythic)\\b|$)',
-            'i'
-        );
-
-        const match = limpio.match(regex);
-        if (!match) continue;
-
-        const misionCompleta = match[1].trim();
-        const ubicacion = limpiarTextoSTW(match[2])
-            .replace(/\\s+(?:common|uncommon|rare|epic|legendary|mythic)\\b.*$/i, '')
-            .trim();
-
-        const categoriaMatch = misionCompleta.match(/^category\\s+([1-4])\\s+/i);
-        const base = misionCompleta
-            .replace(/^category\\s+[1-4]\\s+/i, '')
-            .replace(/\\s+group\\s*$/i, '')
-            .replace(/\\s*[-–—]\\s*$/g, '')
-            .trim();
-
-        let misionEsp = traducirMisionYBioma(base, ubicacion)
-            .replace(/ - Zona desconocida$/i, '')
-            .trim();
-
-        if (categoriaMatch) {
-            misionEsp = 'Categoría ' + categoriaMatch[1] + ' ' + misionEsp;
+    function recorrer(el) {
+        if (el.type === 'text') {
+            return el.data || '';
         }
 
-        return {
-            original: base,
-            mision: misionEsp,
-            ubicacion: ubicacion
-                .replace(/^[-–—\\s]+/, '')
-                .replace(/\\s+/g, ' ')
-                .trim()
-        };
+        if (el.type !== 'tag' && el.type !== 'root') {
+            return '';
+        }
+
+        const nombre = String(el.name || '').toUpperCase();
+
+        if (nombre === 'BR') {
+            return '\n';
+        }
+
+        const esBloque = blockTags.has(nombre);
+        const hijos = (el.children || []).map(recorrer).join('');
+
+        return esBloque ? '\n' + hijos + '\n' : hijos;
+    }
+
+    return recorrer(node);
+}
+
+function obtenerLineasSTW($) {
+    const body = $('body')[0];
+    if (!body) return [];
+
+    return textoConSaltos($, body)
+        .split(/\n+/)
+        .map(limpiarTextoSTW)
+        .filter(Boolean);
+}
+
+const MISIONES_STW = [
+    'fight the storm',
+    'retrieve the data',
+    'repair the shelter',
+    'ride the lightning',
+    'evacuate the shelter',
+    'deliver the bomb',
+    'resupply',
+    'eliminate and collect',
+    'rescue the survivors',
+    'build the radar',
+    'destroy the encampments',
+    'refuel the homebase',
+    'hit the road',
+    'rescue the survivors',
+    'atlas'
+];
+
+const ZONAS_STW = [
+    'stonewood',
+    'plankerton',
+    'canny valley',
+    'twine peaks',
+    'venture'
+];
+
+function esNumeroPuro(linea) {
+    return /^\d{1,4}$/.test(String(linea || '').trim());
+}
+
+function obtenerNumeroAnterior(lineas, indice, maxAtras = 8) {
+    for (let i = indice - 1; i >= Math.max(0, indice - maxAtras); i--) {
+        const valor = Number(lineas[i]);
+
+        if (
+            esNumeroPuro(lineas[i]) &&
+            Number.isInteger(valor) &&
+            valor >= 1 &&
+            valor <= 160
+        ) {
+            return valor;
+        }
     }
 
     return null;
 }
 
-function extraerPLSTW(texto, misionInfo) {
-    const limpio = limpiarTextoSTW(texto);
-    if (!misionInfo) return null;
+function extraerMisionDeLinea(linea) {
+    const limpio = limpiarTextoSTW(linea);
 
-    const idx = limpio.toLowerCase().indexOf(misionInfo.original.toLowerCase());
-    if (idx < 0) return null;
-
-    const antes = limpio.slice(0, idx);
-    const nums = [...antes.matchAll(/\\b(\\d{1,3})\\b/g)]
-        .map(m => Number(m[1]))
-        .filter(n => n >= 1 && n <= 160);
-
-    return nums.length ? nums[nums.length - 1] : null;
-}
-
-function extraerRecompensasSTW($, el, textoCard) {
-    const recompensas = [];
-    const vistos = new Set();
-
-    const items = $(el).find(
-        '.mission-reward-item, [class*="mission-reward-item"], [class*="reward-item"]'
-    ).toArray();
-
-    for (const item of items) {
-        const title = $(item).attr('title') || '';
-        const innerText = $(item).text().replace(/\s+/g, ' ').trim();
-        const iconClass = $(item).find('.mission-reward-icon').attr('class') || '';
-        const alt = $(item).find('img').attr('alt') || '';
-
-        const bruto = limpiarTextoSTW(
-            [title, alt, innerText].filter(Boolean).join(' ')
-        );
-
-        if (!bruto) continue;
-
-        const formateado = traducirYFormatearRecompensa(
-            innerText || title || alt,
-            iconClass
-        );
-
-        const rareza = /\blegendary\b/i.test(bruto)
-            ? 'legendary'
-            : /\bepic\b/i.test(bruto)
-                ? 'epic'
-                : null;
-
-        const tipo = /v[\s-]?bucks|vbucks|v bucks/i.test(bruto)
-            ? 'vbucks'
-            : /survivor/i.test(bruto)
-                ? 'survivor'
-                : /defender/i.test(bruto)
-                    ? 'defender'
-                    : /hero/i.test(bruto)
-                        ? 'hero'
-                        : /schematic/i.test(bruto)
-                            ? 'schematic'
-                            : 'other';
-
-        const cantidadMatch = bruto.match(/\b(\d{1,4})\b/);
-        const cantidad = cantidadMatch ? Number(cantidadMatch[1]) : null;
-
-        const key = [formateado, rareza, tipo, bruto].join('|').toLowerCase();
-        if (vistos.has(key)) continue;
-        vistos.add(key);
-
-        recompensas.push({
-            nombre: formateado || bruto,
-            raw: bruto,
-            rareza,
-            tipo,
-            cantidad
-        });
+    if (!limpio || !limpio.includes(' - ')) {
+        return null;
     }
 
-    if (!recompensas.some(r => r.rareza === 'legendary') && /\blegendary\b/i.test(textoCard)) {
-        recompensas.push({
-            nombre: '🟠 Recompensa legendaria',
-            raw: 'Legendary',
-            rareza: 'legendary',
-            tipo: 'other',
-            cantidad: null
-        });
+    const lower = limpio.toLowerCase();
+
+    let encontrada = null;
+
+    for (const nombre of MISIONES_STW) {
+        if (lower.startsWith(nombre + ' - ') ||
+            lower.startsWith('category 1 ' + nombre + ' - ') ||
+            lower.startsWith('category 2 ' + nombre + ' - ') ||
+            lower.startsWith('category 3 ' + nombre + ' - ') ||
+            lower.startsWith('category 4 ' + nombre + ' - ')) {
+            encontrada = nombre;
+            break;
+        }
     }
 
-    if (!recompensas.some(r => r.rareza === 'epic') && /\bepic\b/i.test(textoCard)) {
-        recompensas.push({
-            nombre: '🟣 Recompensa épica',
-            raw: 'Epic',
-            rareza: 'epic',
-            tipo: 'other',
-            cantidad: null
-        });
+    if (!encontrada) {
+        return null;
     }
 
-    return recompensas;
-}
+    let resto = limpio;
 
-function detectarCardSTW($, el) {
-    const texto = limpiarTextoSTW($(el).text());
-    if (texto.length < 15 || texto.length > 900) return null;
+    const prefijoCategoria = resto.match(/^category\s+([1-4])\s+/i);
+    const categoria = prefijoCategoria ? Number(prefijoCategoria[1]) : null;
 
-    const misionInfo = detectarMisionSTW(texto);
-    if (!misionInfo) return null;
+    if (prefijoCategoria) {
+        resto = resto.replace(/^category\s+[1-4]\s+/i, '');
+    }
 
-    const pl = extraerPLSTW(texto, misionInfo);
-    if (!pl) return null;
+    if (!resto.toLowerCase().startsWith(encontrada)) {
+        return null;
+    }
 
-    const recompensas = extraerRecompensasSTW($, el, texto);
+    resto = resto.slice(encontrada.length).replace(/^\s+group\s*/i, ' ');
+    resto = resto.replace(/^\s*-\s*/, '').trim();
+
+    if (!resto) return null;
 
     return {
-        texto,
-        misionInfo,
+        original: encontrada,
+        mision: traducirMisionYBioma(encontrada, resto),
+        ubicacion: resto,
+        categoria
+    };
+}
+
+function detectarTipoLineaSTW(linea, actual) {
+    const lower = limpiarTextoSTW(linea).toLowerCase();
+
+    if (lower.includes('megaalertcategory_miniboss') ||
+        lower.includes('mega alert')) {
+        return 'mega';
+    }
+
+    if (lower.includes('storm_miniboss') ||
+        lower.includes('mini boss')) {
+        return 'miniboss';
+    }
+
+    if (lower.includes('elemental alerts')) {
+        return 'elemental';
+    }
+
+    if (lower.includes('storm alerts')) {
+        return 'storm';
+    }
+
+    return actual;
+}
+
+function detectarRarezaSegmento(segmento) {
+    const texto = segmento.join(' ').toLowerCase();
+
+    if (/\blegendary\b/.test(texto)) return 'legendary';
+    if (/\bepic\b/.test(texto)) return 'epic';
+    if (/\brare\b/.test(texto)) return 'rare';
+    if (/\buncommon\b/.test(texto)) return 'uncommon';
+    if (/\bcommon\b/.test(texto)) return 'common';
+
+    return null;
+}
+
+function detectarCantidadVbucksSegmento(segmento) {
+    for (const linea of segmento) {
+        if (esNumeroPuro(linea)) {
+            const numero = Number(linea);
+
+            if (numero >= 5 && numero <= 1000) {
+                return numero;
+            }
+        }
+    }
+
+    const texto = segmento.join(' ');
+    const match = texto.match(/(?:v[\s-]?bucks|vbucks|v bucks)\s*(?:x\s*)?(\d{1,4})/i);
+
+    if (match) {
+        return Number(match[1]);
+    }
+
+    return 50;
+}
+
+function obtenerNombreRecompensa(segmento) {
+    const ignorar = new Set([
+        'common',
+        'uncommon',
+        'rare',
+        'epic',
+        'legendary',
+        'mythic',
+        'survivor',
+        'defender',
+        'hero',
+        'schematic',
+        'vbucks',
+        'v bucks',
+        'v-bucks',
+        'x 4',
+        'x 5'
+    ]);
+
+    for (let i = 0; i < segmento.length; i++) {
+        const lower = segmento[i].toLowerCase();
+
+        if (
+            lower === 'legendary' ||
+            lower === 'epic'
+        ) {
+            for (let j = i + 1; j < Math.min(segmento.length, i + 4); j++) {
+                const candidata = limpiarTextoSTW(segmento[j]);
+                const lc = candidata.toLowerCase();
+
+                if (!candidata || esNumeroPuro(candidata)) continue;
+                if (ignorar.has(lc)) continue;
+                if (lc.startsWith('mega alert') || lc.startsWith('elemental alert')) continue;
+
+                return candidata;
+            }
+        }
+    }
+
+    return '';
+}
+
+function construirMisionSTW(lineas, indice, zona, tipoAlerta) {
+    const info = extraerMisionDeLinea(lineas[indice]);
+
+    if (!info) return null;
+
+    const pl = obtenerNumeroAnterior(lineas, indice);
+
+    if (!pl) return null;
+
+    const siguienteMision = [];
+
+    for (let i = indice + 1; i < Math.min(lineas.length, indice + 80); i++) {
+        if (extraerMisionDeLinea(lineas[i])) {
+            break;
+        }
+
+        siguienteMision.push(lineas[i]);
+    }
+
+    const segmentoTexto = siguienteMision.join(' ');
+    const lowerSegmento = segmentoTexto.toLowerCase();
+
+    const rareza = detectarRarezaSegmento(siguienteMision);
+
+    const tieneVbucks =
+        /v[\s-]?bucks|vbucks|v bucks/.test(lowerSegmento) ||
+        tipoAlerta === 'vbucks';
+
+    const cantidadVbucks = tieneVbucks
+        ? detectarCantidadVbucksSegmento(siguienteMision)
+        : null;
+
+    let alerta = tipoAlerta || 'normal';
+
+    if (tieneVbucks) {
+        alerta = 'vbucks';
+    } else if (rareza === 'legendary') {
+        alerta = 'legendary';
+    } else if (rareza === 'epic') {
+        alerta = 'epic';
+    } else if (pl >= 140) {
+        alerta = 'pl-alta';
+    }
+
+    let recompensa = '';
+
+    if (tieneVbucks) {
+        recompensa = '🪙 ' + cantidadVbucks + ' PaVos';
+    } else if (rareza === 'legendary' || rareza === 'epic') {
+        const nombre = obtenerNombreRecompensa(siguienteMision);
+
+        if (nombre) {
+            recompensa =
+                (rareza === 'legendary' ? '🟠 ' : '🟣 ') +
+                nombre;
+        } else {
+            recompensa =
+                rareza === 'legendary'
+                    ? '🟠 Recompensa legendaria'
+                    : '🟣 Recompensa épica';
+        }
+    } else if (/supercharger/.test(lowerSegmento)) {
+        recompensa = '⚡ Supercargador';
+    } else if (/re-perk|reperk/.test(lowerSegmento)) {
+        recompensa = '🔄 Re-Perk';
+    } else if (/perk-up/.test(lowerSegmento)) {
+        recompensa = '🟢 Perk-Up';
+    } else if (/storm shard/.test(lowerSegmento)) {
+        recompensa = '💎 Esquirla de tormenta';
+    } else if (/lightning/.test(lowerSegmento)) {
+        recompensa = '⚡ Relámpago en botella';
+    }
+
+    return {
+        id: crypto.createHash('sha1')
+            .update([
+                zona,
+                pl,
+                info.mision,
+                info.ubicacion,
+                recompensa
+            ].join('|'))
+            .digest('hex')
+            .slice(0, 14),
+
+        zona,
         pl,
-        recompensas
+        mision: info.mision,
+        misionOriginal: info.original,
+        ubicacion: info.ubicacion,
+        categoria: info.categoria,
+
+        tipoAlerta: alerta,
+
+        vbucks: tieneVbucks,
+        cantidadVbucks,
+
+        rareza,
+
+        recompensa: recompensa || 'Misión',
+        source: 'https://stw-planner.com/mission-alerts',
+        extraidoEn: new Date().toISOString()
     };
 }
 
@@ -333,225 +497,177 @@ function deduplicarSTW(lista) {
     const mapa = new Map();
 
     for (const item of lista) {
-        const key = [
-            item.zona,
-            item.pl,
-            item.mision,
-            item.ubicacion,
-            item.tipoAlerta,
-            item.recompensa
+        if (!item) continue;
+
+        const clave = [
+            item.zona || '',
+            item.pl || '',
+            item.mision || '',
+            item.ubicacion || '',
+            item.tipoAlerta || '',
+            item.recompensa || ''
         ].join('|').toLowerCase();
 
-        if (!mapa.has(key)) {
-            mapa.set(key, item);
+        if (!mapa.has(clave)) {
+            mapa.set(clave, item);
         }
     }
 
     return Array.from(mapa.values());
 }
 
-async function rasparPaginaZonaSTW(url, zona) {
+async function descargarSTW(url) {
     const response = await axios.get(url, {
         timeout: 30000,
         headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153 Safari/537.36',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/153 Safari/537.36',
             'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
             'Accept-Language': 'en-US,en;q=0.9,es;q=0.8',
             'Cache-Control': 'no-cache'
         }
     });
 
-    const $ = cheerio.load(response.data);
+    return response.data;
+}
+
+function parsearPaginaSTW(html, fuente = 'all') {
+    const $ = cheerio.load(html);
+    const lineas = obtenerLineasSTW($);
+
+    let zonaActual = '';
+    let tipoActual = 'normal';
     const misiones = [];
 
-    $('article, div').each((i, el) => {
-        const hijos = $(el).children().length;
-        if (hijos > 35) return;
+    for (let i = 0; i < lineas.length; i++) {
+        const linea = lineas[i];
+        const lower = linea.toLowerCase();
 
-        const card = detectarCardSTW($, el);
-        if (!card) return;
-
-        const texto = card.texto;
-        const recompensas = card.recompensas;
-
-        let tipoAlerta = 'normal';
-
-        if (/storm_miniboss|miniboss/i.test(texto)) {
-            tipoAlerta = 'miniboss';
-        } else if (/megaalert|mega alerts/i.test(texto)) {
-            tipoAlerta = 'mega';
-        } else if (/elemental alerts/i.test(texto)) {
-            tipoAlerta = 'elemental';
-        } else if (recompensas.some(r => r.tipo === 'vbucks')) {
-            tipoAlerta = 'vbucks';
-        } else if (recompensas.some(r => r.rareza === 'legendary')) {
-            tipoAlerta = 'legendary';
-        } else if (recompensas.some(r => r.rareza === 'epic')) {
-            tipoAlerta = 'epic';
-        } else if (card.pl >= 140) {
-            tipoAlerta = 'pl-alta';
+        if (ZONAS_STW.includes(lower)) {
+            zonaActual = lower === 'venture'
+                ? 'Venture'
+                : linea
+                    .split(' ')
+                    .map(p => p.charAt(0).toUpperCase() + p.slice(1).toLowerCase())
+                    .join(' ');
+            tipoActual = 'normal';
+            continue;
         }
 
-        const recompensaTexto = recompensas
-            .map(r => r.nombre)
-            .filter(Boolean)
-            .slice(0, 8)
-            .join(' | ');
+        const nuevoTipo = detectarTipoLineaSTW(linea, tipoActual);
 
-        misiones.push({
-            id: crypto.createHash('sha1')
-                .update([
-                    zona,
-                    card.pl,
-                    card.misionInfo.mision,
-                    card.misionInfo.ubicacion,
-                    recompensaTexto
-                ].join('|'))
-                .digest('hex')
-                .slice(0, 14),
-            zona,
-            pl: card.pl,
-            mision: card.misionInfo.mision,
-            misionOriginal: card.misionInfo.original,
-            ubicacion: card.misionInfo.ubicacion,
-            tipoAlerta,
-            recompensa: recompensaTexto || 'Misión',
-            recompensas,
-            source: url,
-            extraidoEn: new Date().toISOString()
-        });
-    });
+        if (nuevoTipo !== tipoActual) {
+            tipoActual = nuevoTipo;
+            continue;
+        }
+
+        const info = extraerMisionDeLinea(linea);
+
+        if (!info) continue;
+
+        const mision = construirMisionSTW(
+            lineas,
+            i,
+            zonaActual || 'Desconocida',
+            tipoActual
+        );
+
+        if (mision) {
+            misiones.push(mision);
+        }
+    }
 
     return deduplicarSTW(misiones);
 }
 
-async function rasparPavosSTW() {
-    const url = 'https://stw-planner.com/mission-alerts/v-buck-missions';
+function parsearPavosSTW(html) {
+    const misiones = parsearPaginaSTW(html, 'vbucks');
 
-    const response = await axios.get(url, {
-        timeout: 30000,
-        headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153 Safari/537.36',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-            'Accept-Language': 'en-US,en;q=0.9,es;q=0.8',
-            'Cache-Control': 'no-cache'
-        }
-    });
-
-    const $ = cheerio.load(response.data);
-    const resultado = [];
-
-    $('article, div').each((i, el) => {
-        const hijos = $(el).children().length;
-        if (hijos > 35) return;
-
-        const texto = limpiarTextoSTW($(el).text());
-        const misionInfo = detectarMisionSTW(texto);
-        if (!misionInfo) return;
-
-        const pl = extraerPLSTW(texto, misionInfo);
-        if (!pl) return;
-
-        const idx = texto.toLowerCase().indexOf(misionInfo.original.toLowerCase());
-        const despues = idx >= 0 ? texto.slice(idx + misionInfo.original.length) : '';
-        const cantidades = [...despues.matchAll(/\b(\d{1,3})\b/g)]
-            .map(m => Number(m[1]))
-            .filter(n => n > 0 && n <= 1000);
-
-        const cantidad = cantidades.length ? cantidades[0] : 50;
-
-        resultado.push({
-            pl,
-            mision: misionInfo.mision,
-            misionOriginal: misionInfo.original,
-            ubicacion: misionInfo.ubicacion,
-            zona: 'Desconocida',
-            cantidad,
+    return misiones
+        .filter(m => m.vbucks || m.tipoAlerta === 'vbucks')
+        .map(m => ({
+            pl: m.pl,
+            mision: m.mision,
+            misionOriginal: m.misionOriginal,
+            ubicacion: m.ubicacion,
+            zona: m.zona,
+            cantidad: m.cantidadVbucks || 50,
             recompensa: 'PaVos',
             tipo: 'STW Planner',
-            source: url,
+            source: 'https://stw-planner.com/mission-alerts/v-buck-missions',
             extraidoEn: new Date().toISOString()
-        });
-    });
-
-    const unicos = new Map();
-
-    for (const item of resultado) {
-        const key = [item.pl, item.mision, item.ubicacion].join('|').toLowerCase();
-        if (!unicos.has(key)) unicos.set(key, item);
-    }
-
-    return Array.from(unicos.values());
+        }));
 }
 
 async function extraerAlertasAPI() {
     try {
-        console.log('\n--- 🌐 RASPADO COMPLETO STW PLANNER ---');
+        console.log('\n--- 🌐 RASPADO STW PLANNER ---');
 
-        const zonas = [
-            ['Stonewood', 'https://stw-planner.com/mission-alerts/stonewood'],
-            ['Plankerton', 'https://stw-planner.com/mission-alerts/plankerton'],
-            ['Canny Valley', 'https://stw-planner.com/mission-alerts/canny-valley'],
-            ['Twine Peaks', 'https://stw-planner.com/mission-alerts/twine-peaks'],
-            ['Venture', 'https://stw-planner.com/mission-alerts/venture']
-        ];
+        const urlPrincipal = 'https://stw-planner.com/mission-alerts';
+        const urlPavos = 'https://stw-planner.com/mission-alerts/v-buck-missions';
 
-        const resultados = [];
+        const [htmlPrincipal, htmlPavos] = await Promise.all([
+            descargarSTW(urlPrincipal),
+            descargarSTW(urlPavos)
+        ]);
 
-        for (const [zona, url] of zonas) {
-            try {
-                const lista = await rasparPaginaZonaSTW(url, zona);
-                console.log('✅ ' + zona + ': ' + lista.length + ' misiones');
-                resultados.push(...lista);
-            } catch (error) {
-                console.error('❌ ' + zona + ': ' + error.message);
+        const todas = parsearPaginaSTW(htmlPrincipal, 'all');
+        const pavosPagina = parsearPavosSTW(htmlPavos);
+
+        const clavesPavos = new Set(
+            pavosPagina.map(p =>
+                [
+                    p.pl,
+                    p.mision,
+                    p.ubicacion
+                ].join('|').toLowerCase()
+            )
+        );
+
+        const pavosFinal = [];
+
+        for (const pavo of pavosPagina) {
+            pavosFinal.push(pavo);
+        }
+
+        for (const mision of todas) {
+            const clave = [
+                mision.pl,
+                mision.mision,
+                mision.ubicacion
+            ].join('|').toLowerCase();
+
+            if (clavesPavos.has(clave)) {
+                continue;
             }
         }
 
-        let pavos = [];
-
-        try {
-            pavos = await rasparPavosSTW();
-            console.log('🪙 Pavos: ' + pavos.length + ' misiones');
-        } catch (error) {
-            console.error('❌ V-Bucks: ' + error.message);
-        }
-
-        if (resultados.length === 0 && pavos.length === 0) {
-            console.warn('⚠️ STW Planner no devolvió misiones. Se conservan los datos anteriores.');
+        if (todas.length === 0 && pavosFinal.length === 0) {
+            console.warn(
+                '⚠️ STW Planner devolvió 0 misiones. No se modifican los datos anteriores.'
+            );
             return;
         }
 
-        const todas = deduplicarSTW(resultados);
-
-        const pavosFinal = deduplicarSTW(
-            pavos.map(p => Object.assign({}, p, {
-                zona: p.zona || 'Desconocida',
-                pl: Number(p.pl),
-                tipoAlerta: 'vbucks'
-            }))
-        );
-
         const epicas = todas
-            .filter(m => m.recompensas.some(r => r.rareza === 'epic'))
+            .filter(m => m.rareza === 'epic')
             .map(m => ({
                 pl: m.pl,
                 mision: m.mision,
                 ubicacion: m.ubicacion,
                 zona: m.zona,
-                recompensa: m.recompensa || 'Recompensa épica',
+                recompensa: m.recompensa,
                 rareza: 'epic',
                 source: m.source
             }));
 
         const legendarias = todas
-            .filter(m => m.recompensas.some(r => r.rareza === 'legendary'))
+            .filter(m => m.rareza === 'legendary')
             .map(m => ({
                 pl: m.pl,
                 mision: m.mision,
                 ubicacion: m.ubicacion,
                 zona: m.zona,
-                recompensa: m.recompensa || 'Recompensa legendaria',
+                recompensa: m.recompensa,
                 rareza: 'legendary',
                 source: m.source
             }));
@@ -563,37 +679,37 @@ async function extraerAlertasAPI() {
                 mision: m.mision,
                 ubicacion: m.ubicacion,
                 zona: m.zona,
-                recompensa: m.recompensa || 'Misión',
+                recompensa: m.recompensa,
                 source: m.source
             }));
 
         await Config.findOneAndUpdate(
             { clave: 'stw_pavos_scrapeados' },
-            { valor: JSON.stringify(pavosFinal) },
+            { valor: JSON.stringify(deduplicarSTW(pavosFinal)) },
             { upsert: true }
         );
 
         await Config.findOneAndUpdate(
             { clave: 'stw_epicas_scrapeadas' },
-            { valor: JSON.stringify(epicas) },
+            { valor: JSON.stringify(deduplicarSTW(epicas)) },
             { upsert: true }
         );
 
         await Config.findOneAndUpdate(
             { clave: 'stw_legendarias_scrapeadas' },
-            { valor: JSON.stringify(legendarias) },
+            { valor: JSON.stringify(deduplicarSTW(legendarias)) },
             { upsert: true }
         );
 
         await Config.findOneAndUpdate(
             { clave: 'stw_plaltas_scrapeadas' },
-            { valor: JSON.stringify(plAltas) },
+            { valor: JSON.stringify(deduplicarSTW(plAltas)) },
             { upsert: true }
         );
 
         await Config.findOneAndUpdate(
             { clave: 'stw_plaltas_activas' },
-            { valor: JSON.stringify(plAltas) },
+            { valor: JSON.stringify(deduplicarSTW(plAltas)) },
             { upsert: true }
         );
 
@@ -626,7 +742,10 @@ async function extraerAlertasAPI() {
             plAltas.length
         );
     } catch (e) {
-        console.error('❌ Error en la extracción STW Planner:', e.message);
+        console.error(
+            '❌ Error en la extracción STW Planner:',
+            e.message
+        );
     }
 }
 
