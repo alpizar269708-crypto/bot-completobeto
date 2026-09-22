@@ -861,7 +861,7 @@ async function extraerAlertasAPI() {
             // 3) Recompensa legendaria concreta: siempre mostrar.
             if (/legendary|legendaria|legendario/.test(combinado)) {
                 const concreta =
-                    /survivor|superviviente|hero|héroe|defender|defensor|schematic|esquema|plano/.test(combinado);
+                    /survivor|superviviente|hero|héroe|schematic|esquema|plano/.test(combinado);
 
                 if (concreta) {
                     return {
@@ -888,7 +888,7 @@ async function extraerAlertasAPI() {
             if (
                 esEpica &&
                 esPersonajeOEquipo &&
-                Number(mision.pl) >= 100
+                Number(mision.pl) >= 124
             ) {
                 return {
                     mostrar: true,
@@ -897,18 +897,8 @@ async function extraerAlertasAPI() {
                 };
             }
 
-            // 5) Alertas Mega/Mini-Boss de PL >= 140: se consideran destacables
-            // aunque la recompensa textual no venga bien etiquetada.
-            if (
-                Number(mision.pl) >= 140 &&
-                /mega|miniboss|mini boss/.test(combinado)
-            ) {
-                return {
-                    mostrar: true,
-                    nivel: 70,
-                    motivo: '💀 Alerta especial PL alto'
-                };
-            }
+            // No incluimos una Mega/Mini-Boss solo por ser de PL alto.
+            // Si la recompensa no es buena, queda fuera.
 
             // Todo lo demás (oro, perk-up, reperk, materiales comunes,
             // defensores/supervivientes comunes, etc.) queda fuera.
