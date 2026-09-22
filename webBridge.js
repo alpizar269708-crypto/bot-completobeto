@@ -581,7 +581,6 @@ function detectarTipoRecompensaSTW(iconClasses, dataFilter, rawName) {
     if (/survivor|workerbasic|managerengineer/.test(clases)) return 'survivor';
     if (/\bdefender\b/.test(clases)) return 'defender';
     if (/schematic/.test(clases)) return 'schematic';
-    if (/\bgroup\b/.test(clases)) return 'x4';
     if (/reperk|re-perk/.test(clases)) return 'reperk';
     if (/perkup|perk-up/.test(clases)) return 'perkup';
     if (/ore|crystal/.test(clases)) return 'ore';
@@ -642,7 +641,7 @@ function extraerRecompensasMissionEntrySTW($, missionEntry) {
             );
 
             let rareza = detectarRarezaSTW(
-                $(missionEntry).attr('class') || '',
+                '',
                 rewardTypeTexto
             );
 
@@ -813,11 +812,14 @@ function extraerMisionEntrySTW($, missionEntry, zona, tipoAlerta) {
             )
             : null,
 
-        rareza: detectarRarezaSTW(
-            atributos,
-            recompensas.map(r => (
-                (r.rareza || '') + ' ' + r.raw
-            )).join(' ')
+        rareza: (
+            recompensas.find(r => r.rareza === 'mythic')?.rareza ||
+            recompensas.find(r => r.rareza === 'legendary')?.rareza ||
+            recompensas.find(r => r.rareza === 'epic')?.rareza ||
+            recompensas.find(r => r.rareza === 'rare')?.rareza ||
+            recompensas.find(r => r.rareza === 'uncommon')?.rareza ||
+            recompensas.find(r => r.rareza === 'common')?.rareza ||
+            null
         ),
 
         recompensas,
