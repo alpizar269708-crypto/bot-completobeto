@@ -33,6 +33,17 @@ const categoriasMap = {
     'menu': ['menu', 'menusecreto']
 };
 
+const cacheConfigComandos = new Map();
+const cacheBaneoUsuario = new Map();
+const CACHE_TTL_MS = 5000;
+
+const comandosConUsuarioBD = new Set([
+    'cartera', 'bal', 'banco', 'pay', 'pagar', 'daily', 'weekly',
+    'farmear', 'work', 'crime', 'mendigar', 'pescar', 'minar', 'cazar', 'explorar',
+    'ruleta', 'cf', 'slots', 'dados', 'adivina', 'buscaminas', 'rob', 'ppt',
+    'pelea', 'carrera', 'hackear', 'buy', 'inventario', 'mochila', 'vender', 'use', 'regalar'
+]);
+
 const comandosValidos = new Set([
         'activarcomandos', 'setprecio', 'ping', 'pavos', 'destacadasstw', 'legendariasstw', 'epicasstw', 'alertasstw', 'stw', 'alerta', 
         'setgrupostw', 'unsetgrupostw', 'grupo', 'mute', 'unmute', 'inactivos', 'tienda', 'ia', 'menu', 'menusecreto',
@@ -123,7 +134,16 @@ Apoya a un creador: JASC13` });
     // Si no es un comando conocido, no consultamos MongoDB.
     if (!esComandoValido) return;
 
-    let configGrupo = await Config.findOne({ clave: `comandos_${chatJid}` });
+    let configGrupo = null;
+    if (chatJid.endsWith('@g.us')) {
+        const cache = cacheConfigComandos.get(chatJid);
+        if (cache && cache.expira > Date.now()) {
+            configGrupo = cache.valor;
+        } else {
+            configGrupo = await Config.findOne({ clave: `comandos_${chatJid}` });
+            cacheConfigComandos.set(chatJid, { valor: configGrupo, expira: Date.now() + CACHE_TTL_MS });
+        }
+    }
     if (configGrupo && !msg.key.fromMe && chatJid.endsWith('@g.us')) {
         let permitidos = JSON.parse(configGrupo.valor);
         let comandoPermitido = false;
@@ -140,9 +160,24 @@ Apoya a un creador: JASC13` });
     }
 
     // Solo los comandos llegan hasta aquí; los mensajes normales ya salieron arriba.
-    let usuarioBD = await User.findOne({ numero: remitenteReal });
-    if (!usuarioBD) usuarioBD = await User.create({ numero: remitenteReal });
-    if (usuarioBD.baneado) return;
+    // Los comandos que realmente necesitan el documento completo lo cargan una vez.
+    // Para el resto solo comprobamos el baneo y lo cacheamos unos segundos.
+    let usuarioBD = null;
+    if (comandosConUsuarioBD.has(comando)) {
+        usuarioBD = await User.findOne({ numero: remitenteReal });
+        if (!usuarioBD) usuarioBD = await User.create({ numero: remitenteReal });
+        if (usuarioBD.baneado) return;
+    } else {
+        const cacheBaneo = cacheBaneoUsuario.get(remitenteReal);
+        if (cacheBaneo && cacheBaneo.expira > Date.now()) {
+            if (cacheBaneo.baneado) return;
+        } else {
+            const usuarioEstado = await User.findOne({ numero: remitenteReal }).select('baneado').lean();
+            const baneado = !!usuarioEstado?.baneado;
+            cacheBaneoUsuario.set(remitenteReal, { baneado, expira: Date.now() + CACHE_TTL_MS });
+            if (baneado) return;
+        }
+    }
 
 
     if (comando === 'desactivarbienvenida') {
