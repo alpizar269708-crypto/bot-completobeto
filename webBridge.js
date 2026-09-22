@@ -548,6 +548,19 @@ async function extraerAlertasAPI() {
         }
 
         const pavosFinal = Array.from(mapaPavos.values());
+
+        // Elimina registros de las configuraciones manuales antiguas.
+        // STW Planner es ahora la única fuente de alertas de Save the World.
+        await Config.deleteMany({
+            clave: {
+                $in: [
+                    'stw_pavos_activos',
+                    'stw_epicas_activas',
+                    'stw_legendarias_activas',
+                    'stw_plaltas_activas'
+                ]
+            }
+        });
         const tiposBuenos = ['hero', 'survivor', 'defender', 'schematic'];
 
         const epicas = todas
