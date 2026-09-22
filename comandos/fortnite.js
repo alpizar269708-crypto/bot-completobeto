@@ -376,14 +376,20 @@ async function activarAlertasDiarias(sock, chatId, msg) {
     }
 
     grupos = [...new Set(grupos.filter(id => typeof id === 'string' && id.endsWith('@g.us')))];
-    if (!grupos.includes(chatId)) {
-        grupos.push(chatId);
-        await Config.findOneAndUpdate(
-            { clave: 'chat_alertas_diarias' },
-            { valor: JSON.stringify(grupos) },
-            { upsert: true }
-        );
+
+    if (grupos.includes(chatId)) {
+        await sock.sendMessage(chatId, {
+            text: 'ℹ️ *Este grupo ya se encuentra activado para las alertas de PaVos.*\n\n📅 Seguirán recibiendo la alerta automática todos los días a las *6:02 PM* (hora de Ciudad de México).'
+        }, { quoted: msg });
+        return;
     }
+
+    grupos.push(chatId);
+    await Config.findOneAndUpdate(
+        { clave: 'chat_alertas_diarias' },
+        { valor: JSON.stringify(grupos) },
+        { upsert: true }
+    );
 
     await sock.sendMessage(chatId, {
         text: `✅ *Alertas de PaVos activadas en este grupo.*\n\n📅 Recibirán la alerta automática todos los días a las *6:02 PM* (hora de Ciudad de México).\n🪙 El aviso contendrá *únicamente las alertas de PaVos*.`
