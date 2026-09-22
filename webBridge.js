@@ -609,9 +609,11 @@ async function extraerAlertasAPI() {
         function prepararAlertaChida(mision) {
             const evaluada = evaluarAlertaChida(mision);
             if (!evaluada.mostrar) return null;
-            const recompensasDestacadas = Array.isArray(evaluada.destacadas) ? evaluada.destacadas : [];
-            const recompensaMostrar = recompensasDestacadas.length
-                ? recompensasDestacadas.map(r => r.nombre).filter(Boolean).join(' | ')
+            // La misión se filtra por recompensas épicas/legendarias, pero
+            // al mostrarla enseñamos TODAS sus recompensas reales.
+            const recompensasTodas = Array.isArray(mision.recompensas) ? mision.recompensas : [];
+            const recompensaMostrar = recompensasTodas.length
+                ? recompensasTodas.map(r => r.nombre).filter(Boolean).join(' | ')
                 : (mision.recompensa && mision.recompensa !== 'Misión' ? mision.recompensa : evaluada.motivo);
 
             return {
@@ -626,7 +628,8 @@ async function extraerAlertasAPI() {
                 tipoAlertaTexto: mision.tipoAlertaTexto,
                 esX4: Boolean(mision.esX4),
                 modificadores: Array.isArray(mision.modificadores) ? mision.modificadores : [],
-                recompensas: recompensasDestacadas,
+                // Guardamos todas las recompensas, no solamente las destacadas.
+                recompensas: recompensasTodas,
                 source: mision.source || urlPrincipal
             };
         }
