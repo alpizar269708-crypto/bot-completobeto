@@ -1,7 +1,69 @@
+const { Config } = require('../database/modelos');
+
 const rifasActivas = new Map();
+const rifasAbiertas = new Set();
+
+async function obtenerPropietarioRifas() {
+    const config = await Config.findOne({ clave: 'rifa_propietario' });
+    return config?.valor || null;
+}
+
+async function comandoAbrirRifa(sock, chatId, msg) {
+    if (chatId.endsWith('@g.us')) return;
+
+    const sender = msg.key.participant || msg.key.remoteJid;
+    let propietario = await obtenerPropietarioRifas();
+
+    if (!propietario) {
+        await Config.findOneAndUpdate(
+            { clave: 'rifa_propietario' },
+            { valor: sender },
+            { upsert: true }
+        );
+        propietario = sender;
+    }
+
+    if (sender !== propietario) return;
+
+    await sock.sendMessage(chatId, {
+        text: '🔓 *Rifa habilitada.*\n\nAhora usa *activarrifaaqui* dentro del grupo donde quieras abrir la inscripción.'
+    }, { quoted: msg });
+}
+
+async function comandoActivarRifaAqui(sock, chatId, msg) {
+    if (!chatId.endsWith('@g.us')) return;
+
+    const sender = msg.key.participant || msg.key.remoteJid;
+    const propietario = await obtenerPropietarioRifas();
+
+    if (!propietario || sender !== propietario) return;
+
+    rifasAbiertas.add(chatId);
+    await Config.findOneAndUpdate(
+        { clave: `rifa_abierta_${chatId}` },
+        { valor: 'true' },
+        { upsert: true }
+    );
+
+    await sock.sendMessage(chatId, {
+        text: '🔓 *Rifa activada en este grupo.* Ya se puede usar *rifainscripcion* aquí.'
+    }, { quoted: msg });
+}
+
+async function rifaEstaAbierta(chatId) {
+    if (rifasAbiertas.has(chatId)) return true;
+    const config = await Config.findOne({ clave: `rifa_abierta_${chatId}` });
+    if (config?.valor === 'true') {
+        rifasAbiertas.add(chatId);
+        return true;
+    }
+    return false;
+}
 
 // === COMANDO PARA USUARIOS NORMALES ===
 async function comandoRifaInscripcion(sock, chatId, msg) {
+    if (!(await rifaEstaAbierta(chatId))) return;
+
     const sender = msg.key.participant || msg.key.remoteJid;
     const pushName = msg.pushName || 'Usuario';
 
@@ -21,6 +83,8 @@ async function comandoRifaInscripcion(sock, chatId, msg) {
 
 // === COMANDO EXCLUSIVO PARA ADMINISTRADORES ===
 async function comandoRifa(sock, chatId, msg, args) {
+    if (!(await rifaEstaAbierta(chatId))) return;
+
     // Candado estricto para Administradores
     if (chatId.endsWith('@g.us')) {
         try {
@@ -310,4 +374,4 @@ async function comandoRifaJasc13(sock, chatId, msg, args) {
     }
 }
 
-module.exports = { comandoRifa, comandoRifaInscripcion, comandoRifaJasc13, comandoMenuRifaJasc13 };
+module.exports = { comandoRifa, comandoRifaInscripcion, comandoRifaJasc13, comandoMenuRifaJasc13, comandoAbrirRifa, comandoActivarRifaAqui };
