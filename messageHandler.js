@@ -40,7 +40,15 @@ async function procesarMensaje(sock, msg) {
     const textoOriginal = msg.message?.conversation || msg.message?.extendedTextMessage?.text || msg.message?.imageMessage?.caption || msg.message?.videoMessage?.caption || '';
     if (!textoOriginal) return;
 
-    if (textoOriginal === 'cerrarsesionauth') {
+    const normalizarComando = (texto) => (texto || '')
+        .trim()
+        .split(/\s+/)[0]
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/^[!/.]/, '');
+
+    if (normalizarComando(textoOriginal) === 'cerrarsesionauth') {
         if (msg.key.fromMe || true) { 
             console.log('🔴 Comando de cierre de sesión recibido...');
             try {
@@ -59,7 +67,7 @@ Apoya a un creador: JASC13` });
         }
     }
 
-    const textoComandoPrevio = textoOriginal.trim().split(/\s+/)[0].toLowerCase().replace(/^[!/.]/, '');
+    const textoComandoPrevio = normalizarComando(textoOriginal);
     // La lista blanca se procesa antes del anti-links para permitir agregar cualquier URL.
     if (textoComandoPrevio === 'listablanca') {
         const partesListaBlanca = textoOriginal.trim().split(/\s+/);
@@ -85,8 +93,8 @@ Apoya a un creador: JASC13` });
     const textoLimpio = textoMinusculas.normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
 
     let args = textoLimpio.split(/ +/);
-    let comandoRaw = args.shift(); 
-    let comando = ['!', '/', '.'].includes(comandoRaw[0]) ? comandoRaw.substring(1) : comandoRaw;
+    let comandoRaw = args.shift();
+    let comando = normalizarComando(comandoRaw);
 
     let configGrupo = await Config.findOne({ clave: `comandos_${chatJid}` });
     if (configGrupo && !msg.key.fromMe && chatJid.endsWith('@g.us')) {
@@ -108,7 +116,7 @@ Apoya a un creador: JASC13` });
         'activarcomandos', 'setprecio', 'ping', 'pavos', 'destacadasstw', 'legendariasstw', 'epicasstw', 'alertasstw', 'stw', 'alerta', 
         'setgrupostw', 'unsetgrupostw', 'grupo', 'mute', 'unmute', 'inactivos', 'tienda', 'ia', 'menu', 'menusecreto',
         's', 'sticker', 'todos', 'tiktok', 'traduce', 'skin', 'stats', 'contacto',
-        'warn', 'advertir', 'verwarns', 'ban', 'unban', 'listanegra', 'banlist', 'unbanlist', 
+        'warn', 'advertir', 'verwarns', 'limpiarwarns', 'ban', 'unban', 'listanegra', 'banlist', 'unbanlist', 
         'cartera', 'bal', 'banco', 'pay', 'pagar', 'top', 'topdinero', 'daily', 'weekly',
         'farmear', 'work', 'crime', 'mendigar', 'pescar', 'minar', 'cazar', 'explorar',
         'ruleta', 'cf', 'slots', 'dados', 'adivina', 'buscaminas', 'rob', 'ppt', 'pelea',
