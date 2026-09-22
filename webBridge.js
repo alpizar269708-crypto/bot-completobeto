@@ -647,7 +647,6 @@ async function extraerAlertasAPI() {
         await Config.findOneAndUpdate({ clave: 'stw_epicas_scrapeadas' }, { valor: JSON.stringify(deduplicarSTW(epicas)) }, { upsert: true });
         await Config.findOneAndUpdate({ clave: 'stw_legendarias_scrapeadas' }, { valor: JSON.stringify(deduplicarSTW(legendarias)) }, { upsert: true });
         await Config.findOneAndUpdate({ clave: 'stw_plaltas_scrapeadas' }, { valor: JSON.stringify(plAltas) }, { upsert: true });
-        await Config.findOneAndUpdate({ clave: 'stw_plaltas_activas' }, { valor: JSON.stringify(plAltas) }, { upsert: true });
         await Config.findOneAndUpdate({ clave: 'stw_ultima_actualizacion' }, { valor: JSON.stringify({ fuente: 'STW Planner', actualizadoEn: new Date().toISOString(), totalMisiones: todas.length, pavos: pavosFinal.length, epicas: epicas.length, legendarias: legendarias.length, plAltas: plAltas.length }) }, { upsert: true });
 
         console.log('✅ STW Planner guardado | Total: ' + todas.length + ' | 🪙 Pavos: ' + pavosFinal.length + ' | 🟣 Épicas: ' + epicas.length + ' | 🟠 Legendarias: ' + legendarias.length + ' | 🔥 Alertas destacadas: ' + plAltas.length);
