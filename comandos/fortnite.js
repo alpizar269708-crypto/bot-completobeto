@@ -218,7 +218,7 @@ async function alertasSTW(sock, chatId, msg, categoria = 'todas') {
         }
     }
 
-    let texto = lineasPavos.join('\\n');
+    let texto = lineasPavos.join('\n');
 
     // El resto de alertas se agrega al mismo mensaje.
     
