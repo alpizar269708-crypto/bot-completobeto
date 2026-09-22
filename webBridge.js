@@ -569,23 +569,47 @@ function normalizarRecompensaSTW(nombre, rareza, tipo) {
 }
 
 function detectarTipoRecompensaSTW(iconClasses, dataFilter, rawName) {
-    const clases = (
-        String(iconClasses || '') + ' ' +
-        String(dataFilter || '') + ' ' +
-        String(rawName || '')
-    ).toLowerCase();
+    // IMPORTANTE:
+    // data-filter pertenece a TODA la misión y puede contener varios tipos
+    // (por ejemplo: "vbucks evolution reperk"). No debe usarse como fuente
+    // principal para clasificar cada reward-item, porque podría convertir
+    // todas las recompensas de la misión en PaVos.
+    const icon = String(iconClasses || '').toLowerCase();
+    const nombre = String(rawName || '').toLowerCase();
 
-    if (/currency_mtxswap|vbucks|v-bucks|v bucks/.test(clases)) return 'vbucks';
-    if (/supercharger|supercargador/.test(clases)) return 'supercharger';
-    if (/\bhero\b/.test(clases)) return 'hero';
-    if (/survivor|workerbasic|managerengineer/.test(clases)) return 'survivor';
-    if (/\bdefender\b/.test(clases)) return 'defender';
-    if (/schematic/.test(clases)) return 'schematic';
-    if (/reperk|re-perk/.test(clases)) return 'reperk';
-    if (/perkup|perk-up/.test(clases)) return 'perkup';
-    if (/ore|crystal/.test(clases)) return 'ore';
-    if (/reagent_c_|reagent_alteration_|evolution/.test(clases)) return 'evolution';
-    if (/llama/.test(clases)) return 'llama';
+    // Primero usamos la clase real del icono de ESTA recompensa.
+    if (/currency_mtxswap|vbucks|v-bucks|v bucks/.test(icon)) return 'vbucks';
+    if (/supercharger|supercargador/.test(icon)) return 'supercharger';
+    if (/\bhero\b/.test(icon)) return 'hero';
+    if (/survivor|workerbasic|managerengineer/.test(icon)) return 'survivor';
+    if (/\bdefender\b/.test(icon)) return 'defender';
+    if (/schematic/.test(icon)) return 'schematic';
+    if (/reperk|re-perk/.test(icon)) return 'reperk';
+    if (/perkup|perk-up/.test(icon)) return 'perkup';
+    if (/ore|crystal/.test(icon)) return 'ore';
+    if (/reagent_c_|reagent_alteration_|evolution/.test(icon)) return 'evolution';
+    if (/llama/.test(icon)) return 'llama';
+
+    // Como respaldo, usamos el nombre textual de esa recompensa.
+    if (/supercharger|supercargador/.test(nombre)) return 'supercharger';
+    if (/\bhero\b/.test(nombre)) return 'hero';
+    if (/survivor|workerbasic|managerengineer/.test(nombre)) return 'survivor';
+    if (/\bdefender\b/.test(nombre)) return 'defender';
+    if (/schematic/.test(nombre)) return 'schematic';
+    if (/reperk|re-perk/.test(nombre)) return 'reperk';
+    if (/perkup|perk-up/.test(nombre)) return 'perkup';
+    if (/ore|crystal/.test(nombre)) return 'ore';
+    if (/llama/.test(nombre)) return 'llama';
+
+    // Solo usamos data-filter como último recurso y para tipos que no puedan
+    // confundirse entre varias recompensas del mismo mission-entry.
+    const filtro = String(dataFilter || '').toLowerCase();
+
+    if (/supercharger|supercargador/.test(filtro)) return 'supercharger';
+    if (/\bschematic\b/.test(filtro)) return 'schematic';
+    if (/\breperk\b|re-perk/.test(filtro)) return 'reperk';
+    if (/\bperkup\b|perk-up/.test(filtro)) return 'perkup';
+    if (/\bllama\b/.test(filtro)) return 'llama';
 
     return 'other';
 }
