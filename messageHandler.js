@@ -47,8 +47,6 @@ const comandosValidos = new Set([
 ]);
 
 async function procesarMensaje(sock, msg) {
-    if (msg.key.fromMe) return;
-
     const chatJid = msg.key.remoteJid;
     const textoOriginal = msg.message?.conversation || msg.message?.extendedTextMessage?.text || msg.message?.imageMessage?.caption || msg.message?.videoMessage?.caption || '';
     if (!textoOriginal) return;
@@ -60,6 +58,15 @@ async function procesarMensaje(sock, msg) {
         .normalize('NFD')
         .replace(/[\u0300-\u036f]/g, '')
         .replace(/^[!/.]/, '');
+
+    const comandoPropioPermitido = new Set([
+        'warn', 'advertir', 'verwarns', 'limpiarwarns',
+        'ban', 'unban', 'listanegra', 'banlist', 'unbanlist'
+    ]);
+
+    // Los mensajes enviados por el propio número del bot normalmente se ignoran.
+    // Excepción: solo se aceptan los comandos de warns/lista negra definidos arriba.
+    if (msg.key.fromMe && !comandoPropioPermitido.has(normalizarComando(textoOriginal))) return;
 
     if (normalizarComando(textoOriginal) === 'cerrarsesionauth') {
         if (msg.key.fromMe || true) { 
@@ -81,22 +88,24 @@ Apoya a un creador: JASC13` });
     }
 
     const textoComandoPrevio = normalizarComando(textoOriginal);
+    const esComandoPropioPermitido = msg.key.fromMe && comandoPropioPermitido.has(textoComandoPrevio);
+
     // La lista blanca se procesa antes del anti-links para permitir agregar cualquier URL.
-    if (textoComandoPrevio === 'listablanca') {
+    if (!esComandoPropioPermitido && textoComandoPrevio === 'listablanca') {
         const partesListaBlanca = textoOriginal.trim().split(/\s+/);
         await comandoListaBlancaLinks(sock, chatJid, msg, partesListaBlanca.slice(1));
         return;
     }
 
-    if (await verificarAntiLinks(sock, msg)) return;
+    if (!esComandoPropioPermitido && await verificarAntiLinks(sock, msg)) return;
 
     const remitenteReal = msg.key.participant || chatJid;
-    if (verificarMute(chatJid, remitenteReal)) {
+    if (!esComandoPropioPermitido && verificarMute(chatJid, remitenteReal)) {
         try { await sock.sendMessage(chatJid, { delete: msg.key }); } catch (e) {}
         return;
     }
 
-    if (await verificarAntiSpam(sock, msg)) return;
+    if (!esComandoPropioPermitido && await verificarAntiSpam(sock, msg)) return;
 
     const textoMinusculas = textoOriginal.toLowerCase();
     const textoLimpio = textoMinusculas.normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
