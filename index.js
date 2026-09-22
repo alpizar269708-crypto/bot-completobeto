@@ -7,7 +7,6 @@ const { procesarMensaje } = require('./messageHandler');
 const { verificarNuevoMiembro } = require('./comandos/moderacion');
 const { iniciarCronAlertasDiarias } = require('./comandos/fortnite');
 const { iniciarPuenteDiscord, vincularChatWhatsApp } = require('./webBridge');
-const { iniciarDiscordScraper } = require('./discordScraper'); // <-- 🤖 Importado el scraper de Discord
 const express = require('express');
 
 const app = express();
@@ -173,9 +172,8 @@ async function arrancarSocket(metodo, numeroTelefono, onCodeReady = null) {
             
             iniciarCronAlertasDiarias(sock);
             
-            // 🚀 Inicializa ambos servicios al arrancar WhatsApp
-            iniciarPuenteDiscord(sock);       // Mantiene activo PLaltas (stw-planner)
-            iniciarDiscordScraper(sock);      // Activa el scraper de Discord para legendarias y épicas
+            // 🚀 Única fuente automática de alertas Fortnite: STW Planner
+            iniciarPuenteDiscord(sock);
         }
     });
 
