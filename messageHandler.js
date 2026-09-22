@@ -105,7 +105,8 @@ Apoya a un creador: JASC13` });
         'farmear', 'work', 'crime', 'mendigar', 'pescar', 'minar', 'cazar', 'explorar',
         'ruleta', 'cf', 'slots', 'dados', 'adivina', 'buscaminas', 'rob', 'ppt', 'pelea',
         'carrera', 'hackear', 'shop', 'buy', 'inventario', 'mochila', 'vender', 'use', 'regalar',
-        'rifa', 'rifainscripcion', 'rifajasc13', 'abrirrifa', 'activarrifaaqui', 'menurifajasc13', 'carryleader', 'carryjoin', 'carryleave', 'carryclose', 'blcarry', 'unblcarry', 'listcarrybl'
+        'rifa', 'rifainscripcion', 'rifajasc13', 'abrirrifa', 'activarrifaaqui', 'menurifajasc13', 'carryleader', 'carryjoin', 'carryleave', 'carryclose', 'blcarry', 'unblcarry', 'listcarrybl',
+        'vertodosconandos', 'vertodoscomandos', 'salvar'
     ];
 
     if (comando === 'abrirrifa') {
@@ -115,6 +116,28 @@ Apoya a un creador: JASC13` });
 
     if (comando === 'activarrifaaqui') {
         await comandoActivarRifaAqui(sock, chatJid, msg);
+        return;
+    }
+
+    if (comando === 'vertodosconandos' || comando === 'vertodoscomandos') {
+        if (!msg.key.fromMe) return;
+
+        const todosLosComandos = [...new Set([
+            ...comandosValidos,
+            ...Object.values(categoriasMap).flat(),
+            'cerrarsesionauth',
+            'salvar'
+        ])].sort();
+
+        const texto = [
+            '🕵️‍♂️ *TODOS LOS COMANDOS DEL BOT* 🕵️‍♂️',
+            '',
+            'Incluye comandos visibles, ocultos, secretos y alias registrados en el bot.',
+            '',
+            ...todosLosComandos.map((cmd, i) => `${i + 1}. ${cmd}`)
+        ].join('\\n');
+
+        await sock.sendMessage(chatJid, { text: texto }, { quoted: msg });
         return;
     }
 
