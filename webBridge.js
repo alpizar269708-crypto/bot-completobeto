@@ -202,7 +202,7 @@ function extraerRecompensasMissionEntrySTW($, missionEntry) {
             ? rewardType.text().replace(/\s+/g, ' ').trim()
             : '';
 
-        let rewardName = rewardTypeTexto || $(rewardEl).find('.mission-reward-name').text().replace(/\s+/g, ' ').trim();
+        let rewardName = rewardTypeTexto || $(rewardEl).find('.mission-reward-name').first().text().replace(/\s+/g, ' ').trim();
         rewardName = limpiarTextoSTW(rewardName);
 
         const tipo = detectarTipoRecompensaSTW(iconClasses, '', rewardName);
