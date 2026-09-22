@@ -193,27 +193,27 @@ function formatearAlertaSTW(item, encabezado = '') {
 async function alertasSTW(sock, chatId, msg, categoria = 'todas') {
     const datos = await obtenerAlertasSTW();
     const fechaHoy = obtenerFechaActual();
-    let texto = `📅 _${fechaHoy}_\\n\\n`;
+    let texto = `📅 _${fechaHoy}_\n\n`;
 
     // Los PaVos conservan su formato actual.
     if (categoria === 'pavos' || categoria === 'todas') {
-        texto += `🎮 *ALERTAS DE PAVOS*\\n`;
+        texto += `🎮 *ALERTAS DE PAVOS*\n`;
         if (datos.pavos.length === 0) {
-            texto += `_No hay alertas de pavos registradas._\\n\\n`;
+            texto += `_No hay alertas de pavos registradas._\n\n`;
         } else {
             let totalPavos = 0;
             datos.pavos.forEach(p => {
                 totalPavos += p.cantidad || 50;
-                texto += `⚡ *PL:* ${p.pl}\\n🎯 *Misión:* ${p.mision}\\n🪙 *PaVos:* ${p.cantidad || 50}\\n\\n`;
+                texto += `⚡ *PL:* ${p.pl}\n🎯 *Misión:* ${p.mision}\n🪙 *PaVos:* ${p.cantidad || 50}\n\n`;
             });
-            texto += `💰 *Total del día:* ${totalPavos} paVos\\n\\n`;
+            texto += `💰 *Total del día:* ${totalPavos} paVos\n\n`;
         }
     }
 
     if (categoria === 'epicas' || (categoria === 'todas' && datos.epicas.length > 0)) {
-        texto += `🟣 *ALERTAS ÉPICAS*\\n`;
+        texto += `🟣 *ALERTAS ÉPICAS*\n`;
         if (datos.epicas.length === 0) {
-            texto += `_No hay alertas épicas registradas._\\n\\n`;
+            texto += `_No hay alertas épicas registradas._\n\n`;
         } else {
             datos.epicas.forEach(e => {
                 texto += formatearAlertaSTW(e);
@@ -222,9 +222,9 @@ async function alertasSTW(sock, chatId, msg, categoria = 'todas') {
     }
 
     if (categoria === 'legendarias' || (categoria === 'todas' && datos.legendarias.length > 0)) {
-        texto += `🌟 *ALERTAS LEGENDARIAS*\\n`;
+        texto += `🌟 *ALERTAS LEGENDARIAS*\n`;
         if (datos.legendarias.length === 0) {
-            texto += `_No hay alertas legendarias registradas._\\n\\n`;
+            texto += `_No hay alertas legendarias registradas._\n\n`;
         } else {
             datos.legendarias.forEach(L => {
                 texto += formatearAlertaSTW(L);
@@ -240,21 +240,21 @@ async function alertasSTW(sock, chatId, msg, categoria = 'todas') {
 // === NUEVA FUNCIÓN PARA EL COMANDO PLALTAS ===
 async function comandoPLaltas(sock, chatId, msg) {
     const fechaHoy = obtenerFechaActual();
-    let texto = `📅 _${fechaHoy}_\\n\\n🔥 *ALERTAS DESTACADAS — RECOMPENSAS BUENAS*\\n\\n`;
+    let texto = `📅 _${fechaHoy}_\n\n🔥 *ALERTAS DESTACADAS — RECOMPENSAS BUENAS*\n\n`;
 
     try {
         const datos = await obtenerAlertasSTW();
         const listaPlAltas = datos.plAltas || [];
 
         if (listaPlAltas.length === 0) {
-            texto += `_No hay alertas destacadas registradas en este momento._\\n\\n`;
+            texto += `_No hay alertas destacadas registradas en este momento._\n\n`;
         } else {
             listaPlAltas.forEach(item => {
                 texto += formatearAlertaSTW(item, '⭐ *ALERTA DESTACADA*');
             });
         }
     } catch (e) {
-        texto += `_Error al cargar las alertas destacadas._\\n\\n`;
+        texto += `_Error al cargar las alertas destacadas._\n\n`;
     }
 
     texto += `Support-a-Creator: *JASC13* ❤️`;
@@ -290,7 +290,7 @@ function iniciarCronAlertasDiarias(sock) {
             }
 
             if (datos.legendarias.length > 0) {
-                mensajeAuto += `🌟 *LEGENDARIAS*\\n`;
+                mensajeAuto += `🌟 *LEGENDARIAS*\n`;
                 datos.legendarias.forEach(L => {
                     mensajeAuto += formatearAlertaSTW(L);
                 });
