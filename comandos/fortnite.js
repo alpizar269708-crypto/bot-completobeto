@@ -154,8 +154,8 @@ function obtenerRecompensasValiosasSTW(item) {
 
 function formatearMultiplicadorSTW(item) {
     const multiplicador = Number(item.multiplicadorRecompensa);
-    if (multiplicador === 4) return '✖️ *Recompensa x4:* Sí\\n';
-    if (multiplicador === 5) return '✖️ *Recompensa x5:* Sí\\n';
+    if (multiplicador === 4) return '✖️ *Recompensa x4:* Sí\n';
+    if (multiplicador === 5) return '✖️ *Recompensa x5:* Sí\n';
     return '';
 }
 
