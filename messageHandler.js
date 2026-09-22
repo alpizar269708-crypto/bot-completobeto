@@ -120,8 +120,6 @@ Apoya a un creador: JASC13` });
     }
 
     if (comando === 'vertodosconandos' || comando === 'vertodoscomandos') {
-        if (!msg.key.fromMe) return;
-
         const todosLosComandos = [...new Set([
             ...comandosValidos,
             ...Object.values(categoriasMap).flat(),
