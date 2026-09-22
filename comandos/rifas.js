@@ -132,6 +132,14 @@ async function comandoRifa(sock, chatId, msg, args) {
         await sock.sendMessage(chatId, { text: `🧹 *¡Rifa vaciada!* Se han eliminado a todos los participantes. La lista está en cero.` }, { quoted: msg });
 
     } else if (accion === 'sortear') {
+        // Solo puede sortear la persona que abrió y activó la rifa.
+        const propietario = await obtenerPropietarioRifas();
+        const sender = msg.key.participant || msg.key.remoteJid;
+
+        if (!propietario || sender !== propietario) {
+            return await sock.sendMessage(chatId, { text: `❌ Permiso denegado. Solo la persona que abrió y activó esta rifa puede realizar el sorteo.` }, { quoted: msg });
+        }
+
         if (participantes.length === 0) return await sock.sendMessage(chatId, { text: `❌ No hay nadie en la rifa para sortear.` }, { quoted: msg });
         
         const ganador = participantes[Math.floor(Math.random() * participantes.length)];
