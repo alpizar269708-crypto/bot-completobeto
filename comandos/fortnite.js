@@ -38,29 +38,6 @@ async function leerConfigJSON(clave) {
     }
 }
 
-function combinarSinDuplicados(...listas) {
-    const mapa = new Map();
-
-    for (const lista of listas) {
-        for (const item of lista) {
-            const clave = JSON.stringify({
-                pl: item.pl ?? null,
-                mision: item.mision ?? '',
-                ubicacion: item.ubicacion ?? '',
-                recompensa: item.recompensa ?? '',
-                cantidad: item.cantidad ?? null,
-                rareza: item.rareza ?? ''
-            });
-
-            if (!mapa.has(clave)) {
-                mapa.set(clave, item);
-            }
-        }
-    }
-
-    return Array.from(mapa.values());
-}
-
 // PLALTAS: STW Planner puede guardar dos representaciones de la misma
 // misión de PaVos (bloque especial y mission-entry normal). Al mostrar el
 // comando, se agrupan por la misión y se conserva la versión más limpia.
