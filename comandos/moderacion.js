@@ -342,7 +342,7 @@ async function comandoWarn(sock, numero, msg, args = []) {
     }
 
     const remitente = msg.key.participant;
-    if (!(await esAdmin(sock, chatJid, remitente))) {
+    if (!msg.key.fromMe && !(await esAdmin(sock, chatJid, remitente))) {
         await sock.sendMessage(chatJid, { text: '❌ Solo los administradores pueden usar este comando.' }, { quoted: msg });
         return;
     }
@@ -391,7 +391,7 @@ async function comandoWarn(sock, numero, msg, args = []) {
 async function comandoLimpiarWarns(sock, numero, msg, args = []) {
     const chatJid = msg.key.remoteJid;
     const remitente = msg.key.participant || chatJid;
-    if (chatJid.endsWith('@g.us') && !(await esAdmin(sock, chatJid, remitente))) {
+    if (chatJid.endsWith('@g.us') && !msg.key.fromMe && !(await esAdmin(sock, chatJid, remitente))) {
         await sock.sendMessage(chatJid, { text: '❌ Solo los administradores pueden limpiar los warns.' }, { quoted: msg });
         return;
     }
@@ -435,7 +435,7 @@ async function comandoVerWarns(sock, numero, msg, args = []) {
 
 async function comandoBan(sock, numero, msg, args = []) {
     const chatJid = msg.key.remoteJid;
-    if (chatJid.endsWith('@g.us') && !(await esAdmin(sock, chatJid, msg.key.participant))) {
+    if (chatJid.endsWith('@g.us') && !msg.key.fromMe && !(await esAdmin(sock, chatJid, msg.key.participant))) {
         await sock.sendMessage(chatJid, { text: '❌ Solo los administradores pueden banear.' }, { quoted: msg });
         return;
     }
@@ -463,7 +463,7 @@ async function comandoBan(sock, numero, msg, args = []) {
 
 async function comandoUnban(sock, numero, msg, args = []) {
     const chatJid = msg.key.remoteJid;
-    if (chatJid.endsWith('@g.us') && !(await esAdmin(sock, chatJid, msg.key.participant))) {
+    if (chatJid.endsWith('@g.us') && !msg.key.fromMe && !(await esAdmin(sock, chatJid, msg.key.participant))) {
         await sock.sendMessage(chatJid, { text: '❌ Solo los administradores pueden desbanear.' }, { quoted: msg });
         return;
     }
@@ -482,7 +482,7 @@ async function comandoListaNegra(sock, numero, msg) {
     const chatJid = msg.key.remoteJid;
     const remitente = msg.key.participant || chatJid;
     
-    if (chatJid.endsWith('@g.us') && !(await esAdmin(sock, chatJid, remitente))) {
+    if (chatJid.endsWith('@g.us') && !msg.key.fromMe && !(await esAdmin(sock, chatJid, remitente))) {
         await sock.sendMessage(chatJid, { text: '❌ Solo los administradores pueden ver la lista negra.' }, { quoted: msg });
         return;
     }
@@ -513,7 +513,7 @@ async function comandoUnbanList(sock, numero, msg, args = []) {
     const chatJid = msg.key.remoteJid;
     const remitente = msg.key.participant || chatJid;
 
-    if (chatJid.endsWith('@g.us') && !(await esAdmin(sock, chatJid, remitente))) {
+    if (chatJid.endsWith('@g.us') && !msg.key.fromMe && !(await esAdmin(sock, chatJid, remitente))) {
         await sock.sendMessage(chatJid, { text: '❌ Solo los administradores pueden usar este comando.' }, { quoted: msg });
         return;
     }
