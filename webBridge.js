@@ -594,7 +594,10 @@ function normalizarRecompensaSTW(nombre, rareza, tipo) {
     if (!limpio) return '';
 
     if (tipo === 'vbucks') {
-        return '🪙 ' + limpio + ' PaVos';
+        // El HTML de STW Planner puede duplicar el número por los div
+        // anidados (por ejemplo "50 50"). Conservamos una sola cantidad.
+        const cantidad = (limpio.match(/\\d{1,4}/) || [limpio])[0];
+        return '🪙 ' + cantidad + ' PaVos';
     }
 
     const rarezaTexto =
