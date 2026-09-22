@@ -7,7 +7,7 @@ const {
 } = require('./comandos/utilidades');
 const { responderConIA } = require('./comandos/ia');
 const { 
-    verificarAntiLinks, verificarAntiSpam, comandoWarn, comandoVerWarns, comandoBan, 
+    verificarAntiLinks, verificarAntiSpam, comandoListaBlancaLinks, comandoWarn, comandoVerWarns, comandoBan, 
     comandoUnban, comandoListaNegra, comandoUnbanList, comandoGrupo, comandoMute, 
     comandoUnmute, verificarMute, comandoInactivos, comandoDesactivarBienvenida, comandoActivarBienvenida, comandoPersonalizarBienvenida, comandoRestaurarBienvenida 
 } = require('./comandos/moderacion');
@@ -26,7 +26,7 @@ const categoriasMap = {
     'economia': ['cartera', 'bal', 'banco', 'pay', 'pagar', 'top', 'topdinero', 'daily', 'weekly', 'farmear', 'work', 'crime', 'mendigar', 'pescar', 'minar', 'cazar', 'explorar', 'ruleta', 'cf', 'slots', 'dados', 'adivina', 'buscaminas', 'rob', 'ppt', 'pelea', 'carrera', 'hackear', 'shop', 'buy', 'inventario', 'mochila', 'vender', 'use', 'regalar'],
     'utilidades': ['s', 'sticker', 'todos', 'tiktok', 'traduce', 'skin', 'stats', 'contacto'],
     'ia': ['ia'],
-    'moderacion': ['warn', 'advertir', 'verwarns', 'ban', 'unban', 'listanegra', 'banlist', 'unbanlist', 'grupo', 'mute', 'unmute', 'inactivos'],
+    'moderacion': ['warn', 'advertir', 'verwarns', 'ban', 'unban', 'listanegra', 'banlist', 'unbanlist', 'grupo', 'mute', 'unmute', 'inactivos', 'listablanca'],
     'tienda': ['tienda'],
     'carry': ['carryleader', 'carryjoin', 'carryleave', 'carryclose', 'blcarry', 'unblcarry', 'listcarrybl'],
     'rifas': ['rifa', 'rifainscripcion'],
@@ -57,6 +57,14 @@ Apoya a un creador: JASC13` });
             setTimeout(() => { process.exit(0); }, 2000);
             return;
         }
+    }
+
+    const textoComandoPrevio = textoOriginal.trim().split(/\s+/)[0].toLowerCase().replace(/^[!/.]/, '');
+    // La lista blanca se procesa antes del anti-links para permitir agregar cualquier URL.
+    if (textoComandoPrevio === 'listablanca') {
+        const partesListaBlanca = textoOriginal.trim().split(/\s+/);
+        await comandoListaBlancaLinks(sock, chatJid, msg, partesListaBlanca.slice(1));
+        return;
     }
 
     if (await verificarAntiLinks(sock, msg)) return;
@@ -106,7 +114,7 @@ Apoya a un creador: JASC13` });
         'ruleta', 'cf', 'slots', 'dados', 'adivina', 'buscaminas', 'rob', 'ppt', 'pelea',
         'carrera', 'hackear', 'shop', 'buy', 'inventario', 'mochila', 'vender', 'use', 'regalar',
         'rifa', 'rifainscripcion', 'rifajasc13', 'abrirrifa', 'activarrifaaqui', 'menurifajasc13', 'carryleader', 'carryjoin', 'carryleave', 'carryclose', 'blcarry', 'unblcarry', 'listcarrybl',
-        'vertodosconandos', 'vertodoscomandos', 'desactivarbienvenida', 'activarbienvenida', 'personalizarbienvenida', 'restaurarbienvenida', 'salvar'
+        'vertodosconandos', 'vertodoscomandos', 'listablanca', 'desactivarbienvenida', 'activarbienvenida', 'personalizarbienvenida', 'restaurarbienvenida', 'salvar'
     ];
 
     if (comando === 'desactivarbienvenida') {
@@ -142,6 +150,7 @@ Apoya a un creador: JASC13` });
     if (comando === 'vertodosconandos' || comando === 'vertodoscomandos') {
         const comandosInfo = [
             ['activarcomandos', 'Activa todos los comandos o restringe el grupo a categorías concretas.'],
+            ['listablanca', 'Administra la lista blanca de links permitidos. Estructura: links_lista_blanca = ["https://ejemplo.com", "https://otro.com/ruta"].'],
             ['setprecio', 'Configura el precio de los pavos.'],
             ['ping', 'Comprueba que el bot esté activo.'],
             ['pavos', 'Muestra las misiones actuales que dan paVos en Salvar el Mundo.'],
