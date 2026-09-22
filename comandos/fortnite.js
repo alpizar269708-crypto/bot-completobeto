@@ -127,24 +127,20 @@ async function obtenerAlertasSTW(actualizarEnVivo = true) {
         scrapePavos,
         scrapeEpicas,
         scrapeLegendarias,
-        scrapePlAltas,
-        manualPavos,
-        manualEpicas,
-        manualLegendarias
+        scrapePlAltas
     ] = await Promise.all([
         leerConfigJSON('stw_pavos_scrapeados'),
         leerConfigJSON('stw_epicas_scrapeadas'),
         leerConfigJSON('stw_legendarias_scrapeadas'),
-        leerConfigJSON('stw_plaltas_scrapeadas'),
-        leerConfigJSON('stw_pavos_activos'),
-        leerConfigJSON('stw_epicas_activas'),
-        leerConfigJSON('stw_legendarias_activas')
+        leerConfigJSON('stw_plaltas_scrapeadas')
     ]);
 
+    // Desde ahora STW Planner es la única fuente de alertas automáticas.
+    // Las listas manuales antiguas ya no se mezclan para evitar duplicados.
     return {
-        pavos: combinarSinDuplicados(scrapePavos, manualPavos),
-        epicas: combinarSinDuplicados(scrapeEpicas, manualEpicas),
-        legendarias: combinarSinDuplicados(scrapeLegendarias, manualLegendarias),
+        pavos: scrapePavos,
+        epicas: scrapeEpicas,
+        legendarias: scrapeLegendarias,
         plAltas: deduplicarPlAltasVbucks(scrapePlAltas)
     };
 }
@@ -233,35 +229,8 @@ async function comandoPLaltas(sock, chatId, msg) {
     await sock.sendMessage(chatId, { text: texto }, { quoted: msg });
 }
 
-async function comandoSetPavos(sock, chatId, msg, args) {
-    if (!(await esAdminValido(sock, chatId, msg))) return;
-    const partes = args.join(' ').split('|').map(p => p.trim());
-    if (partes.length < 3) return await sock.sendMessage(chatId, { text: `❌ Uso: setpavos PL | Misión | Cantidad` }, { quoted: msg });
-    let actual = await Config.findOne({ clave: 'stw_pavos_activos' });
-    let lista = actual ? JSON.parse(actual.valor) : [];
-    lista.push({ pl: partes[0], mision: partes[1], cantidad: parseInt(partes[2]) || 50, tipo: 'Manual' });
-    await Config.findOneAndUpdate({ clave: 'stw_pavos_activos' }, { valor: JSON.stringify(lista) }, { upsert: true });
-    await sock.sendMessage(chatId, { text: `✅ PaVos manuales agregados.` }, { quoted: msg });
-}
 
-async function comandoSetLegendarias(sock, chatId, msg, args) {
-    if (!(await esAdminValido(sock, chatId, msg))) return;
-    const partes = args.join(' ').split('|').map(p => p.trim());
-    if (partes.length < 3) return await sock.sendMessage(chatId, { text: `❌ Uso: setlegendarias PL | Misión | Recompensa` }, { quoted: msg });
-    let actual = await Config.findOne({ clave: 'stw_legendarias_activas' });
-    let lista = actual ? JSON.parse(actual.valor) : [];
-    lista.push({ pl: partes[0], mision: partes[1], recompensa: partes[2] });
-    await Config.findOneAndUpdate({ clave: 'stw_legendarias_activas' }, { valor: JSON.stringify(lista) }, { upsert: true });
-    await sock.sendMessage(chatId, { text: `✅ Recompensa manual agregada.` }, { quoted: msg });
-}
 
-async function comandoResetPavos(sock, chatId, msg) {
-    if (!(await esAdminValido(sock, chatId, msg))) return;
-    await Config.findOneAndDelete({ clave: 'stw_pavos_activos' });
-    await Config.findOneAndDelete({ clave: 'stw_epicas_activas' });
-    await Config.findOneAndDelete({ clave: 'stw_legendarias_activas' });
-    await sock.sendMessage(chatId, { text: `🗑️ Alertas restablecidas.` }, { quoted: msg });
-}
 
 async function comandoPreguntarAlerta(sock, chatId, msg) {
     await sock.sendMessage(chatId, { text: `🤖 Escribe *stw*, *PLaltas* o *legendariasstw*.` }, { quoted: msg });
@@ -312,6 +281,5 @@ async function desactivarAlertasDiarias(sock, chatId, msg) {
 
 module.exports = { 
     obtenerAlertasSTW, alertasSTW, comandoPLaltas, comandoPreguntarAlerta, 
-    iniciarCronAlertasDiarias, activarAlertasDiarias, desactivarAlertasDiarias, 
-    comandoSetPavos, comandoSetLegendarias, comandoResetPavos
+    iniciarCronAlertasDiarias, activarAlertasDiarias, desactivarAlertasDiarias
 };
