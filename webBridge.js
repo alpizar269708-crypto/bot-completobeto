@@ -549,7 +549,7 @@ function parsearPaginaSTW(html, fuente = 'all') {
                     .split(' ')
                     .map(p => p.charAt(0).toUpperCase() + p.slice(1).toLowerCase())
                     .join(' ');
-            tipoActual = 'normal';
+            tipoActual = fuente === 'vbucks' ? 'vbucks' : 'normal';
             continue;
         }
 
