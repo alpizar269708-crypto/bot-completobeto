@@ -208,6 +208,10 @@ Apoya a un creador: JASC13` });
             ['unblcarry', 'Quita a un usuario de la lista negra de carry.'],
             ['listcarrybl', 'Muestra la lista negra de carry.'],
             ['vertodoscomandos', 'Muestra esta lista de comandos y para qué sirve cada uno.'],
+            ['desactivarbienvenida', 'Desactiva la bienvenida automática en este grupo.'],
+            ['activarbienvenida', 'Vuelve a activar la bienvenida automática en este grupo.'],
+            ['personalizarbienvenida', 'Cambia el mensaje de bienvenida; usa {usuario} para mencionar al nuevo integrante.'],
+            ['restaurarbienvenida', 'Restaura el mensaje de bienvenida predeterminado.'],
             ['cerrarsesionauth', 'Cierra la sesión de WhatsApp del bot para volver a vincularla.']
         ];
 
