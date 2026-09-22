@@ -128,14 +128,23 @@ function obtenerRecompensasValiosasSTW(item) {
     const valiosas = recompensas.filter(r => {
         if (!r || !r.tipo) return false;
 
-        // No mostrar recompensas genéricas ni recompensas con rareza común.
-        if (r.tipo === 'other' || r.rareza === 'common' || r.rareza === 'uncommon') return false;
+        const nombre = String(r.nombre || '').toLowerCase();
+
+        // No mostrar recompensas genéricas ni recompensas comunes.
+        if (
+            r.tipo === 'other' ||
+            r.rareza === 'common' ||
+            r.rareza === 'uncommon' ||
+            /\bcom[uú]n\b/.test(nombre) ||
+            /recompensa com[uú]n/.test(nombre)
+        ) {
+            return false;
+        }
 
         if (['hero', 'survivor', 'defender', 'schematic'].includes(r.tipo)) {
             return ['mythic', 'legendary', 'epic', 'rare'].includes(r.rareza);
         }
 
-        // Recompensas de recursos útiles del propio STW Planner.
         return ['supercharger', 'evolution', 'perkup', 'elemental', 'reperk', 'ore', 'llama'].includes(r.tipo);
     });
 
