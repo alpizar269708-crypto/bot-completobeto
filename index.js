@@ -14,6 +14,8 @@ app.use(express.urlencoded({ extended: true }));
 
 let botArrancado = false;
 let authState = null;
+let socketActual = null;
+let reconexionProgramada = false;
 
 app.get('/', async (req, res) => {
     if (botArrancado) {
@@ -79,6 +81,7 @@ async function inicializarBase() {
 }
 
 async function arrancarSocket(metodo, numeroTelefono, onCodeReady = null) {
+    if (reconexionProgramada || socketActual) return;
     botArrancado = true;
     const { state, saveCreds } = authState;
 
@@ -94,6 +97,8 @@ async function arrancarSocket(metodo, numeroTelefono, onCodeReady = null) {
             return { conversation: '' };
         }
     });
+
+    socketActual = sock;
 
     const originalSendMessage = sock.sendMessage;
     sock.sendMessage = async function(jid, content, options) {
@@ -149,15 +154,28 @@ async function arrancarSocket(metodo, numeroTelefono, onCodeReady = null) {
         }
 
         if (connection === 'close') {
-            const razon = lastDisconnect.error?.output?.statusCode;
+            const razon = lastDisconnect?.error?.output?.statusCode;
+            socketActual = null;
+
             if (razon === DisconnectReason.loggedOut) {
-                await mongoose.model('auth_session').deleteMany({});
-                console.log('\n🔴 SESIÓN CERRADA DE FORMA REMOTA.\n');
-                process.exit(0);
-            } else {
-                arrancarSocket(metodo, numeroTelefono); 
+                botArrancado = false;
+                console.log('\\n🔴 WhatsApp reportó SESIÓN CERRADA (loggedOut). Credenciales conservadas en MongoDB; no se borrará la sesión automáticamente.\\n');
+                return;
             }
+
+            if (reconexionProgramada) return;
+            reconexionProgramada = true;
+
+            setTimeout(async () => {
+                reconexionProgramada = false;
+                try {
+                    await arrancarSocket(metodo, numeroTelefono);
+                } catch (e) {
+                    console.error('Error al reconectar WhatsApp:', e.message);
+                }
+            }, 3000);
         } else if (connection === 'open') {
+            reconexionProgramada = false;
             console.log('\n🟢 BOT EN LÍNEA Y LISTO PARA TRABAJAR 🟢\n');
             
             if (onCodeReady) {
