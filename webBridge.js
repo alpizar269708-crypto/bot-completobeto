@@ -1241,79 +1241,109 @@ async function extraerAlertasAPI() {
             }));
 
         // PLALTAS = únicamente alertas realmente destacables.
-        // No significa "todas las misiones PL 140/160".
-        function evaluarAlertaChida(mision) {
-            const recompensa = String(mision.recompensa || '').toLowerCase();
-            const tipoAlerta = String(mision.tipoAlerta || '').toLowerCase();
-            const raw = JSON.stringify(mision.recompensas || []).toLowerCase();
-            const combinado = [recompensa, tipoAlerta, raw].join(' ');
+        // La página de STW Planner ya etiqueta cada misión con:
+        // - rareza (common/uncommon/rare/epic/legendary)
+        // - tipo (hero/survivor/defender/schematic)
+        // - nombre real de la recompensa
+        // Por eso aquí filtramos usando los datos estructurados y no palabras sueltas.
 
-            // 1) PaVos: siempre mostrar.
-            if (mision.vbucks || /v[\\s-]?bucks|vbucks|v bucks/.test(combinado)) {
+        function evaluarAlertaChida(mision) {
+            const recompensas = Array.isArray(mision.recompensas)
+                ? mision.recompensas
+                : [];
+
+            if (mision.vbucks) {
                 return {
                     mostrar: true,
                     nivel: 100,
-                    motivo: '🪙 PaVos'
+                    motivo: '🪙 PaVos',
+                    destacadas: recompensas.filter(r => r.tipo === 'vbucks')
                 };
             }
 
-            // 2) Supercargadores: siempre mostrar.
-            if (/supercharger|supercargador/.test(combinado)) {
+            const supercargadores = recompensas.filter(
+                r => r.tipo === 'supercharger'
+            );
+
+            if (supercargadores.length) {
+                return {
+                    mostrar: true,
+                    nivel: 98,
+                    motivo: '⚡ Supercargador',
+                    destacadas: supercargadores
+                };
+            }
+
+            const legendarias = recompensas.filter(r =>
+                r.rareza === 'legendary' &&
+                ['hero', 'survivor', 'schematic'].includes(r.tipo)
+            );
+
+            if (legendarias.length) {
                 return {
                     mostrar: true,
                     nivel: 95,
-                    motivo: '⚡ Supercargador'
+                    motivo: '🟠 Recompensa legendaria',
+                    destacadas: legendarias
                 };
             }
 
-            // 3) Recompensa legendaria concreta: siempre mostrar.
-            if (/legendary|legendaria|legendario/.test(combinado)) {
-                const concreta =
-                    /survivor|superviviente|hero|héroe|schematic|esquema|plano/.test(combinado);
-
-                if (concreta) {
-                    return {
-                        mostrar: true,
-                        nivel: 90,
-                        motivo: '🟠 Recompensa legendaria'
-                    };
-                }
-
-                // También mostramos un arma/personaje legendario aunque el parser
-                // no haya podido clasificar exactamente el tipo.
-                return {
-                    mostrar: true,
-                    nivel: 88,
-                    motivo: '🟠 Recompensa legendaria'
-                };
-            }
-
-            // 4) Épicas: solo en PL alto y cuando sean personaje/equipo.
-            const esEpica = /epic|épica|épico/.test(combinado);
-            const esPersonajeOEquipo =
-                /survivor|superviviente|hero|héroe|defender|defensor|schematic|esquema|plano/.test(combinado);
+            // Un defensor legendario solo entra cuando la misión ya está
+            // en PL realmente alto. Así evitamos llenar PLALTAS con defensores.
+            const defensoresLegendarios = recompensas.filter(r =>
+                r.rareza === 'legendary' &&
+                r.tipo === 'defender'
+            );
 
             if (
-                esEpica &&
-                esPersonajeOEquipo &&
+                defensoresLegendarios.length &&
                 Number(mision.pl) >= 124
             ) {
                 return {
                     mostrar: true,
-                    nivel: 75,
-                    motivo: '🟣 Recompensa épica'
+                    nivel: 92,
+                    motivo: '🟠 Defensor legendario',
+                    destacadas: defensoresLegendarios
                 };
             }
 
-            // No incluimos una Mega/Mini-Boss solo por ser de PL alto.
-            // Si la recompensa no es buena, queda fuera.
+            // Épicas: solo héroes, supervivientes o esquemas y desde PL 100.
+            const epicas = recompensas.filter(r =>
+                r.rareza === 'epic' &&
+                ['hero', 'survivor', 'schematic'].includes(r.tipo)
+            );
 
-            // Todo lo demás (oro, perk-up, reperk, materiales comunes,
-            // defensores/supervivientes comunes, etc.) queda fuera.
+            if (
+                epicas.length &&
+                Number(mision.pl) >= 100
+            ) {
+                return {
+                    mostrar: true,
+                    nivel: 85,
+                    motivo: '🟣 Recompensa épica',
+                    destacadas: epicas
+                };
+            }
+
+            // Mythic, si STW Planner llegara a publicarlo en Mission Alerts.
+            const miticas = recompensas.filter(r =>
+                r.rareza === 'mythic'
+            );
+
+            if (miticas.length) {
+                return {
+                    mostrar: true,
+                    nivel: 99,
+                    motivo: '🔵 Recompensa mítica',
+                    destacadas: miticas
+                };
+            }
+
             return {
                 mostrar: false,
                 nivel: 0,
-                motivo: ''
+                motivo: '',
+                destacadas: []
             };
         }
 
@@ -1324,13 +1354,23 @@ async function extraerAlertasAPI() {
                 return null;
             }
 
-            const recompensaOriginal =
-                String(mision.recompensa || '').trim();
+            const recompensasDestacadas = Array.isArray(
+                evaluada.destacadas
+            )
+                ? evaluada.destacadas
+                : [];
 
-            const recompensaMostrar =
-                recompensaOriginal && recompensaOriginal !== 'Misión'
-                    ? recompensaOriginal
-                    : evaluada.motivo;
+            const recompensaMostrar = recompensasDestacadas.length
+                ? recompensasDestacadas
+                    .map(r => r.nombre)
+                    .filter(Boolean)
+                    .join(' | ')
+                : (
+                    mision.recompensa &&
+                    mision.recompensa !== 'Misión'
+                        ? mision.recompensa
+                        : evaluada.motivo
+                );
 
             return {
                 pl: mision.pl,
@@ -1338,9 +1378,13 @@ async function extraerAlertasAPI() {
                 ubicacion: mision.ubicacion,
                 zona: mision.zona,
                 recompensa: recompensaMostrar,
-                nivelAlerta: evaluada.nivel,
                 motivo: evaluada.motivo,
-                source: mision.source || fallback || 'https://stw-planner.com/mission-alerts'
+                nivelAlerta: evaluada.nivel,
+                recompensas: recompensasDestacadas,
+                source:
+                    mision.source ||
+                    fallback ||
+                    'https://stw-planner.com/mission-alerts'
             };
         }
 
@@ -1348,21 +1392,7 @@ async function extraerAlertasAPI() {
             .map(m => prepararAlertaChida(m))
             .filter(Boolean);
 
-        // Recuperamos la recompensa real de la tarjeta cuando existe.
-        const plAltasDOM = await extraerPLAltasDOM();
-
-        if (plAltasDOM.length > 0) {
-            const domPreparadas = plAltasDOM
-                .map(m => prepararAlertaChida(m, m.source))
-                .filter(Boolean);
-
-            if (domPreparadas.length > 0) {
-                plAltas = domPreparadas;
-            }
-        }
-
-        // Orden: primero PaVos, después legendarias/supercargadores,
-        // después épicas y por último alertas especiales.
+        // Ordenamos lo realmente bueno primero.
         plAltas.sort((a, b) => {
             if (b.nivelAlerta !== a.nivelAlerta) {
                 return b.nivelAlerta - a.nivelAlerta;
@@ -1374,7 +1404,6 @@ async function extraerAlertasAPI() {
 
             return String(a.zona).localeCompare(String(b.zona));
         });
-
         plAltas = deduplicarSTW(plAltas);
 
         await Config.findOneAndUpdate(
