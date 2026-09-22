@@ -111,7 +111,18 @@ function deduplicarPlAltasVbucks(lista) {
     return Array.from(mapa.values());
 }
 
-async function obtenerAlertasSTW() {
+async function obtenerAlertasSTW(actualizarEnVivo = true) {
+    // Cada comando de STW refresca primero desde STW Planner para no
+    // depender de datos viejos almacenados en MongoDB.
+    if (actualizarEnVivo) {
+        try {
+            const { extraerAlertasAPI } = require('../webBridge');
+            await extraerAlertasAPI();
+        } catch (e) {
+            console.error('⚠️ No se pudo refrescar STW Planner en vivo:', e.message);
+        }
+    }
+
     const [
         scrapePavos,
         scrapeEpicas,
