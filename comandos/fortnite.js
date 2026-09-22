@@ -251,7 +251,7 @@ async function alertasSTW(sock, chatId, msg, categoria = 'todas') {
 
 
 // === NUEVA FUNCIÓN PARA EL COMANDO PLALTAS ===
-async function comandoPLaltas(sock, chatId, msg) {
+async function comandoDestacadasSTW(sock, chatId, msg) {
     const fechaHoy = obtenerFechaActual();
     let texto = `📅 _${fechaHoy}_\n\n🔥 *ALERTAS DESTACADAS — RECOMPENSAS BUENAS*\n\n`;
 
@@ -280,7 +280,7 @@ async function comandoPLaltas(sock, chatId, msg) {
 
 
 async function comandoPreguntarAlerta(sock, chatId, msg) {
-    await sock.sendMessage(chatId, { text: `🤖 Escribe *stw*, *PLaltas* o *legendariasstw*.` }, { quoted: msg });
+    await sock.sendMessage(chatId, { text: `🤖 Escribe *stw*, *DestacadasSTW* o *legendariasstw*.` }, { quoted: msg });
 }
 
 function iniciarCronAlertasDiarias(sock) {
@@ -327,6 +327,6 @@ async function desactivarAlertasDiarias(sock, chatId, msg) {
 }
 
 module.exports = { 
-    obtenerAlertasSTW, alertasSTW, comandoPLaltas, comandoPreguntarAlerta, 
+    obtenerAlertasSTW, alertasSTW, comandoDestacadasSTW, comandoPreguntarAlerta, 
     iniciarCronAlertasDiarias, activarAlertasDiarias, desactivarAlertasDiarias
 };
