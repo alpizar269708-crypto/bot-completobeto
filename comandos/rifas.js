@@ -169,7 +169,7 @@ async function comandoRifa(sock, chatId, msg, args) {
 
     const accion = args[0].toLowerCase();
     const parametro = args.slice(1).join(' ').trim();
-    let participantes = rifasActivas.get(chatId) || [];
+    let participantes = await cargarParticipantesRifa(chatId);
 
     if (accion === 'ver') {
         if (participantes.length === 0) return await sock.sendMessage(chatId, { text: `📭 La rifa está vacía.` }, { quoted: msg });
@@ -183,7 +183,7 @@ async function comandoRifa(sock, chatId, msg, args) {
         const index = parseInt(parametro) - 1;
         if (!isNaN(index) && index >= 0 && index < participantes.length) {
             const eliminado = participantes.splice(index, 1)[0];
-            rifasActivas.set(chatId, participantes);
+            await guardarParticipantesRifa(chatId, participantes);
             await sock.sendMessage(chatId, { text: `🗑️ Participante #${index + 1} (${eliminado.nombre}) eliminado.` }, { quoted: msg });
         } else {
             await sock.sendMessage(chatId, { text: `❌ Número no válido. Usa "rifa ver" para checar los números.` }, { quoted: msg });
@@ -191,6 +191,7 @@ async function comandoRifa(sock, chatId, msg, args) {
 
     } else if (accion === 'vaciar') {
         rifasActivas.delete(chatId);
+        await Config.findOneAndDelete({ clave: `rifa_participantes_${chatId}` });
         await sock.sendMessage(chatId, { text: `🧹 *¡Rifa vaciada!* Se han eliminado a todos los participantes. La lista está en cero.` }, { quoted: msg });
 
     } else if (accion === 'sortear') {
@@ -227,8 +228,9 @@ async function comandoRifa(sock, chatId, msg, args) {
             mentions: [ganador.id]
         });
 
-        // Vaciar la lista después de realizar el sorteo.
+        // Vaciar la lista y su almacenamiento persistente después del sorteo.
         rifasActivas.delete(chatId);
+        await Config.findOneAndDelete({ clave: `rifa_participantes_${chatId}` });
     }
 }
 
