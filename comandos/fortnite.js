@@ -272,7 +272,7 @@ async function comandoPreguntarAlerta(sock, chatId, msg) {
     await sock.sendMessage(chatId, { text: `🤖 Escribe *stw*, *DestacadasSTW* o *legendariasstw*.` }, { quoted: msg });
 }
 
-async function enviarAlertaPavosAutomatica(sock) {
+async function enviarAlertaPavosAutomatica(sock, enviarAunqueNoHayaPavos = false) {
     try {
         const configChat = await Config.findOne({ clave: 'chat_alertas_diarias' });
         if (!configChat || !configChat.valor) return false;
@@ -291,8 +291,22 @@ async function enviarAlertaPavosAutomatica(sock) {
 
         const datos = await obtenerAlertasSTW();
 
-        // Si no hay PaVos, no se envía nada: el sistema reintentará cada 90 segundos.
-        if (datos.pavos.length === 0) return false;
+        // La primera alerta de las 6:02 PM siempre se envía, haya o no PaVos.
+        // En los reintentos solo se envía cuando aparecen PaVos.
+        if (datos.pavos.length === 0) {
+            if (enviarAunqueNoHayaPavos) {
+                const mensajeSinPavos = '🎮 *ALERTAS DE PAVOS — 6:02 PM*\\n\\n_No hay alertas de pavos registradas._\\n\\nSupport-a-Creator: *JASC13* ❤️';
+                for (const grupo of grupos) {
+                    try {
+                        await sock.sendMessage(grupo, { text: mensajeSinPavos });
+                    } catch (e) {
+                        console.error(`Error enviando alerta automática a ${grupo}:`, e.message);
+                    }
+                }
+                return false;
+            }
+            return false;
+        }
 
         const total = datos.pavos.reduce((acc, p) => acc + (p.cantidad || 50), 0);
         let mensajeAuto = `🎮 *ALERTAS DE PAVOS — 6:02 PM*\n\n`;
@@ -327,7 +341,7 @@ function iniciarCronAlertasDiarias(sock) {
         const limiteMs = 9 * 60 * 1000;
         const inicio = Date.now();
 
-        const enviado = await enviarAlertaPavosAutomatica(sock);
+        const enviado = await enviarAlertaPavosAutomatica(sock, true);
         if (enviado) return;
 
         const reintentar = async () => {
