@@ -245,10 +245,10 @@ function detectarTipoAlertaSTW(valor) {
 
 function obtenerNombreTipoAlertaSTW(tipo) {
     return {
-        storm: 'Storm Alerts',
-        'mini-boss': 'Mini Boss Alerts',
-        mega: 'Mega Alerts',
-        elemental: 'Elemental Alerts',
+        storm: 'Alerta de tormenta',
+        'mini-boss': 'Mini-Jefe',
+        mega: 'Mega Alerta',
+        elemental: 'Alerta elemental',
         normal: 'Normal'
     }[tipo] || 'Normal';
 }
@@ -360,7 +360,7 @@ function parsearPaginaSTW(html, fuente = 'all') {
     const misiones = [];
 
     $('.card--container.card--mission').each((cardIndex, card) => {
-        const zona = limpiarTextoSTW($(card).find('.mission-title').first().text()) || limpiezaTextoFallback($(card).attr('data-filter')) || 'Desconocida';
+        const zona = limpiarTextoSTW($(card).find('.mission-title').first().text()) || limpiarTextoSTW($(card).attr('data-filter')) || 'Desconocida';
 
         $(card).find('.mission-types > div[data-filter-group="alertType"]').each((typeIndex, typeContainer) => {
             const tipoAlertaRaw = $(typeContainer).attr('data-filter') || '';
@@ -462,10 +462,6 @@ function parsearPavosSTW(html) {
     }
 
     return Array.from(mapa.values());
-}
-
-function limpiezaTextoFallback(texto) {
-    return limpiarTextoSTW(texto);
 }
 
 async function extraerAlertasAPI() {
