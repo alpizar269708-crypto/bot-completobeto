@@ -92,6 +92,37 @@ async function rifaEstaAbierta(chatId) {
     return false;
 }
 
+async function cargarParticipantesRifa(chatId) {
+    const memoria = rifasActivas.get(chatId);
+    if (Array.isArray(memoria)) return memoria;
+
+    try {
+        const config = await Config.findOne({ clave: `rifa_participantes_${chatId}` });
+        if (!config?.valor) {
+            const lista = [];
+            rifasActivas.set(chatId, lista);
+            return lista;
+        }
+
+        const lista = JSON.parse(config.valor);
+        const participantes = Array.isArray(lista) ? lista : [];
+        rifasActivas.set(chatId, participantes);
+        return participantes;
+    } catch (e) {
+        console.error('Error cargando participantes de la rifa:', e.message);
+        return [];
+    }
+}
+
+async function guardarParticipantesRifa(chatId, participantes) {
+    await Config.findOneAndUpdate(
+        { clave: `rifa_participantes_${chatId}` },
+        { valor: JSON.stringify(participantes) },
+        { upsert: true }
+    );
+    rifasActivas.set(chatId, participantes);
+}
+
 // === COMANDO PARA USUARIOS NORMALES ===
 async function comandoRifaInscripcion(sock, chatId, msg) {
     if (!(await rifaEstaAbierta(chatId))) return;
@@ -99,16 +130,15 @@ async function comandoRifaInscripcion(sock, chatId, msg) {
     const sender = msg.key.participant || msg.key.remoteJid;
     const pushName = msg.pushName || 'Usuario';
 
-    let participantes = rifasActivas.get(chatId) || [];
+    const participantes = await cargarParticipantesRifa(chatId);
 
-    // Validar que no esté inscrito ya (por su ID único de WhatsApp)
     const yaInscrito = participantes.find(p => p.id === sender);
     if (yaInscrito) {
         return await sock.sendMessage(chatId, { text: `❌ Ya estás inscrito en la rifa actual, *${pushName}*. Solo se permite una inscripción por número.` }, { quoted: msg });
     }
 
     participantes.push({ id: sender, nombre: pushName });
-    rifasActivas.set(chatId, participantes);
+    await guardarParticipantesRifa(chatId, participantes);
 
     await sock.sendMessage(chatId, { text: `✅ ¡Listo, *${pushName}*! Te has inscrito a la rifa correctamente. (Participante #${participantes.length})` }, { quoted: msg });
 }
