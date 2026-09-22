@@ -7,7 +7,7 @@ const {
 } = require('./comandos/utilidades');
 const { responderConIA } = require('./comandos/ia');
 const { 
-    verificarAntiLinks, verificarAntiSpam, comandoListaBlancaLinks, comandoWarn, comandoVerWarns, comandoBan, 
+    verificarAntiLinks, verificarAntiSpam, comandoListaBlancaLinks, comandoWarn, comandoLimpiarWarns, comandoVerWarns, comandoBan, 
     comandoUnban, comandoListaNegra, comandoUnbanList, comandoGrupo, comandoMute, 
     comandoUnmute, verificarMute, comandoInactivos, comandoDesactivarBienvenida, comandoActivarBienvenida, comandoPersonalizarBienvenida, comandoRestaurarBienvenida 
 } = require('./comandos/moderacion');
@@ -26,7 +26,7 @@ const categoriasMap = {
     'economia': ['cartera', 'bal', 'banco', 'pay', 'pagar', 'top', 'topdinero', 'daily', 'weekly', 'farmear', 'work', 'crime', 'mendigar', 'pescar', 'minar', 'cazar', 'explorar', 'ruleta', 'cf', 'slots', 'dados', 'adivina', 'buscaminas', 'rob', 'ppt', 'pelea', 'carrera', 'hackear', 'shop', 'buy', 'inventario', 'mochila', 'vender', 'use', 'regalar'],
     'utilidades': ['s', 'sticker', 'todos', 'tiktok', 'traduce', 'skin', 'stats', 'contacto'],
     'ia': ['ia'],
-    'moderacion': ['warn', 'advertir', 'verwarns', 'ban', 'unban', 'listanegra', 'banlist', 'unbanlist', 'grupo', 'mute', 'unmute', 'inactivos', 'listablanca'],
+    'moderacion': ['warn', 'advertir', 'verwarns', 'limpiarwarns', 'ban', 'unban', 'listanegra', 'banlist', 'unbanlist', 'grupo', 'mute', 'unmute', 'inactivos', 'listablanca'],
     'tienda': ['tienda'],
     'carry': ['carryleader', 'carryjoin', 'carryleave', 'carryclose', 'blcarry', 'unblcarry', 'listcarrybl'],
     'rifas': ['rifa', 'rifainscripcion'],
@@ -182,6 +182,7 @@ Apoya a un creador: JASC13` });
             ['warn', 'Advierte a un usuario del grupo.'],
             ['advertir', 'Alias de warn.'],
             ['verwarns', 'Consulta las advertencias de un usuario.'],
+            ['limpiarwarns', 'Borra todos los warns del usuario indicado y lo deja en 0/3.'],
             ['ban', 'Expulsa a un usuario del grupo.'],
             ['unban', 'Permite readmitir a un usuario expulsado.'],
             ['listanegra', 'Gestiona o consulta la lista negra.'],
@@ -344,6 +345,9 @@ Apoya a un creador: JASC13` });
                 break;
             case 'verwarns':
                 await comandoVerWarns(sock, chatJid, msg, args);
+                break;
+            case 'limpiarwarns':
+                await comandoLimpiarWarns(sock, chatJid, msg, args);
                 break;
             case 'ban':
                 await comandoBan(sock, chatJid, msg, args);
