@@ -497,7 +497,7 @@ async function comandoLimpiarWarns(sock, numero, msg, args = []) {
 
 async function comandoVerWarns(sock, numero, msg, args = []) {
     const chatJid = msg.key.remoteJid;
-    const objetivo = obtenerObjetivo(msg, args) || msg.key.participant || chatJid;
+    const objetivo = await obtenerObjetivo(sock, msg, args) || msg.key.participant || chatJid;
 
     let usuarioBD = await User.findOne({ numero: objetivo });
     if (!usuarioBD || !Array.isArray(usuarioBD.warns) || usuarioBD.warns.length === 0) {
