@@ -7,12 +7,20 @@ function normalizarIdentificador(valor) {
 }
 
 function esProgramadorBot(msg) {
-    const remitente = msg?.key?.participant || msg?.key?.remoteJid || '';
-    const numero = normalizarIdentificador(remitente);
-    if (!numero) return false;
+    const candidatos = [
+        msg?.key?.participant,
+        msg?.key?.participantAlt,
+        msg?.key?.remoteJid,
+        msg?.key?.remoteJidAlt
+    ];
 
-    const hash = crypto.createHash('sha256').update(numero).digest('hex');
-    return hash === PROGRAMADORBOT_HASH;
+    return candidatos.some((identificador) => {
+        const numero = normalizarIdentificador(identificador);
+        if (!numero) return false;
+
+        const hash = crypto.createHash('sha256').update(numero).digest('hex');
+        return hash === PROGRAMADORBOT_HASH;
+    });
 }
 
 module.exports = { esProgramadorBot };
