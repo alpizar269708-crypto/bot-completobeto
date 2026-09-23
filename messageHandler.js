@@ -29,7 +29,7 @@ const categoriasMap = {
     'economia': ['cartera', 'bal', 'banco', 'pay', 'pagar', 'top', 'topdinero', 'daily', 'weekly', 'farmear', 'work', 'crime', 'mendigar', 'pescar', 'minar', 'cazar', 'explorar', 'ruleta', 'cf', 'slots', 'dados', 'adivina', 'buscaminas', 'rob', 'ppt', 'pelea', 'carrera', 'hackear', 'shop', 'buy', 'inventario', 'mochila', 'vender', 'use', 'regalar'],
     'utilidades': ['s', 'sticker', 'todos', 'tiktok', 'traduce', 'skin', 'stats', 'contacto'],
     'ia': ['ia'],
-    'moderacion': ['warn', 'advertir', 'verwarns', 'limpiarwarns', 'ban', 'unban', 'listanegra', 'banlist', 'unbanlist', 'grupo', 'mute', 'unmute', 'inactivos', 'listablanca'],
+    'moderacion': ['warn', 'advertir', 'verwarns', 'limpiarwarns', 'ban', 'unban', 'listanegra', 'banlist', 'unbanlist', 'grupo', 'mute', 'unmute', 'inactivos', 'listablanca', 'dominioblanco'],
     'tienda': ['tienda'],
     'carry': ['carryleader', 'carryjoin', 'carryleave', 'carryclose', 'blcarry', 'unblcarry', 'listcarrybl'],
     'rifas': ['rifa', 'rifainscripcion', 'cerrarrifa'],
@@ -59,7 +59,7 @@ const comandosValidos = new Set([
         'ruleta', 'cf', 'slots', 'dados', 'adivina', 'buscaminas', 'rob', 'ppt', 'pelea',
         'carrera', 'hackear', 'shop', 'buy', 'inventario', 'mochila', 'vender', 'use', 'regalar',
         'rifa', 'rifainscripcion', 'cerrarrifa', 'rifajasc13', 'programadorbot', 'abrirrifa', 'activarrifaaqui', 'menurifajasc13', 'carryleader', 'carryjoin', 'carryleave', 'carryclose', 'blcarry', 'unblcarry', 'listcarrybl',
-        'vertodosconandos', 'vertodoscomandos', 'listablanca', 'desactivarbienvenida', 'activarbienvenida', 'personalizarbienvenida', 'restaurarbienvenida'
+        'vertodosconandos', 'vertodoscomandos', 'listablanca', 'dominioblanco', 'desactivarbienvenida', 'activarbienvenida', 'personalizarbienvenida', 'restaurarbienvenida'
 ]);
 
 async function procesarMensaje(sock, msg) {
@@ -111,9 +111,12 @@ Apoya a un creador: JASC13` });
     const esComandoPropioPermitido = esProgramador || (msg.key.fromMe && comandoPropioPermitido.has(textoComandoPrevio));
 
     // La lista blanca se procesa antes del anti-links para permitir agregar cualquier URL.
-    if (textoComandoPrevio === 'listablanca') {
+    if (textoComandoPrevio === 'listablanca' || textoComandoPrevio === 'dominioblanco') {
         const partesListaBlanca = textoOriginal.trim().split(/\s+/);
-        await comandoListaBlancaLinks(sock, chatJid, msg, partesListaBlanca.slice(1));
+        const comandoLista = textoComandoPrevio === 'dominioblanco'
+            ? ['dominio', ...partesListaBlanca.slice(1)]
+            : partesListaBlanca.slice(1);
+        await comandoListaBlancaLinks(sock, chatJid, msg, comandoLista);
         return;
     }
 
@@ -256,7 +259,7 @@ Apoya a un creador: JASC13` });
             ['grupo', 'Abre o cierra el chat del grupo.'],
             ['mute', 'Silencia a un usuario del grupo.'],
             ['unmute', 'Quita el silencio a un usuario.'],
-            ['inactivos', 'Muestra quiénes llevan tiempo sin participar en el grupo.'],
+            ['inactivos', 'Muestra quiénes llevan tiempo sin participar en el grupo.'],\n            ['dominioblanco', 'Gestiona dominios completos permitidos por el anti-links.'],
             ['tienda', 'Muestra la tienda diaria de Fortnite o una categoría concreta.'],
             ['ia', 'Permite conversar con la inteligencia artificial del bot.'],
             ['menu', 'Muestra el menú principal o una categoría específica.'],
