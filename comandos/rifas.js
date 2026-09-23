@@ -533,7 +533,8 @@ async function comandoRifaJasc13(sock, chatId, msg, args) {
         if (msg.message?.extendedTextMessage?.contextInfo?.mentionedJid?.length > 0) {
             targetId = msg.message.extendedTextMessage.contextInfo.mentionedJid[0];
         } else {
-            const numeroArg = (subaccion === 'ver' ? args[2] : args[1])?.replace(/[^0-9]/g, '');
+            const indiceNumero = (subaccion === 'ver' || subaccion === 'canjear') ? 2 : 1;
+            const numeroArg = args[indiceNumero]?.replace(/[^0-9]/g, '');
             if (numeroArg && numeroArg.length > 5) targetId = numeroArg + '@s.whatsapp.net';
         }
 
