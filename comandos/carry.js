@@ -55,11 +55,13 @@ async function comandoCarry(sock, chatId, msg, comando, args = []) {
                 return await sock.sendMessage(chatId, { text: `📋 La lista negra de carry en este grupo está vacía.` }, { quoted: msg });
             }
             let txt = `🚫 *LISTA NEGRA DE CARRY*\n\n`;
-            listaNegra.forEach((id, idx) => {
+            const mencionesListaNegra = [];
+            for (const [idx, id] of listaNegra.entries()) {
                 const contacto = await resolverContactoWhatsApp(sock, id);
                 txt += `${idx + 1}. @${contacto.mentionNumber || id.split('@')[0]} · 📱 ${contacto.numeroVisible}\n`;
-            });
-            return await sock.sendMessage(chatId, { text: txt, mentions: listaNegra }, { quoted: msg });
+                if (contacto.mentionJid) mencionesListaNegra.push(contacto.mentionJid);
+            }
+            return await sock.sendMessage(chatId, { text: txt, mentions: [...new Set(mencionesListaNegra)] }, { quoted: msg });
         }
 
         let objetivo = await extraerUsuarioObjetivo(sock, msg, args);
