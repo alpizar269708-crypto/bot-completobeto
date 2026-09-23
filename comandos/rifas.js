@@ -553,7 +553,7 @@ async function comandoRifaJasc13(sock, chatId, msg, args) {
             const disponible = Number(cashbackDoc?.cashback) || 0;
 
             return await sock.sendMessage(chatId, {
-                text: `💰 *CASHBACK DISPONIBLE*\\n\\n👤 Usuario: @${targetId.split('@')[0]}\\n💳 Cashback actual: *${disponible.toFixed(2)}* Pavos`,
+                text: `💰 *CASHBACK DISPONIBLE*\n\n👤 Usuario: @${targetId.split('@')[0]}\n💳 Cashback actual: *${disponible.toFixed(2)}* Pavos`,
                 mentions: [targetId]
             }, { quoted: msg });
         }
@@ -578,7 +578,7 @@ async function comandoRifaJasc13(sock, chatId, msg, args) {
         await cashbackDoc.save();
 
         return await sock.sendMessage(chatId, {
-            text: `💸 *CASHBACK CANJEADO*\\n\\n👤 Usuario: @${targetId.split('@')[0]}\\n➖ Utilizado: *${cantidadCashback.toFixed(2)}* Pavos\\n💰 Restante: *${Number(cashbackDoc.cashback).toFixed(2)}* Pavos`,
+            text: `💸 *CASHBACK CANJEADO*\n\n👤 Usuario: @${targetId.split('@')[0]}\n➖ Utilizado: *${cantidadCashback.toFixed(2)}* Pavos\n💰 Restante: *${Number(cashbackDoc.cashback).toFixed(2)}* Pavos`,
             mentions: [targetId]
         }, { quoted: msg });
     }
