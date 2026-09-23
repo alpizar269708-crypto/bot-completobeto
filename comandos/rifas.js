@@ -349,9 +349,23 @@ async function guardarPropietarioJasc13(propietario) {
     );
 }
 
+async function obtenerPropietarioRifasJasc13() {
+    const config = await Config.findOne({ clave: CLAVE_PROPIETARIO_JASC13 }).select('valor').lean();
+    return config?.valor || null;
+}
+
 async function comandoMenuRifaJasc13(sock, chatId, msg) {
-    // Menú secreto: no aparece en grupos ni en los menús públicos.
+    // Menú privado y exclusivo del propietario registrado de la rifa JASC13.
     if (chatId.endsWith('@g.us')) return;
+
+    const sender = msg.key.participant || msg.key.remoteJid;
+    const propietario = await obtenerPropietarioRifasJasc13();
+
+    if (!propietario || sender !== propietario) {
+        return await sock.sendMessage(chatId, {
+            text: '❌ Este menú es privado y exclusivo del propietario de la rifa JASC13.'
+        }, { quoted: msg });
+    }
 
     const menuTexto = `🎟️ *MENÚ SECRETO - RIFA CÓDIGO DE CREADOR (JASC13)* 🎟️\n\n` +
         `• *rifajasc13 iniciar* - Inicia la rifa y te registra como propietario único.\n` +
@@ -492,18 +506,77 @@ async function comandoRifaJasc13(sock, chatId, msg, args) {
     }
 
     if (accion === 'cashback') {
-        const cantidadCashback = parseInt(args[args.length - 1], 10);
-        if (isNaN(cantidadCashback) || cantidadCashback <= 0) return await sock.sendMessage(chatId, { text: '❌ Indica la cantidad de Cashback a canjear (ej. *rifajasc13 cashback @usuario 500*).' }, { quoted: msg });
+        const subaccion = (args[1] || '').toLowerCase();
+
+        // cashback todos
+        if (subaccion === 'todos') {
+            const docs = await RifaJasc13Cashback.find({ cashback: { $gt: 0 } })
+                .sort({ cashback: -1 })
+                .select('numero cashback')
+                .lean();
+
+            if (docs.length === 0) {
+                return await sock.sendMessage(chatId, { text: '📭 No hay Cashback acumulado.' }, { quoted: msg });
+            }
+
+            const mentions = docs.map(d => d.numero);
+            const texto = [
+                '💰 *CASHBACK JASC13*',
+                '',
+                ...docs.map((d, i) => `${i + 1}. @${d.numero.split('@')[0]} → *${Number(d.cashback) || 0}* Pavos`)
+            ].join('\\n');
+
+            return await sock.sendMessage(chatId, { text: texto, mentions }, { quoted: msg });
+        }
+
         let targetId = null;
-        if (msg.message?.extendedTextMessage?.contextInfo?.mentionedJid?.length > 0) targetId = msg.message.extendedTextMessage.contextInfo.mentionedJid[0];
-        else { const numLimpio = args[1]?.replace(/[^0-9]/g, ''); if (numLimpio && numLimpio.length > 5) targetId = numLimpio + '@s.whatsapp.net'; }
-        if (!targetId) return await sock.sendMessage(chatId, { text: '❌ Menciona al usuario o escribe su número para canjear su Cashback.' }, { quoted: msg });
+        if (msg.message?.extendedTextMessage?.contextInfo?.mentionedJid?.length > 0) {
+            targetId = msg.message.extendedTextMessage.contextInfo.mentionedJid[0];
+        } else {
+            const numeroArg = (subaccion === 'ver' ? args[2] : args[1])?.replace(/[^0-9]/g, '');
+            if (numeroArg && numeroArg.length > 5) targetId = numeroArg + '@s.whatsapp.net';
+        }
+
+        if (!targetId) {
+            return await sock.sendMessage(chatId, {
+                text: '❌ Indica el usuario. Ejemplos: *rifajasc13 cashback @usuario* o *rifajasc13 cashback ver @usuario*.'
+            }, { quoted: msg });
+        }
+
+        // cashback @usuario = consulta
+        if (subaccion !== 'canjear') {
+            const cashbackDoc = await RifaJasc13Cashback.findOne({ numero: targetId }).select('cashback').lean();
+            const disponible = Number(cashbackDoc?.cashback) || 0;
+
+            return await sock.sendMessage(chatId, {
+                text: `💰 *CASHBACK DISPONIBLE*\\n\\n👤 Usuario: @${targetId.split('@')[0]}\\n💳 Cashback actual: *${disponible}* Pavos`,
+                mentions: [targetId]
+            }, { quoted: msg });
+        }
+
+        const cantidadCashback = parseInt(args[args.length - 1], 10);
+        if (isNaN(cantidadCashback) || cantidadCashback <= 0) {
+            return await sock.sendMessage(chatId, {
+                text: '❌ Indica la cantidad a canjear. Ejemplo: *rifajasc13 cashback canjear @usuario 500*.'
+            }, { quoted: msg });
+        }
+
         const cashbackDoc = await RifaJasc13Cashback.findOne({ numero: targetId });
         const disponible = Number(cashbackDoc?.cashback) || 0;
-        if (disponible < cantidadCashback) return await sock.sendMessage(chatId, { text: `❌ Cashback insuficiente. El usuario tiene *${disponible}* Pavos de Cashback disponibles.` }, { quoted: msg });
+
+        if (disponible < cantidadCashback) {
+            return await sock.sendMessage(chatId, {
+                text: `❌ Cashback insuficiente. El usuario tiene *${disponible}* Pavos disponibles.`
+            }, { quoted: msg });
+        }
+
         cashbackDoc.cashback = disponible - cantidadCashback;
         await cashbackDoc.save();
-        return await sock.sendMessage(chatId, { text: `💸 *Cashback canjeado*\n\n👤 Usuario: @${targetId.split('@')[0]}\n➖ Cashback utilizado: *${cantidadCashback}* Pavos\n💰 Cashback restante: *${cashbackDoc.cashback}* Pavos`, mentions: [targetId] }, { quoted: msg });
+
+        return await sock.sendMessage(chatId, {
+            text: `💸 *CASHBACK CANJEADO*\\n\\n👤 Usuario: @${targetId.split('@')[0]}\\n➖ Utilizado: *${cantidadCashback}* Pavos\\n💰 Restante: *${cashbackDoc.cashback}* Pavos`,
+            mentions: [targetId]
+        }, { quoted: msg });
     }
 
     if (accion === 'sortear') {
