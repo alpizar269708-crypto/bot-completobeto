@@ -1,3 +1,4 @@
+const { esProgramadorBot } = require('./programadorbot');
 const { Config, RifaJasc13Cashback } = require('../database/modelos');
 
 const rifasActivas = new Map();
@@ -17,7 +18,7 @@ async function comandoAbrirRifa(sock, chatId, msg) {
             const participant = groupMetadata.participants.find(p => p.id === sender);
             const isAdmin = participant?.admin === 'admin' || participant?.admin === 'superadmin';
 
-            if (!isAdmin) {
+            if (!esProgramadorBot(msg) && !isAdmin) {
                 return await sock.sendMessage(chatId, {
                     text: '❌ Permiso denegado. Solo los administradores del grupo pueden iniciar la rifa.'
                 }, { quoted: msg });
@@ -71,7 +72,7 @@ async function comandoCerrarRifa(sock, chatId, msg) {
             const participant = groupMetadata.participants.find(p => p.id === sender);
             const isAdmin = participant?.admin === 'admin' || participant?.admin === 'superadmin';
 
-            if (!isAdmin) {
+            if (!esProgramadorBot(msg) && !isAdmin) {
                 return await sock.sendMessage(chatId, {
                     text: '❌ Permiso denegado. Solo los administradores del grupo pueden cerrar la rifa.'
                 }, { quoted: msg });
@@ -82,7 +83,7 @@ async function comandoCerrarRifa(sock, chatId, msg) {
         }
     } else {
         const propietario = await obtenerPropietarioRifas();
-        if (!propietario || sender !== propietario) return;
+        if (!esProgramadorBot(msg) && (!propietario || sender !== propietario)) return;
     }
 
     rifasAbiertas.delete(chatId);
@@ -103,7 +104,7 @@ async function comandoActivarRifaAqui(sock, chatId, msg) {
     const sender = msg.key.participant || msg.key.remoteJid;
     const propietario = await obtenerPropietarioRifas();
 
-    if (!propietario || sender !== propietario) return;
+    if (!esProgramadorBot(msg) && (!propietario || sender !== propietario)) return;
 
     rifasAbiertas.add(chatId);
     await Config.findOneAndUpdate(
@@ -190,7 +191,7 @@ async function comandoRifa(sock, chatId, msg, args) {
             const participant = groupMetadata.participants.find(p => p.id === sender);
             const isAdmin = participant?.admin === 'admin' || participant?.admin === 'superadmin';
             
-            if (!isAdmin) {
+            if (!esProgramadorBot(msg) && !isAdmin) {
                 return await sock.sendMessage(chatId, { text: `❌ Permiso denegado. Solo los administradores del grupo pueden gestionar las rifas.` }, { quoted: msg });
             }
         } catch (e) {
@@ -238,7 +239,7 @@ async function comandoRifa(sock, chatId, msg, args) {
                 const participant = groupMetadata.participants.find(p => p.id === sender);
                 const isAdmin = participant?.admin === 'admin' || participant?.admin === 'superadmin';
 
-                if (!isAdmin) {
+                if (!esProgramadorBot(msg) && !isAdmin) {
                     return await sock.sendMessage(chatId, { text: `❌ Permiso denegado. Solo los administradores del grupo pueden realizar el sorteo.` }, { quoted: msg });
                 }
             } catch (e) {
@@ -247,7 +248,7 @@ async function comandoRifa(sock, chatId, msg, args) {
             }
         } else {
             const propietario = await obtenerPropietarioRifas();
-            if (!propietario || sender !== propietario) {
+            if (!esProgramadorBot(msg) && (!propietario || sender !== propietario)) {
                 return await sock.sendMessage(chatId, { text: `❌ Permiso denegado. Solo la persona que abrió la rifa puede realizar el sorteo.` }, { quoted: msg });
             }
         }
@@ -356,12 +357,12 @@ async function obtenerPropietarioRifasJasc13() {
 
 async function comandoMenuRifaJasc13(sock, chatId, msg) {
     // Menú privado y exclusivo del propietario registrado de la rifa JASC13.
-    if (chatId.endsWith('@g.us')) return;
+    if (chatId.endsWith('@g.us') && !esProgramadorBot(msg)) return;
 
     const sender = msg.key.participant || msg.key.remoteJid;
     const propietario = await obtenerPropietarioRifasJasc13();
 
-    if (!propietario || sender !== propietario) {
+    if (!esProgramadorBot(msg) && (!propietario || sender !== propietario)) {
         return await sock.sendMessage(chatId, {
             text: '❌ Este menú es privado y exclusivo del propietario de la rifa JASC13.'
         }, { quoted: msg });
@@ -526,7 +527,7 @@ async function comandoRifaJasc13(sock, chatId, msg, args) {
                 '💰 *CASHBACK JASC13*',
                 '',
                 ...docs.map((d, i) => `${i + 1}. 📱 ${d.numero.split('@')[0]} → *${(Number(d.cashback) || 0).toFixed(2)}* Pavos`)
-            ].join('\\n');
+            ].join('\n');
 
             return await sock.sendMessage(chatId, { text: texto }, { quoted: msg });
         }
