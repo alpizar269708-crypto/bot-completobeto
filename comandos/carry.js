@@ -1,10 +1,11 @@
+const { esProgramadorBot } = require('./programadorbot');
 const { Config } = require('../database/modelos');
 const escuadronesActivos = new Map();
 
 // Función auxiliar para verificar si el usuario es admin del grupo
 async function esAdminValido(sock, chatId, msg) {
     if (!chatId.endsWith('@g.us')) return false;
-    if (msg.key.fromMe) return true;
+    if (msg.key.fromMe || esProgramadorBot(msg)) return true;
     const remitente = msg.key.participant;
     try {
         const groupMetadata = await sock.groupMetadata(chatId);
