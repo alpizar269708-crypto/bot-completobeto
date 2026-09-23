@@ -364,7 +364,7 @@ async function comandoBuscaminas(sock, chatId, msg, args, usuarioBD) {
 
 // ⚔️ Interacción PvP y Retos
 async function comandoRob(sock, chatId, msg, args, usuarioBD) {
-    const objetivo = obtenerObjetivo(msg, args);
+    const objetivo = await obtenerObjetivo(sock, msg, args);
     if (!objetivo || (usuarioBD.cartera || 0) < 100) {
         await sock.sendMessage(chatId, { text: '⚠️ Etiqueta a alguien. Necesitas al menos 100 monedas en mano para robar.' }, { quoted: msg });
         return;
@@ -416,7 +416,7 @@ async function comandoPpt(sock, chatId, msg, args, usuarioBD) {
 }
 
 async function comandoPelea(sock, chatId, msg, args, usuarioBD) {
-    const objetivo = obtenerObjetivo(msg, args);
+    const objetivo = await obtenerObjetivo(sock, msg, args);
     const apuesta = parseInt(args[args.length - 1]);
     if (!objetivo || isNaN(apuesta) || apuesta <= 0 || (usuarioBD.cartera || 0) < apuesta) {
         await sock.sendMessage(chatId, { text: '⚠️ Uso correcto: `pelea @usuario [apuesta]`' }, { quoted: msg });
@@ -465,7 +465,7 @@ async function comandoCarrera(sock, chatId, msg, args, usuarioBD) {
 }
 
 async function comandoHackear(sock, chatId, msg, args, usuarioBD) {
-    const objetivo = obtenerObjetivo(msg, args);
+    const objetivo = await obtenerObjetivo(sock, msg, args);
     if (!objetivo || (usuarioBD.cartera || 0) < 300) {
         await sock.sendMessage(chatId, { text: '⚠️ Etiqueta a alguien. Hackear requiere gastar 300 monedas en herramientas.' }, { quoted: msg });
         return;
@@ -561,7 +561,7 @@ async function comandoUse(sock, chatId, msg, args, usuarioBD) {
 }
 
 async function comandoRegalarItem(sock, chatId, msg, args, usuarioBD) {
-    const objetivo = obtenerObjetivo(msg, args);
+    const objetivo = await obtenerObjetivo(sock, msg, args);
     const nombreItem = args.slice(1).join(' ').toLowerCase();
     if (!objetivo || !nombreItem) {
         await sock.sendMessage(chatId, { text: '⚠️ Uso correcto: `regalar [objeto] @usuario`' }, { quoted: msg });
