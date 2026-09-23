@@ -269,8 +269,53 @@ async function comandoDestacadasSTW(sock, chatId, msg) {
     await sock.sendMessage(chatId, { text: texto }, { quoted: msg });
 }
 
-async function comandoPreguntarAlerta(sock, chatId, msg) {
-    await sock.sendMessage(chatId, { text: `🤖 Escribe *stw*, *DestacadasSTW* o *legendariasstw*.` }, { quoted: msg });
+async function comandoPreguntarAlerta(sock, chatId, msg, palabrasClave = []) {
+    const datos = await obtenerAlertasSTW(true);
+    const termino = Array.isArray(palabrasClave)
+        ? palabrasClave.join(' ').trim()
+        : String(palabrasClave || '').trim();
+
+    if (!termino) {
+        await sock.sendMessage(chatId, { text: '🤖 Escribe después de *alerta* una palabra o frase para buscar en las alertas.' }, { quoted: msg });
+        return;
+    }
+
+    const normalizarTexto = texto => String(texto || '')
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\\u0300-\\u036f]/g, '');
+
+    const clave = normalizarTexto(termino);
+    const coincidencias = [
+        ...datos.pavos.map(item => ({ ...item, categoria: 'PaVos' })),
+        ...datos.epicas.map(item => ({ ...item, categoria: 'Épicas' })),
+        ...datos.legendarias.map(item => ({ ...item, categoria: 'Legendarias' })),
+        ...(datos.plAltas || []).map(item => ({ ...item, categoria: 'Destacadas' }))
+    ].filter(item => {
+        const textoBusqueda = normalizarTexto([
+            item.mision,
+            item.zona,
+            item.nombre,
+            item.recompensa,
+            ...(Array.isArray(item.recompensas) ? item.recompensas : [])
+        ].filter(Boolean).join(' '));
+
+        return textoBusqueda.includes(clave);
+    });
+
+    let texto = `🔎 *ALERTAS QUE CONTIENEN:* ${termino}\\n\\n`;
+
+    if (coincidencias.length === 0) {
+        texto += '_No encontré alertas que contengan esa palabra o frase._\\n\\n';
+    } else {
+        coincidencias.forEach(item => {
+            texto += `📌 *${item.categoria}*\\n`;
+            texto += formatearAlertaSTW(item);
+        });
+    }
+
+    texto += 'Support-a-Creator: *JASC13* ❤️';
+    await sock.sendMessage(chatId, { text: texto }, { quoted: msg });
 }
 
 async function enviarAlertaPavosAutomatica(sock, enviarAunqueNoHayaPavos = false) {
