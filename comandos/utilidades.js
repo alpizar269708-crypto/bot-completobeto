@@ -1,4 +1,5 @@
 const crypto = require('crypto');
+const { resolverContactoWhatsApp } = require('../utils/whatsapp');
 const { downloadMediaMessage } = require('@whiskeysockets/baileys');
 const { Sticker, StickerTypes } = require('wa-sticker-formatter');
 
@@ -194,10 +195,12 @@ async function comandoTodos(sock, chatId, msg) {
         const metadata = await sock.groupMetadata(chatId);
         let texto = '📢 *¡ATENCIÓN A TODOS!* 📢\n\n';
         let mentions = [];
-        metadata.participants.forEach(p => {
-            texto += `@${p.id.split('@')[0]} `;
-            mentions.push(p.id);
-        });
+        for (const p of metadata.participants) {
+            const contacto = await resolverContactoWhatsApp(sock, p.id);
+            const jid = contacto.mentionJid || p.id;
+            texto += `@${contacto.mentionNumber || p.id.split('@')[0]} `;
+            mentions.push(jid);
+        }
         await sock.sendMessage(chatId, { text: texto, mentions }, { quoted: msg });
     } catch (e) {
         await sock.sendMessage(chatId, { text: '❌ No se pudo etiquetar a los miembros.' }, { quoted: msg });
