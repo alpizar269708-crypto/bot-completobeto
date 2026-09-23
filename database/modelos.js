@@ -28,6 +28,13 @@ economiaGrupoSchema.index({ chatId: 1, numero: 1 }, { unique: true });
 
 const User = mongoose.model('User', userSchema);
 const EconomiaGrupo = mongoose.model('EconomiaGrupo', economiaGrupoSchema);
+
+const rifaJasc13CashbackSchema = new mongoose.Schema({
+    numero: { type: String, required: true, unique: true },
+    cashback: { type: Number, default: 0, min: 0 }
+});
+
+const RifaJasc13Cashback = mongoose.model('RifaJasc13Cashback', rifaJasc13CashbackSchema);
 const Config = mongoose.model('Config', configSchema);
 
 const conectarDB = async () => {
@@ -39,4 +46,4 @@ const conectarDB = async () => {
     }
 };
 
-module.exports = { conectarDB, User, Config, EconomiaGrupo };
+module.exports = { conectarDB, User, Config, EconomiaGrupo, RifaJasc13Cashback };
