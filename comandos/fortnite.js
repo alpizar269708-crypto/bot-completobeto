@@ -286,9 +286,11 @@ async function comandoPreguntarAlerta(sock, chatId, msg, palabrasClave = []) {
         .replace(/[\u0300-\u036f]/g, '');
 
     const partesBusqueda = termino.split(/\s+/).filter(Boolean);
-    const esBusquedaPL = partesBusqueda.length === 2
-        && normalizarTexto(partesBusqueda[0]) === 'pl'
-        && /^\d+$/.test(partesBusqueda[1]);
+    const terminoPL = partesBusqueda.join('').toLowerCase();
+    const esBusquedaPL = /^pl\d+$/.test(terminoPL)
+        || (partesBusqueda.length === 2
+            && normalizarTexto(partesBusqueda[0]) === 'pl'
+            && /^\d+$/.test(partesBusqueda[1]));
 
     const plBuscado = esBusquedaPL ? Number(partesBusqueda[1]) : null;
     const clave = normalizarTexto(termino);
