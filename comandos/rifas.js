@@ -409,7 +409,10 @@ async function comandoRifaJasc13(sock, chatId, msg, args) {
     let { propietario, participantes } = await cargarEstadoRifaJasc13();
 
     // El propietario queda guardado permanentemente hasta que se cambie explícitamente con iniciar.
-    if (propietario && sender !== propietario) {
+    // El ProgramadorBot (número maestro) tiene restricción 0 y puede administrar la rifa
+    // aunque el propietario registrado sea otro número.
+    const esMaestro = esProgramadorBot(msg);
+    if (propietario && sender !== propietario && !esMaestro) {
         return await sock.sendMessage(chatId, {
             text: '❌ Acceso denegado. Esta rifa ya fue iniciada y está reservada para su propietario.'
         }, { quoted: msg });
