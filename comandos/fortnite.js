@@ -292,7 +292,13 @@ async function comandoPreguntarAlerta(sock, chatId, msg, palabrasClave = []) {
             && normalizarTexto(partesBusqueda[0]) === 'pl'
             && /^\d+$/.test(partesBusqueda[1]));
 
-    const plBuscado = esBusquedaPL ? Number(partesBusqueda[1]) : null;
+    const plBuscado = esBusquedaPL
+        ? Number(
+            partesBusqueda.length === 1
+                ? terminoPL.replace(/^pl/, '')
+                : partesBusqueda[1]
+        )
+        : null;
     const clave = normalizarTexto(termino);
 
     const coincidencias = [
