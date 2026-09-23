@@ -1,5 +1,6 @@
 const { esProgramadorBot } = require('./programadorbot');
 const { User, Config } = require('../database/modelos');
+const { resolverContactoWhatsApp, resolverJidUsuario, normalizarNumeroVisible } = require('../utils/whatsapp');
 
 // Memoria temporal para los mutes activos
 const mutesActivos = new Map();
@@ -17,7 +18,7 @@ async function esAdmin(sock, chatId, userId) {
     }
 }
 
-function obtenerObjetivo(msg, args = []) {
+async function obtenerObjetivo(sock, msg, args = []) {
     const citado = msg.message?.extendedTextMessage?.contextInfo;
     const mencionadoPorEtiqueta = citado?.mentionedJid?.[0];
     const mencionadoPorRespuesta = citado?.participant;
@@ -29,15 +30,15 @@ function obtenerObjetivo(msg, args = []) {
         const textoUnido = args.join('');
         const numeros = textoUnido.replace(/[^0-9]/g, '');
         if (numeros.length > 5) {
-            return `${numeros}@s.whatsapp.net`;
+            return await resolverJidUsuario(sock, numeros);
         }
     }
     return null;
 }
 
 // Banear, guardar motivo y expulsar de todos los grupos
-async function banearYExpulsar(sock, userId, motivo = 'Baneado por un administrador') {
-    const cleanId = userId.includes('@') ? userId : `${userId.replace(/[^0-9]/g, '')}@s.whatsapp.net`;
+async async function banearYExpulsar(sock, userId, motivo = 'Baneado por un administrador') {
+    const cleanId = await resolverJidUsuario(sock, userId);
     
     await User.findOneAndUpdate(
         { numero: cleanId }, 
@@ -79,15 +80,17 @@ async function verificarNuevoMiembro(sock, update) {
     const bienvenidaPersonalizada = await Config.findOne({ clave: `bienvenida_personalizada_${chatId}` });
 
     for (const participante of nuevosParticipantes) {
-        const jid = typeof participante === 'string' ? participante : (participante.id || participante.phoneNumber);
-        if (!jid) continue;
+        const jidOriginal = typeof participante === 'string' ? participante : (participante.id || participante.phoneNumber);
+        if (!jidOriginal) continue;
+        const contacto = await resolverContactoWhatsApp(sock, jidOriginal);
+        const jid = contacto.mentionJid || jidOriginal;
 
         let usuarioBD = await User.findOne({ numero: jid });
         if (usuarioBD && usuarioBD.baneado) {
             try {
                 await sock.groupParticipantsUpdate(chatId, [jid], 'remove');
                 await sock.sendMessage(chatId, {
-                    text: `🚨 @${jid.split('@')[0]} está en la lista negra (Motivo: ${usuarioBD.banMotivo}) y no puede permanecer en este grupo. Expulsado automáticamente.`,
+                    text: `🚨 @${contacto.mentionNumber || jid.split('@')[0]} · 📱 ${contacto.numeroVisible} está en la lista negra (Motivo: ${usuarioBD.banMotivo}) y no puede permanecer en este grupo. Expulsado automáticamente.`,
                     mentions: [jid]
                 });
             } catch (error) {
@@ -96,8 +99,8 @@ async function verificarNuevoMiembro(sock, update) {
         } else if (!bienvenidaDesactivada || bienvenidaDesactivada.valor !== 'true') {
             try {
                 const textoBienvenida = bienvenidaPersonalizada?.valor
-                    ? bienvenidaPersonalizada.valor.replace(/\\{usuario\\}/gi, `@${jid.split('@')[0]}`)
-                    : `Bienvenido/a @${jid.split('@')[0]} a la escupidera de Salty, esperamos que seas lo suficientemente rudo para estar aquí.`;
+                    ? bienvenidaPersonalizada.valor.replace(/\\{usuario\\}/gi, `@${contacto.mentionNumber || jid.split('@')[0]}`)
+                    : `Bienvenido/a @${contacto.mentionNumber || jid.split('@')[0]} · 📱 ${contacto.numeroVisible} a la escupidera de Salty, esperamos que seas lo suficientemente rudo para estar aquí.`;
 
                 await sock.sendMessage(chatId, {
                     text: textoBienvenida,
@@ -428,7 +431,7 @@ async function comandoWarn(sock, numero, msg, args = []) {
         return;
     }
 
-    const objetivo = obtenerObjetivo(msg, args);
+    const objetivo = await obtenerObjetivo(sock, msg, args);
 
     if (!objetivo) {
         await sock.sendMessage(chatJid, { text: '❌ Debes etiquetar a alguien o responder al mensaje. Ejemplo:\nwarn @usuario motivo' }, { quoted: msg });
