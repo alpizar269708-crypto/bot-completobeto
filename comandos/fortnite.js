@@ -287,17 +287,18 @@ async function comandoPreguntarAlerta(sock, chatId, msg, palabrasClave = []) {
 
     const partesBusqueda = termino.split(/\s+/).filter(Boolean);
     const terminoPL = partesBusqueda.join('').toLowerCase();
-    const esBusquedaPL = /^pl\d+$/.test(terminoPL)
-        || (partesBusqueda.length === 2
-            && normalizarTexto(partesBusqueda[0]) === 'pl'
-            && /^\d+$/.test(partesBusqueda[1]));
+    const rangoPL = terminoPL.match(/^pl(\d+)-(\d+)$/);
+    const plSeparado = partesBusqueda.length === 2
+        && normalizarTexto(partesBusqueda[0]) === 'pl'
+        && /^\d+(?:-\d+)?$/.test(partesBusqueda[1]);
 
-    const plBuscado = esBusquedaPL
-        ? Number(
-            partesBusqueda.length === 1
-                ? terminoPL.replace(/^pl/, '')
-                : partesBusqueda[1]
-        )
+    const esBusquedaPL = Boolean(rangoPL || /^pl\d+$/.test(terminoPL) || plSeparado);
+
+    const plMinimo = esBusquedaPL
+        ? Number(rangoPL ? rangoPL[1] : (partesBusqueda.length === 1 ? terminoPL.replace(/^pl/, '') : partesBusqueda[1].split('-')[0]))
+        : null;
+    const plMaximo = esBusquedaPL
+        ? Number(rangoPL ? rangoPL[2] : (partesBusqueda.length === 1 ? terminoPL.replace(/^pl/, '') : partesBusqueda[1].split('-')[1] || partesBusqueda[1]))
         : null;
     const clave = normalizarTexto(termino);
 
@@ -309,7 +310,7 @@ async function comandoPreguntarAlerta(sock, chatId, msg, palabrasClave = []) {
     ].filter(item => {
         if (esBusquedaPL) {
             const plItem = Number(String(item.pl || '').replace(/[^0-9]/g, ''));
-            return plItem === plBuscado;
+            return plItem >= Math.min(plMinimo, plMaximo) && plItem <= Math.max(plMinimo, plMaximo);
         }
 
         const textoBusqueda = normalizarTexto([
@@ -323,13 +324,17 @@ async function comandoPreguntarAlerta(sock, chatId, msg, palabrasClave = []) {
         return textoBusqueda.includes(clave);
     });
 
+    const etiquetaPL = plMinimo === plMaximo
+        ? String(plMinimo)
+        : Math.min(plMinimo, plMaximo) + '-' + Math.max(plMinimo, plMaximo);
+
     let texto = esBusquedaPL
-        ? '🔎 *ALERTAS CON PL ' + plBuscado + '*\n\n'
+        ? '🔎 *ALERTAS CON PL ' + etiquetaPL + '*\n\n'
         : '🔎 *ALERTAS QUE CONTIENEN:* ' + termino + '\n\n';
 
     if (coincidencias.length === 0) {
         texto += esBusquedaPL
-            ? '_No encontré alertas con PL ' + plBuscado + '._\n\n'
+            ? '_No encontré alertas con PL ' + etiquetaPL + '._\n\n'
             : '_No encontré alertas que contengan esa palabra o frase._\n\n';
     } else {
         coincidencias.forEach(item => {
@@ -341,7 +346,7 @@ async function comandoPreguntarAlerta(sock, chatId, msg, palabrasClave = []) {
     texto += 'Support-a-Creator: *JASC13* ❤️';
     await sock.sendMessage(chatId, { text: texto }, { quoted: msg });
 }
-async function enviarAlertaPavosAutomatica(sock, enviarAunqueNoHayaPavos = false) {
+async function enviarAlertaPavosAutomatica(sock, enviarAunqueNoHayaPavos = false, actualizarEnVivo = false) {
     try {
         const configChat = await Config.findOne({ clave: 'chat_alertas_diarias' });
         if (!configChat || !configChat.valor) return false;
@@ -358,13 +363,15 @@ async function enviarAlertaPavosAutomatica(sock, enviarAunqueNoHayaPavos = false
         grupos = [...new Set(grupos.filter(id => typeof id === 'string' && id.endsWith('@g.us')))];
         if (grupos.length === 0) return false;
 
-        // Justo antes de la alerta automática hacemos un raspado en vivo de STW Planner.
-        // Así el mensaje de las 18:02 usa los datos más recientes disponibles en ese preciso momento.
-        try {
-            const { extraerAlertasAPI } = require('../webBridge');
-            await extraerAlertasAPI();
-        } catch (e) {
-            console.error('⚠️ No se pudo hacer el raspado previo a la alerta automática:', e.message);
+        // Solo el intento inicial de las 18:02 hace el raspado diario.
+        // Los reintentos usan los datos ya guardados para no volver a consultar STW Planner.
+        if (actualizarEnVivo) {
+            try {
+                const { extraerAlertasAPI } = require('../webBridge');
+                await extraerAlertasAPI();
+            } catch (e) {
+                console.error('⚠️ No se pudo hacer el raspado diario de STW Planner:', e.message);
+            }
         }
 
         const datos = await obtenerAlertasSTW(false);
@@ -419,7 +426,7 @@ function iniciarCronAlertasDiarias(sock) {
         const limiteMs = 9 * 60 * 1000;
         const inicio = Date.now();
 
-        const enviado = await enviarAlertaPavosAutomatica(sock, true);
+        const enviado = await enviarAlertaPavosAutomatica(sock, true, true);
         if (enviado) return;
 
         const reintentar = async () => {
