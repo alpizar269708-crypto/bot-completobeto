@@ -283,7 +283,7 @@ async function comandoPreguntarAlerta(sock, chatId, msg, palabrasClave = []) {
     const normalizarTexto = texto => String(texto || '')
         .toLowerCase()
         .normalize('NFD')
-        .replace(/[\\u0300-\\u036f]/g, '');
+        .replace(/[\u0300-\u036f]/g, '');
 
     const clave = normalizarTexto(termino);
     const coincidencias = [
@@ -303,13 +303,13 @@ async function comandoPreguntarAlerta(sock, chatId, msg, palabrasClave = []) {
         return textoBusqueda.includes(clave);
     });
 
-    let texto = `🔎 *ALERTAS QUE CONTIENEN:* ${termino}\\n\\n`;
+    let texto = `🔎 *ALERTAS QUE CONTIENEN:* ${termino}\n\n`;
 
     if (coincidencias.length === 0) {
-        texto += '_No encontré alertas que contengan esa palabra o frase._\\n\\n';
+        texto += '_No encontré alertas que contengan esa palabra o frase._\n\n';
     } else {
         coincidencias.forEach(item => {
-            texto += `📌 *${item.categoria}*\\n`;
+            texto += `📌 *${item.categoria}*\n`;
             texto += formatearAlertaSTW(item);
         });
     }
@@ -317,7 +317,6 @@ async function comandoPreguntarAlerta(sock, chatId, msg, palabrasClave = []) {
     texto += 'Support-a-Creator: *JASC13* ❤️';
     await sock.sendMessage(chatId, { text: texto }, { quoted: msg });
 }
-
 async function enviarAlertaPavosAutomatica(sock, enviarAunqueNoHayaPavos = false) {
     try {
         const configChat = await Config.findOne({ clave: 'chat_alertas_diarias' });
