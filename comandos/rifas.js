@@ -522,14 +522,13 @@ async function comandoRifaJasc13(sock, chatId, msg, args) {
                 return await sock.sendMessage(chatId, { text: '📭 No hay Cashback acumulado.' }, { quoted: msg });
             }
 
-            const mentions = docs.map(d => d.numero);
             const texto = [
                 '💰 *CASHBACK JASC13*',
                 '',
-                ...docs.map((d, i) => `${i + 1}. @${d.numero.split('@')[0]} → *${(Number(d.cashback) || 0).toFixed(2)}* Pavos`)
+                ...docs.map((d, i) => `${i + 1}. 📱 ${d.numero.split('@')[0]} → *${(Number(d.cashback) || 0).toFixed(2)}* Pavos`)
             ].join('\\n');
 
-            return await sock.sendMessage(chatId, { text: texto, mentions }, { quoted: msg });
+            return await sock.sendMessage(chatId, { text: texto }, { quoted: msg });
         }
 
         let targetId = null;
