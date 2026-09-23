@@ -290,23 +290,30 @@ const CLAVE_PARTICIPANTES_JASC13 = 'rifajasc13_participantes';
 const CLAVE_MIGRACION_CASHBACK_JASC13 = 'rifajasc13_cashback_migrado_v1';
 const PORCENTAJE_CASHBACK_JASC13 = 0.05;
 
-async function resolverNumeroVisible(sock, jid) {
-    if (!jid) return 'Desconocido';
-    if (jid.endsWith('@s.whatsapp.net')) return jid.split('@')[0].split(':')[0];
+function normalizarNumeroVisible(numero) {
+    const limpio = String(numero || '').replace(/[^0-9]/g, '');
+    if (!limpio) return 'Desconocido';
+    if (limpio.startsWith('521') && limpio.length === 13) return '+52' + limpio.slice(3);
+    return '+' + limpio;
+}
 
+function extraerNumeroJid(jid) {
+    return String(jid || '').split('@')[0].split(':')[0].replace(/[^0-9]/g, '');
+}
+
+async function resolverContactoJasc13(sock, jid) {
+    if (!jid) return { numeroVisible: 'Desconocido', mentionJid: null, mentionNumber: null };
+    let mentionJid = jid; let numero = extraerNumeroJid(jid);
     if (jid.endsWith('@lid')) {
         try {
             const lidMapping = sock.signalRepository?.lidMapping;
             if (lidMapping?.getPNForLID) {
                 const pn = await lidMapping.getPNForLID(jid);
-                if (pn) return pn.split('@')[0].split(':')[0];
+                if (pn) { mentionJid = pn; numero = extraerNumeroJid(pn); }
             }
-        } catch (e) {
-            console.error('⚠️ No se pudo resolver LID a número de teléfono:', e.message);
-        }
+        } catch (e) { console.error('⚠️ No se pudo resolver LID a número de teléfono:', e.message); }
     }
-
-    return jid.split('@')[0];
+    return { numeroVisible: normalizarNumeroVisible(numero), mentionJid, mentionNumber: extraerNumeroJid(mentionJid) };
 }
 
 async function cargarEstadoRifaJasc13() {
@@ -460,9 +467,12 @@ async function comandoRifaJasc13(sock, chatId, msg, args) {
             const faltantes = puntos === 0 ? 1000 : 1000 - puntos;
             const cashbackDoc = await RifaJasc13Cashback.findOne({ numero: id }).select('cashback').lean();
             const cashback = Number(cashbackDoc?.cashback) || 0;
-            const numeroVisible = await resolverNumeroVisible(sock, id);
-            texto += `${i}. 📱 ${numeroVisible} → Puntos: *${puntos}* | Boletos: *${boletos}* (Faltan ${faltantes} pts) | Cashback: *${cashback.toFixed(2)}* Pavos\n`;
-            mentions.push(id);
+            const contacto = await resolverContactoJasc13(sock, id);
+            texto += `${i}. 📱 ${contacto.numeroVisible} → Puntos: *${puntos}* | Boletos: *${boletos}* (Faltan ${faltantes} pts) | Cashback: *${cashback.toFixed(2)}* Pavos\n`;
+            if (contacto.mentionJid && contacto.mentionNumber) {
+                texto += `   👤 @${contacto.mentionNumber}\n`;
+                mentions.push(contacto.mentionJid);
+            }
             i++;
         }
 
@@ -528,8 +538,9 @@ async function comandoRifaJasc13(sock, chatId, msg, args) {
         const faltantes = datosUsuario.puntos === 0 ? 1000 : 1000 - datosUsuario.puntos;
         const cashbackDoc = await RifaJasc13Cashback.findOne({ numero: targetId }).select('cashback').lean();
         const cashbackTotal = Number(cashbackDoc?.cashback) || 0;
-        const respuesta = `✅ *PaVos registrados exitosamente*\n👤 Usuario: @${targetId.split('@')[0]}\n➕ PaVos registrados: *+${pavosAgregados}*\n🎟️ Boletos agregados: *+${boletosGanados}*\n🎟️ Boletos actuales: *${datosUsuario.boletos}*\n📌 Puntos sobrantes guardados: *${datosUsuario.puntos}*\n📍 Faltan para otro boleto: *${faltantes} pts*\n💰 Cashback ganado: *+${cashbackGanado.toFixed(2)}* Pavos\n💰 Cashback acumulado: *${cashbackTotal.toFixed(2)}* Pavos`;
-        return await sock.sendMessage(chatId, { text: respuesta, mentions: [targetId] });
+        const contacto = await resolverContactoJasc13(sock, targetId);
+        const respuesta = `✅ *PaVos registrados exitosamente*\n👤 Usuario: @${contacto.mentionNumber || targetId.split('@')[0]}\n📱 Teléfono: *${contacto.numeroVisible}*\n➕ PaVos registrados: *+${pavosAgregados}*\n🎟️ Boletos agregados: *+${boletosGanados}*\n🎟️ Boletos actuales: *${datosUsuario.boletos}*\n📌 Puntos sobrantes guardados: *${datosUsuario.puntos}*\n📍 Faltan para otro boleto: *${faltantes} pts*\n💰 Cashback ganado: *+${cashbackGanado.toFixed(2)}* Pavos\n💰 Cashback acumulado: *${cashbackTotal.toFixed(2)}* Pavos`;
+        return await sock.sendMessage(chatId, { text: respuesta, mentions: contacto.mentionJid ? [contacto.mentionJid] : [] });
     }
 
     if (accion === 'cashback') {
@@ -550,12 +561,20 @@ async function comandoRifaJasc13(sock, chatId, msg, args) {
                 '💰 *CASHBACK JASC13*',
                 '',
                 ...await Promise.all(docs.map(async (d, i) => {
-                    const numeroVisible = await resolverNumeroVisible(sock, d.numero);
-                    return `${i + 1}. 📱 ${numeroVisible} → *${(Number(d.cashback) || 0).toFixed(2)}* Pavos`;
+                    const contacto = await resolverContactoJasc13(sock, d.numero);
+                    return `${i + 1}. 📱 ${contacto.numeroVisible} → *${(Number(d.cashback) || 0).toFixed(2)}* Pavos\n   👤 @${contacto.mentionNumber || contacto.numeroVisible.replace(/[^0-9]/g, '')}`;
                 }))
             ].join('\n');
 
-            return await sock.sendMessage(chatId, { text: texto }, { quoted: msg });
+            const mencionesCashback = await Promise.all(docs.map(async d => {
+                const contacto = await resolverContactoJasc13(sock, d.numero);
+                return contacto.mentionJid;
+            }));
+
+            return await sock.sendMessage(chatId, {
+                text: texto,
+                mentions: mencionesCashback.filter(Boolean)
+            }, { quoted: msg });
         }
 
         let targetId = null;
@@ -578,9 +597,10 @@ async function comandoRifaJasc13(sock, chatId, msg, args) {
             const cashbackDoc = await RifaJasc13Cashback.findOne({ numero: targetId }).select('cashback').lean();
             const disponible = Number(cashbackDoc?.cashback) || 0;
 
+            const contacto = await resolverContactoJasc13(sock, targetId);
             return await sock.sendMessage(chatId, {
-                text: `💰 *CASHBACK DISPONIBLE*\n\n👤 Usuario: @${targetId.split('@')[0]}\n💳 Cashback actual: *${disponible.toFixed(2)}* Pavos`,
-                mentions: [targetId]
+                text: `💰 *CASHBACK DISPONIBLE*\n\n👤 Usuario: @${contacto.mentionNumber || targetId.split('@')[0]}\n📱 Teléfono: *${contacto.numeroVisible}*\n💳 Cashback actual: *${disponible.toFixed(2)}* Pavos`,
+                mentions: contacto.mentionJid ? [contacto.mentionJid] : []
             }, { quoted: msg });
         }
 
@@ -603,9 +623,10 @@ async function comandoRifaJasc13(sock, chatId, msg, args) {
         cashbackDoc.cashback = Number((disponible - cantidadCashback).toFixed(2));
         await cashbackDoc.save();
 
+        const contactoCanje = await resolverContactoJasc13(sock, targetId);
         return await sock.sendMessage(chatId, {
-            text: `💸 *CASHBACK CANJEADO*\n\n👤 Usuario: @${targetId.split('@')[0]}\n➖ Utilizado: *${cantidadCashback.toFixed(2)}* Pavos\n💰 Restante: *${Number(cashbackDoc.cashback).toFixed(2)}* Pavos`,
-            mentions: [targetId]
+            text: `💸 *CASHBACK CANJEADO*\n\n👤 Usuario: @${contactoCanje.mentionNumber || targetId.split('@')[0]}\n📱 Teléfono: *${contactoCanje.numeroVisible}*\n➖ Utilizado: *${cantidadCashback.toFixed(2)}* Pavos\n💰 Restante: *${Number(cashbackDoc.cashback).toFixed(2)}* Pavos`,
+            mentions: contactoCanje.mentionJid ? [contactoCanje.mentionJid] : []
         }, { quoted: msg });
     }
 
@@ -670,13 +691,14 @@ async function comandoRifaJasc13(sock, chatId, msg, args) {
             return await sock.sendMessage(chatId, { text: '❌ No fue posible realizar el sorteo.' }, { quoted: msg });
         }
 
-        const mentions = ganadores;
+        const contactosGanadores = await Promise.all(ganadores.map(ganadorId => resolverContactoJasc13(sock, ganadorId)));
+        const mentions = contactosGanadores.map(contacto => contacto.mentionJid).filter(Boolean);
         let mensajeGanador = ganadores.length === 1
             ? '🎉 *¡TENEMOS GANADOR DE LA RIFA EXCLUSIVA!* 🎉\n\n'
             : `🎉 *¡TENEMOS ${ganadores.length} GANADORES DE LA RIFA EXCLUSIVA!* 🎉\n\n`;
 
-        ganadores.forEach((ganadorId, index) => {
-            mensajeGanador += `🏆 *Ganador ${index + 1}:* @${ganadorId.split('@')[0]} 🎊\n`;
+        contactosGanadores.forEach((contacto, index) => {
+            mensajeGanador += `🏆 *Ganador ${index + 1}:* @${contacto.mentionNumber || contacto.numeroVisible.replace(/[^0-9]/g, '')} · 📱 ${contacto.numeroVisible} 🎊\n`;
         });
 
         mensajeGanador += '\n❤️ ¡Muchas gracias por apoyar usando el código de creador *JASC13*!\n';
