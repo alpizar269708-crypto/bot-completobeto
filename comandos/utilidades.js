@@ -48,11 +48,11 @@ async function subirVideoCloudinary(buffer, hash) {
     const publicId = 'wa_sticker_' + hash;
     const form = new FormData();
     form.append('file', new Blob([buffer], { type: 'video/mp4' }), 'sticker.mp4');
-    form.append('public_id', publicId);
 
     if (config.apiKey && config.apiSecret) {
         form.append('api_key', config.apiKey);
         form.append('timestamp', String(timestamp));
+        form.append('public_id', publicId);
         form.append('signature', crearFirmaCloudinary({ public_id: publicId, timestamp }, config.apiSecret));
     } else {
         form.append('upload_preset', config.uploadPreset);
@@ -73,23 +73,28 @@ async function subirVideoCloudinary(buffer, hash) {
 async function descargarStickerCloudinary(buffer, hash) {
     const config = obtenerConfiguracionCloudinary();
     if (!config) return null;
-    let asset;
-    try {
-        asset = await subirVideoCloudinary(buffer, hash);
-    } catch (error) {
-        if (/already exists|public id.*exist|resource.*exist/i.test(error.message)) {
-            asset = { cloudName: config.cloudName, publicId: 'wa_sticker_' + hash };
-        } else {
-            throw error;
-        }
+
+    // Primero intentamos reutilizar el asset ya transformado. Así, después de un
+    // reinicio de Render, un video repetido puede saltarse por completo el upload.
+    const publicId = 'wa_sticker_' + hash;
+    const transformacion = 'c_fill,w_512,h_512,fl_animated.fl_awebp,vs_10,q_auto:good';
+    const urlBase = 'https://res.cloudinary.com/' + encodeURIComponent(config.cloudName) +
+        '/video/upload/' + transformacion + '/';
+
+    let url = urlBase + encodeURIComponent(publicId) + '.webp';
+    let respuesta = await fetch(url);
+    if (respuesta.ok) {
+        const resultadoExistente = Buffer.from(await respuesta.arrayBuffer());
+        if (resultadoExistente.length) return resultadoExistente;
     }
 
-    // El CPU de Render queda fuera de la transcodificación: Cloudinary genera el WebP animado.
-    const transformacion = 'c_fill,w_512,h_512,fl_animated.fl_awebp,vs_10,q_auto:good';
-    const url = 'https://res.cloudinary.com/' + encodeURIComponent(asset.cloudName) +
-        '/video/upload/' + transformacion + '/' + encodeURIComponent(asset.publicId) + '.webp';
-    const respuesta = await fetch(url);
+    const asset = await subirVideoCloudinary(buffer, hash);
+    if (!asset) return null;
+
+    url = urlBase + encodeURIComponent(asset.publicId || publicId) + '.webp';
+    respuesta = await fetch(url);
     if (!respuesta.ok) throw new Error('Cloudinary transform ' + respuesta.status);
+
     const resultado = Buffer.from(await respuesta.arrayBuffer());
     if (!resultado.length) throw new Error('Cloudinary devolvió un sticker vacío.');
     return resultado;
