@@ -331,6 +331,10 @@ async function verificarAntiLinks(sock, msg) {
     const chatJid = msg.key.remoteJid;
     if (!chatJid.endsWith('@g.us')) return false;
 
+    // Exclusión total del anti-links para administradores.
+    // El rol se valida contra los participantes actuales del grupo.
+    if (msg.key.fromMe || (await esAdmin(sock, chatJid, remitente))) return false;
+
     if (await verificarLinkDeMismaComunidad(sock, msg, texto)) return false;
 
     const regexLink = /(?:https?:\/\/|www\.)[^\s]+|(?:chat\.whatsapp\.com|wa\.me|t\.me)\/[^\s]+|(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}(?:\/[^\s]*)?/gi;
