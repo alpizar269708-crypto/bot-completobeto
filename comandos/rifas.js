@@ -570,9 +570,9 @@ async function comandoRifaJasc13(sock, chatId, msg, args) {
                         return `${i + 1}. 👤 @${contacto.mentionNumber} → *${(Number(d.cashback) || 0).toFixed(2)}* Pavos`;
                     }
 
-                    return `${i + 1}. 📱 ${contacto.numeroVisible} → *${(Number(d.cashback) || 0).toFixed(2)}* Pavos`;
+                    return `${i + 1}. 📱 @${contacto.mentionNumber || contacto.numeroVisible.replace(/[^0-9]/g, '')} → *${(Number(d.cashback) || 0).toFixed(2)}* Pavos`;
                 }))
-            ].join('\\n');
+            ].join('\n');
 
             const mencionesCashback = await Promise.all(docs.map(async d => {
                 const contacto = await resolverContactoJasc13(sock, d.numero);
@@ -580,7 +580,7 @@ async function comandoRifaJasc13(sock, chatId, msg, args) {
 
                 // Conservamos el LID original para que WhatsApp pueda renderizar
                 // el username asociado a ese contacto.
-                return esLid ? d.numero : contacto.mentionJid;
+                return contacto.mentionJid;
             }));
 
             return await sock.sendMessage(chatId, {
