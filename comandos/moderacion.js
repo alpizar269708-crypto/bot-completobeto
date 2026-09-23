@@ -280,14 +280,52 @@ async function comandoListaBlancaLinks(sock, chatId, msg, args = []) {
     await sock.sendMessage(chatId, { text: `✅ Link eliminado de la lista blanca.\n\n🔗 ${linkEliminado || link}` }, { quoted: msg });
 }
 
+async function verificarLinkDeMismaComunidad(sock, msg, texto) {
+    const chatJid = msg.key.remoteJid;
+    if (!chatJid.endsWith('@g.us')) return false;
+
+    try {
+        const metadataActual = await sock.groupMetadata(chatJid);
+        const comunidadActual = metadataActual?.linkedParent;
+        if (!comunidadActual) return false;
+
+        // WhatsApp puede enviar una mención de grupo mediante groupMentions.
+        const groupMentions = msg.message?.extendedTextMessage?.contextInfo?.groupMentions || [];
+        for (const mencion of groupMentions) {
+            const grupoMencionado = mencion?.groupJid || mencion?.jid || mencion?.groupId;
+            if (!grupoMencionado) continue;
+
+            try {
+                const metadataMencionado = await sock.groupMetadata(grupoMencionado);
+                if (metadataMencionado?.linkedParent === comunidadActual) return true;
+            } catch (e) {}
+        }
+
+        // También contempla cuando el grupo se comparte mediante su enlace de invitación.
+        const invitaciones = String(texto || '').match(/(?:https?:\/\/)?chat\.whatsapp\.com\/([A-Za-z0-9_-]+)/gi) || [];
+        for (const invitacion of invitaciones) {
+            const codigo = invitacion.split('/').pop();
+            if (!codigo) continue;
+
+            try {
+                const info = await sock.groupGetInviteInfo(codigo);
+                if (info?.linkedParent === comunidadActual) return true;
+            } catch (e) {}
+        }
+    } catch (e) {}
+
+    return false;
+}
+
 async function verificarAntiLinks(sock, msg) {
     const texto = msg.message?.conversation || msg.message?.extendedTextMessage?.text || msg.message?.imageMessage?.caption || msg.message?.videoMessage?.caption || msg.message?.documentMessage?.caption || '';
     const remitente = msg.key.participant || msg.key.remoteJid;
     const chatJid = msg.key.remoteJid;
     if (!chatJid.endsWith('@g.us')) return false;
 
-    const regexLink = /(?:https?:\/\/|www\.)[^\s]+|(?:chat\.whatsapp\.com|wa\.me|t\.me)\/[^\s]+|(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}(?:\/[^\s]*)?/gi;
-    const coincidencias = texto.match(regexLink) || [];
+    if (await verificarLinkDeMismaComunidad(sock, msg, texto)) return false;
+
+    const regexLink =    const coincidencias = texto.match(regexLink) || [];
     if (coincidencias.length === 0) return false;
 
     const listaBlanca = await obtenerLinksListaBlanca();
