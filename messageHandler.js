@@ -22,6 +22,7 @@ const {
 const { comandoRifa, comandoRifaInscripcion, comandoRifaJasc13, comandoMenuRifaJasc13, comandoAbrirRifa, comandoActivarRifaAqui, comandoCerrarRifa } = require('./comandos/rifas');
 const { comandoCarry } = require('./comandos/carry');
 const { esProgramadorBot } = require('./comandos/programadorbot');
+const { resolverJidUsuario } = require('./utils/whatsapp');
 
 const categoriasMap = {
     'fortnite': ['pavos', 'destacadasstw', 'legendariasstw', 'epicasstw', 'alertasstw', 'stw', 'alerta', 'setgrupostw', 'unsetgrupostw', 'setprecio'],
@@ -118,7 +119,10 @@ Apoya a un creador: JASC13` });
 
     if (!esComandoPropioPermitido && await verificarAntiLinks(sock, msg)) return;
 
-    const remitenteReal = msg.key.participant || chatJid;
+    const remitenteOriginal = msg.key.participant || chatJid;
+    // Para MongoDB usamos el PN/JID de teléfono cuando WhatsApp entrega un LID.
+    // Conservamos msg.key.participant intacto para operaciones de grupo/permisos.
+    const remitenteReal = await resolverJidUsuario(sock, remitenteOriginal);
     if (!esComandoPropioPermitido && verificarMute(chatJid, remitenteReal)) {
         try { await sock.sendMessage(chatJid, { delete: msg.key }); } catch (e) {}
         return;
