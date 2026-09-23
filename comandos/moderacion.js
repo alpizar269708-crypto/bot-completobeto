@@ -329,7 +329,8 @@ async function verificarAntiLinks(sock, msg) {
 
     if (await verificarLinkDeMismaComunidad(sock, msg, texto)) return false;
 
-    const regexLink =    const coincidencias = texto.match(regexLink) || [];
+    const regexLink = /(?:https?:\/\/|www\.)[^\s]+|(?:chat\.whatsapp\.com|wa\.me|t\.me)\/[^\s]+|(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}(?:\/[^\s]*)?/gi;
+    const coincidencias = texto.match(regexLink) || [];
     if (coincidencias.length === 0) return false;
 
     const listaBlanca = await obtenerLinksListaBlanca();
