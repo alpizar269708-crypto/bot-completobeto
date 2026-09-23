@@ -285,13 +285,25 @@ async function comandoPreguntarAlerta(sock, chatId, msg, palabrasClave = []) {
         .normalize('NFD')
         .replace(/[\u0300-\u036f]/g, '');
 
+    const partesBusqueda = termino.split(/\s+/).filter(Boolean);
+    const esBusquedaPL = partesBusqueda.length === 2
+        && normalizarTexto(partesBusqueda[0]) === 'pl'
+        && /^\d+$/.test(partesBusqueda[1]);
+
+    const plBuscado = esBusquedaPL ? Number(partesBusqueda[1]) : null;
     const clave = normalizarTexto(termino);
+
     const coincidencias = [
         ...datos.pavos.map(item => ({ ...item, categoria: 'PaVos' })),
         ...datos.epicas.map(item => ({ ...item, categoria: 'Épicas' })),
         ...datos.legendarias.map(item => ({ ...item, categoria: 'Legendarias' })),
         ...(datos.plAltas || []).map(item => ({ ...item, categoria: 'Destacadas' }))
     ].filter(item => {
+        if (esBusquedaPL) {
+            const plItem = Number(String(item.pl || '').replace(/[^0-9]/g, ''));
+            return plItem === plBuscado;
+        }
+
         const textoBusqueda = normalizarTexto([
             item.mision,
             item.zona,
@@ -303,13 +315,17 @@ async function comandoPreguntarAlerta(sock, chatId, msg, palabrasClave = []) {
         return textoBusqueda.includes(clave);
     });
 
-    let texto = `🔎 *ALERTAS QUE CONTIENEN:* ${termino}\n\n`;
+    let texto = esBusquedaPL
+        ? '🔎 *ALERTAS CON PL ' + plBuscado + '*\n\n'
+        : '🔎 *ALERTAS QUE CONTIENEN:* ' + termino + '\n\n';
 
     if (coincidencias.length === 0) {
-        texto += '_No encontré alertas que contengan esa palabra o frase._\n\n';
+        texto += esBusquedaPL
+            ? '_No encontré alertas con PL ' + plBuscado + '._\n\n'
+            : '_No encontré alertas que contengan esa palabra o frase._\n\n';
     } else {
         coincidencias.forEach(item => {
-            texto += `📌 *${item.categoria}*\n`;
+            texto += '📌 *' + item.categoria + '*\n';
             texto += formatearAlertaSTW(item);
         });
     }
