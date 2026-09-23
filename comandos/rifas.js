@@ -562,7 +562,11 @@ async function comandoRifaJasc13(sock, chatId, msg, args) {
                 '',
                 ...await Promise.all(docs.map(async (d, i) => {
                     const contacto = await resolverContactoJasc13(sock, d.numero);
-                    return `${i + 1}. 📱 ${contacto.numeroVisible} → *${(Number(d.cashback) || 0).toFixed(2)}* Pavos\n   👤 @${contacto.mentionNumber || contacto.numeroVisible.replace(/[^0-9]/g, '')}`;
+                    const esLid = String(d.numero || '').endsWith('@lid');
+                    const lineaUsuario = esLid && contacto.mentionNumber
+                        ? `\n   👤 @${contacto.mentionNumber}`
+                        : '';
+                    return `${i + 1}. 📱 ${contacto.numeroVisible} → *${(Number(d.cashback) || 0).toFixed(2)}* Pavos${lineaUsuario}`;
                 }))
             ].join('\n');
 
