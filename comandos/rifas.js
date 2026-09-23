@@ -563,16 +563,24 @@ async function comandoRifaJasc13(sock, chatId, msg, args) {
                 ...await Promise.all(docs.map(async (d, i) => {
                     const contacto = await resolverContactoJasc13(sock, d.numero);
                     const esLid = String(d.numero || '').endsWith('@lid');
-                    const lineaUsuario = esLid && contacto.mentionNumber
-                        ? `\n   👤 @${contacto.mentionNumber}`
-                        : '';
-                    return `${i + 1}. 📱 ${contacto.numeroVisible} → *${(Number(d.cashback) || 0).toFixed(2)}* Pavos${lineaUsuario}`;
+
+                    // Los contactos con LID se muestran por su mención de WhatsApp.
+                    // Los contactos normales se muestran únicamente por teléfono.
+                    if (esLid && contacto.mentionNumber) {
+                        return `${i + 1}. 👤 @${contacto.mentionNumber} → *${(Number(d.cashback) || 0).toFixed(2)}* Pavos`;
+                    }
+
+                    return `${i + 1}. 📱 ${contacto.numeroVisible} → *${(Number(d.cashback) || 0).toFixed(2)}* Pavos`;
                 }))
-            ].join('\n');
+            ].join('\\n');
 
             const mencionesCashback = await Promise.all(docs.map(async d => {
                 const contacto = await resolverContactoJasc13(sock, d.numero);
-                return contacto.mentionJid;
+                const esLid = String(d.numero || '').endsWith('@lid');
+
+                // Conservamos el LID original para que WhatsApp pueda renderizar
+                // el username asociado a ese contacto.
+                return esLid ? d.numero : contacto.mentionJid;
             }));
 
             return await sock.sendMessage(chatId, {
