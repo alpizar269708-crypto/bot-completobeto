@@ -6,6 +6,7 @@ const pino = require('pino');
 const { procesarMensaje } = require('./messageHandler');
 const { verificarNuevoMiembro } = require('./comandos/moderacion');
 const { iniciarCronAlertasDiarias } = require('./comandos/fortnite');
+const { limpiarEconomiaAlSalir } = require('./comandos/economia');
 const { iniciarPuenteDiscord, vincularChatWhatsApp } = require('./webBridge');
 const express = require('express');
 
@@ -211,6 +212,16 @@ async function arrancarSocket(metodo, numeroTelefono, onCodeReady = null) {
 
     sock.ev.on('group-participants.update', async (update) => {
         await verificarNuevoMiembro(sock, update);
+
+        // La economía por grupo se limpia únicamente cuando WhatsApp informa
+        // que alguien salió/ fue expulsado. No se consulta la membresía en cada comando.
+        if (update?.action === 'remove' && update?.id && Array.isArray(update?.participants)) {
+            try {
+                await limpiarEconomiaAlSalir(update.id, update.participants);
+            } catch (e) {
+                console.error('⚠️ Error limpiando economía de integrantes salientes:', e.message);
+            }
+        }
     });
 }
 
