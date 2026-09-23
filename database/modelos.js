@@ -6,7 +6,16 @@ const userSchema = new mongoose.Schema({
     baneado: { type: Boolean, default: false },
     banMotivo: { type: String, default: 'Sin motivo especificado' }, // 👈 Nuevo campo para el motivo del baneo
     saldo: { type: Number, default: 0 },
-    // Economía y minijuegos
+});
+
+const configSchema = new mongoose.Schema({
+    clave: { type: String, required: true, unique: true },
+    valor: { type: String, required: true }
+});
+
+const economiaGrupoSchema = new mongoose.Schema({
+    chatId: { type: String, required: true },
+    numero: { type: String, required: true },
     cartera: { type: Number, default: 0, min: 0 },
     banco: { type: Number, default: 0, min: 0 },
     inventario: { type: mongoose.Schema.Types.Mixed, default: [] },
@@ -15,12 +24,10 @@ const userSchema = new mongoose.Schema({
     ultimoTrabajo: { type: Date, default: null }
 });
 
-const configSchema = new mongoose.Schema({
-    clave: { type: String, required: true, unique: true },
-    valor: { type: String, required: true }
-});
+economiaGrupoSchema.index({ chatId: 1, numero: 1 }, { unique: true });
 
 const User = mongoose.model('User', userSchema);
+const EconomiaGrupo = mongoose.model('EconomiaGrupo', economiaGrupoSchema);
 const Config = mongoose.model('Config', configSchema);
 
 const conectarDB = async () => {
@@ -32,4 +39,4 @@ const conectarDB = async () => {
     }
 };
 
-module.exports = { conectarDB, User, Config };
+module.exports = { conectarDB, User, Config, EconomiaGrupo };
