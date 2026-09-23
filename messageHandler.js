@@ -12,6 +12,7 @@ const {
     comandoUnmute, verificarMute, comandoInactivos, comandoDesactivarBienvenida, comandoActivarBienvenida, comandoPersonalizarBienvenida, comandoRestaurarBienvenida 
 } = require('./comandos/moderacion');
 const { User, Config } = require('./database/modelos');
+const { obtenerEconomia } = require('./comandos/economia');
 const { 
     comandoCartera, comandoBanco, comandoPay, comandoTop, comandoDaily, comandoWeekly,
     ejecutarFarmeo, comandoRuleta, comandoCf, comandoSlots, comandoDados, comandoAdivina,
@@ -36,6 +37,8 @@ const categoriasMap = {
 const cacheConfigComandos = new Map();
 const cacheBaneoUsuario = new Map();
 const CACHE_TTL_MS = 5000;
+
+const comandosEconomia = new Set(['cartera','bal','banco','pay','pagar','top','topdinero','daily','weekly','farmear','work','crime','mendigar','pescar','minar','cazar','explorar','ruleta','cf','slots','dados','adivina','buscaminas','rob','ppt','pelea','carrera','hackear','shop','buy','inventario','mochila','vender','use','regalar']);
 
 const comandosConUsuarioBD = new Set([
     'cartera', 'bal', 'banco', 'pay', 'pagar', 'daily', 'weekly',
@@ -167,14 +170,6 @@ Apoya a un creador: JASC13` });
         usuarioBD = await User.findOne({ numero: remitenteReal });
         if (!usuarioBD) usuarioBD = await User.create({ numero: remitenteReal });
 
-        // Compatibilidad con el campo antiguo "saldo": si existe saldo legado
-        // y la nueva cartera todavía está vacía, lo migramos una sola vez.
-        if ((usuarioBD.cartera || 0) === 0 && (usuarioBD.saldo || 0) > 0) {
-            usuarioBD.cartera = Number(usuarioBD.saldo) || 0;
-            usuarioBD.saldo = 0;
-            await usuarioBD.save();
-        }
-
         if (usuarioBD.baneado) return;
     } else {
         const cacheBaneo = cacheBaneoUsuario.get(remitenteReal);
@@ -188,6 +183,11 @@ Apoya a un creador: JASC13` });
         }
     }
 
+
+    let economiaBD = null;
+    if (comandosEconomia.has(comando)) {
+        economiaBD = await obtenerEconomia(chatJid, remitenteReal);
+    }
 
     if (comando === 'desactivarbienvenida') {
         await comandoDesactivarBienvenida(sock, chatJid, msg);
@@ -452,92 +452,92 @@ Apoya a un creador: JASC13` });
                 break;
             case 'cartera':
             case 'bal':
-                await comandoCartera(sock, chatJid, msg, usuarioBD); 
+                await comandoCartera(sock, chatJid, msg, economiaBD); 
                 break;
             case 'banco':
-                await comandoBanco(sock, chatJid, msg, args, usuarioBD);
+                await comandoBanco(sock, chatJid, msg, args, economiaBD);
                 break;
             case 'pay':
             case 'pagar':
-                await comandoPay(sock, chatJid, msg, args, usuarioBD);
+                await comandoPay(sock, chatJid, msg, args, economiaBD);
                 break;
             case 'top':
             case 'topdinero':
                 await comandoTop(sock, chatJid, msg); 
                 break;
             case 'daily':
-                await comandoDaily(sock, chatJid, msg, usuarioBD);
+                await comandoDaily(sock, chatJid, msg, economiaBD);
                 break;
             case 'weekly':
-                await comandoWeekly(sock, chatJid, msg, usuarioBD);
+                await comandoWeekly(sock, chatJid, msg, economiaBD);
                 break;
             case 'farmear':
             case 'work':
-                await ejecutarFarmeo(sock, chatJid, msg, usuarioBD, 'work');
+                await ejecutarFarmeo(sock, chatJid, msg, economiaBD, 'work');
                 break;
             case 'crime':
-                await ejecutarFarmeo(sock, chatJid, msg, usuarioBD, 'crime');
+                await ejecutarFarmeo(sock, chatJid, msg, economiaBD, 'crime');
                 break;
             case 'mendigar':
-                await ejecutarFarmeo(sock, chatJid, msg, usuarioBD, 'mendigar');
+                await ejecutarFarmeo(sock, chatJid, msg, economiaBD, 'mendigar');
                 break;
             case 'pescar':
             case 'minar':
             case 'cazar':
             case 'explorar':
-                await ejecutarFarmeo(sock, chatJid, msg, usuarioBD, comando);
+                await ejecutarFarmeo(sock, chatJid, msg, economiaBD, comando);
                 break;
             case 'ruleta':
-                await comandoRuleta(sock, chatJid, msg, args, usuarioBD);
+                await comandoRuleta(sock, chatJid, msg, args, economiaBD);
                 break;
             case 'cf':
-                await comandoCf(sock, chatJid, msg, args, usuarioBD);
+                await comandoCf(sock, chatJid, msg, args, economiaBD);
                 break;
             case 'slots':
-                await comandoSlots(sock, chatJid, msg, args, usuarioBD);
+                await comandoSlots(sock, chatJid, msg, args, economiaBD);
                 break;
             case 'dados':
-                await comandoDados(sock, chatJid, msg, args, usuarioBD);
+                await comandoDados(sock, chatJid, msg, args, economiaBD);
                 break;
             case 'adivina':
-                await comandoAdivina(sock, chatJid, msg, args, usuarioBD);
+                await comandoAdivina(sock, chatJid, msg, args, economiaBD);
                 break;
             case 'buscaminas':
-                await comandoBuscaminas(sock, chatJid, msg, args, usuarioBD);
+                await comandoBuscaminas(sock, chatJid, msg, args, economiaBD);
                 break;
             case 'rob':
-                await comandoRob(sock, chatJid, msg, args, usuarioBD);
+                await comandoRob(sock, chatJid, msg, args, economiaBD);
                 break;
             case 'ppt':
-                await comandoPpt(sock, chatJid, msg, args, usuarioBD);
+                await comandoPpt(sock, chatJid, msg, args, economiaBD);
                 break;
             case 'pelea':
-                await comandoPelea(sock, chatJid, msg, args, usuarioBD);
+                await comandoPelea(sock, chatJid, msg, args, economiaBD);
                 break;
             case 'carrera':
-                await comandoCarrera(sock, chatJid, msg, args, usuarioBD);
+                await comandoCarrera(sock, chatJid, msg, args, economiaBD);
                 break;
             case 'hackear':
-                await comandoHackear(sock, chatJid, msg, args, usuarioBD);
+                await comandoHackear(sock, chatJid, msg, args, economiaBD);
                 break;
             case 'shop':
                 await comandoShop(sock, chatJid, msg);
                 break;
             case 'buy':
-                await comandoBuy(sock, chatJid, msg, args, usuarioBD);
+                await comandoBuy(sock, chatJid, msg, args, economiaBD);
                 break;
             case 'inventario':
             case 'mochila':
-                await comandoInventario(sock, chatJid, msg, usuarioBD);
+                await comandoInventario(sock, chatJid, msg, economiaBD);
                 break;
             case 'vender':
-                await comandoVender(sock, chatJid, msg, args, usuarioBD);
+                await comandoVender(sock, chatJid, msg, args, economiaBD);
                 break;
             case 'use':
-                await comandoUse(sock, chatJid, msg, args, usuarioBD);
+                await comandoUse(sock, chatJid, msg, args, economiaBD);
                 break;
             case 'regalar':
-                await comandoRegalarItem(sock, chatJid, msg, args, usuarioBD);
+                await comandoRegalarItem(sock, chatJid, msg, args, economiaBD);
                 break;
             case 'rifa':
                 await comandoRifa(sock, chatJid, msg, args);
