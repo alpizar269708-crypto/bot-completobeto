@@ -30,6 +30,17 @@ async function obtenerEconomia(chatId, numero) {
 }
 
 
+async function limpiarEconomiaAlSalir(chatId, participantes = []) {
+    if (!chatId?.endsWith('@g.us') || !Array.isArray(participantes) || participantes.length === 0) return;
+    const numeros = participantes.map(p => typeof p === 'string' ? p : p?.id).filter(Boolean);
+    if (numeros.length === 0) return;
+
+    const resultado = await EconomiaGrupo.deleteMany({ chatId, numero: { $in: numeros } });
+    if (resultado.deletedCount > 0) {
+        console.log(`🧹 Economía limpiada: ${resultado.deletedCount} registro(s) de integrantes que salieron de ${chatId}.`);
+    }
+}
+
 function obtenerObjetivo(msg, args = []) {
     const citado = msg.message?.extendedTextMessage?.contextInfo;
     const mencionadoPorEtiqueta = citado?.mentionedJid?.[0];
@@ -580,5 +591,6 @@ module.exports = {
     comandoCartera, comandoBanco, comandoPay, comandoTop, comandoDaily, comandoWeekly,
     ejecutarFarmeo, comandoRuleta, comandoCf, comandoSlots, comandoDados, comandoAdivina,
     comandoBuscaminas, comandoRob, comandoPpt, comandoPelea, comandoCarrera, comandoHackear,
-    comandoShop, comandoBuy, comandoInventario, comandoVender, comandoUse, comandoRegalarItem
+    comandoShop, comandoBuy, comandoInventario, comandoVender, comandoUse, comandoRegalarItem,
+    obtenerEconomia, limpiarEconomiaAlSalir
 };
