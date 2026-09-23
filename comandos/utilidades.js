@@ -185,48 +185,7 @@ async function comandoSticker(sock, msg) {
     }
 }
 
-// 📢 2. Todos (Etiqueta masiva a miembros del grupo)
-async function comandoTodos(sock, chatId, msg) {
-    if (!chatId.endsWith('@g.us')) return;
-
-    try {
-        // Solo administradores del grupo o el programador pueden usar este comando.
-        // Un usuario normal no recibe ninguna respuesta.
-        const remitente = msg.key.participant || '';
-        let autorizado = !!msg.key.fromMe || !!msg.programadorBot;
-
-        if (!autorizado) {
-            const metadataPermisos = await sock.groupMetadata(chatId);
-            const participante = metadataPermisos.participants.find(p =>
-                p.id === remitente ||
-                p.phoneNumber === remitente
-            );
-            autorizado = !!participante && (
-                participante.admin === 'admin' ||
-                participante.admin === 'superadmin'
-            );
-        }
-
-        if (!autorizado) return;
-
-        const metadata = await sock.groupMetadata(chatId);
-        const mentions = metadata.participants
-            .map(p => p.id || p.phoneNumber)
-            .filter(Boolean);
-
-        // Las menciones van en el campo nativo de WhatsApp, no como @número
-        // dentro del texto. Así el anuncio no queda lleno con cientos de números.
-        const texto = '📢 *¡ATENCIÓN A TODOS!* 📢\\n\\n' +
-            'Apoya a un creador: *JASC13*';
-
-        await sock.sendMessage(chatId, { text: texto, mentions }, { quoted: msg });
-    } catch (e) {
-        console.error('Error en comando todos:', e);
-        // No enviamos mensajes de error: si no puede procesarse, queda silencioso.
-    }
-}
-
-// 🎬 3. TikTok (Descarga sin marca de agua)
+// 🎬 2. TikTok (Descarga sin marca de agua)
 async function comandoTiktok(sock, chatId, msg, args) {
     const url = args[0];
     if (!url || !url.includes('tiktok.com')) {
