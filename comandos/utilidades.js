@@ -60,7 +60,7 @@ async function subirVideoCloudinary(buffer, hash) {
 
     const respuesta = await fetch(
         'https://api.cloudinary.com/v1_1/' + encodeURIComponent(config.cloudName) + '/video/upload',
-        { method: 'POST', body: form }
+        { method: 'POST', body: form, signal: AbortSignal.timeout(20000) }
     );
     if (!respuesta.ok) {
         const detalle = await respuesta.text().catch(() => '');
@@ -82,7 +82,7 @@ async function descargarStickerCloudinary(buffer, hash) {
         '/video/upload/' + transformacion + '/';
 
     let url = urlBase + encodeURIComponent(publicId) + '.webp';
-    let respuesta = await fetch(url);
+    let respuesta = await fetch(url, { signal: AbortSignal.timeout(20000) });
     if (respuesta.ok) {
         const resultadoExistente = Buffer.from(await respuesta.arrayBuffer());
         if (resultadoExistente.length) return resultadoExistente;
@@ -92,7 +92,7 @@ async function descargarStickerCloudinary(buffer, hash) {
     if (!asset) return null;
 
     url = urlBase + encodeURIComponent(asset.publicId || publicId) + '.webp';
-    respuesta = await fetch(url);
+    respuesta = await fetch(url, { signal: AbortSignal.timeout(20000) });
     if (!respuesta.ok) throw new Error('Cloudinary transform ' + respuesta.status);
 
     const resultado = Buffer.from(await respuesta.arrayBuffer());
