@@ -39,7 +39,7 @@ async function ejecutarMenu(sock, chatId, msg, args) {
     `*${prefijo}destacadasstw* - Alertas destacadas de STW.\n` +
     `*${prefijo}epicasstw* - Alertas de misiones épicas.\n` +
     `*${prefijo}legendariasstw* - Alertas de misiones legendarias.\n` +
-    `*${prefijo}alertasstw / salvar* - Resumen general de alertas.\n` +
+    `*${prefijo}alertasstw* - Resumen general de alertas.\n` +
     `*${prefijo}alerta [nombre]* - Busca una recompensa específica.\n`;
 
     if (isAdmin && isGroup) {
