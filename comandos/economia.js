@@ -1,4 +1,5 @@
 const { User, EconomiaGrupo } = require('../database/modelos');
+const { resolverContactoWhatsApp, resolverJidUsuario } = require('../utils/whatsapp');
 
 async function obtenerEconomia(chatId, numero) {
     if (!chatId || !numero) throw new Error('Faltan chatId o numero para la economía.');
@@ -41,7 +42,7 @@ async function limpiarEconomiaAlSalir(chatId, participantes = []) {
     }
 }
 
-function obtenerObjetivo(msg, args = []) {
+async function obtenerObjetivo(sock, msg, args = []) {
     const citado = msg.message?.extendedTextMessage?.contextInfo;
     const mencionadoPorEtiqueta = citado?.mentionedJid?.[0];
     const mencionadoPorRespuesta = citado?.participant;
@@ -52,7 +53,7 @@ function obtenerObjetivo(msg, args = []) {
     if (args && args.length > 0) {
         const textoUnido = args.join('');
         const numeros = textoUnido.replace(/[^0-9]/g, '');
-        if (numeros.length > 5) return `${numeros}@s.whatsapp.net`;
+        if (numeros.length > 5) return await resolverJidUsuario(sock, numeros);
     }
     return null;
 }
@@ -64,13 +65,15 @@ async function comandoCartera(sock, chatId, msg, usuarioBD) {
     const total = cartera + banco;
     const remitente = msg.key.participant || chatId;
 
+    const contacto = await resolverContactoWhatsApp(sock, remitente);
     let texto = `💰 *ESTADO FINANCIERO*\n\n` +
-                `👤 Usuario: @${remitente.split('@')[0]}\n` +
+                `👤 Usuario: @${contacto.mentionNumber || remitente.split('@')[0]}\n` +
+                `📱 Teléfono: *${contacto.numeroVisible}*\n` +
                 `💵 En mano: *${cartera} monedas*\n` +
                 `🏦 En banco: *${banco} monedas*\n` +
                 `💎 Total neto: *${total} monedas*`;
 
-    await sock.sendMessage(chatId, { text: texto, mentions: [remitente] }, { quoted: msg });
+    await sock.sendMessage(chatId, { text: texto, mentions: contacto.mentionJid ? [contacto.mentionJid] : [] }, { quoted: msg });
 }
 
 async function comandoBanco(sock, chatId, msg, args, usuarioBD) {
@@ -116,7 +119,7 @@ async function comandoBanco(sock, chatId, msg, args, usuarioBD) {
 }
 
 async function comandoPay(sock, chatId, msg, args, usuarioBD) {
-    const objetivo = obtenerObjetivo(msg, args);
+    const objetivo = await obtenerObjetivo(sock, msg, args);
     const cantidad = parseInt(args[args.length - 1]);
 
     if (!objetivo || isNaN(cantidad) || cantidad <= 0) {
@@ -137,7 +140,8 @@ async function comandoPay(sock, chatId, msg, args, usuarioBD) {
     await usuarioBD.save();
     await objetivoBD.save();
 
-    await sock.sendMessage(chatId, { text: `✅ Has transferido exitosamente *${cantidad} monedas* a @${objetivo.split('@')[0]}.`, mentions: [objetivo] }, { quoted: msg });
+    const contactoObjetivo = await resolverContactoWhatsApp(sock, objetivo);
+    await sock.sendMessage(chatId, { text: `✅ Has transferido exitosamente *${cantidad} monedas* a @${contactoObjetivo.mentionNumber || objetivo.split('@')[0]} (📱 ${contactoObjetivo.numeroVisible}).`, mentions: contactoObjetivo.mentionJid ? [contactoObjetivo.mentionJid] : [] }, { quoted: msg });
 }
 
 async function comandoTop(sock, chatId, msg) {
@@ -152,7 +156,8 @@ async function comandoTop(sock, chatId, msg) {
 
     topUsuarios.forEach((u, index) => {
         const total = (u.cartera || 0) + (u.banco || 0);
-        texto += `*${index + 1}.* @${u.numero.split('@')[0]} — 💎 *${total}* mon.\n`;
+        const numero = u.numero;
+        texto += `*${index + 1}.* @${numero.split('@')[0]} · 📱 ${require('../utils/whatsapp').normalizarNumeroVisible(numero)} — 💎 *${total}* mon.\n`;
         mentions.push(u.numero);
     });
 
