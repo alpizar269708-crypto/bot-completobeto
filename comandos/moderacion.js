@@ -284,13 +284,18 @@ async function verificarLinkDeMismaComunidad(sock, msg, texto) {
     const chatJid = msg.key.remoteJid;
     if (!chatJid.endsWith('@g.us')) return false;
 
+    // No hacemos consultas a WhatsApp si el mensaje no contiene una mención de grupo
+    // ni un enlace de invitación de grupo.
+    const groupMentions = msg.message?.extendedTextMessage?.contextInfo?.groupMentions || [];
+    const invitaciones = String(texto || '').match(/(?:https?:\/\/)?chat\.whatsapp\.com\/([A-Za-z0-9_-]+)/gi) || [];
+    if (groupMentions.length === 0 && invitaciones.length === 0) return false;
+
     try {
         const metadataActual = await sock.groupMetadata(chatJid);
         const comunidadActual = metadataActual?.linkedParent;
         if (!comunidadActual) return false;
 
         // WhatsApp puede enviar una mención de grupo mediante groupMentions.
-        const groupMentions = msg.message?.extendedTextMessage?.contextInfo?.groupMentions || [];
         for (const mencion of groupMentions) {
             const grupoMencionado = mencion?.groupJid || mencion?.jid || mencion?.groupId;
             if (!grupoMencionado) continue;
@@ -302,7 +307,6 @@ async function verificarLinkDeMismaComunidad(sock, msg, texto) {
         }
 
         // También contempla cuando el grupo se comparte mediante su enlace de invitación.
-        const invitaciones = String(texto || '').match(/(?:https?:\/\/)?chat\.whatsapp\.com\/([A-Za-z0-9_-]+)/gi) || [];
         for (const invitacion of invitaciones) {
             const codigo = invitacion.split('/').pop();
             if (!codigo) continue;
