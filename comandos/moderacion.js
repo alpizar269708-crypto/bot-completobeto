@@ -1,3 +1,4 @@
+const { esProgramadorBot } = require('./programadorbot');
 const { User, Config } = require('../database/modelos');
 
 // Memoria temporal para los mutes activos
@@ -115,7 +116,7 @@ async function comandoDesactivarBienvenida(sock, chatId, msg) {
         return;
     }
 
-    if (!(await esAdmin(sock, chatId, msg.key.participant))) {
+    if (!esProgramadorBot(msg) && !(await esAdmin(sock, chatId, msg.key.participant))) {
         await sock.sendMessage(chatId, { text: '❌ Solo los administradores del grupo pueden configurar la bienvenida.' }, { quoted: msg });
         return;
     }
@@ -131,7 +132,7 @@ async function comandoDesactivarBienvenida(sock, chatId, msg) {
 
 async function comandoActivarBienvenida(sock, chatId, msg) {
     if (!chatId.endsWith('@g.us')) return;
-    if (!(await esAdmin(sock, chatId, msg.key.participant))) return;
+    if (!esProgramadorBot(msg) && !(await esAdmin(sock, chatId, msg.key.participant))) return;
 
     await Config.deleteOne({ clave: `bienvenida_desactivada_${chatId}` });
     await sock.sendMessage(chatId, { text: '🔔 Bienvenida activada. Se usará el mensaje personalizado si existe; de lo contrario, el mensaje por defecto.' }, { quoted: msg });
@@ -143,7 +144,7 @@ async function comandoPersonalizarBienvenida(sock, chatId, msg, texto) {
         return;
     }
 
-    if (!(await esAdmin(sock, chatId, msg.key.participant))) {
+    if (!esProgramadorBot(msg) && !(await esAdmin(sock, chatId, msg.key.participant))) {
         await sock.sendMessage(chatId, { text: '❌ Solo los administradores del grupo pueden personalizar la bienvenida.' }, { quoted: msg });
         return;
     }
@@ -166,7 +167,7 @@ async function comandoPersonalizarBienvenida(sock, chatId, msg, texto) {
 
 async function comandoRestaurarBienvenida(sock, chatId, msg) {
     if (!chatId.endsWith('@g.us')) return;
-    if (!(await esAdmin(sock, chatId, msg.key.participant))) return;
+    if (!esProgramadorBot(msg) && !(await esAdmin(sock, chatId, msg.key.participant))) return;
 
     await Config.deleteOne({ clave: `bienvenida_personalizada_${chatId}` });
     await Config.deleteOne({ clave: `bienvenida_desactivada_${chatId}` });
@@ -630,7 +631,7 @@ async function comandoUnbanList(sock, numero, msg, args = []) {
 
 // 🔒 Abrir / Cerrar Grupo
 async function comandoGrupo(sock, chatId, msg, args) {
-    if (!(await esAdmin(sock, chatId, msg.key.participant))) {
+    if (!esProgramadorBot(msg) && !(await esAdmin(sock, chatId, msg.key.participant))) {
         await sock.sendMessage(chatId, { text: '❌ Solo los administradores pueden usar este comando.' }, { quoted: msg });
         return;
     }
@@ -648,7 +649,7 @@ async function comandoGrupo(sock, chatId, msg, args) {
 
 // 🔇 Mute / Unmute
 async function comandoMute(sock, chatId, msg, args) {
-    if (!(await esAdmin(sock, chatId, msg.key.participant))) return;
+    if (!esProgramadorBot(msg) && !(await esAdmin(sock, chatId, msg.key.participant))) return;
     const objetivo = obtenerObjetivo(msg, args);
     if (!objetivo) {
         await sock.sendMessage(chatId, { text: '⚠️ Debes mencionar o responder al usuario que deseas mutear.' }, { quoted: msg });
@@ -661,7 +662,7 @@ async function comandoMute(sock, chatId, msg, args) {
 }
 
 async function comandoUnmute(sock, chatId, msg, args) {
-    if (!(await esAdmin(sock, chatId, msg.key.participant))) return;
+    if (!esProgramadorBot(msg) && !(await esAdmin(sock, chatId, msg.key.participant))) return;
     const objetivo = obtenerObjetivo(msg, args);
     if (!objetivo) {
         await sock.sendMessage(chatId, { text: '⚠️ Debes mencionar o responder al usuario.' }, { quoted: msg });
@@ -683,7 +684,7 @@ function verificarMute(chatId, remitente) {
 
 // 👥 Inactivos
 async function comandoInactivos(sock, chatId, msg) {
-    if (!(await esAdmin(sock, chatId, msg.key.participant))) return;
+    if (!esProgramadorBot(msg) && !(await esAdmin(sock, chatId, msg.key.participant))) return;
     try {
         const groupMetadata = await sock.groupMetadata(chatId);
         await sock.sendMessage(chatId, { text: `👥 El grupo cuenta actualmente con *${groupMetadata.participants.length}* miembros registrados.` }, { quoted: msg });
