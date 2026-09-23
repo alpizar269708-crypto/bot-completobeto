@@ -152,19 +152,20 @@ async function comandoCarry(sock, chatId, msg, comando, args = []) {
                 mentions: participantesGrupo
             }, { quoted: msg });
         } else {
-            let mencionesSquad = [escuadron.liderId, ...escuadron.miembros.map(m => m.id)];
-            let todasLasMenciones = [...new Set([...mencionesSquad, ...participantesGrupo])];
-            
-            let textoLleno = `🚀 *¡ESCUADRÓN LLENO!*\n🎯 *Objetivo:* ${escuadron.motivo}\n\n👑 Líder: @${escuadron.liderId.split('@')[0]}\n`;
-            
-            escuadron.miembros.forEach((m, i) => {
-                textoLleno += `🎮 P${i+2}: @${m.id.split('@')[0]}\n`;
+            const contactosSquad = await Promise.all([
+                resolverContactoWhatsApp(sock, escuadron.liderId),
+                ...escuadron.miembros.map(m => resolverContactoWhatsApp(sock, m.id))
+            ]);
+            const todasLasMenciones = contactosSquad.map(c => c.mentionJid).filter(Boolean);
+            let textoLleno = `🚀 *¡ESCUADRÓN LLENO!*\n🎯 *Objetivo:* ${escuadron.motivo}\n\n👑 Líder: @${contactosSquad[0]?.mentionNumber || escuadron.liderId.split('@')[0]} · 📱 ${contactosSquad[0]?.numeroVisible || 'Desconocido'}\n`;
+            contactosSquad.slice(1).forEach((contacto, i) => {
+                textoLleno += `🎮 P${i+2}: @${contacto.mentionNumber || 'Usuario'} · 📱 ${contacto.numeroVisible}\n`;
             });
             textoLleno += `\n¡Listos para darle!`;
 
             await sock.sendMessage(chatId, { 
                 text: textoLleno, 
-                mentions: todasLasMenciones
+                mentions: [...new Set(todasLasMenciones)]
             });
             escuadronesActivos.delete(chatId); 
         }
