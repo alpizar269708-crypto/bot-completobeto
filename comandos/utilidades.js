@@ -1,51 +1,178 @@
+const crypto = require('crypto');
 const { downloadMediaMessage } = require('@whiskeysockets/baileys');
 const { Sticker, StickerTypes } = require('wa-sticker-formatter');
 
-// 🎨 1. Sticker (Conversión de imagen/video optimizada)
+// 🚀 Caché para no repetir conversiones idénticas y deduplicar trabajos simultáneos.
+const stickerCache = new Map();
+const stickerEnProceso = new Map();
+const STICKER_CACHE_TTL_MS = 10 * 60 * 1000;
+const STICKER_CACHE_MAX = 12;
+
+// 🎨 1. Sticker (conversión híbrida: Cloudinary + fallback local)
+function limpiarCacheStickers() {
+    const ahora = Date.now();
+    for (const [clave, dato] of stickerCache) {
+        if (dato.expira <= ahora) stickerCache.delete(clave);
+    }
+    while (stickerCache.size > STICKER_CACHE_MAX) {
+        const primeraClave = stickerCache.keys().next().value;
+        if (primeraClave === undefined) break;
+        stickerCache.delete(primeraClave);
+    }
+}
+
+function obtenerConfiguracionCloudinary() {
+    const cloudName = String(process.env.CLOUDINARY_CLOUD_NAME || '').trim();
+    const apiKey = String(process.env.CLOUDINARY_API_KEY || '').trim();
+    const apiSecret = String(process.env.CLOUDINARY_API_SECRET || '').trim();
+    const uploadPreset = String(process.env.CLOUDINARY_UPLOAD_PRESET || '').trim();
+    if (!cloudName) return null;
+    if (apiKey && apiSecret) return { cloudName, apiKey, apiSecret };
+    if (uploadPreset) return { cloudName, uploadPreset };
+    return null;
+}
+
+function crearFirmaCloudinary(params, apiSecret) {
+    const cadena = Object.keys(params)
+        .filter(clave => params[clave] !== undefined && params[clave] !== null && params[clave] !== '')
+        .sort()
+        .map(clave => clave + '=' + params[clave])
+        .join('&');
+    return crypto.createHash('sha1').update(cadena + apiSecret).digest('hex');
+}
+
+async function subirVideoCloudinary(buffer, hash) {
+    const config = obtenerConfiguracionCloudinary();
+    if (!config) return null;
+    const timestamp = Math.floor(Date.now() / 1000);
+    const publicId = 'wa_sticker_' + hash;
+    const form = new FormData();
+    form.append('file', new Blob([buffer], { type: 'video/mp4' }), 'sticker.mp4');
+    form.append('public_id', publicId);
+
+    if (config.apiKey && config.apiSecret) {
+        form.append('api_key', config.apiKey);
+        form.append('timestamp', String(timestamp));
+        form.append('signature', crearFirmaCloudinary({ public_id: publicId, timestamp }, config.apiSecret));
+    } else {
+        form.append('upload_preset', config.uploadPreset);
+    }
+
+    const respuesta = await fetch(
+        'https://api.cloudinary.com/v1_1/' + encodeURIComponent(config.cloudName) + '/video/upload',
+        { method: 'POST', body: form }
+    );
+    if (!respuesta.ok) {
+        const detalle = await respuesta.text().catch(() => '');
+        throw new Error('Cloudinary upload ' + respuesta.status + ': ' + detalle.slice(0, 300));
+    }
+    const datos = await respuesta.json();
+    return { cloudName: config.cloudName, publicId: datos.public_id || publicId };
+}
+
+async function descargarStickerCloudinary(buffer, hash) {
+    const config = obtenerConfiguracionCloudinary();
+    if (!config) return null;
+    let asset;
+    try {
+        asset = await subirVideoCloudinary(buffer, hash);
+    } catch (error) {
+        if (/already exists|public id.*exist|resource.*exist/i.test(error.message)) {
+            asset = { cloudName: config.cloudName, publicId: 'wa_sticker_' + hash };
+        } else {
+            throw error;
+        }
+    }
+
+    // El CPU de Render queda fuera de la transcodificación: Cloudinary genera el WebP animado.
+    const transformacion = 'c_fill,w_512,h_512,fl_animated.fl_awebp,vs_10,q_auto:good';
+    const url = 'https://res.cloudinary.com/' + encodeURIComponent(asset.cloudName) +
+        '/video/upload/' + transformacion + '/' + encodeURIComponent(asset.publicId) + '.webp';
+    const respuesta = await fetch(url);
+    if (!respuesta.ok) throw new Error('Cloudinary transform ' + respuesta.status);
+    const resultado = Buffer.from(await respuesta.arrayBuffer());
+    if (!resultado.length) throw new Error('Cloudinary devolvió un sticker vacío.');
+    return resultado;
+}
+
+async function convertirStickerLocal(buffer, esVideo) {
+    const sticker = new Sticker(buffer, {
+        pack: 'TechMasters & Stream',
+        author: 'Humberto Alpízar',
+        type: StickerTypes.CROPPED,
+        quality: esVideo ? 10 : 50
+    });
+    return sticker.toBuffer();
+}
+
+async function convertirVideoASticker(buffer, hash) {
+    limpiarCacheStickers();
+    const cacheado = stickerCache.get('vid:' + hash);
+    if (cacheado && cacheado.expira > Date.now()) return cacheado.buffer;
+    if (cacheado) stickerCache.delete('vid:' + hash);
+    if (stickerEnProceso.has(hash)) return stickerEnProceso.get(hash);
+
+    const trabajo = (async () => {
+        let resultado = null;
+        if (obtenerConfiguracionCloudinary()) {
+            try {
+                resultado = await descargarStickerCloudinary(buffer, hash);
+            } catch (error) {
+                console.warn('⚠️ Cloudinary no pudo convertir el sticker; usando fallback local:', error.message);
+            }
+        }
+        if (!resultado) resultado = await convertirStickerLocal(buffer, true);
+        stickerCache.set('vid:' + hash, { buffer: resultado, expira: Date.now() + STICKER_CACHE_TTL_MS });
+        limpiarCacheStickers();
+        return resultado;
+    })();
+    stickerEnProceso.set(hash, trabajo);
+    try {
+        return await trabajo;
+    } finally {
+        stickerEnProceso.delete(hash);
+    }
+}
+
 async function comandoSticker(sock, msg) {
     const chatJid = msg.key.remoteJid;
     try {
         const msgTipo = msg.message?.imageMessage || msg.message?.videoMessage;
         const msjCitado = msg.message?.extendedTextMessage?.contextInfo?.quotedMessage;
         const citadoTipo = msjCitado?.imageMessage || msjCitado?.videoMessage;
-
         if (!msgTipo && !citadoTipo) {
             return await sock.sendMessage(chatJid, { text: '⚠️ Por favor, responde a una imagen o video, o envíalo adjunto a la imagen.' }, { quoted: msg });
         }
 
-        // 🚀 Detectar si es video para aplicar optimizaciones
-        const esVideo = msg.message?.videoMessage || msjCitado?.videoMessage;
-        
+        const esVideo = !!(msg.message?.videoMessage || msjCitado?.videoMessage);
         if (esVideo) {
-            // Obtener duración del video
             const duracion = msg.message?.videoMessage?.seconds || msjCitado?.videoMessage?.seconds || 0;
             if (duracion > 10) {
                 return await sock.sendMessage(chatJid, { text: '⚠️ El video es muy largo. Por favor envía videos de máximo 10 segundos para no saturar el sistema.' }, { quoted: msg });
             }
         }
 
-        await sock.sendMessage(chatJid, { text: esVideo ? '✨ Procesando video a sticker (calidad optimizada para velocidad)...' : '✨ Procesando sticker...' }, { quoted: msg });
-
         const msjMultimedia = citadoTipo ? { message: msjCitado } : msg;
+        const buffer = await downloadMediaMessage(msjMultimedia, 'buffer', {}, { reuploadRequest: sock.updateMediaMessage });
+        const hash = crypto.createHash('sha256').update(buffer).digest('hex');
+        let stickerBuffer;
 
-        const buffer = await downloadMediaMessage(
-            msjMultimedia,
-            'buffer',
-            { },
-            { reuploadRequest: sock.updateMediaMessage }
-        );
+        if (esVideo) {
+            stickerBuffer = await convertirVideoASticker(buffer, hash);
+        } else {
+            const clave = 'img:' + hash;
+            limpiarCacheStickers();
+            const cacheado = stickerCache.get(clave);
+            if (cacheado && cacheado.expira > Date.now()) {
+                stickerBuffer = cacheado.buffer;
+            } else {
+                stickerBuffer = await convertirStickerLocal(buffer, false);
+                stickerCache.set(clave, { buffer: stickerBuffer, expira: Date.now() + STICKER_CACHE_TTL_MS });
+                limpiarCacheStickers();
+            }
+        }
 
-        // ⚡ Configuración agresiva para procesado rápido
-        const sticker = new Sticker(buffer, {
-            pack: 'TechMasters & Stream', 
-            author: 'Humberto Alpízar',
-            type: StickerTypes.CROPPED, // Formato cuadrado exacto (procesa más rápido)
-            quality: esVideo ? 10 : 50 // Calidad al mínimo si es video
-        });
-
-        const stickerBuffer = await sticker.toBuffer();
         await sock.sendMessage(chatJid, { sticker: stickerBuffer }, { quoted: msg });
-
     } catch (e) {
         console.error('Error al crear el sticker:', e);
         await sock.sendMessage(chatJid, { text: '❌ Error al crear el sticker. Asegúrate de que el formato sea soportado.' }, { quoted: msg });
