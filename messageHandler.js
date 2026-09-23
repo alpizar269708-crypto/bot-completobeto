@@ -166,6 +166,15 @@ Apoya a un creador: JASC13` });
     if (comandosConUsuarioBD.has(comando)) {
         usuarioBD = await User.findOne({ numero: remitenteReal });
         if (!usuarioBD) usuarioBD = await User.create({ numero: remitenteReal });
+
+        // Compatibilidad con el campo antiguo "saldo": si existe saldo legado
+        // y la nueva cartera todavía está vacía, lo migramos una sola vez.
+        if ((usuarioBD.cartera || 0) === 0 && (usuarioBD.saldo || 0) > 0) {
+            usuarioBD.cartera = Number(usuarioBD.saldo) || 0;
+            usuarioBD.saldo = 0;
+            await usuarioBD.save();
+        }
+
         if (usuarioBD.baneado) return;
     } else {
         const cacheBaneo = cacheBaneoUsuario.get(remitenteReal);
