@@ -290,6 +290,25 @@ const CLAVE_PARTICIPANTES_JASC13 = 'rifajasc13_participantes';
 const CLAVE_MIGRACION_CASHBACK_JASC13 = 'rifajasc13_cashback_migrado_v1';
 const PORCENTAJE_CASHBACK_JASC13 = 0.05;
 
+async function resolverNumeroVisible(sock, jid) {
+    if (!jid) return 'Desconocido';
+    if (jid.endsWith('@s.whatsapp.net')) return jid.split('@')[0].split(':')[0];
+
+    if (jid.endsWith('@lid')) {
+        try {
+            const lidMapping = sock.signalRepository?.lidMapping;
+            if (lidMapping?.getPNForLID) {
+                const pn = await lidMapping.getPNForLID(jid);
+                if (pn) return pn.split('@')[0].split(':')[0];
+            }
+        } catch (e) {
+            console.error('⚠️ No se pudo resolver LID a número de teléfono:', e.message);
+        }
+    }
+
+    return jid.split('@')[0];
+}
+
 async function cargarEstadoRifaJasc13() {
     const propietarioConfig = await Config.findOne({ clave: CLAVE_PROPIETARIO_JASC13 });
     const participantesConfig = await Config.findOne({ clave: CLAVE_PARTICIPANTES_JASC13 });
@@ -438,7 +457,8 @@ async function comandoRifaJasc13(sock, chatId, msg, args) {
             const faltantes = puntos === 0 ? 1000 : 1000 - puntos;
             const cashbackDoc = await RifaJasc13Cashback.findOne({ numero: id }).select('cashback').lean();
             const cashback = Number(cashbackDoc?.cashback) || 0;
-            texto += `${i}. @${id.split('@')[0]} → Puntos: *${puntos}* | Boletos: *${boletos}* (Faltan ${faltantes} pts) | Cashback: *${cashback.toFixed(2)}* Pavos\n`;
+            const numeroVisible = await resolverNumeroVisible(sock, id);
+            texto += `${i}. 📱 ${numeroVisible} → Puntos: *${puntos}* | Boletos: *${boletos}* (Faltan ${faltantes} pts) | Cashback: *${cashback.toFixed(2)}* Pavos\n`;
             mentions.push(id);
             i++;
         }
@@ -526,7 +546,10 @@ async function comandoRifaJasc13(sock, chatId, msg, args) {
             const texto = [
                 '💰 *CASHBACK JASC13*',
                 '',
-                ...docs.map((d, i) => `${i + 1}. 📱 ${d.numero.split('@')[0]} → *${(Number(d.cashback) || 0).toFixed(2)}* Pavos`)
+                ...await Promise.all(docs.map(async (d, i) => {
+                    const numeroVisible = await resolverNumeroVisible(sock, d.numero);
+                    return `${i + 1}. 📱 ${numeroVisible} → *${(Number(d.cashback) || 0).toFixed(2)}* Pavos`;
+                }))
             ].join('\n');
 
             return await sock.sendMessage(chatId, { text: texto }, { quoted: msg });
