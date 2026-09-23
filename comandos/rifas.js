@@ -504,7 +504,7 @@ async function comandoRifaJasc13(sock, chatId, msg, args) {
         const faltantes = datosUsuario.puntos === 0 ? 1000 : 1000 - datosUsuario.puntos;
         const cashbackDoc = await RifaJasc13Cashback.findOne({ numero: targetId }).select('cashback').lean();
         const cashbackTotal = Number(cashbackDoc?.cashback) || 0;
-        const respuesta = `✅ *PaVos registrados exitosamente*\n👤 Usuario: @${targetId.split('@')[0]}\n➕ PaVos registrados: *+${pavosAgregados}*\n🎟️ Boletos agregados: *+${boletosGanados}*\n🎟️ Boletos actuales: *${datosUsuario.boletos}*\n📌 Puntos sobrantes guardados: *${datosUsuario.puntos}*\n📍 Faltan para otro boleto: *${faltantes} pts*\n💰 Cashback ganado: *+${cashbackGanado}* Pavos\n💰 Cashback acumulado: *${cashbackTotal}* Pavos`;
+        const respuesta = `✅ *PaVos registrados exitosamente*\n👤 Usuario: @${targetId.split('@')[0]}\n➕ PaVos registrados: *+${pavosAgregados}*\n🎟️ Boletos agregados: *+${boletosGanados}*\n🎟️ Boletos actuales: *${datosUsuario.boletos}*\n📌 Puntos sobrantes guardados: *${datosUsuario.puntos}*\n📍 Faltan para otro boleto: *${faltantes} pts*\n💰 Cashback ganado: *+${cashbackGanado.toFixed(2)}* Pavos\n💰 Cashback acumulado: *${cashbackTotal.toFixed(2)}* Pavos`;
         return await sock.sendMessage(chatId, { text: respuesta, mentions: [targetId] });
     }
 
@@ -553,7 +553,7 @@ async function comandoRifaJasc13(sock, chatId, msg, args) {
             const disponible = Number(cashbackDoc?.cashback) || 0;
 
             return await sock.sendMessage(chatId, {
-                text: `💰 *CASHBACK DISPONIBLE*\\n\\n👤 Usuario: @${targetId.split('@')[0]}\\n💳 Cashback actual: *${disponible}* Pavos`,
+                text: `💰 *CASHBACK DISPONIBLE*\\n\\n👤 Usuario: @${targetId.split('@')[0]}\\n💳 Cashback actual: *${disponible.toFixed(2)}* Pavos`,
                 mentions: [targetId]
             }, { quoted: msg });
         }
@@ -578,7 +578,7 @@ async function comandoRifaJasc13(sock, chatId, msg, args) {
         await cashbackDoc.save();
 
         return await sock.sendMessage(chatId, {
-            text: `💸 *CASHBACK CANJEADO*\\n\\n👤 Usuario: @${targetId.split('@')[0]}\\n➖ Utilizado: *${cantidadCashback}* Pavos\\n💰 Restante: *${cashbackDoc.cashback}* Pavos`,
+            text: `💸 *CASHBACK CANJEADO*\\n\\n👤 Usuario: @${targetId.split('@')[0]}\\n➖ Utilizado: *${cantidadCashback.toFixed(2)}* Pavos\\n💰 Restante: *${Number(cashbackDoc.cashback).toFixed(2)}* Pavos`,
             mentions: [targetId]
         }, { quoted: msg });
     }
