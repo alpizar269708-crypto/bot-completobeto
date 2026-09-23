@@ -317,7 +317,7 @@ async function cargarEstadoRifaJasc13() {
         for (const item of lista) {
             const baseHistorica = Number(item?.puntos);
             if (!item?.id || !Number.isFinite(baseHistorica) || baseHistorica <= 0) continue;
-            const cashbackHistorico = Math.floor(baseHistorica * PORCENTAJE_CASHBACK_JASC13);
+            const cashbackHistorico = Number((baseHistorica * PORCENTAJE_CASHBACK_JASC13).toFixed(2));
             if (cashbackHistorico > 0) {
                 await RifaJasc13Cashback.findOneAndUpdate({ numero: item.id }, { $inc: { cashback: cashbackHistorico } }, { upsert: true });
             }
@@ -369,7 +369,7 @@ async function comandoMenuRifaJasc13(sock, chatId, msg) {
 
     const menuTexto = `🎟️ *MENÚ SECRETO - RIFA CÓDIGO DE CREADOR (JASC13)* 🎟️\n\n` +
         `• *rifajasc13 iniciar* - Inicia la rifa y te registra como propietario único.\n` +
-        `• *rifajasc13 agregar [@usuario/número] [PaVos]* - Convierte PaVos a boletos (1000 PaVos = 1 boleto) y acumula 5% de Cashback.\n` +
+        `• *rifajasc13 agregar [@usuario/número] [PaVos]* - Convierte PaVos a boletos (1000 PaVos = 1 boleto) y acumula 5% de Cashback con dos decimales.\n` +
         `• *rifajasc13 cashback @usuario* - Consulta el Cashback actual.\n` +
         `• *rifajasc13 cashback ver @usuario* - Consulta el Cashback actual.\n` +
         `• *rifajasc13 cashback todos* - Muestra todos los Cashback acumulados.\n` +
@@ -437,7 +437,7 @@ async function comandoRifaJasc13(sock, chatId, msg, args) {
             const faltantes = puntos === 0 ? 1000 : 1000 - puntos;
             const cashbackDoc = await RifaJasc13Cashback.findOne({ numero: id }).select('cashback').lean();
             const cashback = Number(cashbackDoc?.cashback) || 0;
-            texto += `${i}. @${id.split('@')[0]} → Puntos: *${puntos}* | Boletos: *${boletos}* (Faltan ${faltantes} pts) | Cashback: *${cashback}* Pavos\n`;
+            texto += `${i}. @${id.split('@')[0]} → Puntos: *${puntos}* | Boletos: *${boletos}* (Faltan ${faltantes} pts) | Cashback: *${cashback.toFixed(2)}* Pavos\n`;
             mentions.push(id);
             i++;
         }
@@ -497,7 +497,7 @@ async function comandoRifaJasc13(sock, chatId, msg, args) {
         const boletosGanados = Math.floor(puntosTotales / 1000);
         datosUsuario.puntos = puntosTotales % 1000;
         datosUsuario.boletos = (Number(datosUsuario.boletos) || 0) + boletosGanados;
-        const cashbackGanado = Math.floor(pavosAgregados * PORCENTAJE_CASHBACK_JASC13);
+        const cashbackGanado = Number((pavosAgregados * PORCENTAJE_CASHBACK_JASC13).toFixed(2));
         if (cashbackGanado > 0) await RifaJasc13Cashback.findOneAndUpdate({ numero: targetId }, { $inc: { cashback: cashbackGanado } }, { upsert: true });
         participantes.set(targetId, datosUsuario);
         await guardarParticipantesJasc13(participantes);
@@ -526,7 +526,7 @@ async function comandoRifaJasc13(sock, chatId, msg, args) {
             const texto = [
                 '💰 *CASHBACK JASC13*',
                 '',
-                ...docs.map((d, i) => `${i + 1}. @${d.numero.split('@')[0]} → *${Number(d.cashback) || 0}* Pavos`)
+                ...docs.map((d, i) => `${i + 1}. @${d.numero.split('@')[0]} → *${(Number(d.cashback) || 0).toFixed(2)}* Pavos`)
             ].join('\\n');
 
             return await sock.sendMessage(chatId, { text: texto, mentions }, { quoted: msg });
@@ -558,7 +558,7 @@ async function comandoRifaJasc13(sock, chatId, msg, args) {
             }, { quoted: msg });
         }
 
-        const cantidadCashback = parseInt(args[args.length - 1], 10);
+        const cantidadCashback = Number(parseFloat(args[args.length - 1]).toFixed(2));
         if (isNaN(cantidadCashback) || cantidadCashback <= 0) {
             return await sock.sendMessage(chatId, {
                 text: '❌ Indica la cantidad a canjear. Ejemplo: *rifajasc13 cashback canjear @usuario 500*.'
@@ -570,11 +570,11 @@ async function comandoRifaJasc13(sock, chatId, msg, args) {
 
         if (disponible < cantidadCashback) {
             return await sock.sendMessage(chatId, {
-                text: `❌ Cashback insuficiente. El usuario tiene *${disponible}* Pavos disponibles.`
+                text: `❌ Cashback insuficiente. El usuario tiene *${disponible.toFixed(2)}* Pavos disponibles.`
             }, { quoted: msg });
         }
 
-        cashbackDoc.cashback = disponible - cantidadCashback;
+        cashbackDoc.cashback = Number((disponible - cantidadCashback).toFixed(2));
         await cashbackDoc.save();
 
         return await sock.sendMessage(chatId, {
