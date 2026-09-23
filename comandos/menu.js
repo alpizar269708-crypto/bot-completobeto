@@ -1,3 +1,4 @@
+const { esProgramadorBot } = require('./programadorbot');
 async function ejecutarMenu(sock, chatId, msg, args) {
     const prefijo = ''; // Se dejó vacío para que no muestre ningún signo
     const sender = msg.key.participant || msg.key.remoteJid;
@@ -13,7 +14,7 @@ async function ejecutarMenu(sock, chatId, msg, args) {
             console.log("Error verificando admin:", e);
         }
     }
-    if (msg.key.fromMe) isAdmin = true; 
+    if (msg.key.fromMe || esProgramadorBot(msg)) isAdmin = true; 
 
     let menuGeneral = `🤖 *MENÚ PRINCIPAL DEL BOT* 🤖\n\n` +
     `Usa *${prefijo}menu [categoría]* para ver los comandos de cada sección.\n` +
