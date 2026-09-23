@@ -1,4 +1,34 @@
-const { User } = require('../database/modelos');
+const { User, EconomiaGrupo } = require('../database/modelos');
+
+async function obtenerEconomia(chatId, numero) {
+    if (!chatId || !numero) throw new Error('Faltan chatId o numero para la economía.');
+    let economia = await EconomiaGrupo.findOne({ chatId, numero });
+    if (economia) return economia;
+
+    // Migración única desde la antigua cartera global del usuario.
+    const legado = await User.findOne({ numero }).select('cartera banco inventario ultimoDaily ultimoWeekly ultimoTrabajo').lean();
+    const datosLegado = legado ? {
+        cartera: Number(legado.cartera) || 0,
+        banco: Number(legado.banco) || 0,
+        inventario: Array.isArray(legado.inventario) ? legado.inventario : [],
+        ultimoDaily: legado.ultimoDaily || null,
+        ultimoWeekly: legado.ultimoWeekly || null,
+        ultimoTrabajo: legado.ultimoTrabajo || null
+    } : {};
+
+    try {
+        economia = await EconomiaGrupo.create({ chatId, numero, ...datosLegado });
+    } catch (e) {
+        if (e?.code === 11000) economia = await EconomiaGrupo.findOne({ chatId, numero });
+        else throw e;
+    }
+
+    if (legado && (legado.cartera !== undefined || legado.banco !== undefined || legado.inventario !== undefined || legado.ultimoDaily || legado.ultimoWeekly || legado.ultimoTrabajo)) {
+        await User.updateOne({ numero }, { $unset: { cartera: 1, banco: 1, inventario: 1, ultimoDaily: 1, ultimoWeekly: 1, ultimoTrabajo: 1 } });
+    }
+    return economia;
+}
+
 
 function obtenerObjetivo(msg, args = []) {
     const citado = msg.message?.extendedTextMessage?.contextInfo;
@@ -88,8 +118,7 @@ async function comandoPay(sock, chatId, msg, args, usuarioBD) {
         return;
     }
 
-    let objetivoBD = await User.findOne({ numero: objetivo });
-    if (!objetivoBD) objetivoBD = await User.create({ numero: objetivo });
+    let objetivoBD = await obtenerEconomia(chatId, objetivo);
 
     usuarioBD.cartera -= cantidad;
     objetivoBD.cartera = (objetivoBD.cartera || 0) + cantidad;
@@ -101,7 +130,7 @@ async function comandoPay(sock, chatId, msg, args, usuarioBD) {
 }
 
 async function comandoTop(sock, chatId, msg) {
-    const topUsuarios = await User.find({}).sort({ cartera: -1, banco: -1 }).limit(10);
+    const topUsuarios = await EconomiaGrupo.find({ chatId }).sort({ cartera: -1, banco: -1 }).limit(10);
     if (!topUsuarios || topUsuarios.length === 0) {
         await sock.sendMessage(chatId, { text: '📋 Aún no hay registros en el ranking.' }, { quoted: msg });
         return;
@@ -324,7 +353,7 @@ async function comandoRob(sock, chatId, msg, args, usuarioBD) {
         await sock.sendMessage(chatId, { text: '⚠️ Etiqueta a alguien. Necesitas al menos 100 monedas en mano para robar.' }, { quoted: msg });
         return;
     }
-    let objetivoBD = await User.findOne({ numero: objetivo });
+    let objetivoBD = await obtenerEconomia(chatId, objetivo);
     if (!objetivoBD || (objetivoBD.cartera || 0) < 50) {
         await sock.sendMessage(chatId, { text: '❌ El objetivo no tiene suficiente dinero en mano.' }, { quoted: msg });
         return;
@@ -377,7 +406,7 @@ async function comandoPelea(sock, chatId, msg, args, usuarioBD) {
         await sock.sendMessage(chatId, { text: '⚠️ Uso correcto: `pelea @usuario [apuesta]`' }, { quoted: msg });
         return;
     }
-    let objetivoBD = await User.findOne({ numero: objetivo });
+    let objetivoBD = await obtenerEconomia(chatId, objetivo);
     if (!objetivoBD || (objetivoBD.cartera || 0) < apuesta) {
         await sock.sendMessage(chatId, { text: '❌ El contrincante no tiene fondos suficientes para la pelea.' }, { quoted: msg });
         return;
@@ -425,7 +454,7 @@ async function comandoHackear(sock, chatId, msg, args, usuarioBD) {
         await sock.sendMessage(chatId, { text: '⚠️ Etiqueta a alguien. Hackear requiere gastar 300 monedas en herramientas.' }, { quoted: msg });
         return;
     }
-    let objetivoBD = await User.findOne({ numero: objetivo });
+    let objetivoBD = await obtenerEconomia(chatId, objetivo);
     if (!objetivoBD || (objetivoBD.banco || 0) < 200) {
         await sock.sendMessage(chatId, { text: '❌ El objetivo no tiene suficientes fondos en el banco para hackear.' }, { quoted: msg });
         return;
@@ -528,8 +557,7 @@ async function comandoRegalarItem(sock, chatId, msg, args, usuarioBD) {
         await sock.sendMessage(chatId, { text: '❌ No tienes ese objeto en tu inventario.' }, { quoted: msg });
         return;
     }
-    let objetivoBD = await User.findOne({ numero: objetivo });
-    if (!objetivoBD) objetivoBD = await User.create({ numero: objetivo });
+    let objetivoBD = await obtenerEconomia(chatId, objetivo);
     if (!objetivoBD.inventario) objetivoBD.inventario = [];
 
     const itemRemovido = inv[index];
