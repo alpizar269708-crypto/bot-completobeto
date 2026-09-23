@@ -54,7 +54,7 @@ const comandosValidos = new Set([
         'ruleta', 'cf', 'slots', 'dados', 'adivina', 'buscaminas', 'rob', 'ppt', 'pelea',
         'carrera', 'hackear', 'shop', 'buy', 'inventario', 'mochila', 'vender', 'use', 'regalar',
         'rifa', 'rifainscripcion', 'cerrarrifa', 'rifajasc13', 'abrirrifa', 'activarrifaaqui', 'menurifajasc13', 'carryleader', 'carryjoin', 'carryleave', 'carryclose', 'blcarry', 'unblcarry', 'listcarrybl',
-        'vertodosconandos', 'vertodoscomandos', 'listablanca', 'desactivarbienvenida', 'activarbienvenida', 'personalizarbienvenida', 'restaurarbienvenida', 'salvar'
+        'vertodosconandos', 'vertodoscomandos', 'listablanca', 'desactivarbienvenida', 'activarbienvenida', 'personalizarbienvenida', 'restaurarbienvenida'
 ]);
 
 async function procesarMensaje(sock, msg) {
@@ -227,7 +227,6 @@ Apoya a un creador: JASC13` });
             ['epicasstw', 'Muestra misiones con recompensas épicas.'],
             ['alertasstw', 'Muestra el resumen general de alertas de Salvar el Mundo.'],
             ['stw', 'Alias de alertasstw.'],
-            ['salvar', 'Alias de alertasstw.'],
             ['alerta', 'Busca una recompensa específica en las alertas de Salvar el Mundo.'],
             ['setgrupostw', 'Activa los reportes diarios de Salvar el Mundo en el grupo.'],
             ['unsetgrupostw', 'Desactiva los reportes diarios de Salvar el Mundo.'],
@@ -368,7 +367,6 @@ Apoya a un creador: JASC13` });
                 await alertasSTW(sock, chatJid, msg, 'epicas');
                 break;
             case 'alertasstw':
-            case 'salvar':
             case 'stw':
                 await alertasSTW(sock, chatJid, msg, 'todas');
                 break;
