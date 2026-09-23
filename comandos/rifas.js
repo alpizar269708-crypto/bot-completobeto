@@ -303,17 +303,33 @@ function extraerNumeroJid(jid) {
 
 async function resolverContactoJasc13(sock, jid) {
     if (!jid) return { numeroVisible: 'Desconocido', mentionJid: null, mentionNumber: null };
-    let mentionJid = jid; let numero = extraerNumeroJid(jid);
-    if (jid.endsWith('@lid')) {
-        try {
-            const lidMapping = sock.signalRepository?.lidMapping;
-            if (lidMapping?.getPNForLID) {
-                const pn = await lidMapping.getPNForLID(jid);
-                if (pn) { mentionJid = pn; numero = extraerNumeroJid(pn); }
-            }
-        } catch (e) { console.error('⚠️ No se pudo resolver LID a número de teléfono:', e.message); }
+
+    const entrada = String(jid).trim();
+    let mentionJid = entrada;
+    let numero = extraerNumeroJid(entrada);
+
+    // Los LID representan cuentas que WhatsApp identifica por usuario.
+    // Conservamos el LID original para que WhatsApp pueda renderizar el username.
+    if (entrada.endsWith('@lid')) {
+        return {
+            numeroVisible: 'Desconocido',
+            mentionJid: entrada,
+            mentionNumber: numero
+        };
     }
-    return { numeroVisible: normalizarNumeroVisible(numero), mentionJid, mentionNumber: extraerNumeroJid(mentionJid) };
+
+    // En números mexicanos, 521 + 10 dígitos es una representación histórica.
+    // El JID actual debe usar 52 + 10 dígitos: nunca dejamos el 1 después de 52.
+    if (numero.startsWith('521') && numero.length === 13) {
+        numero = '52' + numero.slice(3);
+        mentionJid = numero + '@s.whatsapp.net';
+    }
+
+    return {
+        numeroVisible: normalizarNumeroVisible(numero),
+        mentionJid,
+        mentionNumber: extraerNumeroJid(mentionJid)
+    };
 }
 
 async function cargarEstadoRifaJasc13() {
