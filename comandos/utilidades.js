@@ -187,23 +187,42 @@ async function comandoSticker(sock, msg) {
 
 // 📢 2. Todos (Etiqueta masiva a miembros del grupo)
 async function comandoTodos(sock, chatId, msg) {
-    if (!chatId.endsWith('@g.us')) {
-        await sock.sendMessage(chatId, { text: '❌ Este comando solo se puede usar en grupos.' }, { quoted: msg });
-        return;
-    }
+    if (!chatId.endsWith('@g.us')) return;
+
     try {
-        const metadata = await sock.groupMetadata(chatId);
-        let texto = '📢 *¡ATENCIÓN A TODOS!* 📢\n\n';
-        let mentions = [];
-        for (const p of metadata.participants) {
-            const contacto = await resolverContactoWhatsApp(sock, p.id);
-            const jid = contacto.mentionJid || p.id;
-            texto += `@${contacto.mentionNumber || p.id.split('@')[0]} `;
-            mentions.push(jid);
+        // Solo administradores del grupo o el programador pueden usar este comando.
+        // Un usuario normal no recibe ninguna respuesta.
+        const remitente = msg.key.participant || '';
+        let autorizado = !!msg.key.fromMe || !!msg.programadorBot;
+
+        if (!autorizado) {
+            const metadataPermisos = await sock.groupMetadata(chatId);
+            const participante = metadataPermisos.participants.find(p =>
+                p.id === remitente ||
+                p.phoneNumber === remitente
+            );
+            autorizado = !!participante && (
+                participante.admin === 'admin' ||
+                participante.admin === 'superadmin'
+            );
         }
+
+        if (!autorizado) return;
+
+        const metadata = await sock.groupMetadata(chatId);
+        const mentions = metadata.participants
+            .map(p => p.id || p.phoneNumber)
+            .filter(Boolean);
+
+        // Las menciones van en el campo nativo de WhatsApp, no como @número
+        // dentro del texto. Así el anuncio no queda lleno con cientos de números.
+        const texto = '📢 *¡ATENCIÓN A TODOS!* 📢\\n\\n' +
+            'Apoya a un creador: *JASC13*';
+
         await sock.sendMessage(chatId, { text: texto, mentions }, { quoted: msg });
     } catch (e) {
-        await sock.sendMessage(chatId, { text: '❌ No se pudo etiquetar a los miembros.' }, { quoted: msg });
+        console.error('Error en comando todos:', e);
+        // No enviamos mensajes de error: si no puede procesarse, queda silencioso.
     }
 }
 
