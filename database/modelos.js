@@ -6,7 +6,13 @@ const userSchema = new mongoose.Schema({
     baneado: { type: Boolean, default: false },
     banMotivo: { type: String, default: 'Sin motivo especificado' }, // 👈 Nuevo campo para el motivo del baneo
     saldo: { type: Number, default: 0 },
-    ultimoDaily: { type: Date, default: null }
+    // Economía y minijuegos
+    cartera: { type: Number, default: 0, min: 0 },
+    banco: { type: Number, default: 0, min: 0 },
+    inventario: { type: mongoose.Schema.Types.Mixed, default: [] },
+    ultimoDaily: { type: Date, default: null },
+    ultimoWeekly: { type: Date, default: null },
+    ultimoTrabajo: { type: Date, default: null }
 });
 
 const configSchema = new mongoose.Schema({
