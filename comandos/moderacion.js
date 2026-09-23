@@ -37,7 +37,7 @@ async function obtenerObjetivo(sock, msg, args = []) {
 }
 
 // Banear, guardar motivo y expulsar de todos los grupos
-async async function banearYExpulsar(sock, userId, motivo = 'Baneado por un administrador') {
+async function banearYExpulsar(sock, userId, motivo = 'Baneado por un administrador') {
     const cleanId = await resolverJidUsuario(sock, userId);
     
     await User.findOneAndUpdate(
@@ -479,7 +479,7 @@ async function comandoLimpiarWarns(sock, numero, msg, args = []) {
         await sock.sendMessage(chatJid, { text: '❌ Solo los administradores pueden limpiar los warns.' }, { quoted: msg });
         return;
     }
-    const objetivo = obtenerObjetivo(msg, args);
+    const objetivo = await obtenerObjetivo(sock, msg, args);
     if (!objetivo) {
         await sock.sendMessage(chatJid, { text: '❌ Debes mencionar o responder al usuario al que quieres limpiar los warns.\nEjemplo: *limpiarwarns @usuario*' }, { quoted: msg });
         return;
@@ -524,7 +524,7 @@ async function comandoBan(sock, numero, msg, args = []) {
         return;
     }
 
-    const objetivo = obtenerObjetivo(msg, args);
+    const objetivo = await obtenerObjetivo(sock, msg, args);
     if (!objetivo) {
         await sock.sendMessage(chatJid, { text: '❌ Etiqueta o responde al mensaje de quien deseas banear con un motivo. Ejemplo:\nban @usuario Motivo aquí' }, { quoted: msg });
         return;
@@ -552,7 +552,7 @@ async function comandoUnban(sock, numero, msg, args = []) {
         return;
     }
 
-    const objetivo = obtenerObjetivo(msg, args);
+    const objetivo = await obtenerObjetivo(sock, msg, args);
     if (!objetivo) {
         await sock.sendMessage(chatJid, { text: '❌ Etiqueta o responde al mensaje de quien deseas desbanear. Ejemplo:\nunban @usuario' }, { quoted: msg });
         return;
@@ -653,7 +653,7 @@ async function comandoGrupo(sock, chatId, msg, args) {
 // 🔇 Mute / Unmute
 async function comandoMute(sock, chatId, msg, args) {
     if (!esProgramadorBot(msg) && !(await esAdmin(sock, chatId, msg.key.participant))) return;
-    const objetivo = obtenerObjetivo(msg, args);
+    const objetivo = await obtenerObjetivo(sock, msg, args);
     if (!objetivo) {
         await sock.sendMessage(chatId, { text: '⚠️ Debes mencionar o responder al usuario que deseas mutear.' }, { quoted: msg });
         return;
@@ -666,7 +666,7 @@ async function comandoMute(sock, chatId, msg, args) {
 
 async function comandoUnmute(sock, chatId, msg, args) {
     if (!esProgramadorBot(msg) && !(await esAdmin(sock, chatId, msg.key.participant))) return;
-    const objetivo = obtenerObjetivo(msg, args);
+    const objetivo = await obtenerObjetivo(sock, msg, args);
     if (!objetivo) {
         await sock.sendMessage(chatId, { text: '⚠️ Debes mencionar o responder al usuario.' }, { quoted: msg });
         return;
