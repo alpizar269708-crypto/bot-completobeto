@@ -371,7 +371,7 @@ Apoya a un creador: JASC13` });
                 await alertasSTW(sock, chatJid, msg, 'todas');
                 break;
             case 'alerta':
-                if (args.length > 0) await alertasSTW(sock, chatJid, msg, args[0]);
+                if (args.length > 0) await comandoPreguntarAlerta(sock, chatJid, msg, args);
                 else await comandoPreguntarAlerta(sock, chatJid, msg);
                 break;
             case 'setgrupostw':
