@@ -185,6 +185,27 @@ function normalizarLinkListaBlanca(link) {
     return String(link || '').trim().replace(/[),.;!?]+$/g, '').toLowerCase();
 }
 
+function normalizarDominioListaBlanca(dominio) {
+    let valor = String(dominio || '').trim().toLowerCase();
+    valor = valor.replace(/^https?:\/\//, '').replace(/^www\./, '');
+    valor = valor.split('/')[0].split('?')[0].split('#')[0].replace(/\.$/, '');
+    return /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$/.test(valor) ? valor : '';
+}
+
+function extraerDominioLink(link) {
+    try {
+        const texto = String(link || '').trim();
+        const url = new URL(/^(?:https?:\/\/|www\.)/i.test(texto) ? (/^www\./i.test(texto) ? 'https://' + texto : texto) : 'https://' + texto);
+        return url.hostname.toLowerCase().replace(/^www\./, '');
+    } catch (error) {
+        return '';
+    }
+}
+
+function esDominioListaBlanca(entrada) {
+    return String(entrada || '').startsWith('dominio:');
+}
+
 async function obtenerLinksListaBlanca() {
     if (cacheListaBlanca.valor && cacheListaBlanca.expira > Date.now()) {
         return cacheListaBlanca.valor;
@@ -216,9 +237,58 @@ async function comandoListaBlancaLinks(sock, chatId, msg, args = []) {
         return;
     }
     const accion = (args[0] || '').toLowerCase();
+    const subaccion = (args[1] || '').toLowerCase();
     const link = normalizarLinkListaBlanca(args.slice(1).join(' '));
     if (!accion || accion === 'ayuda') {
-        await sock.sendMessage(chatId, { text: '🟢 *LISTA BLANCA DE LINKS*\n\nEstructura guardada: *links_lista_blanca* → un arreglo JSON de links permitidos.\n\n➕ *listablanca agregar [link]*\nEjemplo: *listablanca agregar https://ejemplo.com/*\n\n➖ *listablanca quitar [link]*\n👀 *listablanca ver*\n🧹 *listablanca vaciar*\n\nPuedes agregar literalmente cualquier link que quieras permitir.' }, { quoted: msg });
+        await sock.sendMessage(chatId, { text: '🟢 *LISTA BLANCA DE LINKS*\n\n➕ *listablanca agregar [link]*\nEjemplo: *listablanca agregar https://ejemplo.com/*\n\n🌐 *listablanca dominio agregar [dominio]*\nEjemplo: *listablanca dominio agregar whatsapp.com*\n\n➖ *listablanca quitar [link]*\n🌐 *listablanca dominio quitar [dominio]*\n👀 *listablanca ver*\n🧹 *listablanca vaciar*\n\nUn dominio permite todos sus enlaces y subdominios. Por ejemplo, *whatsapp.com* permite *https://www.whatsapp.com/* y *https://blog.whatsapp.com/...*.' }, { quoted: msg });
+        return;
+    }
+    if (accion === 'dominio') {
+        const dominio = normalizarDominioListaBlanca(args.slice(2).join(' '));
+        if (!subaccion || subaccion === 'ayuda') {
+            await sock.sendMessage(chatId, { text: '🌐 *LISTA BLANCA POR DOMINIO*\n\n➕ *listablanca dominio agregar [dominio]*\nEjemplo: *listablanca dominio agregar whatsapp.com*\n\n➖ *listablanca dominio quitar [dominio]*\nEjemplo: *listablanca dominio quitar whatsapp.com*\n\n👀 *listablanca dominio ver*' }, { quoted: msg });
+            return;
+        }
+        if (subaccion === 'ver') {
+            const listaDominios = (await obtenerLinksListaBlanca()).filter(esDominioListaBlanca).map(x => x.slice(8));
+            const textoDominios = listaDominios.length ? `🌐 *DOMINIOS EN LISTA BLANCA* (${listaDominios.length}):\\n\\n${listaDominios.map((d, i) => `*${i + 1}.* ${d}`).join('\\n')}` : '🌐 No hay dominios en la lista blanca.';
+            await sock.sendMessage(chatId, { text: textoDominios }, { quoted: msg });
+            return;
+        }
+        if (subaccion !== 'agregar' && subaccion !== 'añadir' && subaccion !== 'add' && subaccion !== 'quitar' && subaccion !== 'eliminar' && subaccion !== 'remove') {
+            await sock.sendMessage(chatId, { text: '❌ Uso incorrecto. Debes indicar *agregar*, *quitar* o *ver*.\\nEjemplo: *listablanca dominio agregar whatsapp.com*' }, { quoted: msg });
+            return;
+        }
+        if (!dominio) {
+            await sock.sendMessage(chatId, { text: '❌ Debes indicar un dominio válido.\\nEjemplo: *listablanca dominio agregar whatsapp.com*\\nTambién puedes usar *listablanca dominio quitar whatsapp.com*.' }, { quoted: msg });
+            return;
+        }
+        const entradaDominio = `dominio:${dominio}`;
+        const listaActual = await obtenerLinksListaBlanca();
+        if (subaccion === 'agregar' || subaccion === 'añadir' || subaccion === 'add') {
+            if (listaActual.includes(entradaDominio)) {
+                await sock.sendMessage(chatId, { text: `ℹ️ El dominio *${dominio}* ya está en la lista blanca.` }, { quoted: msg });
+                return;
+            }
+            listaActual.push(entradaDominio);
+            await Config.findOneAndUpdate({ clave: 'links_lista_blanca' }, { valor: JSON.stringify(listaActual) }, { upsert: true });
+            cacheListaBlanca.valor = listaActual;
+            cacheListaBlanca.expira = Date.now() + 5000;
+            await sock.sendMessage(chatId, { text: `✅ Dominio agregado a la lista blanca.\\n\\n🌐 *${dominio}*\\n\\nTodos los enlaces de este dominio y sus subdominios quedarán permitidos por el anti-links.` }, { quoted: msg });
+            return;
+        }
+        const entradaQuitar = `dominio:${dominio}`;
+        const indiceDominio = listaActual.indexOf(entradaQuitar);
+        if (indiceDominio === -1) {
+            await sock.sendMessage(chatId, { text: `❌ El dominio *${dominio}* no está en la lista blanca.` }, { quoted: msg });
+            return;
+        }
+        listaActual.splice(indiceDominio, 1);
+        if (listaActual.length === 0) await Config.deleteOne({ clave: 'links_lista_blanca' });
+        else await Config.findOneAndUpdate({ clave: 'links_lista_blanca' }, { valor: JSON.stringify(listaActual) }, { upsert: true });
+        cacheListaBlanca.valor = listaActual;
+        cacheListaBlanca.expira = Date.now() + 5000;
+        await sock.sendMessage(chatId, { text: `✅ Dominio eliminado de la lista blanca.\\n\\n🌐 *${dominio}*` }, { quoted: msg });
         return;
     }
     if (accion === 'ver') {
@@ -344,7 +414,14 @@ async function verificarAntiLinks(sock, msg) {
     const listaBlanca = await obtenerLinksListaBlanca();
     const linksNoPermitidos = coincidencias.filter(linkDetectado => {
         const linkNormalizado = normalizarLinkListaBlanca(linkDetectado);
-        return !listaBlanca.some(linkPermitido => linkNormalizado === linkPermitido || linkNormalizado.startsWith(`${linkPermitido}/`));
+        const dominioDetectado = extraerDominioLink(linkDetectado);
+        return !listaBlanca.some(linkPermitido => {
+            if (esDominioListaBlanca(linkPermitido)) {
+                const dominioPermitido = linkPermitido.slice(8);
+                return dominioDetectado === dominioPermitido || dominioDetectado.endsWith(`.${dominioPermitido}`);
+            }
+            return linkNormalizado === linkPermitido || linkNormalizado.startsWith(`${linkPermitido}/`);
+        });
     });
     if (linksNoPermitidos.length === 0) return false;
 
