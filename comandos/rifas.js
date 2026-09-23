@@ -370,7 +370,10 @@ async function comandoMenuRifaJasc13(sock, chatId, msg) {
     const menuTexto = `🎟️ *MENÚ SECRETO - RIFA CÓDIGO DE CREADOR (JASC13)* 🎟️\n\n` +
         `• *rifajasc13 iniciar* - Inicia la rifa y te registra como propietario único.\n` +
         `• *rifajasc13 agregar [@usuario/número] [PaVos]* - Convierte PaVos a boletos (1000 PaVos = 1 boleto) y acumula 5% de Cashback.\n` +
-        `• *rifajasc13 cashback [@usuario/número] [cantidad]* - Canjea la cantidad indicada de Cashback del usuario.\n` +
+        `• *rifajasc13 cashback @usuario* - Consulta el Cashback actual.\n` +
+        `• *rifajasc13 cashback ver @usuario* - Consulta el Cashback actual.\n` +
+        `• *rifajasc13 cashback todos* - Muestra todos los Cashback acumulados.\n` +
+        `• *rifajasc13 cashback canjear @usuario [cantidad]* - Canjea Cashback.\n` +
         `• *rifajasc13 ver* - Muestra la lista de participantes, puntos y boletos actuales.\n` +
         `• *rifajasc13 quitar [número]* - Elimina a un participante de la lista.\n` +
         `• *rifajasc13 vaciar* - Limpia toda la lista de participantes.\n` +
