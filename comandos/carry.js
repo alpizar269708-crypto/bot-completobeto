@@ -111,7 +111,7 @@ async function comandoCarry(sock, chatId, msg, comando, args = []) {
     }
 
     if (comando === 'carryleader') {
-        if (escuadron) return await sock.sendMessage(chatId, { text: `❌ Ya hay un escuadrón activo liderado por ${escuadron.liderNombre}. Usa *carryclose* para cerrarlo primero.` }, { quoted: msg });
+        if (escuadron) return await sock.sendMessage(chatId, { text: `❌ Ya hay un escuadrón activo liderado por ${tokenMencionNativa(escuadron.liderId) || escuadron.liderNombre}. Usa *carryclose* para cerrarlo primero.` }, { quoted: msg });
         
         let maxEspacios = 3;
         let motivo = "Salvar el Mundo";
@@ -136,7 +136,7 @@ async function comandoCarry(sock, chatId, msg, comando, args = []) {
         });
         
         await sock.sendMessage(chatId, { 
-            text: `📢 *NUEVO CARRY DISPONIBLE*\n👑 *${pushName}* ha creado un escuadrón.\n🎯 *Objetivo:* ${motivo}\n\nFaltan *${maxEspacios}* espacios. Usa *carryjoin* para unirte.` 
+            text: `📢 *NUEVO CARRY DISPONIBLE*\n👑 ${tokenMencionNativa(sender) || pushName} ha creado un escuadrón.\n🎯 *Objetivo:* ${motivo}\n\nFaltan *${maxEspacios}* espacios. Usa *carryjoin* para unirte.` 
         }, { quoted: msg });
 
     } else if (comando === 'carryjoin') {
@@ -176,12 +176,12 @@ async function comandoCarry(sock, chatId, msg, comando, args = []) {
         if (index !== -1) {
             escuadron.miembros.splice(index, 1);
             const espaciosRestantes = escuadron.maxEspacios - escuadron.miembros.length;
-            await sock.sendMessage(chatId, { text: `🚪 *${pushName}* salió del escuadrón. Quedan *${espaciosRestantes}* espacios.` }, { quoted: msg });
+            await sock.sendMessage(chatId, { text: `🚪 ${tokenMencionNativa(sender) || pushName} salió del escuadrón. Quedan *${espaciosRestantes}* espacios.` }, { quoted: msg });
         }
 
     } else if (comando === 'carryclose') {
         if (!escuadron) return await sock.sendMessage(chatId, { text: `❌ No hay escuadrones activos.` }, { quoted: msg });
-        if (escuadron.liderId !== sender) return await sock.sendMessage(chatId, { text: `❌ Solo el líder (${escuadron.liderNombre}) puede cerrar el escuadrón.` }, { quoted: msg });
+        if (escuadron.liderId !== sender) return await sock.sendMessage(chatId, { text: `❌ Solo el líder (${tokenMencionNativa(escuadron.liderId) || escuadron.liderNombre}) puede cerrar el escuadrón.` }, { quoted: msg });
         
         escuadronesActivos.delete(chatId);
         await sock.sendMessage(chatId, { text: `🛑 Has cancelado el escuadrón.` }, { quoted: msg });
