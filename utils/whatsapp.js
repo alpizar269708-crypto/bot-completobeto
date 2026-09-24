@@ -94,7 +94,7 @@ async function resolverContactoWhatsApp(sock, valor, chatId = null) {
         } catch (error) {}
     }
 
-    return { jid, nombre: nombre || null, numero: extraerNumeroJid(jid), numeroVisible };
+    return { jid, nombre: tokenMencionNativa(jid) || nombre || null, numero: extraerNumeroJid(jid), numeroVisible };
 }
 
 // Para una mención nativa, el texto debe contener @ + identificador numérico
@@ -104,11 +104,31 @@ function tokenMencionNativa(jid) {
     return numero ? '@' + numero : '';
 }
 
+// Fuerza que cualquier texto que contenga tokens @123... enviados por el bot
+// se convierta en una mención nativa de WhatsApp, usando el mismo JID.
+function asegurarMencionesNativas(sock) {
+    if (!sock || sock.__mencionesNativasInstaladas) return sock;
+    const enviarOriginal = sock.sendMessage.bind(sock);
+    sock.sendMessage = async (chatId, contenido, opciones) => {
+        if (contenido && typeof contenido === 'object' && typeof contenido.text === 'string') {
+            const encontrados = contenido.text.match(/@\\d{6,16}/g) || [];
+            const jids = encontrados.map(x => x.slice(1) + '@s.whatsapp.net');
+            if (jids.length > 0) {
+                contenido = { ...contenido, mentions: [...new Set([...(contenido.mentions || []), ...jids])] };
+            }
+        }
+        return enviarOriginal(chatId, contenido, opciones);
+    };
+    sock.__mencionesNativasInstaladas = true;
+    return sock;
+}
+
 module.exports = {
     extraerNumeroJid,
     normalizarNumeroVisible,
     resolverLidAPn,
     resolverJidUsuario,
     resolverContactoWhatsApp,
-    tokenMencionNativa
+    tokenMencionNativa,
+    asegurarMencionesNativas
 };
