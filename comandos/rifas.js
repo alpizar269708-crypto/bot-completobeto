@@ -627,7 +627,7 @@ async function comandoRifaJasc13(sock, chatId, msg, args) {
         if (subaccion === 'vaciar') {
             const resultado = await RifaJasc13Cashback.deleteMany({});
             return await sock.sendMessage(chatId, {
-                text: `🧹 *¡CASHBACK VACIADO!*\\n\\nSe eliminó todo el Cashback acumulado de todos los usuarios.\\n👥 Registros eliminados: *${resultado.deletedCount || 0}*`
+                text: `🧹 *¡CASHBACK VACIADO!*\n\nSe eliminó todo el Cashback acumulado de todos los usuarios.\n👥 Registros eliminados: *${resultado.deletedCount || 0}*`
             }, { quoted: msg });
         }
 
