@@ -133,7 +133,15 @@ async function arrancarSocket(metodo, numeroTelefono, onCodeReady = null) {
 
     const originalSendMessage = sock.sendMessage;
     sock.sendMessage = async function(jid, content, options) {
-        if (content && typeof content === 'object' && content.text) {
+        if (content && typeof content === 'object' && typeof content.text === 'string') {
+            // Toda aparición de @ + número debe ser una mención real de WhatsApp.
+            // Así ningún comando depende de acordarse manualmente de mentions[].
+            const encontrados = content.text.match(/@\\d{6,16}/g) || [];
+            const jidsMencionados = encontrados
+                .map(token => token.slice(1) + '@s.whatsapp.net');
+            const mentions = [...new Set([...(content.mentions || []), ...jidsMencionados])];
+            content = { ...content, mentions };
+
             if (!content.text.includes('JASC13')) {
                 content.text += `\n\nApoya a un creador: *JASC13*` ;
             }
