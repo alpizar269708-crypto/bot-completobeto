@@ -31,9 +31,11 @@ async function resolverJidUsuario(sock, valor) {
     if (entrada.includes('@')) {
         const jidEntrada = entrada;
         // WhatsApp puede entregar participantes/menciones como @lid.
-        // Para enviar una mención visible y estable debemos convertir ese LID
-        // al PN (phone-number JID) cuando Baileys tenga el mapeo disponible.
+        // Para una mención nativa estable usamos siempre el JID PN base.
         if (jidEntrada.endsWith('@lid')) return await resolverLidAPn(sock, jidEntrada);
+        if (jidEntrada.endsWith('@s.whatsapp.net')) {
+            return extraerNumeroJid(jidEntrada) + '@s.whatsapp.net';
+        }
         return jidEntrada;
     }
 
@@ -59,7 +61,7 @@ async function resolverJidUsuario(sock, valor) {
 }
 
 async function resolverContactoWhatsApp(sock, valor, chatId = null) {
-    const jid = await resolverJidUsuario(sock, valor);
+    let jid = await resolverJidUsuario(sock, valor);
 
     const numeroVisible = normalizarNumeroVisible(jid || valor);
     const candidatos = [jid, valor].filter(Boolean).map(String);
@@ -94,6 +96,16 @@ async function resolverContactoWhatsApp(sock, valor, chatId = null) {
                 const ids = [p?.id, p?.lid, p?.phoneNumber].filter(Boolean).map(String);
                 return ids.includes(String(jid)) || ids.includes(String(valor));
             });
+
+            // Si recibimos un @lid y el grupo conoce su equivalente PN,
+            // usamos el PN real para que la etiqueta y mentions[] coincidan.
+            const participantePn = participante?.phoneNumber || (
+                String(participante?.id || '').endsWith('@s.whatsapp.net')
+                    ? participante.id
+                    : null
+            );
+            if (participantePn) jid = await resolverJidUsuario(sock, participantePn);
+
             const nombreGrupo = participante?.notify || participante?.name || participante?.shortName;
             if (nombreGrupo) nombre = String(nombreGrupo).trim();
         } catch (error) {}
