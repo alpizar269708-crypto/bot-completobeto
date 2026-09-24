@@ -435,13 +435,13 @@ async function verificarAntiLinks(sock, msg) {
     usuarioBD.warns.push({ motivo: 'Envío de enlaces no autorizados', fecha: new Date() });
     usuarioBD.markModified('warns');
     const totalWarns = usuarioBD.warns.length;
-    let mensajeAviso = `⚠️ @${etiquetaUsuario(await resolverContactoWhatsApp(sock, remitente, chatJid))} Enviar enlaces no autorizados está prohibido.\n📌 *Advertencias:* ${totalWarns}/3`;
+    let mensajeAviso = `⚠️ ${(await resolverContactoWhatsApp(sock, remitente, chatJid)).nombre || (await resolverContactoWhatsApp(sock, remitente, chatJid)).numeroVisible} Enviar enlaces no autorizados está prohibido.\n📌 *Advertencias:* ${totalWarns}/3`;
     if (totalWarns >= 3) {
         await banearYExpulsar(sock, remitente, 'Acumulación de 3 advertencias por enlaces no autorizados');
         mensajeAviso += '\n\n🚨 *Límite alcanzado:* El usuario ha sido agregado a la lista negra y expulsado de todos los grupos.';
     }
     await usuarioBD.save();
-    await sock.sendMessage(chatJid, { text: mensajeAviso, mentions: [remitente] });
+    await sock.sendMessage(chatJid, { text: mensajeAviso });
     return true;
 }
 // 🛡️ Filtro Anti-Spam Automático
@@ -481,7 +481,7 @@ async function verificarAntiSpam(sock, msg) {
         usuarioBD.markModified('warns');
         const totalWarns = usuarioBD.warns.length;
 
-        let mensajeAviso = `⚠️ @${etiquetaUsuario(await resolverContactoWhatsApp(sock, remitente, chatJid))} estás enviando mensajes demasiado rápido (Spam).\n` +
+        let mensajeAviso = `⚠️ ${(await resolverContactoWhatsApp(sock, remitente, chatJid)).nombre || (await resolverContactoWhatsApp(sock, remitente, chatJid)).numeroVisible} estás enviando mensajes demasiado rápido (Spam).\n` +
                            `📌 *Advertencias:* ${totalWarns}/3`;
 
         if (totalWarns >= 3) {
@@ -538,7 +538,7 @@ async function comandoWarn(sock, numero, msg, args = []) {
     const totalWarns = usuarioBD.warns.length;
 
     let respuesta = `⚠️ *ADVERTENCIA REGISTRADA*\n\n` +
-                    `👤 Usuario: @${etiquetaUsuario(await resolverContactoWhatsApp(sock, objetivo, chatJid))}\n` +
+                    `👤 Usuario: ${(await resolverContactoWhatsApp(sock, objetivo, chatJid)).nombre || (await resolverContactoWhatsApp(sock, objetivo, chatJid)).numeroVisible}\n` +
                     `📝 Motivo: ${motivo}\n` +
                     `📌 Total: ${totalWarns}/3`;
 
@@ -548,7 +548,7 @@ async function comandoWarn(sock, numero, msg, args = []) {
     }
 
     await usuarioBD.save();
-    await sock.sendMessage(chatJid, { text: respuesta, mentions: [objetivo] }, { quoted: msg });
+    await sock.sendMessage(chatJid, { text: respuesta }, { quoted: msg });
 }
 
 async function comandoLimpiarWarns(sock, numero, msg, args = []) {
@@ -565,13 +565,13 @@ async function comandoLimpiarWarns(sock, numero, msg, args = []) {
     }
     const usuarioBD = await User.findOne({ numero: objetivo });
     if (!usuarioBD) {
-        await sock.sendMessage(chatJid, { text: `ℹ️ @${etiquetaUsuario(await resolverContactoWhatsApp(sock, objetivo, chatJid))} no tiene un registro de usuario ni warns.`, mentions: [objetivo] }, { quoted: msg });
+        await sock.sendMessage(chatJid, { text: `ℹ️ ${(await resolverContactoWhatsApp(sock, objetivo, chatJid)).nombre || (await resolverContactoWhatsApp(sock, objetivo, chatJid)).numeroVisible} no tiene un registro de usuario ni warns.` }, { quoted: msg });
         return;
     }
     usuarioBD.warns = [];
     usuarioBD.markModified('warns');
     await usuarioBD.save();
-    await sock.sendMessage(chatJid, { text: `✅ Se borraron todos los warns de @${etiquetaUsuario(await resolverContactoWhatsApp(sock, objetivo, chatJid))}.\n📌 Warns actuales: *0/3*`, mentions: [objetivo] }, { quoted: msg });
+    await sock.sendMessage(chatJid, { text: `✅ Se borraron todos los warns de ${(await resolverContactoWhatsApp(sock, objetivo, chatJid)).nombre || (await resolverContactoWhatsApp(sock, objetivo, chatJid)).numeroVisible}.\n📌 Warns actuales: *0/3*` }, { quoted: msg });
 }
 
 async function comandoVerWarns(sock, numero, msg, args = []) {
@@ -580,12 +580,12 @@ async function comandoVerWarns(sock, numero, msg, args = []) {
 
     let usuarioBD = await User.findOne({ numero: objetivo });
     if (!usuarioBD || !Array.isArray(usuarioBD.warns) || usuarioBD.warns.length === 0) {
-        await sock.sendMessage(chatJid, { text: `✅ El usuario @${etiquetaUsuario(await resolverContactoWhatsApp(sock, objetivo, chatJid))} no tiene advertencias registradas.`, mentions: [objetivo] }, { quoted: msg });
+        await sock.sendMessage(chatJid, { text: `✅ El usuario ${(await resolverContactoWhatsApp(sock, objetivo, chatJid)).nombre || (await resolverContactoWhatsApp(sock, objetivo, chatJid)).numeroVisible} no tiene advertencias registradas.` }, { quoted: msg });
         return;
     }
 
     let historial = `📋 *HISTORIAL DE ADVERTENCIAS*\n` +
-                    `👤 Usuario: @${etiquetaUsuario(await resolverContactoWhatsApp(sock, objetivo, chatJid))}\n` +
+                    `👤 Usuario: ${(await resolverContactoWhatsApp(sock, objetivo, chatJid)).nombre || (await resolverContactoWhatsApp(sock, objetivo, chatJid)).numeroVisible}\n` +
                     `📌 Total: ${usuarioBD.warns.length}/3\n\n`;
 
     usuarioBD.warns.forEach((w, index) => {
@@ -593,7 +593,7 @@ async function comandoVerWarns(sock, numero, msg, args = []) {
         historial += `*${index + 1}.* ${w.motivo} _(${fechaFormateada})_\n`;
     });
 
-    await sock.sendMessage(chatJid, { text: historial, mentions: [objetivo] }, { quoted: msg });
+    await sock.sendMessage(chatJid, { text: historial }, { quoted: msg });
 }
 
 async function comandoBan(sock, numero, msg, args = []) {
@@ -621,7 +621,7 @@ async function comandoBan(sock, numero, msg, args = []) {
     }
 
     await banearYExpulsar(sock, objetivo, motivo);
-    await sock.sendMessage(chatJid, { text: `🚫 El usuario @${etiquetaUsuario(await resolverContactoWhatsApp(sock, objetivo, chatJid))} fue agregado a la lista negra.\n📝 Motivo: _${motivo}_`, mentions: [objetivo] }, { quoted: msg });
+    await sock.sendMessage(chatJid, { text: `🚫 El usuario @${etiquetaUsuario(await resolverContactoWhatsApp(sock, objetivo, chatJid))} fue agregado a la lista negra.\n📝 Motivo: _${motivo}_` }, { quoted: msg });
 }
 
 async function comandoUnban(sock, numero, msg, args = []) {
@@ -638,7 +638,7 @@ async function comandoUnban(sock, numero, msg, args = []) {
     }
 
     await User.findOneAndUpdate({ numero: objetivo }, { baneado: false, warns: [], banMotivo: '' });
-    await sock.sendMessage(chatJid, { text: `✅ El usuario @${etiquetaUsuario(await resolverContactoWhatsApp(sock, objetivo, chatJid))} fue removido de la lista negra y se limpiaron sus warns.`, mentions: [objetivo] }, { quoted: msg });
+    await sock.sendMessage(chatJid, { text: `✅ El usuario @${etiquetaUsuario(await resolverContactoWhatsApp(sock, objetivo, chatJid))} fue removido de la lista negra y se limpiaron sus warns.` }, { quoted: msg });
 }
 
 async function comandoListaNegra(sock, numero, msg) {
