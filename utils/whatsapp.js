@@ -111,9 +111,17 @@ async function resolverContactoWhatsApp(sock, valor, chatId = null) {
         } catch (error) {}
     }
 
-    // Cuando un comando trabaja con una persona, usamos el mismo formato nativo
-    // que WhatsApp reconoce como mención: @ + número y mentions[] con el JID.
-    return { jid, nombre: tokenMencionNativa(jid) || nombre || null, numero: extraerNumeroJid(jid), numeroVisible };
+    const numeroContacto = extraerNumeroJid(jid);
+    let numeroVerificado = String(jid || '').endsWith('@s.whatsapp.net');
+    if (numeroContacto.length > 12 && typeof sock?.onWhatsApp === 'function') {
+        try {
+            const resultados = await sock.onWhatsApp(numeroContacto);
+            numeroVerificado = Array.isArray(resultados) && resultados.some(x => x?.exists && x?.jid);
+        } catch (error) {}
+    }
+
+    const etiquetaNumero = numeroVerificado && numeroContacto ? '@' + numeroContacto : '';
+    return { jid, nombre: etiquetaNumero || nombre || null, username: nombre || null, numero: numeroContacto, numeroVisible, numeroVerificado };
 }
 
 // Para una mención nativa, el texto debe contener @ + identificador numérico
