@@ -80,20 +80,23 @@ async function comandoCarry(sock, chatId, msg, comando, args = []) {
             }
             listaNegra.push(objetivo);
             await Config.findOneAndUpdate({ clave: `carry_bl_${chatId}` }, { valor: JSON.stringify(listaNegra) }, { upsert: true });
-            const contacto = await resolverContactoWhatsApp(sock, objetivo, chatId)
-            return await sock.sendMessage(chatId, { text: `🚫 El usuario ${contacto.nombre || contacto.numeroVisible} · 📱 ${contacto.numeroVisible} ha sido agregado a la lista negra de carry.` }, { quoted: msg });
+            const contacto = await resolverContactoWhatsApp(sock, objetivo, chatId);
+            const etiquetaContacto = tokenMencionNativa(contacto.jid || objetivo) || contacto.nombre || contacto.numeroVisible;
+            return await sock.sendMessage(chatId, { text: `🚫 El usuario ${etiquetaContacto} · 📱 ${contacto.numeroVisible} ha sido agregado a la lista negra de carry.`, mentions: [contacto.jid || objetivo].filter(Boolean) }, { quoted: msg });
         }
 
         if (comando === 'unblcarry') {
             let index = listaNegra.indexOf(objetivo);
             if (index === -1) {
-                const contacto = await resolverContactoWhatsApp(sock, objetivo, chatId)
-                return await sock.sendMessage(chatId, { text: `⚠️ El usuario ${contacto.nombre || contacto.numeroVisible} · 📱 ${contacto.numeroVisible} no estaba en la lista negra.` }, { quoted: msg });
+                const contacto = await resolverContactoWhatsApp(sock, objetivo, chatId);
+                const etiquetaContacto = tokenMencionNativa(contacto.jid || objetivo) || contacto.nombre || contacto.numeroVisible;
+                return await sock.sendMessage(chatId, { text: `⚠️ El usuario ${etiquetaContacto} · 📱 ${contacto.numeroVisible} no estaba en la lista negra.`, mentions: [contacto.jid || objetivo].filter(Boolean) }, { quoted: msg });
             }
             listaNegra.splice(index, 1);
             await Config.findOneAndUpdate({ clave: `carry_bl_${chatId}` }, { valor: JSON.stringify(listaNegra) }, { upsert: true });
-            const contacto = await resolverContactoWhatsApp(sock, objetivo, chatId)
-            return await sock.sendMessage(chatId, { text: `✅ El usuario ${contacto.nombre || contacto.numeroVisible} · 📱 ${contacto.numeroVisible} fue removido de la lista negra de carry.` }, { quoted: msg });
+            const contacto = await resolverContactoWhatsApp(sock, objetivo, chatId);
+            const etiquetaContacto = tokenMencionNativa(contacto.jid || objetivo) || contacto.nombre || contacto.numeroVisible;
+            return await sock.sendMessage(chatId, { text: `✅ El usuario ${etiquetaContacto} · 📱 ${contacto.numeroVisible} fue removido de la lista negra de carry.`, mentions: [contacto.jid || objetivo].filter(Boolean) }, { quoted: msg });
         }
         return;
     }
