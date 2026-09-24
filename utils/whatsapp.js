@@ -123,11 +123,23 @@ function tokenMencionNativa(jid) {
     return numero ? '@' + numero : '';
 }
 
+// Etiqueta uniforme: primero intenta el número de WhatsApp.
+// Si no existe un JID telefónico usable, usa el nombre/usuario reservado.
+function etiquetaContactoWhatsApp(contacto, jidFallback = null) {
+    const jid = contacto?.jid || jidFallback;
+    const numero = extraerNumeroJid(jid);
+    if (String(jid || '').endsWith('@s.whatsapp.net') && numero) return '@' + numero;
+
+    const nombre = String(contacto?.nombre || contacto?.username || '').replace(/^@/, '').trim();
+    return nombre ? '@' + nombre : (numero ? '@' + numero : 'Usuario');
+}
+
 module.exports = {
     extraerNumeroJid,
     normalizarNumeroVisible,
     resolverLidAPn,
     resolverJidUsuario,
     resolverContactoWhatsApp,
-    tokenMencionNativa
+    tokenMencionNativa,
+    etiquetaContactoWhatsApp
 };
