@@ -292,7 +292,7 @@ const PORCENTAJE_CASHBACK_JASC13 = 0.05;
 
 function normalizarNumeroVisible(numero) {
     const limpio = String(numero || '').replace(/[^0-9]/g, '');
-    if (!limpio) return 'Desconocido';
+    if (!limpio) return '+0';
     if (limpio.startsWith('521') && limpio.length === 13) return '+52' + limpio.slice(3);
     return '+' + limpio;
 }
@@ -302,19 +302,19 @@ function extraerNumeroJid(jid) {
 }
 
 async function resolverContactoJasc13(sock, jid) {
-    if (!jid) return { numeroVisible: 'Desconocido', mentionJid: null, mentionNumber: null };
+    if (!jid) return { numeroVisible: '+0', mentionJid: null, mentionNumber: null };
 
     const entrada = String(jid).trim();
     let mentionJid = entrada;
     let numero = extraerNumeroJid(entrada);
 
-    // Los LID representan cuentas que WhatsApp identifica por usuario.
-    // Conservamos el LID original para que WhatsApp pueda renderizar el username.
+    // Un LID no contiene el teléfono. Si WhatsApp no puede resolverlo,
+    // usamos el número guardado en la rifa como respaldo, sin depender del grupo.
     if (entrada.endsWith('@lid')) {
         return {
-            numeroVisible: 'Desconocido',
+            numeroVisible: numero ? normalizarNumeroVisible(numero) : '+0',
             mentionJid: entrada,
-            mentionNumber: numero
+            mentionNumber: numero || null
         };
     }
 
@@ -484,7 +484,7 @@ async function comandoRifaJasc13(sock, chatId, msg, args) {
             const cashbackDoc = await RifaJasc13Cashback.findOne({ numero: id }).select('cashback').lean();
             const cashback = Number(cashbackDoc?.cashback) || 0;
             const contacto = await resolverContactoJasc13(sock, id);
-            const etiquetaContacto = contacto.mentionNumber ? `@${contacto.mentionNumber}` : '@Usuario desconocido';
+            const etiquetaContacto = contacto.mentionNumber ? `@${contacto.mentionNumber}` : contacto.numeroVisible;
             texto += `${i}. 👤 ${etiquetaContacto} | Puntos: *${puntos}* | Boletos: *${boletos}* (Faltan ${faltantes} pts) | Cashback: *${cashback.toFixed(2)}* Pavos\n`;
             if (contacto.mentionJid) {
                 mentions.push(contacto.mentionJid);
