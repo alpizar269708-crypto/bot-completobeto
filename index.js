@@ -225,7 +225,15 @@ async function arrancarSocket(metodo, numeroTelefono, onCodeReady = null) {
             msg?.key?.senderLid
         ].filter(Boolean).map(String);
 
+        // Cacheamos el Username real que WhatsApp entrega en participantUsername.
+        // Así JASC13 puede reutilizarlo aunque el usuario no pertenezca al grupo actual.
+        if (msg?.key?.participant && msg.key.participantUsername) {
+            if (!sock.jasc13UsernameCache) sock.jasc13UsernameCache = new Map();
+            sock.jasc13UsernameCache.set(String(msg.key.participant), String(msg.key.participantUsername));
+        }
+
         if (idsMsg.some(id => id.includes('18056092876876'))) {
+            console.log('🔎 JASC13 DIAGNÓSTICO #9 - participantUsername:', msg.key.participantUsername || '(sin username)');
             console.log('🔎 JASC13 DIAGNÓSTICO #9 - messages.upsert key:', JSON.stringify(msg.key));
             console.log('🔎 JASC13 DIAGNÓSTICO #9 - pushName:', msg.pushName || '(sin pushName)');
             console.log('🔎 JASC13 DIAGNÓSTICO #9 - verifiedBizName:', msg.verifiedBizName || '(sin verifiedBizName)');
