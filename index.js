@@ -7,7 +7,7 @@ const { procesarMensaje } = require('./messageHandler');
 const { verificarNuevoMiembro } = require('./comandos/moderacion');
 const { iniciarCronAlertasDiarias } = require('./comandos/fortnite');
 const { limpiarEconomiaAlSalir } = require('./comandos/economia');
-const { registrarIdentidadJasc13 } = require('./comandos/rifas');
+const { registrarIdentidadJasc13, registrarMapeoLidJasc13 } = require('./comandos/rifas');
 const { iniciarPuenteDiscord, vincularChatWhatsApp } = require('./webBridge');
 const express = require('express');
 
@@ -167,13 +167,22 @@ async function arrancarSocket(metodo, numeroTelefono, onCodeReady = null) {
 
     sock.ev.on('creds.update', saveCreds);
 
-    // Diagnóstico temporal del LID #9. Baileys expone oficialmente el evento
-    // lid-mapping.update cuando WhatsApp entrega un mapeo LID ↔ PN.
+    // WhatsApp puede entregar el vínculo LID ↔ teléfono de forma asíncrona.
+    // Lo persistimos para que JASC13 pueda resolver identidades después,
+    // incluso tras un reinicio o un nuevo deploy.
     sock.ev.on('lid-mapping.update', async (mapping) => {
         if (!mapping || typeof mapping !== 'object') return;
 
-        const lid = String(mapping.lid || '');
-        const pn = String(mapping.pn || '');
+        const lid = String(mapping.lid || '').trim();
+        const pn = String(mapping.pn || '').trim();
+
+        if (!lid.endsWith('@lid') || !pn.endsWith('@s.whatsapp.net')) return;
+
+        try {
+            await registrarMapeoLidJasc13(sock, lid, pn);
+        } catch (e) {
+            console.error('⚠️ Error guardando mapeo LID ↔ PN de JASC13:', e.message);
+        }
 
         if (lid.includes('18056092876876') || pn.includes('18056092876876')) {
             console.log('🔎 JASC13 DIAGNÓSTICO #9 - lid-mapping.update:', JSON.stringify(mapping));
@@ -279,12 +288,36 @@ async function arrancarSocket(metodo, numeroTelefono, onCodeReady = null) {
         ].filter(Boolean).map(String);
 
         // Cacheamos el Username real que WhatsApp entrega en participantUsername.
-        // Así JASC13 puede reutilizarlo aunque el usuario no pertenezca al grupo actual.
+        // Separamos estrictamente LID y PN: un @lid NUNCA se guarda como teléfono.
         if (msg?.key?.participant && msg.key.participantUsername) {
+            const participant = String(msg.key.participant);
+            const participantAlt = msg.key.participantAlt ? String(msg.key.participantAlt) : '';
+            const senderPn = msg.key.senderPn ? String(msg.key.senderPn) : '';
+            const participantPn = msg.key.participantPn ? String(msg.key.participantPn) : '';
+
+            const phoneNumber =
+                [participant, participantAlt, senderPn, participantPn]
+                    .find(id => id.endsWith('@s.whatsapp.net')) || null;
+
             if (!sock.jasc13UsernameCache) sock.jasc13UsernameCache = new Map();
-            sock.jasc13UsernameCache.set(String(msg.key.participant), String(msg.key.participantUsername));
-            // Guardamos permanentemente el Username cuando corresponde a un participante JASC13.
-            await registrarIdentidadJasc13(sock, String(msg.key.participant), String(msg.key.participantUsername), msg.key.participantAlt || null);
+            sock.jasc13UsernameCache.set(participant, String(msg.key.participantUsername));
+
+            // Si WhatsApp nos da el PN por separado, ese es el único valor
+            // que permitimos guardar como teléfono.
+            await registrarIdentidadJasc13(
+                sock,
+                participant,
+                String(msg.key.participantUsername),
+                phoneNumber
+            );
+
+            // Si el mensaje trae simultáneamente LID y PN, también dejamos
+            // registrado el vínculo para futuras resoluciones.
+            const lid = [participant, participantAlt]
+                .find(id => id.endsWith('@lid')) || null;
+            if (lid && phoneNumber) {
+                await registrarMapeoLidJasc13(sock, lid, phoneNumber);
+            }
         }
 
         if (idsMsg.some(id => id.includes('18056092876876'))) {

@@ -692,62 +692,196 @@ async function guardarParticipantesJasc13(participantes) {
 
 async function registrarIdentidadJasc13(sock, jid, username, phoneNumber = null) {
     if (!jid || !username) return false;
+
     try {
         const config = await Config.findOne({ clave: CLAVE_IDENTIDADES_JASC13 }).select('valor').lean();
         let identidades = {};
         if (config?.valor) {
             try { identidades = JSON.parse(config.valor) || {}; } catch (error) { identidades = {}; }
         }
+
         const clave = String(jid);
-        // Solo registramos identidades de personas que ya pertenecen a la lista JASC13.
-        // Así un mensaje normal de cualquier otro contacto no llena MongoDB innecesariamente.
+        const phone = String(phoneNumber || '').endsWith('@s.whatsapp.net')
+            ? String(phoneNumber)
+            : null;
+
         const participantesConfig = await Config.findOne({ clave: CLAVE_PARTICIPANTES_JASC13 }).select('valor').lean();
         let lista = [];
         if (participantesConfig?.valor) {
             try { lista = JSON.parse(participantesConfig.valor); } catch (error) { lista = []; }
         }
-        const participante = lista.find(item => item?.id === clave);
+
+        // Buscamos por cualquiera de las identidades ya conocidas del participante.
+        // Esto permite aprender un PN aunque la rifa haya sido guardada originalmente
+        // con un LID, y viceversa.
+        const participante = lista.find(item => {
+            if (!item) return false;
+            const ids = [
+                item.id,
+                item.mentionJid,
+                item.phoneNumber
+            ].filter(Boolean).map(String);
+
+            return ids.includes(clave) || (phone && ids.includes(phone));
+        });
+
         if (!participante) return false;
 
-        const identidadAnterior = identidades[clave] || {};
+        const identidadBase = identidades[clave] || {};
         const identidadNueva = {
             username: String(username).replace(/^@/, ''),
-            phoneNumber: phoneNumber || identidadAnterior.phoneNumber || null,
-            mentionJid: identidadAnterior.mentionJid || participante.mentionJid || clave
+            phoneNumber: phone || identidadBase.phoneNumber || participante.phoneNumber || null,
+            mentionJid: participante.mentionJid || identidadBase.mentionJid || clave
         };
-        if (JSON.stringify(identidadAnterior) !== JSON.stringify(identidadNueva)) {
-            identidades[clave] = identidadNueva;
+
+        // Si el participante llegó por PN pero conocemos su LID en participantAlt,
+        // el caller puede registrar el mapeo aparte. Aquí nunca convertimos un LID
+        // en un PN por inferencia.
+        identidades[clave] = identidadNueva;
+
+        // También indexamos por la identidad estable del participante para que
+        // resolverContactoJasc13 pueda encontrar el registro aunque cambie el JID
+        // que llegue en un mensaje posterior.
+        if (participante.id) {
+            const participanteClave = String(participante.id);
+            identidades[participanteClave] = {
+                ...identidades[participanteClave],
+                ...identidadNueva,
+                mentionJid: participante.mentionJid || identidadNueva.mentionJid || participanteClave
+            };
+        }
+
+        if (phone) {
+            identidades[phone] = {
+                ...identidades[phone],
+                ...identidadNueva,
+                phoneNumber: phone
+            };
+        }
+
+        await Config.findOneAndUpdate(
+            { clave: CLAVE_IDENTIDADES_JASC13 },
+            { valor: JSON.stringify(identidades) },
+            { upsert: true }
+        );
+
+        let cambio = false;
+        for (const item of lista) {
+            if (item?.id === participante.id) {
+                if (item.username !== identidadNueva.username) {
+                    item.username = identidadNueva.username;
+                    cambio = true;
+                }
+                if (phone && item.phoneNumber !== phone) {
+                    item.phoneNumber = phone;
+                    cambio = true;
+                }
+                if (!item.mentionJid) {
+                    item.mentionJid = identidadNueva.mentionJid;
+                    cambio = true;
+                }
+                break;
+            }
+        }
+
+        if (cambio) {
             await Config.findOneAndUpdate(
-                { clave: CLAVE_IDENTIDADES_JASC13 },
-                { valor: JSON.stringify(identidades) },
+                { clave: CLAVE_PARTICIPANTES_JASC13 },
+                { valor: JSON.stringify(lista) },
                 { upsert: true }
             );
         }
 
-        // También incorporamos la identidad al registro principal de participantes.
-        if (participantesConfig?.valor) {
-            try { lista = JSON.parse(participantesConfig.valor); } catch (error) { lista = []; }
-            let cambio = false;
-            for (const item of lista) {
-                if (item?.id === clave) {
-                    item.username = identidadNueva.username;
-                    item.phoneNumber = identidadNueva.phoneNumber;
-                    item.mentionJid = identidadNueva.mentionJid;
-                    cambio = true;
-                    break;
-                }
-            }
-            if (cambio) {
-                await Config.findOneAndUpdate(
-                    { clave: CLAVE_PARTICIPANTES_JASC13 },
-                    { valor: JSON.stringify(lista) },
-                    { upsert: true }
-                );
-            }
-        }
         return true;
     } catch (error) {
         console.error('⚠️ Error registrando identidad JASC13:', error.message);
+        return false;
+    }
+}
+
+async function registrarMapeoLidJasc13(sock, lid, phoneNumber) {
+    if (!String(lid || '').endsWith('@lid') || !String(phoneNumber || '').endsWith('@s.whatsapp.net')) {
+        return false;
+    }
+
+    try {
+        const participantesConfig = await Config.findOne({ clave: CLAVE_PARTICIPANTES_JASC13 }).select('valor').lean();
+        let lista = [];
+        if (participantesConfig?.valor) {
+            try { lista = JSON.parse(participantesConfig.valor); } catch (error) { lista = []; }
+        }
+
+        const lidStr = String(lid);
+        const pnStr = String(phoneNumber);
+
+        const participante = lista.find(item => {
+            if (!item) return false;
+            const ids = [
+                item.id,
+                item.mentionJid,
+                item.phoneNumber
+            ].filter(Boolean).map(String);
+            return ids.includes(lidStr) || ids.includes(pnStr);
+        });
+
+        // No llenamos MongoDB con contactos ajenos a la rifa.
+        if (!participante) return false;
+
+        let cambio = false;
+        for (const item of lista) {
+            if (item?.id !== participante.id) continue;
+
+            if (item.phoneNumber !== pnStr) {
+                item.phoneNumber = pnStr;
+                cambio = true;
+            }
+
+            // El LID es la identidad preferida para mencionar cuando WhatsApp
+            // nos lo proporciona; conservamos el ID original de la rifa.
+            if (!item.mentionJid || item.mentionJid.endsWith('@lid')) {
+                if (item.mentionJid !== lidStr) {
+                    item.mentionJid = lidStr;
+                    cambio = true;
+                }
+            }
+            break;
+        }
+
+        if (cambio) {
+            await Config.findOneAndUpdate(
+                { clave: CLAVE_PARTICIPANTES_JASC13 },
+                { valor: JSON.stringify(lista) },
+                { upsert: true }
+            );
+        }
+
+        const config = await Config.findOne({ clave: CLAVE_IDENTIDADES_JASC13 }).select('valor').lean();
+        let identidades = {};
+        if (config?.valor) {
+            try { identidades = JSON.parse(config.valor) || {}; } catch (error) { identidades = {}; }
+        }
+
+        const identidadAnterior = identidades[lidStr] || identidades[pnStr] || {};
+        const identidadNueva = {
+            ...identidadAnterior,
+            username: participante.username || identidadAnterior.username || null,
+            phoneNumber: pnStr,
+            mentionJid: lidStr
+        };
+
+        identidades[lidStr] = identidadNueva;
+        identidades[pnStr] = identidadNueva;
+        if (participante.id) identidades[String(participante.id)] = identidadNueva;
+
+        await Config.findOneAndUpdate(
+            { clave: CLAVE_IDENTIDADES_JASC13 },
+            { valor: JSON.stringify(identidades) },
+            { upsert: true }
+        );
+
+        return true;
+    } catch (error) {
+        console.error('⚠️ Error persistiendo mapeo LID ↔ PN JASC13:', error.message);
         return false;
     }
 }
@@ -1187,4 +1321,4 @@ async function comandoRifaJasc13(sock, chatId, msg, args) {
     }
 }
 
-module.exports = { comandoRifa, comandoRifaInscripcion, comandoRifaJasc13, comandoMenuRifaJasc13, comandoAbrirRifa, comandoActivarRifaAqui, comandoCerrarRifa, registrarIdentidadJasc13 };
+module.exports = { comandoRifa, comandoRifaInscripcion, comandoRifaJasc13, comandoMenuRifaJasc13, comandoAbrirRifa, comandoActivarRifaAqui, comandoCerrarRifa, registrarIdentidadJasc13, registrarMapeoLidJasc13 };
