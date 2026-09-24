@@ -308,44 +308,23 @@ async function resolverMencionNativaJasc13(sock, mentionJid, chatId = null, fall
     let lid = entrada.endsWith('@lid') ? entrada : null;
 
     try {
+        // Regla fundamental para JASC13:
+        // - Si la entrada llegó como @lid, conservamos el LID. No necesitamos
+        //   convertirlo a teléfono para construir la mención.
+        // - Si la entrada llegó como @s.whatsapp.net, conservamos el PN.
+        //   Aunque WhatsApp conozca un LID equivalente, NO lo sustituimos:
+        //   esa sustitución rompe las menciones de usuarios normales.
+        //
+        // El teléfono puede ser útil como dato auxiliar, pero jamás debe
+        // cambiar el JID que ya nos entregó la mención original.
         const mapping = sock?.signalRepository?.lidMapping;
-        if (mapping) {
-            if (lid && typeof mapping.getPNForLID === 'function') {
+        if (mapping && lid && typeof mapping.getPNForLID === 'function') {
+            try {
                 const resuelto = await mapping.getPNForLID(lid);
-                if (resuelto && String(resuelto).endsWith('@s.whatsapp.net')) pn = String(resuelto);
-            }
-            if (pn && typeof mapping.getLIDForPN === 'function') {
-                const resuelto = await mapping.getLIDForPN(pn);
-                if (resuelto && String(resuelto).endsWith('@lid')) lid = String(resuelto);
-            }
-        }
-
-        // IMPORTANTE: getPNForLID depende de que el mapeo ya esté en memoria.
-        // Si no existe, Baileys v7 puede consultar la identidad mediante
-        // findUserId(), que devuelve phoneNumber y/o lid.
-        if (lid && !pn && typeof sock?.findUserId === 'function') {
-            const ids = await sock.findUserId(lid);
-            const pnEncontrado = ids?.phoneNumber || ids?.pn;
-            const lidEncontrado = ids?.lid;
-
-            if (pnEncontrado) {
-                const candidatoPn = String(pnEncontrado).includes('@')
-                    ? String(pnEncontrado)
-                    : String(pnEncontrado) + '@s.whatsapp.net';
-                if (candidatoPn.endsWith('@s.whatsapp.net')) pn = candidatoPn;
-            }
-
-            if (lidEncontrado && String(lidEncontrado).endsWith('@lid')) {
-                lid = String(lidEncontrado);
-            }
-        }
-
-        // Si ya conseguimos el PN pero todavía no tenemos LID, intentamos
-        // obtener el LID correspondiente para usar el identificador que
-        // WhatsApp espera en grupos con direccionamiento LID.
-        if (pn && !lid && typeof mapping?.getLIDForPN === 'function') {
-            const resuelto = await mapping.getLIDForPN(pn);
-            if (resuelto && String(resuelto).endsWith('@lid')) lid = String(resuelto);
+                if (resuelto && String(resuelto).endsWith('@s.whatsapp.net')) {
+                    pn = String(resuelto);
+                }
+            } catch (error) {}
         }
     } catch (error) {
         console.error('⚠️ JASC13: no se pudo resolver PN ↔ LID para mención:', error.message);
@@ -516,11 +495,24 @@ async function resolverContactoJasc13(sock, jid, chatId = null) {
                     };
                 }
 
-                if (participante.id && participante.id !== entrada) {
-                    mentionJid = participante.id;
+                // No cambiamos el tipo de identidad recibido:
+                // una entrada PN sigue siendo PN aunque la metadata también
+                // tenga un participant.id en formato LID.
+                if (entrada.endsWith('@lid')) {
+                    if (participante.lid) {
+                        mentionJid = String(participante.lid);
+                    } else if (participante.id && String(participante.id).endsWith('@lid')) {
+                        mentionJid = String(participante.id);
+                    }
+                } else if (entrada.endsWith('@s.whatsapp.net')) {
+                    if (participante.phoneNumber && String(participante.phoneNumber).endsWith('@s.whatsapp.net')) {
+                        mentionJid = String(participante.phoneNumber);
+                    } else {
+                        mentionJid = entrada;
+                    }
                 }
 
-                if (participante.phoneNumber) {
+                if (participante.phoneNumber && String(participante.phoneNumber).endsWith('@s.whatsapp.net')) {
                     numero = extraerNumeroJid(participante.phoneNumber);
                 }
             }
