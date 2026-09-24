@@ -171,13 +171,13 @@ async function comandoRifaInscripcion(sock, chatId, msg) {
 
     const yaInscrito = participantes.find(p => p.id === sender);
     if (yaInscrito) {
-        return await sock.sendMessage(chatId, { text: `❌ Ya estás inscrito en la rifa actual, *${tokenMencionNativa(sender) || pushName}*. Solo se permite una inscripción por número.`, mentions: [sender].filter(Boolean) }, { quoted: msg });
+        return await sock.sendMessage(chatId, { text: `❌ Ya estás inscrito en la rifa actual, *${pushName}*. Solo se permite una inscripción por número.` }, { quoted: msg });
     }
 
     participantes.push({ id: sender, nombre: pushName });
     await guardarParticipantesRifa(chatId, participantes);
 
-    await sock.sendMessage(chatId, { text: `✅ ¡Listo, *${tokenMencionNativa(sender) || pushName}*! Te has inscrito a la rifa correctamente. (Participante #${participantes.length})`, mentions: [sender].filter(Boolean) }, { quoted: msg });
+    await sock.sendMessage(chatId, { text: `✅ ¡Listo, *${pushName}*! Te has inscrito a la rifa correctamente. (Participante #${participantes.length})` }, { quoted: msg });
 }
 
 // === COMANDO EXCLUSIVO PARA ADMINISTRADORES ===
@@ -621,7 +621,7 @@ async function comandoRifaJasc13(sock, chatId, msg, args) {
         const cashbackTotal = Number(cashbackDoc?.cashback) || 0;
         const contacto = await resolverContactoJasc13(sock, targetId);
         const respuesta = `✅ *PaVos registrados exitosamente*\n👤 Usuario: ${contacto.nombre || contacto.numeroVisible}\n📱 Teléfono: *${contacto.numeroVisible}*\n➕ PaVos registrados: *+${pavosAgregados}*\n🎟️ Boletos agregados: *+${boletosGanados}*\n🎟️ Boletos actuales: *${datosUsuario.boletos}*\n📌 Puntos sobrantes guardados: *${datosUsuario.puntos}*\n📍 Faltan para otro boleto: *${faltantes} pts*\n💰 Cashback ganado: *+${cashbackGanado.toFixed(2)}* Pavos\n💰 Cashback acumulado: *${cashbackTotal.toFixed(2)}* Pavos`;
-        return await sock.sendMessage(chatId, { text: respuesta, mentions: [contacto.jid].filter(Boolean) });
+        return await sock.sendMessage(chatId, { text: respuesta });
     }
 
     if (accion === 'cashback') {
@@ -680,8 +680,7 @@ async function comandoRifaJasc13(sock, chatId, msg, args) {
 
             const contacto = await resolverContactoJasc13(sock, targetId);
             return await sock.sendMessage(chatId, {
-                text: `💰 *CASHBACK DISPONIBLE*\n\n👤 Usuario: ${tokenMencionNativa(contacto.jid) || contacto.nombre || contacto.numeroVisible}\n📱 Teléfono: *${contacto.numeroVisible}*\n💳 Cashback actual: *${disponible.toFixed(2)}* Pavos`,
-                    mentions: [contacto.jid].filter(Boolean)
+                text: `💰 *CASHBACK DISPONIBLE*\n\n👤 Usuario: ${contacto.nombre || contacto.numeroVisible}\n📱 Teléfono: *${contacto.numeroVisible}*\n💳 Cashback actual: *${disponible.toFixed(2)}* Pavos`,
                 }, { quoted: msg });
         }
 
@@ -706,8 +705,7 @@ async function comandoRifaJasc13(sock, chatId, msg, args) {
 
         const contactoCanje = await resolverContactoJasc13(sock, targetId);
         return await sock.sendMessage(chatId, {
-            text: `💸 *CASHBACK CANJEADO*\n\n👤 Usuario: ${tokenMencionNativa(contactoCanje.jid) || contactoCanje.nombre || contactoCanje.numeroVisible}\n📱 Teléfono: *${contactoCanje.numeroVisible}*\n➖ Utilizado: *${cantidadCashback.toFixed(2)}* Pavos\n💰 Restante: *${Number(cashbackDoc.cashback).toFixed(2)}* Pavos`,
-            mentions: [contactoCanje.jid].filter(Boolean)
+            text: `💸 *CASHBACK CANJEADO*\n\n👤 Usuario: ${contactoCanje.nombre || contactoCanje.numeroVisible}\n📱 Teléfono: *${contactoCanje.numeroVisible}*\n➖ Utilizado: *${cantidadCashback.toFixed(2)}* Pavos\n💰 Restante: *${Number(cashbackDoc.cashback).toFixed(2)}* Pavos`,
         }, { quoted: msg });
     }
 
