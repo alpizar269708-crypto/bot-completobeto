@@ -310,6 +310,16 @@ async function resolverContactoJasc13(sock, jid, chatId = null) {
     const entradaNumero = extraerNumeroJid(entrada);
     let mentionJid = entrada;
     let numero = entradaNumero;
+    const esDiagnosticoJasc13 = entradaNumero === '18056092876876';
+
+    if (esDiagnosticoJasc13) {
+        console.log('🔎 JASC13 DIAGNÓSTICO #9 - entrada:', entrada);
+        console.log('🔎 JASC13 DIAGNÓSTICO #9 - entradaNumero:', entradaNumero);
+        console.log('🔎 JASC13 DIAGNÓSTICO #9 - termina en @lid:', entrada.endsWith('@lid'));
+        console.log('🔎 JASC13 DIAGNÓSTICO #9 - fetchUsername disponible:', typeof sock?.fetchUsername === 'function');
+        console.log('🔎 JASC13 DIAGNÓSTICO #9 - findUserId disponible:', typeof sock?.findUserId === 'function');
+        console.log('🔎 JASC13 DIAGNÓSTICO #9 - onWhatsApp disponible:', typeof sock?.onWhatsApp === 'function');
+    }
 
     // WhatsApp puede entregar usuarios con Username mediante un identificador
     // que parece teléfono, pero que NO es un teléfono real. En grupos, la
@@ -330,6 +340,9 @@ async function resolverContactoJasc13(sock, jid, chatId = null) {
             });
 
             if (participante) {
+                if (esDiagnosticoJasc13) {
+                    console.log('🔎 JASC13 DIAGNÓSTICO #9 - participante encontrado:', JSON.stringify(participante));
+                }
                 const username = participante.username || participante.notify || null;
                 if (username) {
                     return {
@@ -357,8 +370,15 @@ async function resolverContactoJasc13(sock, jid, chatId = null) {
     try {
         if (typeof sock?.fetchUsername === 'function') {
             username = await sock.fetchUsername(mentionJid);
+            if (esDiagnosticoJasc13) {
+                console.log('🔎 JASC13 DIAGNÓSTICO #9 - fetchUsername resultado:', username);
+            }
         }
-    } catch (error) {}
+    } catch (error) {
+        if (esDiagnosticoJasc13) {
+            console.log('🔎 JASC13 DIAGNÓSTICO #9 - fetchUsername ERROR:', error?.message || error);
+        }
+    }
 
     // Algunos usuarios con Username reservado llegan a la aplicación con un
     // identificador numérico que parece teléfono, aunque no lo sea. Si el
@@ -369,6 +389,9 @@ async function resolverContactoJasc13(sock, jid, chatId = null) {
             const ids = await sock.findUserId(mentionJid);
             const lid = ids?.lid;
             const pn = ids?.phoneNumber;
+            if (esDiagnosticoJasc13) {
+                console.log('🔎 JASC13 DIAGNÓSTICO #9 - findUserId resultado:', JSON.stringify(ids));
+            }
 
             if (lid) {
                 mentionJid = lid;
@@ -385,7 +408,34 @@ async function resolverContactoJasc13(sock, jid, chatId = null) {
             }
 
             if (pn) numero = extraerNumeroJid(pn);
-        } catch (error) {}
+        } catch (error) {
+            if (esDiagnosticoJasc13) {
+                console.log('🔎 JASC13 DIAGNÓSTICO #9 - findUserId ERROR:', error?.message || error);
+            }
+        }
+    }
+
+    if (esDiagnosticoJasc13) {
+        try {
+            if (typeof sock?.onWhatsApp === 'function') {
+                const resultadosOnWhatsApp = await sock.onWhatsApp(entradaNumero);
+                console.log('🔎 JASC13 DIAGNÓSTICO #9 - onWhatsApp resultado:', JSON.stringify(resultadosOnWhatsApp));
+            }
+        } catch (error) {
+            console.log('🔎 JASC13 DIAGNÓSTICO #9 - onWhatsApp ERROR:', error?.message || error);
+        }
+
+        try {
+            const mapping = sock?.signalRepository?.lidMapping;
+            if (mapping?.getPNForLID && entrada.endsWith('@lid')) {
+                const pnLid = await mapping.getPNForLID(entrada);
+                console.log('🔎 JASC13 DIAGNÓSTICO #9 - getPNForLID resultado:', pnLid);
+            } else {
+                console.log('🔎 JASC13 DIAGNÓSTICO #9 - getPNForLID no aplicó (no es @lid o API no disponible)');
+            }
+        } catch (error) {
+            console.log('🔎 JASC13 DIAGNÓSTICO #9 - getPNForLID ERROR:', error?.message || error);
+        }
     }
 
     if (username) {
