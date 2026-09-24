@@ -258,10 +258,9 @@ async function comandoRifa(sock, chatId, msg, args) {
         
         const ganador = participantes[Math.floor(Math.random() * participantes.length)];
         
+        const contactoGanador = await resolverContactoWhatsApp(sock, ganador.id, chatId);
         await sock.sendMessage(chatId, { 
-            text: `🎉 *¡TENEMOS GANADOR!*
-
-🏆 El ganador de la rifa es: @${ganador.id.split('@')[0]} 🎊`,
+            text: `🎉 *¡TENEMOS GANADOR!*\n\n🏆 El ganador de la rifa es: @${etiquetaUsuario(contactoGanador)} 🎊`,
             mentions: [ganador.id]
         });
 
