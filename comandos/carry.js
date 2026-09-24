@@ -58,7 +58,7 @@ async function comandoCarry(sock, chatId, msg, comando, args = []) {
             const mencionesListaNegra = [];
             for (const [idx, id] of listaNegra.entries()) {
                 const contacto = await resolverContactoWhatsApp(sock, id, chatId);
-                txt += `${idx + 1}. @${etiquetaUsuario(contacto)} · 📱 ${contacto.numeroVisible}\n`;
+                txt += `${idx + 1}. ${tokenMencionNativa(contacto.jid) || contacto.nombre || contacto.numeroVisible} · 📱 ${contacto.numeroVisible}\n`;
                 if (contacto.mentionJid) mencionesListaNegra.push(contacto.mentionJid);
             }
             return await sock.sendMessage(chatId, { text: txt, mentions: [...new Set(mencionesListaNegra)] }, { quoted: msg });
@@ -136,8 +136,7 @@ async function comandoCarry(sock, chatId, msg, comando, args = []) {
         });
         
         await sock.sendMessage(chatId, { 
-            text: `📢 *NUEVO CARRY DISPONIBLE*\n👑 *${pushName}* ha creado un escuadrón.\n🎯 *Objetivo:* ${motivo}\n\nFaltan *${maxEspacios}* espacios. Usa *carryjoin* para unirte.`,
-            mentions: participantesGrupo
+            text: `📢 *NUEVO CARRY DISPONIBLE*\n👑 *${pushName}* ha creado un escuadrón.\n🎯 *Objetivo:* ${motivo}\n\nFaltan *${maxEspacios}* espacios. Usa *carryjoin* para unirte.` 
         }, { quoted: msg });
 
     } else if (comando === 'carryjoin') {
@@ -150,8 +149,7 @@ async function comandoCarry(sock, chatId, msg, comando, args = []) {
 
         if (espaciosRestantes > 0) {
             await sock.sendMessage(chatId, { 
-                text: `📢 *ACTUALIZACIÓN DE CARRY*\n✅ *${pushName}* se unió al escuadrón para *${escuadron.motivo}*.\n\nFaltan *${espaciosRestantes}* espacios.`,
-                mentions: participantesGrupo
+                text: `📢 *ACTUALIZACIÓN DE CARRY*\n✅ *${pushName}* se unió al escuadrón para *${escuadron.motivo}*.\n\nFaltan *${espaciosRestantes}* espacios.` 
             }, { quoted: msg });
         } else {
             const contactosSquad = await Promise.all([
