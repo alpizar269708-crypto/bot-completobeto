@@ -179,7 +179,7 @@ async function comandoRifaInscripcion(sock, chatId, msg) {
     participantes.push({ id: sender, nombre: etiquetaContacto });
     await guardarParticipantesRifa(chatId, participantes);
 
-    await sock.sendMessage(chatId, { text: `✅ ¡Listo, *${etiquetaContacto}*! Te has inscrito a la rifa correctamente. (Participante #${participantes.length})`, mentions: [contacto.jid || sender].filter(Boolean) }, { quoted: msg });
+    await sock.sendMessage(chatId, { text: `✅ ¡Listo, *${etiquetaContacto}*! Te has inscrito a la rifa correctamente. (Participante #${participantes.length})`, mentions: [contacto.jid || jid].filter(Boolean) }, { quoted: msg });
 }
 
 // === COMANDO EXCLUSIVO PARA ADMINISTRADORES ===
@@ -682,7 +682,7 @@ async function comandoRifaJasc13(sock, chatId, msg, args) {
             const etiquetaContacto = tokenMencionNativa(contacto.jid || jid) || contacto.nombre || contacto.numeroVisible;
             return await sock.sendMessage(chatId, {
                 text: `💰 *CASHBACK DISPONIBLE*\n\n👤 Usuario: ${etiquetaContacto}\n📱 Teléfono: *${contacto.numeroVisible}*\n💳 Cashback actual: *${disponible.toFixed(2)}* Pavos`,
-                mentions: [contacto.jid || targetId].filter(Boolean)
+                mentions: [contacto.jid || jid].filter(Boolean)
             }, { quoted: msg });
         }
 
