@@ -82,7 +82,8 @@ async function verificarNuevoMiembro(sock, update) {
     for (const participante of nuevosParticipantes) {
         const jidOriginal = typeof participante === 'string' ? participante : (participante.id || participante.phoneNumber);
         if (!jidOriginal) continue;
-        const contacto = await resolverContactoWhatsApp(sock, jidOriginal);
+        const contacto = await resolverContactoWhatsApp(sock, jidOriginal, chatId);
+        const etiquetaContacto = tokenMencionNativa(contacto.jid || jidOriginal) || contacto.nombre || contacto.numeroVisible;
         const jid = contacto.jid || jidOriginal;
 
         let usuarioBD = await User.findOne({ numero: jid });
@@ -90,7 +91,8 @@ async function verificarNuevoMiembro(sock, update) {
             try {
                 await sock.groupParticipantsUpdate(chatId, [jid], 'remove');
                 await sock.sendMessage(chatId, {
-                    text: `🚨 ${contacto.nombre || contacto.numeroVisible} · 📱 ${contacto.numeroVisible} está en la lista negra (Motivo: ${usuarioBD.banMotivo}) y no puede permanecer en este grupo. Expulsado automáticamente.`
+                    text: `🚨 ${etiquetaContacto} · 📱 ${contacto.numeroVisible} está en la lista negra (Motivo: ${usuarioBD.banMotivo}) y no puede permanecer en este grupo. Expulsado automáticamente.`,
+                    mentions: [contacto.jid || jidOriginal].filter(Boolean)
                 });
             } catch (error) {
                 console.log('No se pudo expulsar al usuario renegado.');
@@ -98,11 +100,12 @@ async function verificarNuevoMiembro(sock, update) {
         } else if (!bienvenidaDesactivada || bienvenidaDesactivada.valor !== 'true') {
             try {
                 const textoBienvenida = bienvenidaPersonalizada?.valor
-                    ? bienvenidaPersonalizada.valor.replace(/\\{usuario\\}/gi, contacto.nombre || contacto.numeroVisible)
-                    : `Bienvenido/a ${contacto.nombre || contacto.numeroVisible} · 📱 ${contacto.numeroVisible} a la escupidera de Salty, esperamos que seas lo suficientemente rudo para estar aquí.`;
+                    ? bienvenidaPersonalizada.valor.replace(/\\{usuario\\}/gi, etiquetaContacto)
+                    : `Bienvenido/a ${etiquetaContacto} · 📱 ${contacto.numeroVisible} a la escupidera de Salty, esperamos que seas lo suficientemente rudo para estar aquí.`;
 
                 await sock.sendMessage(chatId, {
-                    text: textoBienvenida
+                    text: textoBienvenida,
+                    mentions: [contacto.jid || jidOriginal].filter(Boolean)
                 });
             } catch (error) {
                 console.log('No se pudo enviar el mensaje de bienvenida.');
@@ -435,13 +438,15 @@ async function verificarAntiLinks(sock, msg) {
     usuarioBD.warns.push({ motivo: 'Envío de enlaces no autorizados', fecha: new Date() });
     usuarioBD.markModified('warns');
     const totalWarns = usuarioBD.warns.length;
-    let mensajeAviso = `⚠️ ${(await resolverContactoWhatsApp(sock, remitente, chatJid)).nombre || (await resolverContactoWhatsApp(sock, remitente, chatJid)).numeroVisible} Enviar enlaces no autorizados está prohibido.\n📌 *Advertencias:* ${totalWarns}/3`;
+    const contacto = await resolverContactoWhatsApp(sock, remitente, chatJid);
+    const etiquetaContacto = tokenMencionNativa(contacto.jid || remitente) || contacto.nombre || contacto.numeroVisible;
+    let mensajeAviso = `⚠️ ${etiquetaContacto} Enviar enlaces no autorizados está prohibido.\n📌 *Advertencias:* ${totalWarns}/3`;
     if (totalWarns >= 3) {
         await banearYExpulsar(sock, remitente, 'Acumulación de 3 advertencias por enlaces no autorizados');
         mensajeAviso += '\n\n🚨 *Límite alcanzado:* El usuario ha sido agregado a la lista negra y expulsado de todos los grupos.';
     }
     await usuarioBD.save();
-    await sock.sendMessage(chatJid, { text: mensajeAviso });
+    await sock.sendMessage(chatJid, { text: mensajeAviso, mentions: [contacto.jid || remitente].filter(Boolean) });
     return true;
 }
 // 🛡️ Filtro Anti-Spam Automático
@@ -481,7 +486,9 @@ async function verificarAntiSpam(sock, msg) {
         usuarioBD.markModified('warns');
         const totalWarns = usuarioBD.warns.length;
 
-        let mensajeAviso = `⚠️ ${(await resolverContactoWhatsApp(sock, remitente, chatJid)).nombre || (await resolverContactoWhatsApp(sock, remitente, chatJid)).numeroVisible} estás enviando mensajes demasiado rápido (Spam).\n` +
+        const contacto = await resolverContactoWhatsApp(sock, remitente, chatJid);
+        const etiquetaContacto = tokenMencionNativa(contacto.jid || remitente) || contacto.nombre || contacto.numeroVisible;
+        let mensajeAviso = `⚠️ ${etiquetaContacto} estás enviando mensajes demasiado rápido (Spam).\n` +
                            `📌 *Advertencias:* ${totalWarns}/3`;
 
         if (totalWarns >= 3) {
@@ -490,7 +497,7 @@ async function verificarAntiSpam(sock, msg) {
         }
 
         await usuarioBD.save();
-        await sock.sendMessage(chatJid, { text: mensajeAviso });
+        await sock.sendMessage(chatJid, { text: mensajeAviso, mentions: [contacto.jid || remitente].filter(Boolean) });
         return true;
     }
 
@@ -537,8 +544,10 @@ async function comandoWarn(sock, numero, msg, args = []) {
     usuarioBD.markModified('warns');
     const totalWarns = usuarioBD.warns.length;
 
+    const contacto = await resolverContactoWhatsApp(sock, objetivo, chatJid);
+    const etiquetaContacto = tokenMencionNativa(contacto.jid || objetivo) || contacto.nombre || contacto.numeroVisible;
     let respuesta = `⚠️ *ADVERTENCIA REGISTRADA*\n\n` +
-                    `👤 Usuario: ${(await resolverContactoWhatsApp(sock, objetivo, chatJid)).nombre || (await resolverContactoWhatsApp(sock, objetivo, chatJid)).numeroVisible}\n` +
+                    `👤 Usuario: ${etiquetaContacto}\n` +
                     `📝 Motivo: ${motivo}\n` +
                     `📌 Total: ${totalWarns}/3`;
 
@@ -548,7 +557,7 @@ async function comandoWarn(sock, numero, msg, args = []) {
     }
 
     await usuarioBD.save();
-    await sock.sendMessage(chatJid, { text: respuesta }, { quoted: msg });
+    await sock.sendMessage(chatJid, { text: respuesta, mentions: [contacto.jid || objetivo].filter(Boolean) }, { quoted: msg });
 }
 
 async function comandoLimpiarWarns(sock, numero, msg, args = []) {
@@ -564,28 +573,32 @@ async function comandoLimpiarWarns(sock, numero, msg, args = []) {
         return;
     }
     const usuarioBD = await User.findOne({ numero: objetivo });
+    const contacto = await resolverContactoWhatsApp(sock, objetivo, chatJid);
+    const etiquetaContacto = tokenMencionNativa(contacto.jid || objetivo) || contacto.nombre || contacto.numeroVisible;
     if (!usuarioBD) {
-        await sock.sendMessage(chatJid, { text: `ℹ️ ${(await resolverContactoWhatsApp(sock, objetivo, chatJid)).nombre || (await resolverContactoWhatsApp(sock, objetivo, chatJid)).numeroVisible} no tiene un registro de usuario ni warns.` }, { quoted: msg });
+        await sock.sendMessage(chatJid, { text: `ℹ️ ${etiquetaContacto} no tiene un registro de usuario ni warns.`, mentions: [contacto.jid || objetivo].filter(Boolean) }, { quoted: msg });
         return;
     }
     usuarioBD.warns = [];
     usuarioBD.markModified('warns');
     await usuarioBD.save();
-    await sock.sendMessage(chatJid, { text: `✅ Se borraron todos los warns de ${(await resolverContactoWhatsApp(sock, objetivo, chatJid)).nombre || (await resolverContactoWhatsApp(sock, objetivo, chatJid)).numeroVisible}.\n📌 Warns actuales: *0/3*` }, { quoted: msg });
+    await sock.sendMessage(chatJid, { text: `✅ Se borraron todos los warns de ${etiquetaContacto}.\n📌 Warns actuales: *0/3*`, mentions: [contacto.jid || objetivo].filter(Boolean) }, { quoted: msg });
 }
 
 async function comandoVerWarns(sock, numero, msg, args = []) {
     const chatJid = msg.key.remoteJid;
     const objetivo = await obtenerObjetivo(sock, msg, args) || msg.key.participant || chatJid;
+    const contacto = await resolverContactoWhatsApp(sock, objetivo, chatJid);
+    const etiquetaContacto = tokenMencionNativa(contacto.jid || objetivo) || contacto.nombre || contacto.numeroVisible;
 
     let usuarioBD = await User.findOne({ numero: objetivo });
     if (!usuarioBD || !Array.isArray(usuarioBD.warns) || usuarioBD.warns.length === 0) {
-        await sock.sendMessage(chatJid, { text: `✅ El usuario ${(await resolverContactoWhatsApp(sock, objetivo, chatJid)).nombre || (await resolverContactoWhatsApp(sock, objetivo, chatJid)).numeroVisible} no tiene advertencias registradas.` }, { quoted: msg });
+        await sock.sendMessage(chatJid, { text: `✅ El usuario ${etiquetaContacto} no tiene advertencias registradas.`, mentions: [contacto.jid || objetivo].filter(Boolean) }, { quoted: msg });
         return;
     }
 
     let historial = `📋 *HISTORIAL DE ADVERTENCIAS*\n` +
-                    `👤 Usuario: ${(await resolverContactoWhatsApp(sock, objetivo, chatJid)).nombre || (await resolverContactoWhatsApp(sock, objetivo, chatJid)).numeroVisible}\n` +
+                    `👤 Usuario: ${etiquetaContacto}\n` +
                     `📌 Total: ${usuarioBD.warns.length}/3\n\n`;
 
     usuarioBD.warns.forEach((w, index) => {
@@ -593,7 +606,7 @@ async function comandoVerWarns(sock, numero, msg, args = []) {
         historial += `*${index + 1}.* ${w.motivo} _(${fechaFormateada})_\n`;
     });
 
-    await sock.sendMessage(chatJid, { text: historial }, { quoted: msg });
+    await sock.sendMessage(chatJid, { text: historial, mentions: [contacto.jid || objetivo].filter(Boolean) }, { quoted: msg });
 }
 
 async function comandoBan(sock, numero, msg, args = []) {
@@ -621,7 +634,9 @@ async function comandoBan(sock, numero, msg, args = []) {
     }
 
     await banearYExpulsar(sock, objetivo, motivo);
-    await sock.sendMessage(chatJid, { text: `🚫 El usuario ${(await resolverContactoWhatsApp(sock, objetivo, chatJid)).nombre || (await resolverContactoWhatsApp(sock, objetivo, chatJid)).numeroVisible} fue agregado a la lista negra.\n📝 Motivo: _${motivo}_` }, { quoted: msg });
+    const contacto = await resolverContactoWhatsApp(sock, objetivo, chatJid);
+    const etiquetaContacto = tokenMencionNativa(contacto.jid || objetivo) || contacto.nombre || contacto.numeroVisible;
+    await sock.sendMessage(chatJid, { text: `🚫 El usuario ${etiquetaContacto} fue agregado a la lista negra.\n📝 Motivo: _${motivo}_`, mentions: [contacto.jid || objetivo].filter(Boolean) }, { quoted: msg });
 }
 
 async function comandoUnban(sock, numero, msg, args = []) {
@@ -638,7 +653,9 @@ async function comandoUnban(sock, numero, msg, args = []) {
     }
 
     await User.findOneAndUpdate({ numero: objetivo }, { baneado: false, warns: [], banMotivo: '' });
-    await sock.sendMessage(chatJid, { text: `✅ El usuario ${(await resolverContactoWhatsApp(sock, objetivo, chatJid)).nombre || (await resolverContactoWhatsApp(sock, objetivo, chatJid)).numeroVisible} fue removido de la lista negra y se limpiaron sus warns.` }, { quoted: msg });
+    const contacto = await resolverContactoWhatsApp(sock, objetivo, chatJid);
+    const etiquetaContacto = tokenMencionNativa(contacto.jid || objetivo) || contacto.nombre || contacto.numeroVisible;
+    await sock.sendMessage(chatJid, { text: `✅ El usuario ${etiquetaContacto} fue removido de la lista negra y se limpiaron sus warns.`, mentions: [contacto.jid || objetivo].filter(Boolean) }, { quoted: msg });
 }
 
 async function comandoListaNegra(sock, numero, msg) {
@@ -663,8 +680,9 @@ async function comandoListaNegra(sock, numero, msg) {
     for (const [index, b] of baneados.entries()) {
         const contacto = await resolverContactoWhatsApp(sock, b.numero, chatJid);
         const motivo = b.banMotivo || 'Sin motivo especificado';
-        texto += `*${index + 1}.* ${tokenMencionNativa(contacto.jid)}\n   📝 Motivo: _${motivo}_\n\n`;
-        mentions.push(contacto.jid);
+        const etiquetaContacto = tokenMencionNativa(contacto.jid || b.numero) || contacto.nombre || contacto.numeroVisible;
+        texto += `*${index + 1}.* ${etiquetaContacto}\n   📝 Motivo: _${motivo}_\n\n`;
+        if (contacto.jid || b.numero) mentions.push(contacto.jid || b.numero);
     }
 
     texto += `💡 Usa *unbanlist [número]* para desbanear por índice (Ej: unbanlist 2)`;
@@ -703,10 +721,12 @@ async function comandoUnbanList(sock, numero, msg, args = []) {
     await usuarioObjetivo.save();
 
     const contacto = await resolverContactoWhatsApp(sock, usuarioObjetivo.numero, chatJid);
+    const etiquetaContacto = tokenMencionNativa(contacto.jid || usuarioObjetivo.numero) || contacto.nombre || contacto.numeroVisible;
     
     // CORREGIDO: Se cambió 'chatId' por 'chatJid'
     await sock.sendMessage(chatJid, { 
-        text: `✅ El usuario ${contacto.nombre || contacto.numeroVisible} (posición #${numeroIndice}) fue removido de la lista negra y sus advertencias se reiniciaron.`, 
+        text: `✅ El usuario ${etiquetaContacto} (posición #${numeroIndice}) fue removido de la lista negra y sus advertencias se reiniciaron.`,
+        mentions: [contacto.jid || usuarioObjetivo.numero].filter(Boolean),
     }, { quoted: msg });
 }
 
@@ -740,9 +760,10 @@ async function comandoMute(sock, chatId, msg, args) {
     const expira = Date.now() + (tiempoMinutos * 60 * 1000);
     mutesActivos.set(`${chatId}_${objetivo}`, expira);
     const contacto = await resolverContactoWhatsApp(sock, objetivo, chatId);
+    const etiquetaContacto = tokenMencionNativa(contacto.jid || objetivo) || contacto.nombre || contacto.numeroVisible;
     await sock.sendMessage(chatId, {
-        text: `🔇 ${contacto.nombre || contacto.numeroVisible} fue muteado durante ${tiempoMinutos} minutos.`,
-        mentions: contacto.jid ? [contacto.jid] : []
+        text: `🔇 ${etiquetaContacto} fue muteado durante ${tiempoMinutos} minutos.`,
+        mentions: [contacto.jid || objetivo].filter(Boolean)
     }, { quoted: msg });
 }
 
@@ -755,8 +776,9 @@ async function comandoUnmute(sock, chatId, msg, args) {
     }
     mutesActivos.delete(`${chatId}_${objetivo}`);
     const contacto = await resolverContactoWhatsApp(sock, objetivo, chatId);
+    const etiquetaContacto = tokenMencionNativa(contacto.jid || objetivo) || contacto.nombre || contacto.numeroVisible;
     await sock.sendMessage(chatId, {
-        text: `🔊 ${contacto.nombre || contacto.numeroVisible} fue desmuteado con éxito.`,
+        text: `🔊 ${etiquetaContacto} fue desmuteado con éxito.`,
         mentions: contacto.jid ? [contacto.jid] : []
     }, { quoted: msg });
 }
