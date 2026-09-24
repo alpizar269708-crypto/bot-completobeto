@@ -101,7 +101,7 @@ async function verificarNuevoMiembro(sock, update) {
             try {
                 const textoBienvenida = bienvenidaPersonalizada?.valor
                     ? bienvenidaPersonalizada.valor.replace(/\\{usuario\\}/gi, etiquetaContacto)
-                    : `Bienvenido/a ${etiquetaContacto} · 📱 ${contacto.numeroVisible} a la escupidera de Salty, esperamos que seas lo suficientemente rudo para estar aquí.`;
+                    : `Bienvenido/a ${etiquetaContacto} · 📱 ${contacto.numeroVisible}`;
 
                 await sock.sendMessage(chatId, {
                     text: textoBienvenida,
