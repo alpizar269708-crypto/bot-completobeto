@@ -303,71 +303,94 @@ function extraerNumeroJid(jid) {
     return String(jid || '').split('@')[0].split(':')[0].replace(/[^0-9]/g, '');
 }
 
-async function resolverContactoJasc13(sock, jid) {
-    if (!jid) return { numeroVisible: '+0', mentionJid: null, mentionNumber: null };
+async function resolverContactoJasc13(sock, jid, chatId = null) {
+    if (!jid) return { numeroVisible: '+0', mentionJid: null, mentionNumber: null, username: null };
 
     const entrada = String(jid).trim();
-    const mentionJidOriginal = entrada;
+    const entradaNumero = extraerNumeroJid(entrada);
     let mentionJid = entrada;
-    let numero = extraerNumeroJid(entrada);
+    let numero = entradaNumero;
 
-    // Si la rifa guardó un LID, sus dígitos NO son un teléfono.
-    // Solo usamos un PN real si WhatsApp logra resolverlo.
-    if (entrada.endsWith('@lid')) numero = '';
-
-    // Si la rifa guardó un LID, el LID por sí solo NO es el teléfono.
-    // Lo resolvemos directamente con el mapeo de WhatsApp, sin depender
-    // de que la persona siga dentro del grupo donde se ejecuta "ver".
-    if (entrada.endsWith('@lid')) {
+    // WhatsApp puede entregar usuarios con Username mediante un identificador
+    // que parece teléfono, pero que NO es un teléfono real. En grupos, la
+    // metadata trae el username y el JID real del participante; esa fuente
+    // tiene prioridad para evitar fabricar una mención @s.whatsapp.net.
+    if (chatId?.endsWith('@g.us')) {
         try {
-            const pn = await resolverLidAPn(sock, entrada);
-            const numeroPN = extraerNumeroJid(pn);
+            const metadata = await sock.groupMetadata(chatId);
+            const participante = metadata?.participants?.find(p => {
+                const ids = [
+                    p?.id,
+                    p?.phoneNumber,
+                    p?.lid
+                ].filter(Boolean).map(String);
 
-            if (numeroPN) {
-                numero = numeroPN;
-            }
-        } catch (error) {
-            console.error('⚠️ No se pudo resolver LID de JASC13:', error.message);
-        }
+                return ids.includes(entrada)
+                    || ids.some(id => extraerNumeroJid(id) && extraerNumeroJid(id) === entradaNumero);
+            });
 
-        let username = null;
-        try {
-            if (typeof sock?.fetchContactUsernames === 'function') {
-                const objetivoUsername = numero ? numero + '@s.whatsapp.net' : entrada;
-                const contactos = await sock.fetchContactUsernames(objetivoUsername);
-                const contacto = Array.isArray(contactos) ? contactos[0] : null;
-                username = contacto?.username || null;
+            if (participante) {
+                const username = participante.username || participante.notify || null;
+                if (username) {
+                    return {
+                        numeroVisible: username.startsWith('@') ? username : '@' + username,
+                        mentionJid: participante.id || entrada,
+                        mentionNumber: extraerNumeroJid(participante.id || entrada) || null,
+                        username
+                    };
+                }
+
+                if (participante.id && participante.id !== entrada) {
+                    mentionJid = participante.id;
+                }
+
+                if (participante.phoneNumber) {
+                    numero = extraerNumeroJid(participante.phoneNumber);
+                }
             }
         } catch (error) {}
+    }
 
+    // Si Baileys puede consultar el username asociado al JID, úsalo como
+    // segunda fuente. Esta API existe en versiones recientes de Baileys.
+    let username = null;
+    try {
+        if (typeof sock?.fetchUsername === 'function') {
+            username = await sock.fetchUsername(mentionJid);
+        }
+    } catch (error) {}
+
+    if (username) {
         return {
-            numeroVisible: numero ? normalizarNumeroVisible(numero) : '+0',
-            mentionJid: mentionJidOriginal,
-            mentionNumber: numero || null,
+            numeroVisible: username.startsWith('@') ? username : '@' + username,
+            mentionJid,
+            mentionNumber: extraerNumeroJid(mentionJid) || null,
             username
         };
     }
 
+    // Si la rifa guardó un LID, sus dígitos NO son un teléfono.
+    if (entrada.endsWith('@lid')) {
+        numero = '';
+        try {
+            const pn = await resolverLidAPn(sock, entrada);
+            const numeroPN = extraerNumeroJid(pn);
+            if (numeroPN) numero = numeroPN;
+        } catch (error) {
+            console.error('⚠️ No se pudo resolver LID de JASC13:', error.message);
+        }
+    }
+
     // En números mexicanos, 521 + 10 dígitos es una representación histórica.
-    // El JID actual debe usar 52 + 10 dígitos: nunca dejamos el 1 después de 52.
     if (numero.startsWith('521') && numero.length === 13) {
         numero = '52' + numero.slice(3);
         mentionJid = numero + '@s.whatsapp.net';
     }
 
-    let username = null;
-    try {
-        if (typeof sock?.fetchContactUsernames === 'function') {
-            const contactos = await sock.fetchContactUsernames(mentionJid);
-            const contacto = Array.isArray(contactos) ? contactos[0] : null;
-            username = contacto?.username || null;
-        }
-    } catch (error) {}
-
     return {
-        numeroVisible: normalizarNumeroVisible(numero),
+        numeroVisible: numero ? normalizarNumeroVisible(numero) : '+0',
         mentionJid,
-        mentionNumber: extraerNumeroJid(mentionJid),
+        mentionNumber: extraerNumeroJid(mentionJid) || null,
         username
     };
 }
@@ -596,7 +619,7 @@ async function comandoRifaJasc13(sock, chatId, msg, args) {
             const faltantes = puntos === 0 ? 1000 : 1000 - puntos;
             const cashbackDoc = await RifaJasc13Cashback.findOne({ numero: id }).select('cashback').lean();
             const cashback = Number(cashbackDoc?.cashback) || 0;
-            const contacto = await resolverContactoJasc13(sock, id);
+            const contacto = await resolverContactoJasc13(sock, id, chatId);
             const etiquetaContacto = contacto.numeroVisible !== '+0'
                 ? contacto.numeroVisible
                 : (contacto.username ? `@${contacto.username.replace(/^@/, '')}` : '+0');
