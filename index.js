@@ -136,7 +136,7 @@ async function arrancarSocket(metodo, numeroTelefono, onCodeReady = null) {
         if (content && typeof content === 'object' && typeof content.text === 'string') {
             // Toda aparición de @ + número debe ser una mención real de WhatsApp.
             // Así ningún comando depende de acordarse manualmente de mentions[].
-            const encontrados = content.text.match(/@\\d{6,16}/g) || [];
+            const encontrados = content.text.match(/@\d{6,16}/g) || [];
             const jidsMencionados = encontrados
                 .map(token => token.slice(1) + '@s.whatsapp.net');
             const mentions = [...new Set([...(content.mentions || []), ...jidsMencionados])];
