@@ -58,11 +58,56 @@ async function resolverJidUsuario(sock, valor) {
     return numero + '@s.whatsapp.net';
 }
 
-async function resolverContactoWhatsApp(sock, valor) {
+async function resolverContactoWhatsApp(sock, valor, chatId = null) {
     const mentionJid = await resolverJidUsuario(sock, valor);
     const numeroVisible = normalizarNumeroVisible(mentionJid || valor);
     const mentionNumber = extraerNumeroJid(mentionJid);
-    return { mentionJid, mentionNumber, numeroVisible };
+
+    // WhatsApp puede entregar el nombre visible del usuario de varias formas.
+    // Priorizamos username/pushName y, en grupos, el nombre de la metadata.
+    let nombre = null;
+    const candidatos = [mentionJid, valor].filter(Boolean).map(String);
+
+    const pushCache = sock?.jasc13PushNameCache;
+    if (pushCache?.get) {
+        for (const candidato of candidatos) {
+            const encontrado = pushCache.get(candidato);
+            if (encontrado) {
+                nombre = String(encontrado).trim();
+                if (nombre) break;
+            }
+        }
+    }
+
+    const usernameCache = sock?.jasc13UsernameCache;
+    if (!nombre && usernameCache?.get) {
+        for (const candidato of candidatos) {
+            const encontrado = usernameCache.get(candidato);
+            if (encontrado) {
+                nombre = String(encontrado).replace(/^@/, '').trim();
+                if (nombre) break;
+            }
+        }
+    }
+
+    if (!nombre && chatId?.endsWith('@g.us') && typeof sock?.groupMetadata === 'function') {
+        try {
+            const metadata = await sock.groupMetadata(chatId);
+            const participante = (metadata?.participants || []).find(p => {
+                const ids = [p?.id, p?.lid, p?.phoneNumber].filter(Boolean).map(String);
+                return ids.includes(String(mentionJid)) || ids.includes(String(valor));
+            });
+            const nombreGrupo = participante?.notify || participante?.name || participante?.shortName;
+            if (nombreGrupo) nombre = String(nombreGrupo).trim();
+        } catch (error) {}
+    }
+
+    return { mentionJid, mentionNumber, numeroVisible, nombre: nombre || null };
+}
+
+function etiquetaUsuario(contacto, fallback = 'Usuario') {
+    const nombre = contacto?.nombre || contacto?.username;
+    return nombre ? String(nombre).replace(/^@/, '') : fallback;
 }
 
 function textoMencion(mentionJid, fallback = 'Usuario') {
