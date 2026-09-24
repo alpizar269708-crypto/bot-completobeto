@@ -1241,9 +1241,9 @@ async function comandoRifaJasc13(sock, chatId, msg, args) {
         // que corresponde al JID incluido en mentions[]. Nunca usamos "@Usuario"
         // como respaldo porque WhatsApp lo trataría como texto plano.
         const numeroMencion = contacto.mentionNumber || extraerNumeroJid(contacto.mentionJid || targetId);
-        const etiquetaMencion = numeroMencion ? \`@\${numeroMencion}\` : \`@\${extraerNumeroJid(targetId)}\`;
+        const etiquetaMencion = numeroMencion ? `@${numeroMencion}` : `@${extraerNumeroJid(targetId)}`;
 
-        const respuesta = \`✅ *PaVos registrados exitosamente*\\n👤 Usuario: \${etiquetaMencion}\\n📱 Teléfono: *\${contacto.numeroVisible}*\\n➕ PaVos registrados: *+\${pavosAgregados}*\\n🎟️ Boletos agregados: *+\${boletosGanados}*\\n🎟️ Boletos actuales: *\${datosUsuario.boletos}*\\n📌 Puntos sobrantes guardados: *\${datosUsuario.puntos}*\\n📍 Faltan para otro boleto: *\${faltantes} pts*\\n💰 Cashback ganado: *+\${cashbackGanado.toFixed(2)}* Pavos\\n💰 Cashback acumulado: *\${cashbackTotal.toFixed(2)}* Pavos\`;
+        const respuesta = `✅ *PaVos registrados exitosamente*\\n👤 Usuario: ${etiquetaMencion}\\n📱 Teléfono: *${contacto.numeroVisible}*\\n➕ PaVos registrados: *+${pavosAgregados}*\\n🎟️ Boletos agregados: *+${boletosGanados}*\\n🎟️ Boletos actuales: *${datosUsuario.boletos}*\\n📌 Puntos sobrantes guardados: *${datosUsuario.puntos}*\\n📍 Faltan para otro boleto: *${faltantes} pts*\\n💰 Cashback ganado: *+${cashbackGanado.toFixed(2)}* Pavos\\n💰 Cashback acumulado: *${cashbackTotal.toFixed(2)}* Pavos`;
         return await sock.sendMessage(chatId, { text: respuesta, mentions: contacto.mentionJid ? [contacto.mentionJid] : [] });
     }
 
