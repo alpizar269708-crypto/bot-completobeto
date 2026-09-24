@@ -351,14 +351,42 @@ async function resolverContactoJasc13(sock, jid, chatId = null) {
         } catch (error) {}
     }
 
-    // Si Baileys puede consultar el username asociado al JID, úsalo como
-    // segunda fuente. Esta API existe en versiones recientes de Baileys.
+    // Primero intentamos obtener el Username directamente desde el JID.
+    // Baileys v7 expone fetchUsername() para este tipo de consulta.
     let username = null;
     try {
         if (typeof sock?.fetchUsername === 'function') {
             username = await sock.fetchUsername(mentionJid);
         }
     } catch (error) {}
+
+    // Algunos usuarios con Username reservado llegan a la aplicación con un
+    // identificador numérico que parece teléfono, aunque no lo sea. Si el
+    // identificador no es un PN válido, intentamos resolverlo mediante la
+    // tabla PN <-> LID de WhatsApp y después consultar el Username del LID.
+    if (!username && typeof sock?.findUserId === 'function') {
+        try {
+            const ids = await sock.findUserId(mentionJid);
+            const lid = ids?.lid;
+            const pn = ids?.phoneNumber;
+
+            if (lid) {
+                mentionJid = lid;
+                username = typeof sock?.fetchUsername === 'function'
+                    ? await sock.fetchUsername(lid)
+                    : null;
+            }
+
+            if (!username && pn) {
+                const pnJid = String(pn).includes('@') ? String(pn) : pn + '@s.whatsapp.net';
+                username = typeof sock?.fetchUsername === 'function'
+                    ? await sock.fetchUsername(pnJid)
+                    : null;
+            }
+
+            if (pn) numero = extraerNumeroJid(pn);
+        } catch (error) {}
+    }
 
     if (username) {
         return {
