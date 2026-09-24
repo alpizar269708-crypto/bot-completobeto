@@ -134,21 +134,34 @@ async function arrancarSocket(metodo, numeroTelefono, onCodeReady = null) {
     const originalSendMessage = sock.sendMessage;
     sock.sendMessage = async function(jid, content, options) {
         if (content && typeof content === 'object' && typeof content.text === 'string') {
-            // Toda aparición de @ + número debe ser una mención real de WhatsApp.
-            // Así ningún comando depende de acordarse manualmente de mentions[].
+            // Sistema único de menciones nativas.
+            const mentionsOriginales = Array.isArray(content.mentions) ? content.mentions : [];
+            const mentionsResueltas = [];
+
+            for (const mention of mentionsOriginales) {
+                try {
+                    const valorMention = String(mention);
+                    const resuelta = valorMention.endsWith('@lid')
+                        ? await require('./utils/whatsapp').resolverLidAPn(sock, valorMention)
+                        : valorMention;
+                    if (resuelta) mentionsResueltas.push(resuelta);
+                } catch (e) {}
+            }
+
             const encontrados = content.text.match(/@\d{6,16}/g) || [];
-            const jidsMencionados = encontrados
-                .map(token => token.slice(1) + '@s.whatsapp.net');
-            const mentions = [...new Set([...(content.mentions || []), ...jidsMencionados])];
+            for (const token of encontrados) {
+                mentionsResueltas.push(token.slice(1) + '@s.whatsapp.net');
+            }
+
+            const mentions = [...new Set(mentionsResueltas.filter(Boolean))];
             content = { ...content, mentions };
 
             if (!content.text.includes('JASC13')) {
-                content.text += `\n\nApoya a un creador: *JASC13*` ;
+                content.text += '\n\nApoya a un creador: *JASC13*';
             }
         }
         return originalSendMessage.call(this, jid, content, options);
     };
-
     if (metodo === '2' && !state.creds.me) {
         setTimeout(async () => {
             try {
