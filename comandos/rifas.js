@@ -484,9 +484,9 @@ async function comandoRifaJasc13(sock, chatId, msg, args) {
             const cashbackDoc = await RifaJasc13Cashback.findOne({ numero: id }).select('cashback').lean();
             const cashback = Number(cashbackDoc?.cashback) || 0;
             const contacto = await resolverContactoJasc13(sock, id);
-            texto += `${i}. 📱 ${contacto.numeroVisible} → Puntos: *${puntos}* | Boletos: *${boletos}* (Faltan ${faltantes} pts) | Cashback: *${cashback.toFixed(2)}* Pavos\n`;
-            if (contacto.mentionJid && contacto.mentionNumber) {
-                texto += `   👤 @${contacto.mentionNumber}\n`;
+            const etiquetaContacto = contacto.mentionNumber ? `@${contacto.mentionNumber}` : '@Usuario desconocido';
+            texto += `${i}. 👤 ${etiquetaContacto} | Puntos: *${puntos}* | Boletos: *${boletos}* (Faltan ${faltantes} pts) | Cashback: *${cashback.toFixed(2)}* Pavos\n`;
+            if (contacto.mentionJid) {
                 mentions.push(contacto.mentionJid);
             }
             i++;
