@@ -675,7 +675,8 @@ async function comandoRifaJasc13(sock, chatId, msg, args) {
             const etiquetaContacto = tokenMencionNativa(contacto.jid || targetId) || contacto.nombre || contacto.numeroVisible;
             return await sock.sendMessage(chatId, {
                 text: `💰 *CASHBACK DISPONIBLE*\n\n👤 Usuario: ${etiquetaContacto}\n📱 Teléfono: *${contacto.numeroVisible}*\n💳 Cashback actual: *${disponible.toFixed(2)}* Pavos`,
-                }, { quoted: msg });
+                mentions: [contacto.jid || targetId].filter(Boolean)
+            }, { quoted: msg });
         }
 
         const cantidadCashback = Number(parseFloat(args[args.length - 1]).toFixed(2));
@@ -701,6 +702,7 @@ async function comandoRifaJasc13(sock, chatId, msg, args) {
         const etiquetaContacto = tokenMencionNativa(contactoCanje.jid || targetId) || contactoCanje.nombre || contactoCanje.numeroVisible;
         return await sock.sendMessage(chatId, {
             text: `💸 *CASHBACK CANJEADO*\n\n👤 Usuario: ${etiquetaContacto}\n📱 Teléfono: *${contactoCanje.numeroVisible}*\n➖ Utilizado: *${cantidadCashback.toFixed(2)}* Pavos\n💰 Restante: *${Number(cashbackDoc.cashback).toFixed(2)}* Pavos`,
+            mentions: [contactoCanje.jid || targetId].filter(Boolean)
         }, { quoted: msg });
     }
 
