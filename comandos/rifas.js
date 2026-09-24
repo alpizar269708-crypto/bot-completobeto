@@ -643,13 +643,13 @@ async function comandoRifaJasc13(sock, chatId, msg, args) {
                 '',
                 ...await Promise.all(docs.map(async (d, i) => {
                     const contacto = await resolverContactoJasc13(sock, d.numero);
-                    return `${i + 1}. 👤 ${tokenMencionNativa(contacto.mentionJid || d.numero) || contacto.nombre || contacto.numeroVisible} → *${(Number(d.cashback) || 0).toFixed(2)}* Pavos`;
+                    return `${i + 1}. 👤 ${tokenMencionNativa(contacto.jid || d.numero) || contacto.nombre || contacto.numeroVisible} → *${(Number(d.cashback) || 0).toFixed(2)}* Pavos`;
                 }))
             ].join('\n');
 
             const mencionesCashback = await Promise.all(docs.map(async d => {
                 const contacto = await resolverContactoJasc13(sock, d.numero);
-                return contacto.mentionJid || d.numero;
+                return contacto.jid || d.numero;
             }));
 
             return await sock.sendMessage(chatId, {
