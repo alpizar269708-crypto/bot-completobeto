@@ -328,7 +328,26 @@ async function resolverContactoJasc13(sock, jid, chatId = null) {
     if (chatId?.endsWith('@g.us')) {
         try {
             const metadata = await sock.groupMetadata(chatId);
-            const participante = metadata?.participants?.find(p => {
+            const participantesGrupo = Array.isArray(metadata?.participants) ? metadata.participants : [];
+
+            if (esDiagnosticoJasc13) {
+                console.log('🔎 JASC13 DIAGNÓSTICO #9 - participantes en metadata:', participantesGrupo.length);
+                const coincidenciaProfunda = participantesGrupo.find(p => {
+                    try {
+                        return JSON.stringify(p).includes(entradaNumero);
+                    } catch (error) {
+                        return false;
+                    }
+                });
+                if (coincidenciaProfunda) {
+                    console.log('🔎 JASC13 DIAGNÓSTICO #9 - coincidencia profunda:', JSON.stringify(coincidenciaProfunda));
+                    console.log('🔎 JASC13 DIAGNÓSTICO #9 - claves:', Object.keys(coincidenciaProfunda));
+                } else {
+                    console.log('🔎 JASC13 DIAGNÓSTICO #9 - NO aparece el LID en ninguna propiedad de participants');
+                }
+            }
+
+            const participante = participantesGrupo.find(p => {
                 const ids = [
                     p?.id,
                     p?.phoneNumber,
@@ -416,6 +435,24 @@ async function resolverContactoJasc13(sock, jid, chatId = null) {
     }
 
     if (esDiagnosticoJasc13) {
+        try {
+            const proto = sock ? Object.getPrototypeOf(sock) : null;
+            const metodosRelacionados = Array.from(new Set([
+                ...Object.keys(sock || {}),
+                ...(proto ? Object.getOwnPropertyNames(proto) : [])
+            ])).filter(nombre => /username|user|lid|contact/i.test(nombre));
+            console.log('🔎 JASC13 DIAGNÓSTICO #9 - métodos relacionados disponibles:', metodosRelacionados.join(', ') || '(ninguno)');
+
+            try {
+                const versionBaileys = require('@whiskeysockets/baileys/package.json').version;
+                console.log('🔎 JASC13 DIAGNÓSTICO #9 - versión Baileys:', versionBaileys);
+            } catch (error) {
+                console.log('🔎 JASC13 DIAGNÓSTICO #9 - versión Baileys: no se pudo leer package.json');
+            }
+        } catch (error) {
+            console.log('🔎 JASC13 DIAGNÓSTICO #9 - inspección de runtime ERROR:', error?.message || error);
+        }
+
         try {
             if (typeof sock?.onWhatsApp === 'function') {
                 const resultadosOnWhatsApp = await sock.onWhatsApp(entradaNumero);
