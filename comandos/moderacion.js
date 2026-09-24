@@ -83,7 +83,7 @@ async function verificarNuevoMiembro(sock, update) {
         const jidOriginal = typeof participante === 'string' ? participante : (participante.id || participante.phoneNumber);
         if (!jidOriginal) continue;
         const contacto = await resolverContactoWhatsApp(sock, jidOriginal, chatId);
-        const etiquetaContacto = tokenMencionNativa(contacto.jid || jidOriginal) || contacto.nombre || contacto.numeroVisible;
+        const etiquetaContacto = tokenMencionNativa(contacto.jid || jid) || contacto.nombre || contacto.numeroVisible;
         const jid = contacto.jid || jidOriginal;
 
         let usuarioBD = await User.findOne({ numero: jid });
@@ -439,7 +439,8 @@ async function verificarAntiLinks(sock, msg) {
     usuarioBD.markModified('warns');
     const totalWarns = usuarioBD.warns.length;
     const contacto = await resolverContactoWhatsApp(sock, remitente, chatJid);
-    const etiquetaContacto = tokenMencionNativa(contacto.jid || remitente) || contacto.nombre || contacto.numeroVisible;
+    const jid = remitente;
+    const etiquetaContacto = tokenMencionNativa(contacto.jid || jid) || contacto.nombre || contacto.numeroVisible;
     let mensajeAviso = `⚠️ ${etiquetaContacto} Enviar enlaces no autorizados está prohibido.\n📌 *Advertencias:* ${totalWarns}/3`;
     if (totalWarns >= 3) {
         await banearYExpulsar(sock, remitente, 'Acumulación de 3 advertencias por enlaces no autorizados');
@@ -545,7 +546,8 @@ async function comandoWarn(sock, numero, msg, args = []) {
     const totalWarns = usuarioBD.warns.length;
 
     const contacto = await resolverContactoWhatsApp(sock, objetivo, chatJid);
-    const etiquetaContacto = tokenMencionNativa(contacto.jid || objetivo) || contacto.nombre || contacto.numeroVisible;
+    const jid = objetivo;
+    const etiquetaContacto = tokenMencionNativa(contacto.jid || jid) || contacto.nombre || contacto.numeroVisible;
     let respuesta = `⚠️ *ADVERTENCIA REGISTRADA*\n\n` +
                     `👤 Usuario: ${etiquetaContacto}\n` +
                     `📝 Motivo: ${motivo}\n` +
@@ -574,7 +576,7 @@ async function comandoLimpiarWarns(sock, numero, msg, args = []) {
     }
     const usuarioBD = await User.findOne({ numero: objetivo });
     const contacto = await resolverContactoWhatsApp(sock, objetivo, chatJid);
-    const etiquetaContacto = tokenMencionNativa(contacto.jid || objetivo) || contacto.nombre || contacto.numeroVisible;
+    const etiquetaContacto = tokenMencionNativa(contacto.jid || jid) || contacto.nombre || contacto.numeroVisible;
     if (!usuarioBD) {
         await sock.sendMessage(chatJid, { text: `ℹ️ ${etiquetaContacto} no tiene un registro de usuario ni warns.`, mentions: [contacto.jid || objetivo].filter(Boolean) }, { quoted: msg });
         return;
@@ -680,7 +682,8 @@ async function comandoListaNegra(sock, numero, msg) {
     for (const [index, b] of baneados.entries()) {
         const contacto = await resolverContactoWhatsApp(sock, b.numero, chatJid);
         const motivo = b.banMotivo || 'Sin motivo especificado';
-        const etiquetaContacto = tokenMencionNativa(contacto.jid || b.numero) || contacto.nombre || contacto.numeroVisible;
+        const jid = b.numero;
+        const etiquetaContacto = tokenMencionNativa(contacto.jid || jid) || contacto.nombre || contacto.numeroVisible;
         texto += `*${index + 1}.* ${etiquetaContacto}\n   📝 Motivo: _${motivo}_\n\n`;
         if (contacto.jid || b.numero) mentions.push(contacto.jid || b.numero);
     }
@@ -721,7 +724,8 @@ async function comandoUnbanList(sock, numero, msg, args = []) {
     await usuarioObjetivo.save();
 
     const contacto = await resolverContactoWhatsApp(sock, usuarioObjetivo.numero, chatJid);
-    const etiquetaContacto = tokenMencionNativa(contacto.jid || usuarioObjetivo.numero) || contacto.nombre || contacto.numeroVisible;
+    const jid = usuarioObjetivo.numero;
+    const etiquetaContacto = tokenMencionNativa(contacto.jid || jid) || contacto.nombre || contacto.numeroVisible;
     
     // CORREGIDO: Se cambió 'chatId' por 'chatJid'
     await sock.sendMessage(chatJid, { 
