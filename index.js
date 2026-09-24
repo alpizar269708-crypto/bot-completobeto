@@ -1,6 +1,6 @@
 require('dotenv').config();
 const { default: makeWASocket, DisconnectReason, Browsers } = require('@whiskeysockets/baileys');
-const { useMongoDBAuthState } = require('./mongoAuth');
+const { useMongoDBAuthState, resetMongoDBAuthState } = require('./mongoAuth');
 const mongoose = require('mongoose');
 const pino = require('pino');
 const { procesarMensaje } = require('./messageHandler');
@@ -18,6 +18,10 @@ let botArrancado = false;
 let authState = null;
 let socketActual = null;
 let reconexionProgramada = false;
+let reconexionIntento = 0;
+let sesionRevocada = false;
+
+const RETRASOS_RECONEXION_MS = [3000, 5000, 10000, 20000, 30000, 60000];
 
 app.get('/', async (req, res) => {
     if (botArrancado) {
@@ -34,6 +38,7 @@ app.get('/', async (req, res) => {
     <head><title>Vincular Bot</title><meta charset="utf-8"></head>
     <body style="font-family: Arial; padding: 20px; max-width: 600px; margin: auto; text-align: center;">
         <h2>🔌 Vincular Bot de WhatsApp</h2>
+        ${sesionRevocada ? '<p style="color:#b00020; background:#ffe6e6; padding:12px; border-radius:8px;"><b>⚠️ La sesión anterior fue cerrada por WhatsApp.</b><br>La sesión inválida ya fue limpiada. Vincula nuevamente el bot desde aquí.</p>' : ''}
         <form action="/iniciar" method="POST" style="text-align: left; background: #f9f9f9; padding: 20px; border-radius: 10px; border: 1px solid #ddd;">
             <p><b>1. Elige el método de inicio de sesión:</b></p>
             <label><input type="radio" name="metodo" value="1" checked> 📱 Código QR</label><br><br>
@@ -174,23 +179,45 @@ async function arrancarSocket(metodo, numeroTelefono, onCodeReady = null) {
 
             if (razon === DisconnectReason.loggedOut) {
                 botArrancado = false;
-                console.log('\\n🔴 WhatsApp reportó SESIÓN CERRADA (loggedOut). Credenciales conservadas en MongoDB; no se borrará la sesión automáticamente.\\n');
+                reconexionProgramada = false;
+                reconexionIntento = 0;
+                sesionRevocada = true;
+
+                console.log('\\n🔴 WhatsApp reportó SESIÓN CERRADA (loggedOut). La sesión anterior fue revocada y no puede recuperarse reutilizando las mismas credenciales.\\n');
+                console.log('🧹 Limpiando la sesión inválida de MongoDB para dejar disponible una nueva vinculación...');
+
+                try {
+                    await resetMongoDBAuthState('sesion');
+                    authState = await useMongoDBAuthState('sesion');
+                    console.log('✅ Sesión inválida eliminada de MongoDB. Abre la página web y vincula nuevamente el bot.');
+                } catch (e) {
+                    console.error('❌ No se pudo limpiar la sesión inválida:', e.message);
+                }
                 return;
             }
 
             if (reconexionProgramada) return;
             reconexionProgramada = true;
 
+            const retraso = RETRASOS_RECONEXION_MS[Math.min(reconexionIntento, RETRASOS_RECONEXION_MS.length - 1)];
+            reconexionIntento++;
+
+            console.log(`⚠️ WhatsApp cerró la conexión (código ${razon ?? 'desconocido'}). Reintentando en ${Math.round(retraso / 1000)} segundos...`);
+
             setTimeout(async () => {
                 reconexionProgramada = false;
                 try {
                     await arrancarSocket(metodo, numeroTelefono);
                 } catch (e) {
-                    console.error('Error al reconectar WhatsApp:', e.message);
+                    console.error('❌ Error al reconectar WhatsApp:', e.message);
+                    socketActual = null;
+                    botArrancado = false;
                 }
-            }, 3000);
+            }, retraso);
         } else if (connection === 'open') {
             reconexionProgramada = false;
+            reconexionIntento = 0;
+            sesionRevocada = false;
             console.log('\n🟢 BOT EN LÍNEA Y LISTO PARA TRABAJAR 🟢\n');
             
             if (onCodeReady) {
