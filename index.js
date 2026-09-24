@@ -166,28 +166,6 @@ async function arrancarSocket(metodo, numeroTelefono, onCodeReady = null) {
 
     sock.ev.on('creds.update', saveCreds);
 
-    // WhatsApp puede entregar el vínculo LID ↔ teléfono de forma asíncrona.
-    // Lo persistimos para que JASC13 pueda resolver identidades después,
-    // incluso tras un reinicio o un nuevo deploy.
-    sock.ev.on('lid-mapping.update', async (mapping) => {
-        if (!mapping || typeof mapping !== 'object') return;
-
-        const lid = String(mapping.lid || '').trim();
-        const pn = String(mapping.pn || '').trim();
-
-        if (!lid.endsWith('@lid') || !pn.endsWith('@s.whatsapp.net')) return;
-
-        try {
-
-        } catch (e) {
-            console.error('⚠️ Error guardando mapeo LID ↔ PN de JASC13:', e.message);
-        }
-
-        if (lid.includes('18056092876876') || pn.includes('18056092876876')) {
-            console.log('🔎 JASC13 DIAGNÓSTICO #9 - lid-mapping.update:', JSON.stringify(mapping));
-        }
-    });
-
     sock.ev.on('connection.update', async (update) => {
         const { connection, lastDisconnect, qr } = update;
         
@@ -286,54 +264,6 @@ async function arrancarSocket(metodo, numeroTelefono, onCodeReady = null) {
                 }
             }
         }
-        // Capturamos los campos de identidad que WhatsApp/Baileys realmente entrega
-        // para el LID reservado. No guardamos el contenido del mensaje.
-        const idsMsg = [
-            msg?.key?.remoteJid,
-            msg?.key?.participant,
-            msg?.key?.remoteJidAlt,
-            msg?.key?.participantAlt,
-            msg?.key?.senderPn,
-            msg?.key?.participantPn,
-            msg?.key?.senderLid
-        ].filter(Boolean).map(String);
-
-        // Cacheamos el Username real que WhatsApp entrega en participantUsername.
-        // Separamos estrictamente LID y PN: un @lid NUNCA se guarda como teléfono.
-        if (msg?.key?.participant && msg.key.participantUsername) {
-            const participant = String(msg.key.participant);
-            const participantAlt = msg.key.participantAlt ? String(msg.key.participantAlt) : '';
-            const senderPn = msg.key.senderPn ? String(msg.key.senderPn) : '';
-            const participantPn = msg.key.participantPn ? String(msg.key.participantPn) : '';
-
-            const phoneNumber =
-                [participant, participantAlt, senderPn, participantPn]
-                    .find(id => id.endsWith('@s.whatsapp.net')) || null;
-
-            if (!sock.jasc13UsernameCache) sock.jasc13UsernameCache = new Map();
-            sock.jasc13UsernameCache.set(participant, String(msg.key.participantUsername));
-
-            // Si WhatsApp nos da el PN por separado, ese es el único valor
-            // que permitimos guardar como teléfono.
-
-            // Si el mensaje trae simultáneamente LID y PN, también dejamos
-            // registrado el vínculo para futuras resoluciones.
-            const lid = [participant, participantAlt]
-                .find(id => id.endsWith('@lid')) || null;
-            if (lid && phoneNumber) {
-
-            }
-        }
-
-        if (idsMsg.some(id => id.includes('18056092876876'))) {
-            console.log('🔎 JASC13 DIAGNÓSTICO #9 - participantUsername:', msg.key.participantUsername || '(sin username)');
-            console.log('🔎 JASC13 DIAGNÓSTICO #9 - messages.upsert key:', JSON.stringify(msg.key));
-            console.log('🔎 JASC13 DIAGNÓSTICO #9 - pushName:', msg.pushName || '(sin pushName)');
-            console.log('🔎 JASC13 DIAGNÓSTICO #9 - verifiedBizName:', msg.verifiedBizName || '(sin verifiedBizName)');
-            console.log('🔎 JASC13 DIAGNÓSTICO #9 - messageStubType:', msg.messageStubType || '(sin stub)');
-            console.log('🔎 JASC13 DIAGNÓSTICO #9 - messageStubParameters:', JSON.stringify(msg.messageStubParameters || []));
-        }
-
         const textoCompleto = msg.message.conversation || msg.message.extendedTextMessage?.text || '';
         if (msg.key.fromMe && (textoCompleto.includes('¡Pong!') || textoCompleto.includes('🤖'))) return;
 
