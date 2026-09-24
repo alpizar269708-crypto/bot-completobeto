@@ -99,7 +99,7 @@ async function verificarNuevoMiembro(sock, update) {
             try {
                 const textoBienvenida = bienvenidaPersonalizada?.valor
                     ? bienvenidaPersonalizada.valor.replace(/\\{usuario\\}/gi, contacto.nombre || contacto.numeroVisible)
-                    : `Bienvenido/a @${etiquetaUsuario(contacto)} · 📱 ${contacto.numeroVisible} a la escupidera de Salty, esperamos que seas lo suficientemente rudo para estar aquí.`;
+                    : `Bienvenido/a ${contacto.nombre || contacto.numeroVisible} · 📱 ${contacto.numeroVisible} a la escupidera de Salty, esperamos que seas lo suficientemente rudo para estar aquí.`;
 
                 await sock.sendMessage(chatId, {
                     text: textoBienvenida
@@ -490,7 +490,7 @@ async function verificarAntiSpam(sock, msg) {
         }
 
         await usuarioBD.save();
-        await sock.sendMessage(chatJid, { text: mensajeAviso, mentions: [remitente] });
+        await sock.sendMessage(chatJid, { text: mensajeAviso });
         return true;
     }
 
@@ -621,7 +621,7 @@ async function comandoBan(sock, numero, msg, args = []) {
     }
 
     await banearYExpulsar(sock, objetivo, motivo);
-    await sock.sendMessage(chatJid, { text: `🚫 El usuario @${etiquetaUsuario(await resolverContactoWhatsApp(sock, objetivo, chatJid))} fue agregado a la lista negra.\n📝 Motivo: _${motivo}_` }, { quoted: msg });
+    await sock.sendMessage(chatJid, { text: `🚫 El usuario ${(await resolverContactoWhatsApp(sock, objetivo, chatJid)).nombre || (await resolverContactoWhatsApp(sock, objetivo, chatJid)).numeroVisible} fue agregado a la lista negra.\n📝 Motivo: _${motivo}_` }, { quoted: msg });
 }
 
 async function comandoUnban(sock, numero, msg, args = []) {
@@ -638,7 +638,7 @@ async function comandoUnban(sock, numero, msg, args = []) {
     }
 
     await User.findOneAndUpdate({ numero: objetivo }, { baneado: false, warns: [], banMotivo: '' });
-    await sock.sendMessage(chatJid, { text: `✅ El usuario @${etiquetaUsuario(await resolverContactoWhatsApp(sock, objetivo, chatJid))} fue removido de la lista negra y se limpiaron sus warns.` }, { quoted: msg });
+    await sock.sendMessage(chatJid, { text: `✅ El usuario ${(await resolverContactoWhatsApp(sock, objetivo, chatJid)).nombre || (await resolverContactoWhatsApp(sock, objetivo, chatJid)).numeroVisible} fue removido de la lista negra y se limpiaron sus warns.` }, { quoted: msg });
 }
 
 async function comandoListaNegra(sock, numero, msg) {
@@ -707,7 +707,6 @@ async function comandoUnbanList(sock, numero, msg, args = []) {
     // CORREGIDO: Se cambió 'chatId' por 'chatJid'
     await sock.sendMessage(chatJid, { 
         text: `✅ El usuario ${contacto.nombre || contacto.numeroVisible} (posición #${numeroIndice}) fue removido de la lista negra y sus advertencias se reiniciaron.`, 
-        mentions: [usuarioObjetivo.numero] 
     }, { quoted: msg });
 }
 
