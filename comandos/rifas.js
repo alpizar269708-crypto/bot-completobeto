@@ -1,4 +1,5 @@
 const { esProgramadorBot } = require('./programadorbot');
+const { resolverLidAPn } = require('../utils/whatsapp');
 const { Config, RifaJasc13Cashback } = require('../database/modelos');
 
 const rifasActivas = new Map();
@@ -305,15 +306,28 @@ async function resolverContactoJasc13(sock, jid) {
     if (!jid) return { numeroVisible: '+0', mentionJid: null, mentionNumber: null };
 
     const entrada = String(jid).trim();
+    const mentionJidOriginal = entrada;
     let mentionJid = entrada;
     let numero = extraerNumeroJid(entrada);
 
-    // Un LID no contiene el teléfono. Si WhatsApp no puede resolverlo,
-    // usamos el número guardado en la rifa como respaldo, sin depender del grupo.
+    // Si la rifa guardó un LID, el LID por sí solo NO es el teléfono.
+    // Lo resolvemos directamente con el mapeo de WhatsApp, sin depender
+    // de que la persona siga dentro del grupo donde se ejecuta "ver".
     if (entrada.endsWith('@lid')) {
+        try {
+            const pn = await resolverLidAPn(sock, entrada);
+            const numeroPN = extraerNumeroJid(pn);
+
+            if (numeroPN) {
+                numero = numeroPN;
+            }
+        } catch (error) {
+            console.error('⚠️ No se pudo resolver LID de JASC13:', error.message);
+        }
+
         return {
             numeroVisible: numero ? normalizarNumeroVisible(numero) : '+0',
-            mentionJid: entrada,
+            mentionJid: mentionJidOriginal,
             mentionNumber: numero || null
         };
     }
@@ -484,7 +498,7 @@ async function comandoRifaJasc13(sock, chatId, msg, args) {
             const cashbackDoc = await RifaJasc13Cashback.findOne({ numero: id }).select('cashback').lean();
             const cashback = Number(cashbackDoc?.cashback) || 0;
             const contacto = await resolverContactoJasc13(sock, id);
-            const etiquetaContacto = contacto.mentionNumber ? `@${contacto.mentionNumber}` : contacto.numeroVisible;
+            const etiquetaContacto = contacto.numeroVisible || '+0';
             texto += `${i}. 👤 ${etiquetaContacto} | Puntos: *${puntos}* | Boletos: *${boletos}* (Faltan ${faltantes} pts) | Cashback: *${cashback.toFixed(2)}* Pavos\n`;
             if (contacto.mentionJid) {
                 mentions.push(contacto.mentionJid);
