@@ -289,7 +289,7 @@ async function comandoRifa(sock, chatId, msg, args) {
 const CLAVE_PROPIETARIO_JASC13 = 'rifajasc13_propietario';
 const CLAVE_PARTICIPANTES_JASC13 = 'rifajasc13_participantes';
 const CLAVE_MIGRACION_CASHBACK_JASC13 = 'rifajasc13_cashback_migrado_v1';
-const CLAVE_AJUSTE_PARTICIPANTES_JASC13 = 'rifajasc13_ajuste_participantes_v3';
+const CLAVE_AJUSTE_PARTICIPANTES_JASC13 = 'rifajasc13_ajuste_participantes_v4';
 const PORCENTAJE_CASHBACK_JASC13 = 0.05;
 
 function normalizarNumeroVisible(numero) {
@@ -376,9 +376,8 @@ async function aplicarAjusteParticipantesJasc13(participantes) {
     const ajuste = await Config.findOne({ clave: CLAVE_AJUSTE_PARTICIPANTES_JASC13 });
     if (ajuste?.valor === 'true') return;
 
-    // Orden y valores exactos proporcionados para los 9 participantes actuales.
-    // Internamente se conserva solo el remanente de PaVos y los boletos,
-    // pero "ver" reconstruye exactamente los puntos totales indicados.
+    // Valores exactos proporcionados para los 9 participantes registrados.
+    // Se conserva el orden actual de la lista para no modificar sus IDs.
     const valores = [
         { puntos: 6800, boletos: 6 },
         { puntos: 8900, boletos: 8 },
@@ -391,44 +390,58 @@ async function aplicarAjusteParticipantesJasc13(participantes) {
         { puntos: 800, boletos: 0 }
     ];
 
-    if (participantes.size !== valores.length) {
-        console.warn('⚠️ Ajuste JASC13 omitido: la cantidad de participantes no coincide con los 9 registros proporcionados.');
+    const ids = Array.from(participantes.keys());
+
+    if (ids.length < valores.length) {
+        console.warn(`⚠️ Ajuste JASC13 omitido: hay ${ids.length} participantes y se requieren al menos 9.`);
         return;
     }
 
-    const ids = Array.from(participantes.keys());
+    // Si quedaron registros anteriores fuera de los 9 indicados, se eliminan
+    // para que la lista quede exactamente como fue solicitada.
+    const idsConservar = ids.slice(0, valores.length);
+    const idsEliminar = ids.slice(valores.length);
 
-    for (let index = 0; index < ids.length; index++) {
-        const id = ids[index];
+    for (const id of idsEliminar) {
+        participantes.delete(id);
+    }
+
+    if (idsEliminar.length > 0) {
+        await RifaJasc13Cashback.deleteMany({ numero: { $in: idsEliminar } });
+    }
+
+    for (let index = 0; index < idsConservar.length; index++) {
+        const id = idsConservar[index];
         const valor = valores[index];
 
         participantes.set(id, {
-            // Los puntos almacenados son los sobrantes después de convertir
-            // los puntos totales en los boletos indicados.
+            // Internamente se guarda el remanente y los boletos para que
+            // "agregar" siga funcionando correctamente.
             puntos: valor.puntos % 1000,
             boletos: valor.boletos
         });
 
-        // Reemplazamos completamente el Cashback anterior por el cálculo nuevo.
-        // 5% del total exacto de puntos indicado.
+        // Reemplaza completamente el Cashback anterior con el 5% exacto
+        // de los puntos indicados.
         const cashback = Number((valor.puntos * PORCENTAJE_CASHBACK_JASC13).toFixed(2));
+
         await RifaJasc13Cashback.findOneAndUpdate(
             { numero: id },
             { $set: { cashback } },
-            { upsert: true, new: true }
+            { upsert: true }
         );
     }
 
     await guardarParticipantesJasc13(participantes);
+
     await Config.findOneAndUpdate(
         { clave: CLAVE_AJUSTE_PARTICIPANTES_JASC13 },
         { valor: 'true' },
         { upsert: true }
     );
 
-    console.log('✅ JASC13: puntos, boletos y Cashback actualizados con el orden indicado.');
+    console.log('✅ JASC13: lista, puntos, boletos y Cashback establecidos con los 9 valores indicados.');
 }
-
 async function cargarEstadoRifaJasc13() {
     const propietarioConfig = await Config.findOne({ clave: CLAVE_PROPIETARIO_JASC13 });
     const participantesConfig = await Config.findOne({ clave: CLAVE_PARTICIPANTES_JASC13 });
