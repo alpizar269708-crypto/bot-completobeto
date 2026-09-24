@@ -836,11 +836,13 @@ async function registrarMapeoLidJasc13(sock, lid, phoneNumber) {
                 cambio = true;
             }
 
-            // El LID es la identidad preferida para mencionar cuando WhatsApp
-            // nos lo proporciona; conservamos el ID original de la rifa.
+            // Para las menciones salientes preferimos el PN real cuando ya
+            // tenemos el mapeo LID -> teléfono. El LID se conserva en las
+            // identidades de WhatsApp, pero no lo usamos como etiqueta de
+            // mención si existe un PN verificable.
             if (!item.mentionJid || item.mentionJid.endsWith('@lid')) {
-                if (item.mentionJid !== lidStr) {
-                    item.mentionJid = lidStr;
+                if (item.mentionJid !== pnStr) {
+                    item.mentionJid = pnStr;
                     cambio = true;
                 }
             }
@@ -866,7 +868,9 @@ async function registrarMapeoLidJasc13(sock, lid, phoneNumber) {
             ...identidadAnterior,
             username: participante.username || identidadAnterior.username || null,
             phoneNumber: pnStr,
-            mentionJid: lidStr
+            // El PN es la identidad de mención preferida cuando está
+            // disponible; el LID sigue indexado por separado para resolverlo.
+            mentionJid: pnStr
         };
 
         identidades[lidStr] = identidadNueva;
