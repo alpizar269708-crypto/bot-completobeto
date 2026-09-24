@@ -1,5 +1,5 @@
 const { esProgramadorBot } = require('./programadorbot');
-const { resolverLidAPn, resolverContactoWhatsApp, etiquetaUsuario } = require('../utils/whatsapp');
+const { resolverLidAPn, resolverContactoWhatsApp, etiquetaUsuario, extraerNumeroJid } = require('../utils/whatsapp');
 const { Config, RifaJasc13Cashback } = require('../database/modelos');
 
 const rifasActivas = new Map();
@@ -1260,15 +1260,8 @@ async function comandoRifaJasc13(sock, chatId, msg, args) {
                 '',
                 ...await Promise.all(docs.map(async (d, i) => {
                     const contacto = await resolverContactoJasc13(sock, d.numero);
-                    const esLid = String(d.numero || '').endsWith('@lid');
-
-                    // Los contactos con LID se muestran por su mención de WhatsApp.
-                    // Los contactos normales se muestran únicamente por teléfono.
-                    if (esLid && contacto.mentionNumber) {
-                        return `${i + 1}. 👤 @${contacto.mentionNumber} → *${(Number(d.cashback) || 0).toFixed(2)}* Pavos`;
-                    }
-
-                    return `${i + 1}. 📱 @${contacto.mentionNumber || contacto.numeroVisible.replace(/[^0-9]/g, '')} → *${(Number(d.cashback) || 0).toFixed(2)}* Pavos`;
+                    const tokenMencion = extraerNumeroJid(contacto.mentionJid || d.numero);
+                    return `${i + 1}. 👤 @${tokenMencion || 'Usuario'} → *${(Number(d.cashback) || 0).toFixed(2)}* Pavos`;
                 }))
             ].join('\n');
 
@@ -1309,7 +1302,7 @@ async function comandoRifaJasc13(sock, chatId, msg, args) {
 
             const contacto = await resolverContactoJasc13(sock, targetId);
             return await sock.sendMessage(chatId, {
-                text: `💰 *CASHBACK DISPONIBLE*\n\n👤 Usuario: @${contacto.username ? contacto.username.replace(/^@/, '') : 'Usuario'}\n📱 Teléfono: *${contacto.numeroVisible}*\n💳 Cashback actual: *${disponible.toFixed(2)}* Pavos`,
+                text: `💰 *CASHBACK DISPONIBLE*\n\n👤 Usuario: @${extraerNumeroJid(contacto.mentionJid || targetId) || 'Usuario'}\n📱 Teléfono: *${contacto.numeroVisible}*\n💳 Cashback actual: *${disponible.toFixed(2)}* Pavos`,
                 mentions: contacto.mentionJid ? [contacto.mentionJid] : []
             }, { quoted: msg });
         }
@@ -1335,7 +1328,7 @@ async function comandoRifaJasc13(sock, chatId, msg, args) {
 
         const contactoCanje = await resolverContactoJasc13(sock, targetId);
         return await sock.sendMessage(chatId, {
-            text: `💸 *CASHBACK CANJEADO*\n\n👤 Usuario: @${contactoCanje.username ? contactoCanje.username.replace(/^@/, '') : 'Usuario'}\n📱 Teléfono: *${contactoCanje.numeroVisible}*\n➖ Utilizado: *${cantidadCashback.toFixed(2)}* Pavos\n💰 Restante: *${Number(cashbackDoc.cashback).toFixed(2)}* Pavos`,
+            text: `💸 *CASHBACK CANJEADO*\n\n👤 Usuario: @${extraerNumeroJid(contactoCanje.mentionJid || targetId) || 'Usuario'}\n📱 Teléfono: *${contactoCanje.numeroVisible}*\n➖ Utilizado: *${cantidadCashback.toFixed(2)}* Pavos\n💰 Restante: *${Number(cashbackDoc.cashback).toFixed(2)}* Pavos`,
             mentions: contactoCanje.mentionJid ? [contactoCanje.mentionJid] : []
         }, { quoted: msg });
     }
@@ -1408,9 +1401,8 @@ async function comandoRifaJasc13(sock, chatId, msg, args) {
             : `🎉 *¡TENEMOS ${ganadores.length} GANADORES DE LA RIFA EXCLUSIVA!* 🎉\n\n`;
 
         contactosGanadores.forEach((contacto, index) => {
-            const etiquetaGanador = contacto.username
-                ? '@' + contacto.username.replace(/^@/, '')
-                : (contacto.mentionNumber ? '@' + contacto.mentionNumber : contacto.numeroVisible);
+            const tokenGanador = extraerNumeroJid(contacto.mentionJid || ganadores[index]);
+            const etiquetaGanador = tokenGanador ? '@' + tokenGanador : '@Usuario';
             mensajeGanador += `🏆 *Ganador ${index + 1}:* ${etiquetaGanador} · 📱 ${contacto.numeroVisible} 🎊\n`;
         });
 
