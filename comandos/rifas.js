@@ -699,24 +699,33 @@ async function registrarIdentidadJasc13(sock, jid, username, phoneNumber = null)
             try { identidades = JSON.parse(config.valor) || {}; } catch (error) { identidades = {}; }
         }
         const clave = String(jid);
+        // Solo registramos identidades de personas que ya pertenecen a la lista JASC13.
+        // Así un mensaje normal de cualquier otro contacto no llena MongoDB innecesariamente.
+        const participantesConfig = await Config.findOne({ clave: CLAVE_PARTICIPANTES_JASC13 }).select('valor').lean();
+        let lista = [];
+        if (participantesConfig?.valor) {
+            try { lista = JSON.parse(participantesConfig.valor); } catch (error) { lista = []; }
+        }
+        const participante = lista.find(item => item?.id === clave);
+        if (!participante) return false;
+
         const identidadAnterior = identidades[clave] || {};
         const identidadNueva = {
             username: String(username).replace(/^@/, ''),
             phoneNumber: phoneNumber || identidadAnterior.phoneNumber || null,
-            mentionJid: identidadAnterior.mentionJid || clave
+            mentionJid: identidadAnterior.mentionJid || participante.mentionJid || clave
         };
-        if (JSON.stringify(identidadAnterior) === JSON.stringify(identidadNueva)) return false;
-        identidades[clave] = identidadNueva;
-        await Config.findOneAndUpdate(
-            { clave: CLAVE_IDENTIDADES_JASC13 },
-            { valor: JSON.stringify(identidades) },
-            { upsert: true }
-        );
+        if (JSON.stringify(identidadAnterior) !== JSON.stringify(identidadNueva)) {
+            identidades[clave] = identidadNueva;
+            await Config.findOneAndUpdate(
+                { clave: CLAVE_IDENTIDADES_JASC13 },
+                { valor: JSON.stringify(identidades) },
+                { upsert: true }
+            );
+        }
 
-        // También incorporamos la identidad al registro de participantes si ya existe.
-        const participantesConfig = await Config.findOne({ clave: CLAVE_PARTICIPANTES_JASC13 }).select('valor').lean();
+        // También incorporamos la identidad al registro principal de participantes.
         if (participantesConfig?.valor) {
-            let lista = [];
             try { lista = JSON.parse(participantesConfig.valor); } catch (error) { lista = []; }
             let cambio = false;
             for (const item of lista) {
