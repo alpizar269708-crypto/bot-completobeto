@@ -82,7 +82,7 @@ async function verificarNuevoMiembro(sock, update) {
     for (const participante of nuevosParticipantes) {
         const jidOriginal = typeof participante === 'string' ? participante : (participante.id || participante.phoneNumber);
         if (!jidOriginal) continue;
-        const contacto = await resolverContactoWhatsApp(sock, jidOriginal);
+        const contacto = await resolverContactoWhatsApp(sock, jidOriginal, chatId);
         const jid = contacto.jid || jidOriginal;
 
         let usuarioBD = await User.findOne({ numero: jid });
@@ -102,8 +102,7 @@ async function verificarNuevoMiembro(sock, update) {
                     : `Bienvenido/a ${contacto.nombre || contacto.numeroVisible} · 📱 ${contacto.numeroVisible} a la escupidera de Salty, esperamos que seas lo suficientemente rudo para estar aquí.`;
 
                 await sock.sendMessage(chatId, {
-                    text: textoBienvenida
-                });
+                    text: textoBienvenida, mentions: [jid].filter(Boolean)\n                });
             } catch (error) {
                 console.log('No se pudo enviar el mensaje de bienvenida.');
             }
@@ -548,7 +547,7 @@ async function comandoWarn(sock, numero, msg, args = []) {
     }
 
     await usuarioBD.save();
-    await sock.sendMessage(chatJid, { text: respuesta }, { quoted: msg });
+    await sock.sendMessage(chatJid, { text: respuesta, mentions: [objetivo].filter(Boolean) }, { quoted: msg });
 }
 
 async function comandoLimpiarWarns(sock, numero, msg, args = []) {
@@ -565,13 +564,13 @@ async function comandoLimpiarWarns(sock, numero, msg, args = []) {
     }
     const usuarioBD = await User.findOne({ numero: objetivo });
     if (!usuarioBD) {
-        await sock.sendMessage(chatJid, { text: `ℹ️ ${(await resolverContactoWhatsApp(sock, objetivo, chatJid)).nombre || (await resolverContactoWhatsApp(sock, objetivo, chatJid)).numeroVisible} no tiene un registro de usuario ni warns.` }, { quoted: msg });
+        await sock.sendMessage(chatJid, { text: `ℹ️ ${(await resolverContactoWhatsApp(sock, objetivo, chatJid)).nombre || (await resolverContactoWhatsApp(sock, objetivo, chatJid)).numeroVisible} no tiene un registro de usuario ni warns.`, mentions: [objetivo].filter(Boolean) }, { quoted: msg });
         return;
     }
     usuarioBD.warns = [];
     usuarioBD.markModified('warns');
     await usuarioBD.save();
-    await sock.sendMessage(chatJid, { text: `✅ Se borraron todos los warns de ${(await resolverContactoWhatsApp(sock, objetivo, chatJid)).nombre || (await resolverContactoWhatsApp(sock, objetivo, chatJid)).numeroVisible}.\n📌 Warns actuales: *0/3*` }, { quoted: msg });
+    await sock.sendMessage(chatJid, { text: `✅ Se borraron todos los warns de ${(await resolverContactoWhatsApp(sock, objetivo, chatJid)).nombre || (await resolverContactoWhatsApp(sock, objetivo, chatJid)).numeroVisible}.\n📌 Warns actuales: *0/3*`, mentions: [objetivo].filter(Boolean) }, { quoted: msg });
 }
 
 async function comandoVerWarns(sock, numero, msg, args = []) {
