@@ -288,6 +288,7 @@ async function comandoRifa(sock, chatId, msg, args) {
 // ==========================================
 const CLAVE_PROPIETARIO_JASC13 = 'rifajasc13_propietario';
 const CLAVE_PARTICIPANTES_JASC13 = 'rifajasc13_participantes';
+const CLAVE_IDENTIDADES_JASC13 = 'rifajasc13_identidades';
 const CLAVE_MIGRACION_CASHBACK_JASC13 = 'rifajasc13_cashback_migrado_v1';
 const CLAVE_AJUSTE_PARTICIPANTES_JASC13 = 'rifajasc13_ajuste_participantes_v4';
 const PORCENTAJE_CASHBACK_JASC13 = 0.05;
@@ -325,6 +326,30 @@ async function resolverContactoJasc13(sock, jid, chatId = null) {
                 username: usernameCacheado
             };
         }
+    }
+
+    // Si el bot ya registró esta identidad anteriormente, la recuperamos de MongoDB.
+    // Así el dato sobrevive reinicios y despliegues de Render.
+    try {
+        const identidadesConfig = await Config.findOne({ clave: CLAVE_IDENTIDADES_JASC13 }).select('valor').lean();
+        if (identidadesConfig?.valor) {
+            const identidades = JSON.parse(identidadesConfig.valor);
+            const identidad = identidades?.[entrada];
+            if (identidad?.username) {
+                return {
+                    numeroVisible: '@' + String(identidad.username).replace(/^@/, ''),
+                    mentionJid: identidad.mentionJid || entrada,
+                    mentionNumber: identidad.phoneNumber ? extraerNumeroJid(identidad.phoneNumber) : null,
+                    username: identidad.username
+                };
+            }
+            if (identidad?.phoneNumber) {
+                mentionJid = identidad.mentionJid || entrada;
+                numero = extraerNumeroJid(identidad.phoneNumber);
+            }
+        }
+    } catch (error) {
+        console.error('⚠️ No se pudo leer la identidad persistente JASC13:', error.message);
     }
 
     if (esDiagnosticoJasc13) {
@@ -611,10 +636,23 @@ async function cargarEstadoRifaJasc13() {
             if (!item?.id) continue;
             const puntos = Number(item.puntos);
             if (!Number.isFinite(puntos)) continue;
+            const identidad = {
+                username: item.username || null,
+                phoneNumber: item.phoneNumber || null,
+                mentionJid: item.mentionJid || item.id
+            };
             if (Number.isFinite(Number(item.boletos))) {
-                participantes.set(item.id, { puntos: Math.max(0, Math.floor(puntos)), boletos: Math.max(0, Math.floor(Number(item.boletos))) });
+                participantes.set(item.id, {
+                    puntos: Math.max(0, Math.floor(puntos)),
+                    boletos: Math.max(0, Math.floor(Number(item.boletos))),
+                    ...identidad
+                });
             } else {
-                participantes.set(item.id, { puntos: Math.max(0, Math.floor(puntos)) % 1000, boletos: Math.floor(Math.max(0, Math.floor(puntos)) / 1000) });
+                participantes.set(item.id, {
+                    puntos: Math.max(0, Math.floor(puntos)) % 1000,
+                    boletos: Math.floor(Math.max(0, Math.floor(puntos)) / 1000),
+                    ...identidad
+                });
                 requiereGuardar = true;
             }
         }
@@ -639,7 +677,10 @@ async function guardarParticipantesJasc13(participantes) {
     const lista = Array.from(participantes.entries()).map(([id, data]) => ({
         id,
         puntos: Number(data.puntos) || 0,
-        boletos: Number(data.boletos) || 0
+        boletos: Number(data.boletos) || 0,
+        username: data.username || null,
+        phoneNumber: data.phoneNumber || null,
+        mentionJid: data.mentionJid || id
     }));
 
     await Config.findOneAndUpdate(
@@ -647,6 +688,59 @@ async function guardarParticipantesJasc13(participantes) {
         { valor: JSON.stringify(lista) },
         { upsert: true }
     );
+}
+
+async function registrarIdentidadJasc13(sock, jid, username, phoneNumber = null) {
+    if (!jid || !username) return false;
+    try {
+        const config = await Config.findOne({ clave: CLAVE_IDENTIDADES_JASC13 }).select('valor').lean();
+        let identidades = {};
+        if (config?.valor) {
+            try { identidades = JSON.parse(config.valor) || {}; } catch (error) { identidades = {}; }
+        }
+        const clave = String(jid);
+        const identidadAnterior = identidades[clave] || {};
+        const identidadNueva = {
+            username: String(username).replace(/^@/, ''),
+            phoneNumber: phoneNumber || identidadAnterior.phoneNumber || null,
+            mentionJid: identidadAnterior.mentionJid || clave
+        };
+        if (JSON.stringify(identidadAnterior) === JSON.stringify(identidadNueva)) return false;
+        identidades[clave] = identidadNueva;
+        await Config.findOneAndUpdate(
+            { clave: CLAVE_IDENTIDADES_JASC13 },
+            { valor: JSON.stringify(identidades) },
+            { upsert: true }
+        );
+
+        // También incorporamos la identidad al registro de participantes si ya existe.
+        const participantesConfig = await Config.findOne({ clave: CLAVE_PARTICIPANTES_JASC13 }).select('valor').lean();
+        if (participantesConfig?.valor) {
+            let lista = [];
+            try { lista = JSON.parse(participantesConfig.valor); } catch (error) { lista = []; }
+            let cambio = false;
+            for (const item of lista) {
+                if (item?.id === clave) {
+                    item.username = identidadNueva.username;
+                    item.phoneNumber = identidadNueva.phoneNumber;
+                    item.mentionJid = identidadNueva.mentionJid;
+                    cambio = true;
+                    break;
+                }
+            }
+            if (cambio) {
+                await Config.findOneAndUpdate(
+                    { clave: CLAVE_PARTICIPANTES_JASC13 },
+                    { valor: JSON.stringify(lista) },
+                    { upsert: true }
+                );
+            }
+        }
+        return true;
+    } catch (error) {
+        console.error('⚠️ Error registrando identidad JASC13:', error.message);
+        return false;
+    }
 }
 
 async function guardarPropietarioJasc13(propietario) {
@@ -810,7 +904,16 @@ async function comandoRifaJasc13(sock, chatId, msg, args) {
         else if (msg.message?.extendedTextMessage?.contextInfo?.participant) targetId = msg.message.extendedTextMessage.contextInfo.participant;
         else { const numLimpio = args[1]?.replace(/[^0-9]/g, ''); if (numLimpio && numLimpio.length > 5) targetId = numLimpio + '@s.whatsapp.net'; }
         if (!targetId) return await sock.sendMessage(chatId, { text: '❌ No se pudo identificar al usuario. Menciona al usuario o responde a su mensaje.' }, { quoted: msg });
-        const datosUsuario = participantes.get(targetId) || { puntos: 0, boletos: 0 };
+        const contactoRegistrado = await resolverContactoJasc13(sock, targetId, chatId);
+        const datosUsuario = participantes.get(targetId) || {
+            puntos: 0,
+            boletos: 0,
+            username: contactoRegistrado.username || null,
+            phoneNumber: contactoRegistrado.mentionNumber && !targetId.endsWith('@lid') ? targetId : null,
+            mentionJid: contactoRegistrado.mentionJid || targetId
+        };
+        if (contactoRegistrado.username) datosUsuario.username = contactoRegistrado.username;
+        if (contactoRegistrado.mentionJid) datosUsuario.mentionJid = contactoRegistrado.mentionJid;
         const puntosTotales = (Number(datosUsuario.puntos) || 0) + pavosAgregados;
         const boletosGanados = Math.floor(puntosTotales / 1000);
         datosUsuario.puntos = puntosTotales % 1000;
@@ -818,6 +921,9 @@ async function comandoRifaJasc13(sock, chatId, msg, args) {
         const cashbackGanado = Number((pavosAgregados * PORCENTAJE_CASHBACK_JASC13).toFixed(2));
         if (cashbackGanado > 0) await RifaJasc13Cashback.findOneAndUpdate({ numero: targetId }, { $inc: { cashback: cashbackGanado } }, { upsert: true });
         participantes.set(targetId, datosUsuario);
+        if (contactoRegistrado.username) {
+            await registrarIdentidadJasc13(sock, targetId, contactoRegistrado.username, contactoRegistrado.mentionNumber && !targetId.endsWith('@lid') ? targetId : null);
+        }
         await guardarParticipantesJasc13(participantes);
         const faltantes = datosUsuario.puntos === 0 ? 1000 : 1000 - datosUsuario.puntos;
         const cashbackDoc = await RifaJasc13Cashback.findOne({ numero: targetId }).select('cashback').lean();
@@ -1027,4 +1133,4 @@ async function comandoRifaJasc13(sock, chatId, msg, args) {
     }
 }
 
-module.exports = { comandoRifa, comandoRifaInscripcion, comandoRifaJasc13, comandoMenuRifaJasc13, comandoAbrirRifa, comandoActivarRifaAqui, comandoCerrarRifa };
+module.exports = { comandoRifa, comandoRifaInscripcion, comandoRifaJasc13, comandoMenuRifaJasc13, comandoAbrirRifa, comandoActivarRifaAqui, comandoCerrarRifa, registrarIdentidadJasc13 };
