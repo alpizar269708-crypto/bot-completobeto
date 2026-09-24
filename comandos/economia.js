@@ -154,12 +154,13 @@ async function comandoTop(sock, chatId, msg) {
     let texto = `🏆 *TOP 10 - LOS MÁS RICOS*\n\n`;
     let mentions = [];
 
-    topUsuarios.forEach((u, index) => {
+    for (const [index, u] of topUsuarios.entries()) {
         const total = (u.cartera || 0) + (u.banco || 0);
         const numero = u.numero;
-        const contacto = await resolverContactoWhatsApp(sock, numero, chatId);\n        texto += `*${index + 1}.* @${etiquetaUsuario(contacto)} · 📱 ${contacto.numeroVisible} — 💎 *${total}* mon.\n`;
+        const contacto = await resolverContactoWhatsApp(sock, numero, chatId);
+        texto += `*${index + 1}.* @${etiquetaUsuario(contacto)} · 📱 ${contacto.numeroVisible} — 💎 *${total}* mon.\n`;
         mentions.push(u.numero);
-    });
+    }
 
     await sock.sendMessage(chatId, { text: texto, mentions }, { quoted: msg });
 }
