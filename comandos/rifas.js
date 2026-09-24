@@ -319,13 +319,40 @@ async function resolverMencionNativaJasc13(sock, mentionJid, chatId = null, fall
                 if (resuelto && String(resuelto).endsWith('@lid')) lid = String(resuelto);
             }
         }
+
+        // IMPORTANTE: getPNForLID depende de que el mapeo ya esté en memoria.
+        // Si no existe, Baileys v7 puede consultar la identidad mediante
+        // findUserId(), que devuelve phoneNumber y/o lid.
+        if (lid && !pn && typeof sock?.findUserId === 'function') {
+            const ids = await sock.findUserId(lid);
+            const pnEncontrado = ids?.phoneNumber || ids?.pn;
+            const lidEncontrado = ids?.lid;
+
+            if (pnEncontrado) {
+                const candidatoPn = String(pnEncontrado).includes('@')
+                    ? String(pnEncontrado)
+                    : String(pnEncontrado) + '@s.whatsapp.net';
+                if (candidatoPn.endsWith('@s.whatsapp.net')) pn = candidatoPn;
+            }
+
+            if (lidEncontrado && String(lidEncontrado).endsWith('@lid')) {
+                lid = String(lidEncontrado);
+            }
+        }
+
+        // Si ya conseguimos el PN pero todavía no tenemos LID, intentamos
+        // obtener el LID correspondiente para usar el identificador que
+        // WhatsApp espera en grupos con direccionamiento LID.
+        if (pn && !lid && typeof mapping?.getLIDForPN === 'function') {
+            const resuelto = await mapping.getLIDForPN(pn);
+            if (resuelto && String(resuelto).endsWith('@lid')) lid = String(resuelto);
+        }
     } catch (error) {
         console.error('⚠️ JASC13: no se pudo resolver PN ↔ LID para mención:', error.message);
     }
 
-    // En grupos con direccionamiento LID, WhatsApp puede conservar el LID
-    // como identidad de la mención. No imprimimos los dígitos del LID:
-    // el texto visible usa la etiqueta conocida y mentions lleva el JID real.
+    // Preferimos una identidad PN/LID realmente resuelta. Solo si ninguna
+    // consulta pudo resolverla conservamos la entrada original.
     const jid = lid || pn || entrada;
 
     let label = null;
