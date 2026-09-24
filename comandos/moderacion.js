@@ -83,7 +83,7 @@ async function verificarNuevoMiembro(sock, update) {
         const jidOriginal = typeof participante === 'string' ? participante : (participante.id || participante.phoneNumber);
         if (!jidOriginal) continue;
         const contacto = await resolverContactoWhatsApp(sock, jidOriginal);
-        const jid = contacto.mentionJid || jidOriginal;
+        const jid = contacto.jid || jidOriginal;
 
         let usuarioBD = await User.findOne({ numero: jid });
         if (usuarioBD && usuarioBD.baneado) {
