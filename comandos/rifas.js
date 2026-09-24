@@ -1222,7 +1222,6 @@ async function comandoRifaJasc13(sock, chatId, msg, args) {
         const contactoCanje = await resolverContactoJasc13(sock, targetId);
         return await sock.sendMessage(chatId, {
             text: `💸 *CASHBACK CANJEADO*\n\n👤 Usuario: ${contactoCanje.nombre || contactoCanje.numeroVisible}\n📱 Teléfono: *${contactoCanje.numeroVisible}*\n➖ Utilizado: *${cantidadCashback.toFixed(2)}* Pavos\n💰 Restante: *${Number(cashbackDoc.cashback).toFixed(2)}* Pavos`,
-            mentions: contactoCanje.mentionJid ? [contactoCanje.mentionJid] : []
         }, { quoted: msg });
     }
 
