@@ -783,8 +783,8 @@ async function comandoRifaJasc13(sock, chatId, msg, args) {
 
         contactosGanadores.forEach((contacto, index) => {
             const jid = ganadores[index];
-            const etiquetaGanador = tokenMencionNativa(contacto.jid || jid) || contacto.nombre || contacto.numeroVisible;
-            mensajeGanador += `🏆 *Ganador ${index + 1}:* ${etiquetaGanador} · 📱 ${contacto.numeroVisible} 🎊\n`;
+            const etiquetaContacto = tokenMencionNativa(contacto.jid || jid) || contacto.nombre || contacto.numeroVisible;
+            mensajeGanador += `🏆 *Ganador ${index + 1}:* ${etiquetaContacto} · 📱 ${contacto.numeroVisible} 🎊\n`;
         });
 
         mensajeGanador += '\n❤️ ¡Muchas gracias por apoyar usando el código de creador *JASC13*!\n';
