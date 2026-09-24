@@ -579,9 +579,13 @@ async function resolverContactoJasc13(sock, jid, chatId = null) {
             }
 
             if (lid) {
-                mentionJid = lid;
+                // findUserId puede devolver el LID equivalente de un usuario
+                // normal. Ese LID sirve para consultar el username, pero NO
+                // debe reemplazar la identidad PN que recibimos originalmente.
+                // Regla JASC13: PN de entrada => mención PN; LID de entrada => mención LID.
+                const jidParaUsername = entrada.endsWith('@lid') ? lid : mentionJid;
                 username = typeof sock?.fetchUsername === 'function'
-                    ? await sock.fetchUsername(lid)
+                    ? await sock.fetchUsername(jidParaUsername)
                     : null;
             }
 
