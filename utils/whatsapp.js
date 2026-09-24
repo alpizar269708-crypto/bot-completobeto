@@ -106,8 +106,11 @@ async function resolverContactoWhatsApp(sock, valor, chatId = null) {
 }
 
 function etiquetaUsuario(contacto, fallback = 'Usuario') {
-    const nombre = contacto?.nombre || contacto?.username;
-    return nombre ? String(nombre).replace(/^@/, '') : fallback;
+    // Mención NATIVA de WhatsApp: el texto debe llevar el identificador
+    // numérico que corresponde al JID enviado en mentions[].
+    // WhatsApp puede mostrar automáticamente el nombre guardado del contacto.
+    const token = extraerNumeroJid(contacto?.mentionJid);
+    return token ? '@' + token : fallback;
 }
 
 function textoMencion(mentionJid, fallback = 'Usuario') {
@@ -121,5 +124,6 @@ module.exports = {
     resolverLidAPn,
     resolverJidUsuario,
     resolverContactoWhatsApp,
+    etiquetaUsuario,
     textoMencion
 };
