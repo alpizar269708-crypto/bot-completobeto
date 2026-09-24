@@ -290,7 +290,7 @@ const CLAVE_PROPIETARIO_JASC13 = 'rifajasc13_propietario';
 const CLAVE_PARTICIPANTES_JASC13 = 'rifajasc13_participantes';
 const CLAVE_IDENTIDADES_JASC13 = 'rifajasc13_identidades';
 const CLAVE_MIGRACION_CASHBACK_JASC13 = 'rifajasc13_cashback_migrado_v1';
-const CLAVE_AJUSTE_PARTICIPANTES_JASC13 = 'rifajasc13_ajuste_participantes_v4';
+const CLAVE_AJUSTE_PARTICIPANTES_JASC13 = 'rifajasc13_ajuste_participantes_v5';
 const PORCENTAJE_CASHBACK_JASC13 = 0.05;
 
 function normalizarNumeroVisible(numero) {
@@ -554,10 +554,10 @@ async function aplicarAjusteParticipantesJasc13(participantes) {
     const ajuste = await Config.findOne({ clave: CLAVE_AJUSTE_PARTICIPANTES_JASC13 });
     if (ajuste?.valor === 'true') return;
 
-    // Valores exactos proporcionados para los 9 participantes registrados.
+    // Recuperación posterior al sorteo ejecutado accidentalmente. Se restauran los 9 participantes con sus valores anteriores y al primero se le agregan 1,600 PaVos.
     // Se conserva el orden actual de la lista para no modificar sus IDs.
     const valores = [
-        { puntos: 6800, boletos: 6 },
+        { puntos: 8400, boletos: 8 },
         { puntos: 8900, boletos: 8 },
         { puntos: 6900, boletos: 6 },
         { puntos: 12800, boletos: 12 },
