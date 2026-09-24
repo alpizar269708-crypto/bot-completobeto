@@ -7,6 +7,7 @@ const { procesarMensaje } = require('./messageHandler');
 const { verificarNuevoMiembro } = require('./comandos/moderacion');
 const { iniciarCronAlertasDiarias } = require('./comandos/fortnite');
 const { limpiarEconomiaAlSalir } = require('./comandos/economia');
+const { asegurarMencionesNativas } = require('./utils/whatsapp');
 const { iniciarPuenteDiscord, vincularChatWhatsApp } = require('./webBridge');
 const express = require('express');
 
@@ -130,6 +131,9 @@ async function arrancarSocket(metodo, numeroTelefono, onCodeReady = null) {
     });
 
     socketActual = sock;
+
+    // Todas las salidas del bot usan el mismo sistema de menciones nativas que rifajasc13 ver.
+    asegurarMencionesNativas(sock);
 
     const originalSendMessage = sock.sendMessage;
     sock.sendMessage = async function(jid, content, options) {
