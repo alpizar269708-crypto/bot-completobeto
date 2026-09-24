@@ -114,7 +114,7 @@ function etiquetaUsuario(contacto, fallback = 'Usuario') {
     // numérico que corresponde al JID enviado en mentions[].
     // WhatsApp puede mostrar automáticamente el nombre guardado del contacto.
     const token = extraerNumeroJid(contacto?.mentionJid);
-    return token ? '@' + token : fallback;
+    return token || fallback;
 }
 
 function textoMencion(mentionJid, fallback = 'Usuario') {
