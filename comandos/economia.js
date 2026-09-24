@@ -1,5 +1,5 @@
 const { User, EconomiaGrupo } = require('../database/modelos');
-const { resolverContactoWhatsApp, resolverJidUsuario } = require('../utils/whatsapp');
+const { resolverContactoWhatsApp, resolverJidUsuario, etiquetaUsuario } = require('../utils/whatsapp');
 
 async function obtenerEconomia(chatId, numero) {
     if (!chatId || !numero) throw new Error('Faltan chatId o numero para la economía.');
@@ -65,9 +65,9 @@ async function comandoCartera(sock, chatId, msg, usuarioBD) {
     const total = cartera + banco;
     const remitente = msg.key.participant || chatId;
 
-    const contacto = await resolverContactoWhatsApp(sock, remitente);
+    const contacto = await resolverContactoWhatsApp(sock, remitente, chatId);
     let texto = `💰 *ESTADO FINANCIERO*\n\n` +
-                `👤 Usuario: @${contacto.mentionNumber || remitente.split('@')[0]}\n` +
+                `👤 Usuario: @${etiquetaUsuario(contacto)}\n` +
                 `📱 Teléfono: *${contacto.numeroVisible}*\n` +
                 `💵 En mano: *${cartera} monedas*\n` +
                 `🏦 En banco: *${banco} monedas*\n` +
@@ -140,8 +140,8 @@ async function comandoPay(sock, chatId, msg, args, usuarioBD) {
     await usuarioBD.save();
     await objetivoBD.save();
 
-    const contactoObjetivo = await resolverContactoWhatsApp(sock, objetivo);
-    await sock.sendMessage(chatId, { text: `✅ Has transferido exitosamente *${cantidad} monedas* a @${contactoObjetivo.mentionNumber || objetivo.split('@')[0]} (📱 ${contactoObjetivo.numeroVisible}).`, mentions: contactoObjetivo.mentionJid ? [contactoObjetivo.mentionJid] : [] }, { quoted: msg });
+    const contactoObjetivo = await resolverContactoWhatsApp(sock, objetivo, chatId);
+    await sock.sendMessage(chatId, { text: `✅ Has transferido exitosamente *${cantidad} monedas* a @${etiquetaUsuario(contactoObjetivo)} (📱 ${contactoObjetivo.numeroVisible}).`, mentions: contactoObjetivo.mentionJid ? [contactoObjetivo.mentionJid] : [] }, { quoted: msg });
 }
 
 async function comandoTop(sock, chatId, msg) {
@@ -157,7 +157,7 @@ async function comandoTop(sock, chatId, msg) {
     topUsuarios.forEach((u, index) => {
         const total = (u.cartera || 0) + (u.banco || 0);
         const numero = u.numero;
-        texto += `*${index + 1}.* @${numero.split('@')[0]} · 📱 ${require('../utils/whatsapp').normalizarNumeroVisible(numero)} — 💎 *${total}* mon.\n`;
+        const contacto = await resolverContactoWhatsApp(sock, numero, chatId);\n        texto += `*${index + 1}.* @${etiquetaUsuario(contacto)} · 📱 ${contacto.numeroVisible} — 💎 *${total}* mon.\n`;
         mentions.push(u.numero);
     });
 
@@ -380,7 +380,7 @@ async function comandoRob(sock, chatId, msg, args, usuarioBD) {
         usuarioBD.cartera += robado;
         await objetivoBD.save();
         await usuarioBD.save();
-        await sock.sendMessage(chatId, { text: `🦹 ¡Robo exitoso! Robaste *${robado} monedas* a @${objetivo.split('@')[0]}.`, mentions: [objetivo] }, { quoted: msg });
+        await sock.sendMessage(chatId, { text: `🦹 ¡Robo exitoso! Robaste *${robado} monedas* a @${etiquetaUsuario(await resolverContactoWhatsApp(sock, objetivo, chatId))}.`, mentions: [objetivo] }, { quoted: msg });
     } else {
         usuarioBD.cartera -= 100;
         await usuarioBD.save();
@@ -433,13 +433,13 @@ async function comandoPelea(sock, chatId, msg, args, usuarioBD) {
         objetivoBD.cartera -= apuesta;
         await objetivoBD.save();
         await usuarioBD.save();
-        await sock.sendMessage(chatId, { text: `⚔️ ¡Duelo épico! Derrotaste a @${objetivo.split('@')[0]} y ganaste *${apuesta * 2} monedas*.`, mentions: [objetivo] }, { quoted: msg });
+        await sock.sendMessage(chatId, { text: `⚔️ ¡Duelo épico! Derrotaste a @${etiquetaUsuario(await resolverContactoWhatsApp(sock, objetivo, chatId))} y ganaste *${apuesta * 2} monedas*.`, mentions: [objetivo] }, { quoted: msg });
     } else {
         usuarioBD.cartera -= apuesta;
         objetivoBD.cartera += apuesta;
         await objetivoBD.save();
         await usuarioBD.save();
-        await sock.sendMessage(chatId, { text: `⚔️ ¡Duelo épico! @${objetivo.split('@')[0]} te dio una paliza y perdiste *${apuesta} monedas*.`, mentions: [objetivo] }, { quoted: msg });
+        await sock.sendMessage(chatId, { text: `⚔️ ¡Duelo épico! @${etiquetaUsuario(await resolverContactoWhatsApp(sock, objetivo, chatId))} te dio una paliza y perdiste *${apuesta} monedas*.`, mentions: [objetivo] }, { quoted: msg });
     }
 }
 
@@ -482,7 +482,7 @@ async function comandoHackear(sock, chatId, msg, args, usuarioBD) {
         usuarioBD.banco = (usuarioBD.banco || 0) + botin;
         await objetivoBD.save();
         await usuarioBD.save();
-        await sock.sendMessage(chatId, { text: `💻 ¡Hackeo exitoso! Robaste *${botin} monedas* del banco de @${objetivo.split('@')[0]}.`, mentions: [objetivo] }, { quoted: msg });
+        await sock.sendMessage(chatId, { text: `💻 ¡Hackeo exitoso! Robaste *${botin} monedas* del banco de @${etiquetaUsuario(await resolverContactoWhatsApp(sock, objetivo, chatId))}.`, mentions: [objetivo] }, { quoted: msg });
     } else {
         await usuarioBD.save();
         await sock.sendMessage(chatId, { text: `🛡️ ¡El cortafuegos del objetivo te detectó! Perdiste tus 300 monedas de inversión.` }, { quoted: msg });
@@ -589,7 +589,7 @@ async function comandoRegalarItem(sock, chatId, msg, args, usuarioBD) {
     await usuarioBD.save();
     await objetivoBD.save();
 
-    await sock.sendMessage(chatId, { text: `🎁 Le regalaste *${itemRemovido.nombre}* a @${objetivo.split('@')[0]}.`, mentions: [objetivo] }, { quoted: msg });
+    await sock.sendMessage(chatId, { text: `🎁 Le regalaste *${itemRemovido.nombre}* a @${etiquetaUsuario(await resolverContactoWhatsApp(sock, objetivo, chatId))}.`, mentions: [objetivo] }, { quoted: msg });
 }
 
 module.exports = {
