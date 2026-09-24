@@ -46,9 +46,12 @@ async function obtenerObjetivo(sock, msg, args = []) {
     const citado = msg.message?.extendedTextMessage?.contextInfo;
     const mencionadoPorEtiqueta = citado?.mentionedJid?.[0];
     const mencionadoPorRespuesta = citado?.participant;
-    
-    if (mencionadoPorEtiqueta) return mencionadoPorEtiqueta;
-    if (mencionadoPorRespuesta) return mencionadoPorRespuesta;
+
+    // Siempre normalizamos el objetivo al JID de teléfono (PN).
+    // Esto evita que la economía guarde unas operaciones con @lid y otras
+    // con @s.whatsapp.net para la misma persona.
+    if (mencionadoPorEtiqueta) return await resolverJidUsuario(sock, mencionadoPorEtiqueta);
+    if (mencionadoPorRespuesta) return await resolverJidUsuario(sock, mencionadoPorRespuesta);
 
     if (args && args.length > 0) {
         const textoUnido = args.join('');
