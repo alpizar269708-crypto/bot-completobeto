@@ -419,10 +419,22 @@ async function resolverContactoJasc13(sock, jid, chatId = null) {
                 if (esDiagnosticoJasc13) {
                     console.log('🔎 JASC13 DIAGNÓSTICO #9 - identidad persistente:', JSON.stringify(identidad));
                 }
+
+                // Si la entrada actual es PN, la mención debe seguir siendo PN.
+                // No reutilizamos un LID almacenado anteriormente para sustituir
+                // la identidad que WhatsApp acaba de entregar.
+                const mentionJidPersistente = entrada.endsWith('@s.whatsapp.net')
+                    ? (identidad.phoneNumber && String(identidad.phoneNumber).endsWith('@s.whatsapp.net')
+                        ? String(identidad.phoneNumber)
+                        : entrada)
+                    : (identidad.mentionJid || entrada);
+
                 return {
                     numeroVisible: '@' + String(identidad.username).replace(/^@/, ''),
-                    mentionJid: identidad.mentionJid || entrada,
-                    mentionNumber: identidad.phoneNumber ? extraerNumeroJid(identidad.phoneNumber) : null,
+                    mentionJid: mentionJidPersistente,
+                    mentionNumber: mentionJidPersistente.endsWith('@s.whatsapp.net')
+                        ? extraerNumeroJid(mentionJidPersistente)
+                        : null,
                     username: identidad.username
                 };
             }
@@ -487,10 +499,28 @@ async function resolverContactoJasc13(sock, jid, chatId = null) {
                 }
                 const username = participante.username || participante.notify || null;
                 if (username) {
+                    let mentionJidParticipante = entrada;
+
+                    // Conservamos el tipo de identidad con el que llegó la
+                    // mención. Para PN usamos phoneNumber; para LID usamos
+                    // lid/id. Nunca convertimos PN -> LID aquí.
+                    if (entrada.endsWith('@lid')) {
+                        mentionJidParticipante =
+                            participante.lid ||
+                            (String(participante.id || '').endsWith('@lid') ? participante.id : entrada);
+                    } else if (entrada.endsWith('@s.whatsapp.net')) {
+                        mentionJidParticipante =
+                            (String(participante.phoneNumber || '').endsWith('@s.whatsapp.net')
+                                ? participante.phoneNumber
+                                : entrada);
+                    }
+
                     return {
                         numeroVisible: username.startsWith('@') ? username : '@' + username,
-                        mentionJid: participante.id || entrada,
-                        mentionNumber: extraerNumeroJid(participante.id || entrada) || null,
+                        mentionJid: mentionJidParticipante,
+                        mentionNumber: mentionJidParticipante.endsWith('@s.whatsapp.net')
+                            ? extraerNumeroJid(mentionJidParticipante)
+                            : null,
                         username
                     };
                 }
