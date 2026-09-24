@@ -312,6 +312,21 @@ async function resolverContactoJasc13(sock, jid, chatId = null) {
     let numero = entradaNumero;
     const esDiagnosticoJasc13 = entradaNumero === '18056092876876';
 
+    // WhatsApp entrega el Username real como participantUsername en mensajes.
+    // Lo reutilizamos para LIDs que ya fueron vistos por el bot.
+    const usernameCache = sock?.jasc13UsernameCache;
+    if (usernameCache?.get) {
+        const usernameCacheado = usernameCache.get(entrada);
+        if (usernameCacheado) {
+            return {
+                numeroVisible: usernameCacheado.startsWith('@') ? usernameCacheado : '@' + usernameCacheado,
+                mentionJid: entrada,
+                mentionNumber: entrada.endsWith('@lid') ? null : extraerNumeroJid(entrada),
+                username: usernameCacheado
+            };
+        }
+    }
+
     if (esDiagnosticoJasc13) {
         console.log('🔎 JASC13 DIAGNÓSTICO #9 - entrada:', entrada);
         console.log('🔎 JASC13 DIAGNÓSTICO #9 - entradaNumero:', entradaNumero);
@@ -979,7 +994,10 @@ async function comandoRifaJasc13(sock, chatId, msg, args) {
             : `🎉 *¡TENEMOS ${ganadores.length} GANADORES DE LA RIFA EXCLUSIVA!* 🎉\n\n`;
 
         contactosGanadores.forEach((contacto, index) => {
-            mensajeGanador += `🏆 *Ganador ${index + 1}:* @${contacto.mentionNumber || contacto.numeroVisible.replace(/[^0-9]/g, '')} · 📱 ${contacto.numeroVisible} 🎊\n`;
+            const etiquetaGanador = contacto.username
+                ? '@' + contacto.username.replace(/^@/, '')
+                : (contacto.mentionNumber ? '@' + contacto.mentionNumber : contacto.numeroVisible);
+            mensajeGanador += `🏆 *Ganador ${index + 1}:* ${etiquetaGanador} · 📱 ${contacto.numeroVisible} 🎊\n`;
         });
 
         mensajeGanador += '\n❤️ ¡Muchas gracias por apoyar usando el código de creador *JASC13*!\n';
