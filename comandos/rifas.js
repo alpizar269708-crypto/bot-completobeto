@@ -171,13 +171,13 @@ async function comandoRifaInscripcion(sock, chatId, msg) {
 
     const yaInscrito = participantes.find(p => p.id === sender);
     if (yaInscrito) {
-        return await sock.sendMessage(chatId, { text: `❌ Ya estás inscrito en la rifa actual, *${pushName}*. Solo se permite una inscripción por número.` }, { quoted: msg });
+        return await sock.sendMessage(chatId, { text: `❌ Ya estás inscrito en la rifa actual, *${tokenMencionNativa(sender) || pushName}*. Solo se permite una inscripción por número.`, mentions: [sender].filter(Boolean) }, { quoted: msg });
     }
 
     participantes.push({ id: sender, nombre: pushName });
     await guardarParticipantesRifa(chatId, participantes);
 
-    await sock.sendMessage(chatId, { text: `✅ ¡Listo, *${pushName}*! Te has inscrito a la rifa correctamente. (Participante #${participantes.length})` }, { quoted: msg });
+    await sock.sendMessage(chatId, { text: `✅ ¡Listo, *${tokenMencionNativa(sender) || pushName}*! Te has inscrito a la rifa correctamente. (Participante #${participantes.length})`, mentions: [sender].filter(Boolean) }, { quoted: msg });
 }
 
 // === COMANDO EXCLUSIVO PARA ADMINISTRADORES ===
