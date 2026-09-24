@@ -381,7 +381,7 @@ async function comandoRob(sock, chatId, msg, args, usuarioBD) {
         usuarioBD.cartera += robado;
         await objetivoBD.save();
         await usuarioBD.save();
-        await sock.sendMessage(chatId, { text: `🦹 ¡Robo exitoso! Robaste *${robado} monedas* a ${(await resolverContactoWhatsApp(sock, objetivo, chatId)).nombre || (await resolverContactoWhatsApp(sock, objetivo, chatId)).numeroVisible}.` }, { quoted: msg });
+        const contactoObjetivo = await resolverContactoWhatsApp(sock, objetivo, chatId);\n        await sock.sendMessage(chatId, { text: `🦹 ¡Robo exitoso! Robaste *${robado} monedas* a ${tokenMencionNativa(contactoObjetivo.jid) || contactoObjetivo.nombre || contactoObjetivo.numeroVisible}.`, mentions: [contactoObjetivo.jid].filter(Boolean) }, { quoted: msg });
     } else {
         usuarioBD.cartera -= 100;
         await usuarioBD.save();
@@ -434,13 +434,13 @@ async function comandoPelea(sock, chatId, msg, args, usuarioBD) {
         objetivoBD.cartera -= apuesta;
         await objetivoBD.save();
         await usuarioBD.save();
-        await sock.sendMessage(chatId, { text: `⚔️ ¡Duelo épico! Derrotaste a ${(await resolverContactoWhatsApp(sock, objetivo, chatId)).nombre || (await resolverContactoWhatsApp(sock, objetivo, chatId)).numeroVisible} y ganaste *${apuesta * 2} monedas*.` }, { quoted: msg });
+        const contactoObjetivo = await resolverContactoWhatsApp(sock, objetivo, chatId);\n        await sock.sendMessage(chatId, { text: `⚔️ ¡Duelo épico! Derrotaste a ${tokenMencionNativa(contactoObjetivo.jid) || contactoObjetivo.nombre || contactoObjetivo.numeroVisible} y ganaste *${apuesta * 2} monedas*.`, mentions: [contactoObjetivo.jid].filter(Boolean) }, { quoted: msg });
     } else {
         usuarioBD.cartera -= apuesta;
         objetivoBD.cartera += apuesta;
         await objetivoBD.save();
         await usuarioBD.save();
-        await sock.sendMessage(chatId, { text: `⚔️ ¡Duelo épico! ${(await resolverContactoWhatsApp(sock, objetivo, chatId)).nombre || (await resolverContactoWhatsApp(sock, objetivo, chatId)).numeroVisible} te dio una paliza y perdiste *${apuesta} monedas*.` }, { quoted: msg });
+        const contactoObjetivo = await resolverContactoWhatsApp(sock, objetivo, chatId);\n        await sock.sendMessage(chatId, { text: `⚔️ ¡Duelo épico! ${tokenMencionNativa(contactoObjetivo.jid) || contactoObjetivo.nombre || contactoObjetivo.numeroVisible} te dio una paliza y perdiste *${apuesta} monedas*.`, mentions: [contactoObjetivo.jid].filter(Boolean) }, { quoted: msg });
     }
 }
 
@@ -483,7 +483,7 @@ async function comandoHackear(sock, chatId, msg, args, usuarioBD) {
         usuarioBD.banco = (usuarioBD.banco || 0) + botin;
         await objetivoBD.save();
         await usuarioBD.save();
-        await sock.sendMessage(chatId, { text: `💻 ¡Hackeo exitoso! Robaste *${botin} monedas* del banco de ${(await resolverContactoWhatsApp(sock, objetivo, chatId)).nombre || (await resolverContactoWhatsApp(sock, objetivo, chatId)).numeroVisible}.` }, { quoted: msg });
+        const contactoObjetivo = await resolverContactoWhatsApp(sock, objetivo, chatId);\n        await sock.sendMessage(chatId, { text: `💻 ¡Hackeo exitoso! Robaste *${botin} monedas* del banco de ${tokenMencionNativa(contactoObjetivo.jid) || contactoObjetivo.nombre || contactoObjetivo.numeroVisible}.`, mentions: [contactoObjetivo.jid].filter(Boolean) }, { quoted: msg });
     } else {
         await usuarioBD.save();
         await sock.sendMessage(chatId, { text: `🛡️ ¡El cortafuegos del objetivo te detectó! Perdiste tus 300 monedas de inversión.` }, { quoted: msg });
@@ -590,7 +590,7 @@ async function comandoRegalarItem(sock, chatId, msg, args, usuarioBD) {
     await usuarioBD.save();
     await objetivoBD.save();
 
-    await sock.sendMessage(chatId, { text: `🎁 Le regalaste *${itemRemovido.nombre}* a ${(await resolverContactoWhatsApp(sock, objetivo, chatId)).nombre || (await resolverContactoWhatsApp(sock, objetivo, chatId)).numeroVisible}.` }, { quoted: msg });
+    const contactoObjetivo = await resolverContactoWhatsApp(sock, objetivo, chatId);\n    await sock.sendMessage(chatId, { text: `🎁 Le regalaste *${itemRemovido.nombre}* a ${tokenMencionNativa(contactoObjetivo.jid) || contactoObjetivo.nombre || contactoObjetivo.numeroVisible}.`, mentions: [contactoObjetivo.jid].filter(Boolean) }, { quoted: msg });
 }
 
 module.exports = {
