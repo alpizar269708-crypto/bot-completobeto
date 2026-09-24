@@ -230,9 +230,10 @@ async function comandoRifa(sock, chatId, msg, args) {
         if (!isNaN(index) && index >= 0 && index < participantes.length) {
             const eliminado = participantes.splice(index, 1)[0];
             await guardarParticipantesRifa(chatId, participantes);
-            const contactoEliminado = await resolverContactoWhatsApp(sock, eliminado.id, chatId);
-            const etiquetaContacto = tokenMencionNativa(contactoEliminado.jid || eliminado.id) || contactoEliminado.nombre || contactoEliminado.numeroVisible;
-            await sock.sendMessage(chatId, { text: `🗑️ Participante #${index + 1} (${etiquetaContacto}) eliminado.`, mentions: [contactoEliminado.jid || jid].filter(Boolean) }, { quoted: msg });
+            const jid = eliminado.id;
+            const contacto = await resolverContactoWhatsApp(sock, jid, chatId);
+            const etiquetaContacto = tokenMencionNativa(contacto.jid || jid) || contacto.nombre || contacto.numeroVisible;
+            await sock.sendMessage(chatId, { text: `🗑️ Participante #${index + 1} (${etiquetaContacto}) eliminado.`, mentions: [contacto.jid || jid].filter(Boolean) }, { quoted: msg });
         } else {
             await sock.sendMessage(chatId, { text: `❌ Número no válido. Usa "rifa ver" para checar los números.` }, { quoted: msg });
         }
@@ -270,11 +271,11 @@ async function comandoRifa(sock, chatId, msg, args) {
         const ganador = participantes[Math.floor(Math.random() * participantes.length)];
         
         const jid = ganador.id;
-        const contactoGanador = await resolverContactoWhatsApp(sock, jid, chatId);
-        const etiquetaContacto = tokenMencionNativa(contactoGanador.jid || jid) || contactoGanador.nombre || contactoGanador.numeroVisible;
+        const contacto = await resolverContactoWhatsApp(sock, jid, chatId);
+        const etiquetaContacto = tokenMencionNativa(contacto.jid || jid) || contacto.nombre || contacto.numeroVisible;
         await sock.sendMessage(chatId, { 
             text: `🎉 *¡TENEMOS GANADOR!*\n\n🏆 El ganador de la rifa es: ${etiquetaContacto} 🎊`,
-            mentions: [contactoGanador.jid || jid].filter(Boolean)
+            mentions: [contacto.jid || jid].filter(Boolean)
         });
 
         // Finalizar la rifa automáticamente: cerrar inscripciones y limpiar la lista.
@@ -637,15 +638,17 @@ async function comandoRifaJasc13(sock, chatId, msg, args) {
                 '💰 *CASHBACK JASC13*',
                 '',
                 ...await Promise.all(docs.map(async (d, i) => {
-                    const contacto = await resolverContactoWhatsApp(sock, d.numero, chatId);
-                    const etiquetaContacto = tokenMencionNativa(contacto.jid || d.numero) || contacto.nombre || contacto.numeroVisible;
+                    const jid = d.numero;
+                    const contacto = await resolverContactoWhatsApp(sock, jid, chatId);
+                    const etiquetaContacto = tokenMencionNativa(contacto.jid || jid) || contacto.nombre || contacto.numeroVisible;
                     return `${i + 1}. 👤 ${etiquetaContacto} → *${(Number(d.cashback) || 0).toFixed(2)}* Pavos`;
                 }))
             ].join('\n');
 
             const mencionesCashback = await Promise.all(docs.map(async d => {
-                const contacto = await resolverContactoWhatsApp(sock, d.numero, chatId);
-                return contacto.jid || d.numero;
+                const jid = d.numero;
+                const contacto = await resolverContactoWhatsApp(sock, jid, chatId);
+                return contacto.jid || jid;
             }));
 
             return await sock.sendMessage(chatId, {
