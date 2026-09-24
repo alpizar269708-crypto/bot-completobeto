@@ -1,6 +1,6 @@
 require('dotenv').config();
 const { default: makeWASocket, DisconnectReason, Browsers } = require('@whiskeysockets/baileys');
-const { useMongoDBAuthState, resetMongoDBAuthState, forzarNuevaVinculacionUnaVez } = require('./mongoAuth');
+const { useMongoDBAuthState, resetMongoDBAuthState } = require('./mongoAuth');
 const mongoose = require('mongoose');
 const pino = require('pino');
 const { procesarMensaje } = require('./messageHandler');
@@ -22,7 +22,6 @@ let reconexionIntento = 0;
 let sesionRevocada = false;
 
 const RETRASOS_RECONEXION_MS = [3000, 5000, 10000, 20000, 30000, 60000];
-const CLAVE_REINICIO_VINCULACION = 'relink_whatsapp_once_20260924';
 const CLAVE_PANEL_REINICIO = String(process.env.BOT_RESET_KEY || '').trim();
 
 app.get('/', async (req, res) => {
@@ -103,14 +102,6 @@ async function inicializarBase() {
     if (mongoose.connection.readyState === 0) {
         await mongoose.connect(process.env.MONGO_URI);
     }
-    // Reinicio único de autenticación para que el propietario pueda
-    // volver a vincular WhatsApp manualmente. La marca evita que se repita
-    // en los siguientes reinicios y no toca ninguna otra colección.
-    const reiniciado = await forzarNuevaVinculacionUnaVez(CLAVE_REINICIO_VINCULACION);
-    if (reiniciado) {
-        console.log('🧹 Sesión de WhatsApp limpiada por solicitud de nueva vinculación.');
-    }
-
     authState = await useMongoDBAuthState('sesion');
     
     if (authState.state.creds.me) {
