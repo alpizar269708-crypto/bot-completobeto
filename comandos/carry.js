@@ -157,7 +157,7 @@ async function comandoCarry(sock, chatId, msg, comando, args = []) {
                 ...escuadron.miembros.map(m => resolverContactoWhatsApp(sock, m.id))
             ]);
             const todasLasMenciones = contactosSquad.map(c => c.jid).filter(Boolean);
-            let textoLleno = `🚀 *¡ESCUADRÓN LLENO!*\n🎯 *Objetivo:* ${escuadron.motivo}\n\n👑 Líder: @${etiquetaUsuario(contactosSquad[0])} · 📱 ${contactosSquad[0]?.numeroVisible || 'Desconocido'}\n`;
+            let textoLleno = `🚀 *¡ESCUADRÓN LLENO!*\n🎯 *Objetivo:* ${escuadron.motivo}\n\n👑 Líder: ${tokenMencionNativa(contactosSquad[0].jid) || contactosSquad[0].nombre || contactosSquad[0].numeroVisible} · 📱 ${contactosSquad[0]?.numeroVisible || 'Desconocido'}\n`;
             contactosSquad.slice(1).forEach((contacto, i) => {
                 textoLleno += `🎮 P${i+2}: ${tokenMencionNativa(contacto.jid)} · 📱 ${contacto.numeroVisible}\n`;
             });
