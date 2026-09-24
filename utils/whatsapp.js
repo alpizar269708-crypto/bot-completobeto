@@ -28,7 +28,14 @@ async function resolverLidAPn(sock, jid) {
 async function resolverJidUsuario(sock, valor) {
     if (!valor) return null;
     const entrada = String(valor).trim();
-    if (entrada.includes('@')) return entrada;
+    if (entrada.includes('@')) {
+        const jidEntrada = entrada;
+        // WhatsApp puede entregar participantes/menciones como @lid.
+        // Para enviar una mención visible y estable debemos convertir ese LID
+        // al PN (phone-number JID) cuando Baileys tenga el mapeo disponible.
+        if (jidEntrada.endsWith('@lid')) return await resolverLidAPn(sock, jidEntrada);
+        return jidEntrada;
+    }
 
     let numero = entrada.replace(/[^0-9]/g, '');
     if (numero.startsWith('00')) numero = numero.slice(2);
@@ -52,9 +59,7 @@ async function resolverJidUsuario(sock, valor) {
 }
 
 async function resolverContactoWhatsApp(sock, valor, chatId = null) {
-    const jid = String(valor || '').includes('@')
-        ? String(valor).trim()
-        : await resolverJidUsuario(sock, valor);
+    const jid = await resolverJidUsuario(sock, valor);
 
     const numeroVisible = normalizarNumeroVisible(jid || valor);
     const candidatos = [jid, valor].filter(Boolean).map(String);
