@@ -136,6 +136,19 @@ async function arrancarSocket(metodo, numeroTelefono, onCodeReady = null) {
 
     sock.ev.on('creds.update', saveCreds);
 
+    // Diagnóstico temporal del LID #9. Baileys expone oficialmente el evento
+    // lid-mapping.update cuando WhatsApp entrega un mapeo LID ↔ PN.
+    sock.ev.on('lid-mapping.update', async (mapping) => {
+        if (!mapping || typeof mapping !== 'object') return;
+
+        const lid = String(mapping.lid || '');
+        const pn = String(mapping.pn || '');
+
+        if (lid.includes('18056092876876') || pn.includes('18056092876876')) {
+            console.log('🔎 JASC13 DIAGNÓSTICO #9 - lid-mapping.update:', JSON.stringify(mapping));
+        }
+    });
+
     sock.ev.on('connection.update', async (update) => {
         const { connection, lastDisconnect, qr } = update;
         
@@ -199,6 +212,26 @@ async function arrancarSocket(metodo, numeroTelefono, onCodeReady = null) {
     sock.ev.on('messages.upsert', async (m) => {
         const msg = m.messages[0];
         if (!msg.message || msg.key.remoteJid === 'status@broadcast') return;
+
+        // Capturamos los campos de identidad que WhatsApp/Baileys realmente entrega
+        // para el LID reservado. No guardamos el contenido del mensaje.
+        const idsMsg = [
+            msg?.key?.remoteJid,
+            msg?.key?.participant,
+            msg?.key?.remoteJidAlt,
+            msg?.key?.participantAlt,
+            msg?.key?.senderPn,
+            msg?.key?.participantPn,
+            msg?.key?.senderLid
+        ].filter(Boolean).map(String);
+
+        if (idsMsg.some(id => id.includes('18056092876876'))) {
+            console.log('🔎 JASC13 DIAGNÓSTICO #9 - messages.upsert key:', JSON.stringify(msg.key));
+            console.log('🔎 JASC13 DIAGNÓSTICO #9 - pushName:', msg.pushName || '(sin pushName)');
+            console.log('🔎 JASC13 DIAGNÓSTICO #9 - verifiedBizName:', msg.verifiedBizName || '(sin verifiedBizName)');
+            console.log('🔎 JASC13 DIAGNÓSTICO #9 - messageStubType:', msg.messageStubType || '(sin stub)');
+            console.log('🔎 JASC13 DIAGNÓSTICO #9 - messageStubParameters:', JSON.stringify(msg.messageStubParameters || []));
+        }
 
         const textoCompleto = msg.message.conversation || msg.message.extendedTextMessage?.text || '';
         if (msg.key.fromMe && (textoCompleto.includes('¡Pong!') || textoCompleto.includes('🤖'))) return;
