@@ -300,11 +300,13 @@ function normalizarNumeroVisible(numero) {
     return '+' + limpio;
 }
 
-async function resolverMencionNativaJasc13(sock, mentionJid, chatId = null) {
+async function resolverMencionNativaJasc13(sock, mentionJid, chatId = null, fallbackLabel = null) {
     const entrada = String(mentionJid || '').trim();
-    if (!entrada) return { jid: null, token: null, pn: null, lid: null };
+    if (!entrada) return { jid: null, token: null, pn: null, lid: null, label: null };
+
     let pn = entrada.endsWith('@s.whatsapp.net') ? entrada : null;
     let lid = entrada.endsWith('@lid') ? entrada : null;
+
     try {
         const mapping = sock?.signalRepository?.lidMapping;
         if (mapping) {
@@ -320,9 +322,50 @@ async function resolverMencionNativaJasc13(sock, mentionJid, chatId = null) {
     } catch (error) {
         console.error('⚠️ JASC13: no se pudo resolver PN ↔ LID para mención:', error.message);
     }
+
+    // En grupos con direccionamiento LID, WhatsApp puede conservar el LID
+    // como identidad de la mención. No imprimimos los dígitos del LID:
+    // el texto visible usa la etiqueta conocida y mentions lleva el JID real.
     const jid = lid || pn || entrada;
-    const tokenNumero = extraerNumeroJid(jid);
-    return { jid, token: tokenNumero ? '@' + tokenNumero : null, pn, lid };
+
+    let label = null;
+    const candidatos = [jid, entrada, pn, lid].filter(Boolean).map(String);
+
+    const pushCache = sock?.jasc13PushNameCache;
+    if (pushCache?.get) {
+        for (const candidato of candidatos) {
+            const nombre = pushCache.get(candidato);
+            if (nombre) {
+                label = String(nombre).trim();
+                if (label) break;
+            }
+        }
+    }
+
+    if (!label && fallbackLabel) {
+        label = String(fallbackLabel).replace(/^@/, '').trim();
+    }
+
+    if (!label) {
+        try {
+            if (chatId?.endsWith('@g.us') && typeof sock?.groupMetadata === 'function') {
+                const metadata = await sock.groupMetadata(chatId);
+                const participante = (metadata?.participants || []).find(p => {
+                    const ids = [p?.id, p?.lid, p?.phoneNumber].filter(Boolean).map(String);
+                    return ids.includes(jid) || ids.includes(entrada) || ids.includes(pn) || ids.includes(lid);
+                });
+                const notify = participante?.notify || participante?.name || null;
+                if (notify) label = String(notify).trim();
+            }
+        } catch (error) {}
+    }
+
+    const token = label ? '@' + label : (() => {
+        const tokenNumero = extraerNumeroJid(jid);
+        return tokenNumero ? '@' + tokenNumero : null;
+    })();
+
+    return { jid, token, pn, lid, label };
 }
 function extraerNumeroJid(jid) {
     return String(jid || '').split('@')[0].split(':')[0].replace(/[^0-9]/g, '');
@@ -1018,7 +1061,12 @@ async function comandoRifaJasc13(sock, chatId, msg, args) {
 
             // Mención nativa: resolvemos PN ↔ LID y dejamos que WhatsApp
             // determine la etiqueta visible (nombre/notify) del usuario.
-            const resolucionMencion = await resolverMencionNativaJasc13(sock, contacto.mentionJid, chatId);
+            const resolucionMencion = await resolverMencionNativaJasc13(
+                sock,
+                contacto.mentionJid,
+                chatId,
+                contacto.username || null
+            );
             const mentionJidVer = resolucionMencion.jid;
             const etiquetaContacto = resolucionMencion.token || (
                 contacto.username
@@ -1032,7 +1080,7 @@ async function comandoRifaJasc13(sock, chatId, msg, args) {
                 console.log('🔎 JASC13 DIAGNÓSTICO MENCION OUT:', JSON.stringify({
                     id, contactoMentionJid: contacto.mentionJid, contactoMentionNumber: contacto.mentionNumber,
                     contactoUsername: contacto.username, mentionJidFinal: mentionJidVer,
-                    mentionTokenFinal: resolucionMencion.token, pn: resolucionMencion.pn,
+                    mentionTokenFinal: resolucionMencion.token, mentionLabelFinal: resolucionMencion.label, pn: resolucionMencion.pn,
                     lid: resolucionMencion.lid, chatId
                 }));
             }
