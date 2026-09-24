@@ -102,7 +102,8 @@ async function verificarNuevoMiembro(sock, update) {
                     : `Bienvenido/a ${contacto.nombre || contacto.numeroVisible} · 📱 ${contacto.numeroVisible} a la escupidera de Salty, esperamos que seas lo suficientemente rudo para estar aquí.`;
 
                 await sock.sendMessage(chatId, {
-                    text: textoBienvenida, mentions: [jid].filter(Boolean)\n                });
+                    text: textoBienvenida, mentions: [jid].filter(Boolean)
+                });
             } catch (error) {
                 console.log('No se pudo enviar el mensaje de bienvenida.');
             }
