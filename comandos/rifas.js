@@ -853,16 +853,38 @@ async function comandoRifaJasc13(sock, chatId, msg, args) {
             const cashbackDoc = await RifaJasc13Cashback.findOne({ numero: id }).select('cashback').lean();
             const cashback = Number(cashbackDoc?.cashback) || 0;
             const contacto = await resolverContactoJasc13(sock, id, chatId);
-            // Para que WhatsApp convierta la etiqueta en una mención interactiva,
-            // el texto debe contener @identificador y sendMessage debe recibir el JID
-            // correspondiente en "mentions".
-            const numeroMencion = contacto.mentionNumber || extraerNumeroJid(contacto.mentionJid);
-            const etiquetaContacto = contacto.username
-                ? `@${contacto.username.replace(/^@/, '')}`
-                : (numeroMencion ? `@${numeroMencion}` : (contacto.numeroVisible !== '+0' ? contacto.numeroVisible : '+0'));
 
-            if (contacto.mentionJid) {
-                mentions.push(contacto.mentionJid);
+            // Verificación de mención:
+            // 1) Si tenemos PN (@s.whatsapp.net), usamos teléfono porque es la
+            //    forma de mención documentada por Baileys.
+            // 2) Si solo tenemos LID (@lid), intentamos resolver LID -> PN.
+            // 3) Si no existe el PN, conservamos el Username como último recurso,
+            //    pero no inventamos un teléfono usando los dígitos del LID.
+            let mentionJidVer = contacto.mentionJid;
+            let etiquetaContacto;
+
+            if (mentionJidVer?.endsWith('@lid')) {
+                try {
+                    const pn = await resolverLidAPn(sock, mentionJidVer);
+                    if (pn && String(pn).endsWith('@s.whatsapp.net')) {
+                        mentionJidVer = pn;
+                    }
+                } catch (error) {}
+            }
+
+            if (mentionJidVer?.endsWith('@s.whatsapp.net')) {
+                const numeroMencion = extraerNumeroJid(mentionJidVer);
+                etiquetaContacto = numeroMencion ? `@${numeroMencion}` : contacto.numeroVisible;
+            } else if (contacto.username) {
+                // El Username se muestra solo cuando no existe un PN verificable.
+                // Así evitamos pintar como mención un LID que WhatsApp no reconoce.
+                etiquetaContacto = `@${contacto.username.replace(/^@/, '')}`;
+            } else {
+                etiquetaContacto = contacto.numeroVisible !== '+0' ? contacto.numeroVisible : '+0';
+            }
+
+            if (mentionJidVer) {
+                mentions.push(mentionJidVer);
             }
 
             texto += `${i}. ${etiquetaContacto}\n` +
