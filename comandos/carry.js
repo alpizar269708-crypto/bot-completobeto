@@ -37,7 +37,7 @@ async function extraerUsuarioObjetivo(sock, msg, args) {
 
 async function comandoCarry(sock, chatId, msg, comando, args = []) {
     const sender = msg.key.participant || msg.key.remoteJid;
-    const pushName = msg.pushName || 'Jugador';
+    const pushName = tokenMencionNativa(sender) || msg.pushName || 'Jugador';
 
     let escuadron = escuadronesActivos.get(chatId);
 
