@@ -638,8 +638,9 @@ async function comandoBan(sock, numero, msg, args = []) {
     }
 
     await banearYExpulsar(sock, objetivo, motivo);
-    const contacto = await resolverContactoWhatsApp(sock, objetivo, chatJid);
-    const etiquetaContacto = tokenMencionNativa(contacto.jid || objetivo) || contacto.nombre || contacto.numeroVisible;
+    const jid = objetivo;
+    const contacto = await resolverContactoWhatsApp(sock, jid, chatJid);
+    const etiquetaContacto = tokenMencionNativa(contacto.jid || jid) || contacto.nombre || contacto.numeroVisible;
     await sock.sendMessage(chatJid, { text: `🚫 El usuario ${etiquetaContacto} fue agregado a la lista negra.\n📝 Motivo: _${motivo}_`, mentions: [contacto.jid || jid].filter(Boolean) }, { quoted: msg });
 }
 
@@ -657,8 +658,9 @@ async function comandoUnban(sock, numero, msg, args = []) {
     }
 
     await User.findOneAndUpdate({ numero: objetivo }, { baneado: false, warns: [], banMotivo: '' });
-    const contacto = await resolverContactoWhatsApp(sock, objetivo, chatJid);
-    const etiquetaContacto = tokenMencionNativa(contacto.jid || objetivo) || contacto.nombre || contacto.numeroVisible;
+    const jid = objetivo;
+    const contacto = await resolverContactoWhatsApp(sock, jid, chatJid);
+    const etiquetaContacto = tokenMencionNativa(contacto.jid || jid) || contacto.nombre || contacto.numeroVisible;
     await sock.sendMessage(chatJid, { text: `✅ El usuario ${etiquetaContacto} fue removido de la lista negra y se limpiaron sus warns.`, mentions: [contacto.jid || jid].filter(Boolean) }, { quoted: msg });
 }
 
@@ -782,8 +784,9 @@ async function comandoUnmute(sock, chatId, msg, args) {
         return;
     }
     mutesActivos.delete(`${chatId}_${objetivo}`);
-    const contacto = await resolverContactoWhatsApp(sock, objetivo, chatId);
-    const etiquetaContacto = tokenMencionNativa(contacto.jid || objetivo) || contacto.nombre || contacto.numeroVisible;
+    const jid = objetivo;
+    const contacto = await resolverContactoWhatsApp(sock, jid, chatId);
+    const etiquetaContacto = tokenMencionNativa(contacto.jid || jid) || contacto.nombre || contacto.numeroVisible;
     await sock.sendMessage(chatId, {
         text: `🔊 ${etiquetaContacto} fue desmuteado con éxito.`,
         mentions: [contacto.jid || jid].filter(Boolean)
