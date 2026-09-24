@@ -706,11 +706,11 @@ async function comandoRifaJasc13(sock, chatId, msg, args) {
         await cashbackDoc.save();
 
         const jid = targetId;
-        const contactoCanje = await resolverContactoWhatsApp(sock, jid, chatId);
-        const etiquetaContacto = tokenMencionNativa(contactoCanje.jid || jid) || contactoCanje.nombre || contactoCanje.numeroVisible;
+        const contacto = await resolverContactoWhatsApp(sock, jid, chatId);
+        const etiquetaContacto = tokenMencionNativa(contacto.jid || jid) || contacto.nombre || contacto.numeroVisible;
         return await sock.sendMessage(chatId, {
             text: `💸 *CASHBACK CANJEADO*\n\n👤 Usuario: ${etiquetaContacto}\n📱 Teléfono: *${contactoCanje.numeroVisible}*\n➖ Utilizado: *${cantidadCashback.toFixed(2)}* Pavos\n💰 Restante: *${Number(cashbackDoc.cashback).toFixed(2)}* Pavos`,
-            mentions: [contactoCanje.jid || jid].filter(Boolean)
+            mentions: [contacto.jid || jid].filter(Boolean)
         }, { quoted: msg });
     }
 
