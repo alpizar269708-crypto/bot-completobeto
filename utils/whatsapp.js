@@ -136,9 +136,10 @@ function tokenMencionNativa(jid) {
 function etiquetaContactoWhatsApp(contacto, jidFallback = null) {
     const jid = contacto?.jid || jidFallback;
     const numero = extraerNumeroJid(jid);
-    if (String(jid || '').endsWith('@s.whatsapp.net') && numero) return '@' + numero;
+    const nombre = String(contacto?.username || contacto?.nombre || '').replace(/^@/, '').trim();
+    const permitirNumero = !(numero.length > 12 && contacto?.numeroVerificado === false);
 
-    const nombre = String(contacto?.nombre || contacto?.username || '').replace(/^@/, '').trim();
+    if (permitirNumero && String(jid || '').endsWith('@s.whatsapp.net') && numero) return '@' + numero;
     return nombre ? '@' + nombre : (numero ? '@' + numero : 'Usuario');
 }
 
