@@ -165,7 +165,7 @@ async function comandoRifaInscripcion(sock, chatId, msg) {
     if (!(await rifaEstaAbierta(chatId))) return;
 
     const sender = msg.key.participant || msg.key.remoteJid;
-    const pushName = msg.pushName || 'Usuario';
+    const pushName = tokenMencionNativa(sender) || msg.pushName || 'Usuario';
 
     const participantes = await cargarParticipantesRifa(chatId);
 
