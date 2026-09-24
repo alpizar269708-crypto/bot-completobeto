@@ -853,9 +853,18 @@ async function comandoRifaJasc13(sock, chatId, msg, args) {
             const cashbackDoc = await RifaJasc13Cashback.findOne({ numero: id }).select('cashback').lean();
             const cashback = Number(cashbackDoc?.cashback) || 0;
             const contacto = await resolverContactoJasc13(sock, id, chatId);
+            // Para que WhatsApp convierta la etiqueta en una mención interactiva,
+            // el texto debe contener @identificador y sendMessage debe recibir el JID
+            // correspondiente en "mentions".
+            const numeroMencion = contacto.mentionNumber || extraerNumeroJid(contacto.mentionJid);
             const etiquetaContacto = contacto.username
                 ? `@${contacto.username.replace(/^@/, '')}`
-                : (contacto.numeroVisible !== '+0' ? contacto.numeroVisible : '+0');
+                : (numeroMencion ? `@${numeroMencion}` : (contacto.numeroVisible !== '+0' ? contacto.numeroVisible : '+0'));
+
+            if (contacto.mentionJid) {
+                mentions.push(contacto.mentionJid);
+            }
+
             texto += `${i}. ${etiquetaContacto}\n` +
                 `Puntos: *${puntosTotales}*\n` +
                 `Boletos: *${boletos}* (Faltan ${faltantes} pts)\n` +
