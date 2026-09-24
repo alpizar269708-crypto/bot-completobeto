@@ -870,6 +870,17 @@ async function comandoRifaJasc13(sock, chatId, msg, args) {
                         mentionJidVer = pn;
                     }
                 } catch (error) {}
+
+                // Segunda oportunidad: si la identidad persistente ya guardó
+                // un teléfono distinto de los dígitos del LID, usamos ese PN.
+                const lidNumero = extraerNumeroJid(mentionJidVer);
+                if (
+                    mentionJidVer.endsWith('@lid') &&
+                    contacto.mentionNumber &&
+                    contacto.mentionNumber !== lidNumero
+                ) {
+                    mentionJidVer = `${contacto.mentionNumber}@s.whatsapp.net`;
+                }
             }
 
             if (mentionJidVer?.endsWith('@s.whatsapp.net')) {
