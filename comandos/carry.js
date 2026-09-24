@@ -37,9 +37,10 @@ async function extraerUsuarioObjetivo(sock, msg, args) {
 
 async function comandoCarry(sock, chatId, msg, comando, args = []) {
     const sender = msg.key.participant || msg.key.remoteJid;
-    const contactoSender = await resolverContactoWhatsApp(sock, sender, chatId);
-    const etiquetaContacto = tokenMencionNativa(contactoSender.jid || sender) || contactoSender.nombre || contactoSender.numeroVisible;
-    const jidSender = contactoSender.jid || sender;
+    const jid = sender;
+    const contactoSender = await resolverContactoWhatsApp(sock, jid, chatId);
+    const etiquetaContacto = tokenMencionNativa(contactoSender.jid || jid) || contactoSender.nombre || contactoSender.numeroVisible;
+    const jidSender = contactoSender.jid || jid;
 
     let escuadron = escuadronesActivos.get(chatId);
 
@@ -59,8 +60,9 @@ async function comandoCarry(sock, chatId, msg, comando, args = []) {
             let txt = `🚫 *LISTA NEGRA DE CARRY*\n\n`;
             const mencionesListaNegra = [];
             for (const [idx, id] of listaNegra.entries()) {
-                const contacto = await resolverContactoWhatsApp(sock, id, chatId);
-                const etiquetaContacto = tokenMencionNativa(contacto.jid || id) || contacto.nombre || contacto.numeroVisible;
+                const jid = id;
+                const contacto = await resolverContactoWhatsApp(sock, jid, chatId);
+                const etiquetaContacto = tokenMencionNativa(contacto.jid || jid) || contacto.nombre || contacto.numeroVisible;
                 txt += `${idx + 1}. ${etiquetaContacto} · 📱 ${contacto.numeroVisible}\n`;
                 if (contacto.jid || id) mencionesListaNegra.push(contacto.jid || id);
             }
@@ -74,28 +76,32 @@ async function comandoCarry(sock, chatId, msg, comando, args = []) {
 
         if (comando === 'blcarry') {
             if (listaNegra.includes(objetivo)) {
-                const contacto = await resolverContactoWhatsApp(sock, objetivo, chatId);
-                const etiquetaContacto = tokenMencionNativa(contacto.jid || objetivo) || contacto.nombre || contacto.numeroVisible;
+                const jid = objetivo;
+                const contacto = await resolverContactoWhatsApp(sock, jid, chatId);
+                const etiquetaContacto = tokenMencionNativa(contacto.jid || jid) || contacto.nombre || contacto.numeroVisible;
                 return await sock.sendMessage(chatId, { text: `⚠️ El usuario ${etiquetaContacto} · 📱 ${contacto.numeroVisible} ya está en la lista negra de carry.`, mentions: [contacto.jid || objetivo].filter(Boolean) }, { quoted: msg });
             }
             listaNegra.push(objetivo);
             await Config.findOneAndUpdate({ clave: `carry_bl_${chatId}` }, { valor: JSON.stringify(listaNegra) }, { upsert: true });
-            const contacto = await resolverContactoWhatsApp(sock, objetivo, chatId);
-            const etiquetaContacto = tokenMencionNativa(contacto.jid || objetivo) || contacto.nombre || contacto.numeroVisible;
+            const jid = objetivo;
+            const contacto = await resolverContactoWhatsApp(sock, jid, chatId);
+            const etiquetaContacto = tokenMencionNativa(contacto.jid || jid) || contacto.nombre || contacto.numeroVisible;
             return await sock.sendMessage(chatId, { text: `🚫 El usuario ${etiquetaContacto} · 📱 ${contacto.numeroVisible} ha sido agregado a la lista negra de carry.`, mentions: [contacto.jid || objetivo].filter(Boolean) }, { quoted: msg });
         }
 
         if (comando === 'unblcarry') {
             let index = listaNegra.indexOf(objetivo);
             if (index === -1) {
-                const contacto = await resolverContactoWhatsApp(sock, objetivo, chatId);
-                const etiquetaContacto = tokenMencionNativa(contacto.jid || objetivo) || contacto.nombre || contacto.numeroVisible;
+                const jid = objetivo;
+                const contacto = await resolverContactoWhatsApp(sock, jid, chatId);
+                const etiquetaContacto = tokenMencionNativa(contacto.jid || jid) || contacto.nombre || contacto.numeroVisible;
                 return await sock.sendMessage(chatId, { text: `⚠️ El usuario ${etiquetaContacto} · 📱 ${contacto.numeroVisible} no estaba en la lista negra.`, mentions: [contacto.jid || objetivo].filter(Boolean) }, { quoted: msg });
             }
             listaNegra.splice(index, 1);
             await Config.findOneAndUpdate({ clave: `carry_bl_${chatId}` }, { valor: JSON.stringify(listaNegra) }, { upsert: true });
-            const contacto = await resolverContactoWhatsApp(sock, objetivo, chatId);
-            const etiquetaContacto = tokenMencionNativa(contacto.jid || objetivo) || contacto.nombre || contacto.numeroVisible;
+            const jid = objetivo;
+            const contacto = await resolverContactoWhatsApp(sock, jid, chatId);
+            const etiquetaContacto = tokenMencionNativa(contacto.jid || jid) || contacto.nombre || contacto.numeroVisible;
             return await sock.sendMessage(chatId, { text: `✅ El usuario ${etiquetaContacto} · 📱 ${contacto.numeroVisible} fue removido de la lista negra de carry.`, mentions: [contacto.jid || objetivo].filter(Boolean) }, { quoted: msg });
         }
         return;
@@ -119,8 +125,9 @@ async function comandoCarry(sock, chatId, msg, comando, args = []) {
 
     if (comando === 'carryleader') {
         if (escuadron) {
-            const contactoLider = await resolverContactoWhatsApp(sock, escuadron.liderId, chatId);
-            const etiquetaLider = tokenMencionNativa(contactoLider.jid || escuadron.liderId) || contactoLider.nombre || contactoLider.numeroVisible;
+            const jid = escuadron.liderId;
+            const contactoLider = await resolverContactoWhatsApp(sock, jid, chatId);
+            const etiquetaLider = tokenMencionNativa(contactoLider.jid || jid) || contactoLider.nombre || contactoLider.numeroVisible;
             return await sock.sendMessage(chatId, { text: `❌ Ya hay un escuadrón activo liderado por ${etiquetaLider}. Usa *carryclose* para cerrarlo primero.`, mentions: [contactoLider.jid || escuadron.liderId].filter(Boolean) }, { quoted: msg });
         }
         
@@ -170,11 +177,12 @@ async function comandoCarry(sock, chatId, msg, comando, args = []) {
                 ...escuadron.miembros.map(m => resolverContactoWhatsApp(sock, m.id, chatId))
             ]);
             const todasLasMenciones = contactosSquad.map((c, i) => c.jid || (i === 0 ? escuadron.liderId : escuadron.miembros[i - 1]?.id)).filter(Boolean);
-            const etiquetaLider = tokenMencionNativa(contactosSquad[0].jid || escuadron.liderId) || contactosSquad[0].nombre || contactosSquad[0].numeroVisible;
+            const jid = escuadron.liderId;
+            const etiquetaLider = tokenMencionNativa(contactosSquad[0].jid || jid) || contactosSquad[0].nombre || contactosSquad[0].numeroVisible;
             let textoLleno = `🚀 *¡ESCUADRÓN LLENO!*\n🎯 *Objetivo:* ${escuadron.motivo}\n\n👑 Líder: ${etiquetaLider} · 📱 ${contactosSquad[0]?.numeroVisible || 'Desconocido'}\n`;
             contactosSquad.slice(1).forEach((contacto, i) => {
-                const idMiembro = escuadron.miembros[i]?.id;
-                const etiquetaContacto = tokenMencionNativa(contacto.jid || idMiembro) || contacto.nombre || contacto.numeroVisible;
+                const jid = escuadron.miembros[i]?.id;
+                const etiquetaContacto = tokenMencionNativa(contacto.jid || jid) || contacto.nombre || contacto.numeroVisible;
                 textoLleno += `🎮 P${i+2}: ${etiquetaContacto} · 📱 ${contacto.numeroVisible}\n`;
             });
             textoLleno += `\n¡Listos para darle!`;
