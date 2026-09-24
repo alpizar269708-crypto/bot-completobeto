@@ -78,7 +78,7 @@ async function comandoCartera(sock, chatId, msg, usuarioBD) {
                 `🏦 En banco: *${banco} monedas*\n` +
                 `💎 Total neto: *${total} monedas*`;
 
-    await sock.sendMessage(chatId, { text: texto, mentions: contacto.jid ? [contacto.jid] : [] }, { quoted: msg });
+    await sock.sendMessage(chatId, { text: texto, mentions: [contacto.jid || jid].filter(Boolean) }, { quoted: msg });
 }
 
 async function comandoBanco(sock, chatId, msg, args, usuarioBD) {
@@ -150,7 +150,7 @@ async function comandoPay(sock, chatId, msg, args, usuarioBD) {
     const etiquetaContacto = tokenMencionNativa(contactoObjetivo.jid || jid) || contactoObjetivo.nombre || contactoObjetivo.numeroVisible;
     await sock.sendMessage(chatId, {
         text: `✅ Has transferido exitosamente *${cantidad} monedas* a ${contactoObjetivo.nombre || contactoObjetivo.numeroVisible} (📱 ${contactoObjetivo.numeroVisible}).`,
-        mentions: contactoObjetivo.jid ? [contactoObjetivo.jid] : []
+        mentions: [contactoObjetivo.jid || jid].filter(Boolean)
     }, { quoted: msg });
 }
 
@@ -171,7 +171,7 @@ async function comandoTop(sock, chatId, msg) {
         const contacto = await resolverContactoWhatsApp(sock, jid, chatId);
         const etiquetaContacto = tokenMencionNativa(contacto.jid || jid) || contacto.nombre || contacto.numeroVisible;
         texto += `*${index + 1}.* ${etiquetaContacto} · 📱 ${contacto.numeroVisible} — 💎 *${total}* mon.\n`;
-        if (contacto.jid || numero) mentions.push(contacto.jid || numero);
+        if (contacto.jid || numero) mentions.push(contacto.jid || jid);
     }
 
     await sock.sendMessage(chatId, { text: texto, mentions }, { quoted: msg });
@@ -398,7 +398,7 @@ async function comandoRob(sock, chatId, msg, args, usuarioBD) {
         const etiquetaContacto = tokenMencionNativa(contactoObjetivo.jid || jid) || contactoObjetivo.nombre || contactoObjetivo.numeroVisible;
         await sock.sendMessage(chatId, {
             text: `🦹 ¡Robo exitoso! Robaste *${robado} monedas* a ${contactoObjetivo.nombre || contactoObjetivo.numeroVisible}.`,
-            mentions: contactoObjetivo.jid ? [contactoObjetivo.jid] : []
+            mentions: [contactoObjetivo.jid || jid].filter(Boolean)
         }, { quoted: msg });
     } else {
         usuarioBD.cartera -= 100;
@@ -457,7 +457,7 @@ async function comandoPelea(sock, chatId, msg, args, usuarioBD) {
         const etiquetaContacto = tokenMencionNativa(contactoObjetivo.jid || jid) || contactoObjetivo.nombre || contactoObjetivo.numeroVisible;
         await sock.sendMessage(chatId, {
             text: `⚔️ ¡Duelo épico! Derrotaste a ${etiquetaContacto} y ganaste *${apuesta * 2} monedas*.`,
-            mentions: contactoObjetivo.jid ? [contactoObjetivo.jid] : []
+            mentions: [contactoObjetivo.jid || jid].filter(Boolean)
         }, { quoted: msg });
     } else {
         usuarioBD.cartera -= apuesta;
@@ -469,7 +469,7 @@ async function comandoPelea(sock, chatId, msg, args, usuarioBD) {
         const etiquetaContacto = tokenMencionNativa(contactoObjetivo.jid || jid) || contactoObjetivo.nombre || contactoObjetivo.numeroVisible;
         await sock.sendMessage(chatId, {
             text: `⚔️ ¡Duelo épico! ${etiquetaContacto} te dio una paliza y perdiste *${apuesta} monedas*.`,
-            mentions: contactoObjetivo.jid ? [contactoObjetivo.jid] : []
+            mentions: [contactoObjetivo.jid || jid].filter(Boolean)
         }, { quoted: msg });
     }
 }
@@ -518,7 +518,7 @@ async function comandoHackear(sock, chatId, msg, args, usuarioBD) {
         const etiquetaContacto = tokenMencionNativa(contactoObjetivo.jid || jid) || contactoObjetivo.nombre || contactoObjetivo.numeroVisible;
         await sock.sendMessage(chatId, {
             text: `💻 ¡Hackeo exitoso! Robaste *${botin} monedas* del banco de ${etiquetaContacto}.`,
-            mentions: contactoObjetivo.jid ? [contactoObjetivo.jid] : []
+            mentions: [contactoObjetivo.jid || jid].filter(Boolean)
         }, { quoted: msg });
     } else {
         await usuarioBD.save();
@@ -631,7 +631,7 @@ async function comandoRegalarItem(sock, chatId, msg, args, usuarioBD) {
     const etiquetaContacto = tokenMencionNativa(contactoObjetivo.jid || jid) || contactoObjetivo.nombre || contactoObjetivo.numeroVisible;
     await sock.sendMessage(chatId, {
         text: `🎁 Le regalaste *${itemRemovido.nombre}* a ${contactoObjetivo.nombre || contactoObjetivo.numeroVisible}.`,
-        mentions: contactoObjetivo.jid ? [contactoObjetivo.jid] : []
+        mentions: [contactoObjetivo.jid || jid].filter(Boolean)
     }, { quoted: msg });
 }
 
