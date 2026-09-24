@@ -1,6 +1,6 @@
 const { esProgramadorBot } = require('./programadorbot');
 const { User, Config } = require('../database/modelos');
-const { resolverContactoWhatsApp, resolverJidUsuario, normalizarNumeroVisible, etiquetaUsuario } = require('../utils/whatsapp');
+const { resolverContactoWhatsApp, resolverJidUsuario, normalizarNumeroVisible, tokenMencionNativa } = require('../utils/whatsapp');
 
 // Memoria temporal para los mutes activos
 const mutesActivos = new Map();
@@ -90,8 +90,7 @@ async function verificarNuevoMiembro(sock, update) {
             try {
                 await sock.groupParticipantsUpdate(chatId, [jid], 'remove');
                 await sock.sendMessage(chatId, {
-                    text: `🚨 @${etiquetaUsuario(contacto)} · 📱 ${contacto.numeroVisible} está en la lista negra (Motivo: ${usuarioBD.banMotivo}) y no puede permanecer en este grupo. Expulsado automáticamente.`,
-                    mentions: [jid]
+                    text: `🚨 ${contacto.nombre || contacto.numeroVisible} · 📱 ${contacto.numeroVisible} está en la lista negra (Motivo: ${usuarioBD.banMotivo}) y no puede permanecer en este grupo. Expulsado automáticamente.`
                 });
             } catch (error) {
                 console.log('No se pudo expulsar al usuario renegado.');
@@ -99,12 +98,11 @@ async function verificarNuevoMiembro(sock, update) {
         } else if (!bienvenidaDesactivada || bienvenidaDesactivada.valor !== 'true') {
             try {
                 const textoBienvenida = bienvenidaPersonalizada?.valor
-                    ? bienvenidaPersonalizada.valor.replace(/\\{usuario\\}/gi, `@${etiquetaUsuario(contacto)}`)
+                    ? bienvenidaPersonalizada.valor.replace(/\\{usuario\\}/gi, contacto.nombre || contacto.numeroVisible)
                     : `Bienvenido/a @${etiquetaUsuario(contacto)} · 📱 ${contacto.numeroVisible} a la escupidera de Salty, esperamos que seas lo suficientemente rudo para estar aquí.`;
 
                 await sock.sendMessage(chatId, {
-                    text: textoBienvenida,
-                    mentions: [jid]
+                    text: textoBienvenida
                 });
             } catch (error) {
                 console.log('No se pudo enviar el mensaje de bienvenida.');
@@ -665,8 +663,8 @@ async function comandoListaNegra(sock, numero, msg) {
     for (const [index, b] of baneados.entries()) {
         const contacto = await resolverContactoWhatsApp(sock, b.numero, chatJid);
         const motivo = b.banMotivo || 'Sin motivo especificado';
-        texto += `*${index + 1}.* @${etiquetaUsuario(contacto)}\n   📝 Motivo: _${motivo}_\n\n`;
-        mentions.push(b.numero);
+        texto += `*${index + 1}.* ${tokenMencionNativa(contacto.jid)}\n   📝 Motivo: _${motivo}_\n\n`;
+        mentions.push(contacto.jid);
     }
 
     texto += `💡 Usa *unbanlist [número]* para desbanear por índice (Ej: unbanlist 2)`;
@@ -708,7 +706,7 @@ async function comandoUnbanList(sock, numero, msg, args = []) {
     
     // CORREGIDO: Se cambió 'chatId' por 'chatJid'
     await sock.sendMessage(chatJid, { 
-        text: `✅ El usuario @${etiquetaUsuario(contacto)} (posición #${numeroIndice}) fue removido de la lista negra y sus advertencias se reiniciaron.`, 
+        text: `✅ El usuario ${contacto.nombre || contacto.numeroVisible} (posición #${numeroIndice}) fue removido de la lista negra y sus advertencias se reiniciaron.`, 
         mentions: [usuarioObjetivo.numero] 
     }, { quoted: msg });
 }
