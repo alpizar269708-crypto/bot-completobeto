@@ -564,6 +564,13 @@ async function resolverContactoJasc13(sock, jid, chatId = null) {
         }
     }
 
+    // Si WhatsApp no expone Username, reutilizamos el pushName capturado
+    // en messages.upsert para mostrar el nombre del usuario en los mensajes.
+    if (!username && sock?.jasc13PushNameCache?.get) {
+        const nombreCacheado = sock.jasc13PushNameCache.get(entrada) || sock.jasc13PushNameCache.get(mentionJid);
+        if (nombreCacheado) username = String(nombreCacheado).trim();
+    }
+
     // Algunos usuarios con Username reservado llegan a la aplicación con un
     // identificador numérico que parece teléfono, aunque no lo sea. Si el
     // identificador no es un PN válido, intentamos resolverlo mediante la
@@ -1230,7 +1237,7 @@ async function comandoRifaJasc13(sock, chatId, msg, args) {
         const cashbackDoc = await RifaJasc13Cashback.findOne({ numero: targetId }).select('cashback').lean();
         const cashbackTotal = Number(cashbackDoc?.cashback) || 0;
         const contacto = await resolverContactoJasc13(sock, targetId);
-        const respuesta = `✅ *PaVos registrados exitosamente*\n👤 Usuario: @${contacto.mentionNumber || targetId.split('@')[0]}\n📱 Teléfono: *${contacto.numeroVisible}*\n➕ PaVos registrados: *+${pavosAgregados}*\n🎟️ Boletos agregados: *+${boletosGanados}*\n🎟️ Boletos actuales: *${datosUsuario.boletos}*\n📌 Puntos sobrantes guardados: *${datosUsuario.puntos}*\n📍 Faltan para otro boleto: *${faltantes} pts*\n💰 Cashback ganado: *+${cashbackGanado.toFixed(2)}* Pavos\n💰 Cashback acumulado: *${cashbackTotal.toFixed(2)}* Pavos`;
+        const respuesta = `✅ *PaVos registrados exitosamente*\n👤 Usuario: @${contacto.username ? contacto.username.replace(/^@/, '') : 'Usuario'}\n📱 Teléfono: *${contacto.numeroVisible}*\n➕ PaVos registrados: *+${pavosAgregados}*\n🎟️ Boletos agregados: *+${boletosGanados}*\n🎟️ Boletos actuales: *${datosUsuario.boletos}*\n📌 Puntos sobrantes guardados: *${datosUsuario.puntos}*\n📍 Faltan para otro boleto: *${faltantes} pts*\n💰 Cashback ganado: *+${cashbackGanado.toFixed(2)}* Pavos\n💰 Cashback acumulado: *${cashbackTotal.toFixed(2)}* Pavos`;
         return await sock.sendMessage(chatId, { text: respuesta, mentions: contacto.mentionJid ? [contacto.mentionJid] : [] });
     }
 
@@ -1302,7 +1309,7 @@ async function comandoRifaJasc13(sock, chatId, msg, args) {
 
             const contacto = await resolverContactoJasc13(sock, targetId);
             return await sock.sendMessage(chatId, {
-                text: `💰 *CASHBACK DISPONIBLE*\n\n👤 Usuario: @${contacto.mentionNumber || targetId.split('@')[0]}\n📱 Teléfono: *${contacto.numeroVisible}*\n💳 Cashback actual: *${disponible.toFixed(2)}* Pavos`,
+                text: `💰 *CASHBACK DISPONIBLE*\n\n👤 Usuario: @${contacto.username ? contacto.username.replace(/^@/, '') : 'Usuario'}\n📱 Teléfono: *${contacto.numeroVisible}*\n💳 Cashback actual: *${disponible.toFixed(2)}* Pavos`,
                 mentions: contacto.mentionJid ? [contacto.mentionJid] : []
             }, { quoted: msg });
         }
@@ -1328,7 +1335,7 @@ async function comandoRifaJasc13(sock, chatId, msg, args) {
 
         const contactoCanje = await resolverContactoJasc13(sock, targetId);
         return await sock.sendMessage(chatId, {
-            text: `💸 *CASHBACK CANJEADO*\n\n👤 Usuario: @${contactoCanje.mentionNumber || targetId.split('@')[0]}\n📱 Teléfono: *${contactoCanje.numeroVisible}*\n➖ Utilizado: *${cantidadCashback.toFixed(2)}* Pavos\n💰 Restante: *${Number(cashbackDoc.cashback).toFixed(2)}* Pavos`,
+            text: `💸 *CASHBACK CANJEADO*\n\n👤 Usuario: @${contactoCanje.username ? contactoCanje.username.replace(/^@/, '') : 'Usuario'}\n📱 Teléfono: *${contactoCanje.numeroVisible}*\n➖ Utilizado: *${cantidadCashback.toFixed(2)}* Pavos\n💰 Restante: *${Number(cashbackDoc.cashback).toFixed(2)}* Pavos`,
             mentions: contactoCanje.mentionJid ? [contactoCanje.mentionJid] : []
         }, { quoted: msg });
     }
