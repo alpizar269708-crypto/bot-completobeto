@@ -59,7 +59,11 @@ async function resolverJidUsuario(sock, valor) {
 }
 
 async function resolverContactoWhatsApp(sock, valor, chatId = null) {
-    const mentionJid = await resolverJidUsuario(sock, valor);
+    // Si WhatsApp ya nos entregó un JID (especialmente @lid), NO lo sustituimos
+    // por el PN/teléfono. Ese JID original es el que debe viajar en mentions[]
+    // para que WhatsApp haga una mención nativa y muestre el nombre del contacto.
+    const valorEsJid = String(valor || '').includes('@');
+    const mentionJid = valorEsJid ? String(valor).trim() : await resolverJidUsuario(sock, valor);
     const numeroVisible = normalizarNumeroVisible(mentionJid || valor);
     const mentionNumber = extraerNumeroJid(mentionJid);
 
