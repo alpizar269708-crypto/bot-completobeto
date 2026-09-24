@@ -1139,14 +1139,17 @@ async function comandoRifaJasc13(sock, chatId, msg, args) {
             }
         }
 
-        for (const data of participantes.values()) data.boletos = 0;
-        for (const [id, data] of participantes.entries()) {
-            if ((Number(data.puntos) || 0) === 0) participantes.delete(id);
+        // Al ejecutar el sorteo se consumen los boletos y también se borran
+        // todos los PaVos sobrantes que no alcanzaron a convertirse en boleto.
+        // El Cashback NO se toca: permanece acumulado en MongoDB.
+        for (const data of participantes.values()) {
+            data.boletos = 0;
+            data.puntos = 0;
         }
         await guardarParticipantesJasc13(participantes);
 
         await sock.sendMessage(chatId, {
-            text: '🔄 *Rifa JASC13 reiniciada.* Se consumieron solamente los boletos de esta edición; los puntos sobrantes y el Cashback se conservaron para la siguiente.'
+            text: '🔄 *Rifa JASC13 reiniciada.* Se consumieron los boletos y se borraron los puntos sobrantes de esta edición; el Cashback se conservó intacto para la siguiente.'
         });
     }
 }
