@@ -90,7 +90,7 @@ async function verificarNuevoMiembro(sock, update) {
             try {
                 await sock.groupParticipantsUpdate(chatId, [jid], 'remove');
                 await sock.sendMessage(chatId, {
-                    text: `🚨 @${contacto.mentionNumber || jid.split('@')[0]} · 📱 ${contacto.numeroVisible} está en la lista negra (Motivo: ${usuarioBD.banMotivo}) y no puede permanecer en este grupo. Expulsado automáticamente.`,
+                    text: `🚨 @${etiquetaUsuario(contacto)} · 📱 ${contacto.numeroVisible} está en la lista negra (Motivo: ${usuarioBD.banMotivo}) y no puede permanecer en este grupo. Expulsado automáticamente.`,
                     mentions: [jid]
                 });
             } catch (error) {
@@ -99,7 +99,7 @@ async function verificarNuevoMiembro(sock, update) {
         } else if (!bienvenidaDesactivada || bienvenidaDesactivada.valor !== 'true') {
             try {
                 const textoBienvenida = bienvenidaPersonalizada?.valor
-                    ? bienvenidaPersonalizada.valor.replace(/\\{usuario\\}/gi, `@${contacto.mentionNumber || jid.split('@')[0]}`)
+                    ? bienvenidaPersonalizada.valor.replace(/\\{usuario\\}/gi, `@${etiquetaUsuario(contacto)}`)
                     : `Bienvenido/a @${etiquetaUsuario(contacto)} · 📱 ${contacto.numeroVisible} a la escupidera de Salty, esperamos que seas lo suficientemente rudo para estar aquí.`;
 
                 await sock.sendMessage(chatId, {
