@@ -83,8 +83,8 @@ async function verificarNuevoMiembro(sock, update) {
         const jidOriginal = typeof participante === 'string' ? participante : (participante.id || participante.phoneNumber);
         if (!jidOriginal) continue;
         const contacto = await resolverContactoWhatsApp(sock, jidOriginal, chatId);
-        const etiquetaContacto = tokenMencionNativa(contacto.jid || jid) || contacto.nombre || contacto.numeroVisible;
         const jid = contacto.jid || jidOriginal;
+        const etiquetaContacto = tokenMencionNativa(jid) || contacto.nombre || contacto.numeroVisible;
 
         let usuarioBD = await User.findOne({ numero: jid });
         if (usuarioBD && usuarioBD.baneado) {
