@@ -487,8 +487,9 @@ async function verificarAntiSpam(sock, msg) {
         usuarioBD.markModified('warns');
         const totalWarns = usuarioBD.warns.length;
 
-        const contacto = await resolverContactoWhatsApp(sock, remitente, chatJid);
-        const etiquetaContacto = tokenMencionNativa(contacto.jid || remitente) || contacto.nombre || contacto.numeroVisible;
+        const jid = remitente;
+        const contacto = await resolverContactoWhatsApp(sock, jid, chatJid);
+        const etiquetaContacto = tokenMencionNativa(contacto.jid || jid) || contacto.nombre || contacto.numeroVisible;
         let mensajeAviso = `⚠️ ${etiquetaContacto} estás enviando mensajes demasiado rápido (Spam).\n` +
                            `📌 *Advertencias:* ${totalWarns}/3`;
 
@@ -590,8 +591,9 @@ async function comandoLimpiarWarns(sock, numero, msg, args = []) {
 async function comandoVerWarns(sock, numero, msg, args = []) {
     const chatJid = msg.key.remoteJid;
     const objetivo = await obtenerObjetivo(sock, msg, args) || msg.key.participant || chatJid;
-    const contacto = await resolverContactoWhatsApp(sock, objetivo, chatJid);
-    const etiquetaContacto = tokenMencionNativa(contacto.jid || objetivo) || contacto.nombre || contacto.numeroVisible;
+    const jid = objetivo;
+    const contacto = await resolverContactoWhatsApp(sock, jid, chatJid);
+    const etiquetaContacto = tokenMencionNativa(contacto.jid || jid) || contacto.nombre || contacto.numeroVisible;
 
     let usuarioBD = await User.findOne({ numero: objetivo });
     if (!usuarioBD || !Array.isArray(usuarioBD.warns) || usuarioBD.warns.length === 0) {
@@ -763,8 +765,9 @@ async function comandoMute(sock, chatId, msg, args) {
     const tiempoMinutos = parseInt(args[1]) || 30;
     const expira = Date.now() + (tiempoMinutos * 60 * 1000);
     mutesActivos.set(`${chatId}_${objetivo}`, expira);
-    const contacto = await resolverContactoWhatsApp(sock, objetivo, chatId);
-    const etiquetaContacto = tokenMencionNativa(contacto.jid || objetivo) || contacto.nombre || contacto.numeroVisible;
+    const jid = objetivo;
+    const contacto = await resolverContactoWhatsApp(sock, jid, chatId);
+    const etiquetaContacto = tokenMencionNativa(contacto.jid || jid) || contacto.nombre || contacto.numeroVisible;
     await sock.sendMessage(chatId, {
         text: `🔇 ${etiquetaContacto} fue muteado durante ${tiempoMinutos} minutos.`,
         mentions: [contacto.jid || jid].filter(Boolean)
