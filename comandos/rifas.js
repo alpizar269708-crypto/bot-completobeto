@@ -289,6 +289,7 @@ async function comandoRifa(sock, chatId, msg, args) {
 const CLAVE_PROPIETARIO_JASC13 = 'rifajasc13_propietario';
 const CLAVE_PARTICIPANTES_JASC13 = 'rifajasc13_participantes';
 const CLAVE_MIGRACION_CASHBACK_JASC13 = 'rifajasc13_cashback_migrado_v1';
+const CLAVE_AJUSTE_PARTICIPANTES_JASC13 = 'rifajasc13_ajuste_participantes_v2';
 const PORCENTAJE_CASHBACK_JASC13 = 0.05;
 
 function normalizarNumeroVisible(numero) {
@@ -325,10 +326,20 @@ async function resolverContactoJasc13(sock, jid) {
             console.error('⚠️ No se pudo resolver LID de JASC13:', error.message);
         }
 
+        let username = null;
+        try {
+            if (numero && typeof sock?.fetchContactUsernames === 'function') {
+                const contactos = await sock.fetchContactUsernames(numero + '@s.whatsapp.net');
+                const contacto = Array.isArray(contactos) ? contactos[0] : null;
+                username = contacto?.username || null;
+            }
+        } catch (error) {}
+
         return {
             numeroVisible: numero ? normalizarNumeroVisible(numero) : '+0',
             mentionJid: mentionJidOriginal,
-            mentionNumber: numero || null
+            mentionNumber: numero || null,
+            username
         };
     }
 
@@ -339,11 +350,72 @@ async function resolverContactoJasc13(sock, jid) {
         mentionJid = numero + '@s.whatsapp.net';
     }
 
+    let username = null;
+    try {
+        if (typeof sock?.fetchContactUsernames === 'function') {
+            const contactos = await sock.fetchContactUsernames(mentionJid);
+            const contacto = Array.isArray(contactos) ? contactos[0] : null;
+            username = contacto?.username || null;
+        }
+    } catch (error) {}
+
     return {
         numeroVisible: normalizarNumeroVisible(numero),
         mentionJid,
-        mentionNumber: extraerNumeroJid(mentionJid)
+        mentionNumber: extraerNumeroJid(mentionJid),
+        username
     };
+}
+
+async function aplicarAjusteParticipantesJasc13(participantes) {
+    const ajuste = await Config.findOne({ clave: CLAVE_AJUSTE_PARTICIPANTES_JASC13 });
+    if (ajuste?.valor === 'true') return;
+
+    const valores = [
+        { puntos: 6800, boletos: 6 },
+        { puntos: 8900, boletos: 8 },
+        { puntos: 6900, boletos: 6 },
+        { puntos: 12800, boletos: 12 },
+        { puntos: 3500, boletos: 3 },
+        { puntos: 3400, boletos: 3 },
+        { puntos: 10900, boletos: 10 },
+        { puntos: 500, boletos: 0 },
+        { puntos: 800, boletos: 0 }
+    ];
+
+    if (participantes.size !== valores.length) {
+        console.warn('⚠️ Ajuste JASC13 omitido: la cantidad de participantes no coincide con los 9 registros proporcionados.');
+        return;
+    }
+
+    const ids = Array.from(participantes.keys());
+
+    ids.forEach((id, index) => {
+        const valor = valores[index];
+        participantes.set(id, {
+            puntos: valor.puntos % 1000,
+            boletos: valor.boletos
+        });
+    });
+
+    for (let index = 0; index < ids.length; index++) {
+        const id = ids[index];
+        const valor = valores[index];
+        const cashback = Number((valor.puntos * PORCENTAJE_CASHBACK_JASC13).toFixed(2));
+
+        await RifaJasc13Cashback.findOneAndUpdate(
+            { numero: id },
+            { $set: { cashback } },
+            { upsert: true }
+        );
+    }
+
+    await guardarParticipantesJasc13(participantes);
+    await Config.findOneAndUpdate(
+        { clave: CLAVE_AJUSTE_PARTICIPANTES_JASC13 },
+        { valor: 'true' },
+        { upsert: true }
+    );
 }
 
 async function cargarEstadoRifaJasc13() {
@@ -382,13 +454,15 @@ async function cargarEstadoRifaJasc13() {
         await Config.findOneAndUpdate({ clave: CLAVE_MIGRACION_CASHBACK_JASC13 }, { valor: 'true' }, { upsert: true });
     }
     if (requiereGuardar) await guardarParticipantesJasc13(participantes);
+    await aplicarAjusteParticipantesJasc13(participantes);
     return { propietario, participantes };
 }
 
 async function guardarParticipantesJasc13(participantes) {
     const lista = Array.from(participantes.entries()).map(([id, data]) => ({
         id,
-        puntos: Number(data.puntos) || 0
+        puntos: Number(data.puntos) || 0,
+        boletos: Number(data.boletos) || 0
     }));
 
     await Config.findOneAndUpdate(
@@ -494,12 +568,15 @@ async function comandoRifaJasc13(sock, chatId, msg, args) {
         for (const [id, data] of participantes.entries()) {
             const boletos = Number(data.boletos) || 0;
             const puntos = Number(data.puntos) || 0;
+            const puntosTotales = (boletos * 1000) + puntos;
             const faltantes = puntos === 0 ? 1000 : 1000 - puntos;
             const cashbackDoc = await RifaJasc13Cashback.findOne({ numero: id }).select('cashback').lean();
             const cashback = Number(cashbackDoc?.cashback) || 0;
             const contacto = await resolverContactoJasc13(sock, id);
-            const etiquetaContacto = contacto.numeroVisible || '+0';
-            texto += `${i}. 👤 ${etiquetaContacto} | Puntos: *${puntos}* | Boletos: *${boletos}* (Faltan ${faltantes} pts) | Cashback: *${cashback.toFixed(2)}* Pavos\n`;
+            const etiquetaContacto = contacto.numeroVisible !== '+0'
+                ? contacto.numeroVisible
+                : (contacto.username ? `@${contacto.username.replace(/^@/, '')}` : '+0');
+            texto += `${i}. ${etiquetaContacto} | Puntos: *${puntosTotales}* | Boletos: *${boletos}* (Faltan ${faltantes} pts) | Cashback: *${cashback.toFixed(2)}* Pavos\n`;
             if (contacto.mentionJid) {
                 mentions.push(contacto.mentionJid);
             }
