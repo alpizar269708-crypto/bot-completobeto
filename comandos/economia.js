@@ -73,7 +73,7 @@ async function comandoCartera(sock, chatId, msg, usuarioBD) {
                 `🏦 En banco: *${banco} monedas*\n` +
                 `💎 Total neto: *${total} monedas*`;
 
-    await sock.sendMessage(chatId, { text: texto }, { quoted: msg });
+    await sock.sendMessage(chatId, { text: texto, mentions: contacto.jid ? [contacto.jid] : [] }, { quoted: msg });
 }
 
 async function comandoBanco(sock, chatId, msg, args, usuarioBD) {
@@ -141,7 +141,10 @@ async function comandoPay(sock, chatId, msg, args, usuarioBD) {
     await objetivoBD.save();
 
     const contactoObjetivo = await resolverContactoWhatsApp(sock, objetivo, chatId);
-    await sock.sendMessage(chatId, { text: `✅ Has transferido exitosamente *${cantidad} monedas* a ${contactoObjetivo.nombre || contactoObjetivo.numeroVisible} (📱 ${contactoObjetivo.numeroVisible}).` }, { quoted: msg });
+    await sock.sendMessage(chatId, {
+        text: `✅ Has transferido exitosamente *${cantidad} monedas* a ${contactoObjetivo.nombre || contactoObjetivo.numeroVisible} (📱 ${contactoObjetivo.numeroVisible}).`,
+        mentions: contactoObjetivo.jid ? [contactoObjetivo.jid] : []
+    }, { quoted: msg });
 }
 
 async function comandoTop(sock, chatId, msg) {
@@ -381,7 +384,11 @@ async function comandoRob(sock, chatId, msg, args, usuarioBD) {
         usuarioBD.cartera += robado;
         await objetivoBD.save();
         await usuarioBD.save();
-        await sock.sendMessage(chatId, { text: `🦹 ¡Robo exitoso! Robaste *${robado} monedas* a ${(await resolverContactoWhatsApp(sock, objetivo, chatId)).nombre || (await resolverContactoWhatsApp(sock, objetivo, chatId)).numeroVisible}.` }, { quoted: msg });
+        const contactoObjetivo = await resolverContactoWhatsApp(sock, objetivo, chatId);
+        await sock.sendMessage(chatId, {
+            text: `🦹 ¡Robo exitoso! Robaste *${robado} monedas* a ${contactoObjetivo.nombre || contactoObjetivo.numeroVisible}.`,
+            mentions: contactoObjetivo.jid ? [contactoObjetivo.jid] : []
+        }, { quoted: msg });
     } else {
         usuarioBD.cartera -= 100;
         await usuarioBD.save();
@@ -434,13 +441,21 @@ async function comandoPelea(sock, chatId, msg, args, usuarioBD) {
         objetivoBD.cartera -= apuesta;
         await objetivoBD.save();
         await usuarioBD.save();
-        await sock.sendMessage(chatId, { text: `⚔️ ¡Duelo épico! Derrotaste a ${(await resolverContactoWhatsApp(sock, objetivo, chatId)).nombre || (await resolverContactoWhatsApp(sock, objetivo, chatId)).numeroVisible} y ganaste *${apuesta * 2} monedas*.` }, { quoted: msg });
+        const contactoObjetivo = await resolverContactoWhatsApp(sock, objetivo, chatId);
+        await sock.sendMessage(chatId, {
+            text: `⚔️ ¡Duelo épico! Derrotaste a ${contactoObjetivo.nombre || contactoObjetivo.numeroVisible} y ganaste *${apuesta * 2} monedas*.`,
+            mentions: contactoObjetivo.jid ? [contactoObjetivo.jid] : []
+        }, { quoted: msg });
     } else {
         usuarioBD.cartera -= apuesta;
         objetivoBD.cartera += apuesta;
         await objetivoBD.save();
         await usuarioBD.save();
-        await sock.sendMessage(chatId, { text: `⚔️ ¡Duelo épico! ${(await resolverContactoWhatsApp(sock, objetivo, chatId)).nombre || (await resolverContactoWhatsApp(sock, objetivo, chatId)).numeroVisible} te dio una paliza y perdiste *${apuesta} monedas*.` }, { quoted: msg });
+        const contactoObjetivo = await resolverContactoWhatsApp(sock, objetivo, chatId);
+        await sock.sendMessage(chatId, {
+            text: `⚔️ ¡Duelo épico! ${contactoObjetivo.nombre || contactoObjetivo.numeroVisible} te dio una paliza y perdiste *${apuesta} monedas*.`,
+            mentions: contactoObjetivo.jid ? [contactoObjetivo.jid] : []
+        }, { quoted: msg });
     }
 }
 
@@ -483,7 +498,11 @@ async function comandoHackear(sock, chatId, msg, args, usuarioBD) {
         usuarioBD.banco = (usuarioBD.banco || 0) + botin;
         await objetivoBD.save();
         await usuarioBD.save();
-        await sock.sendMessage(chatId, { text: `💻 ¡Hackeo exitoso! Robaste *${botin} monedas* del banco de ${(await resolverContactoWhatsApp(sock, objetivo, chatId)).nombre || (await resolverContactoWhatsApp(sock, objetivo, chatId)).numeroVisible}.` }, { quoted: msg });
+        const contactoObjetivo = await resolverContactoWhatsApp(sock, objetivo, chatId);
+        await sock.sendMessage(chatId, {
+            text: `💻 ¡Hackeo exitoso! Robaste *${botin} monedas* del banco de ${contactoObjetivo.nombre || contactoObjetivo.numeroVisible}.`,
+            mentions: contactoObjetivo.jid ? [contactoObjetivo.jid] : []
+        }, { quoted: msg });
     } else {
         await usuarioBD.save();
         await sock.sendMessage(chatId, { text: `🛡️ ¡El cortafuegos del objetivo te detectó! Perdiste tus 300 monedas de inversión.` }, { quoted: msg });
@@ -590,7 +609,11 @@ async function comandoRegalarItem(sock, chatId, msg, args, usuarioBD) {
     await usuarioBD.save();
     await objetivoBD.save();
 
-    await sock.sendMessage(chatId, { text: `🎁 Le regalaste *${itemRemovido.nombre}* a ${(await resolverContactoWhatsApp(sock, objetivo, chatId)).nombre || (await resolverContactoWhatsApp(sock, objetivo, chatId)).numeroVisible}.` }, { quoted: msg });
+    const contactoObjetivo = await resolverContactoWhatsApp(sock, objetivo, chatId);
+    await sock.sendMessage(chatId, {
+        text: `🎁 Le regalaste *${itemRemovido.nombre}* a ${contactoObjetivo.nombre || contactoObjetivo.numeroVisible}.`,
+        mentions: contactoObjetivo.jid ? [contactoObjetivo.jid] : []
+    }, { quoted: msg });
 }
 
 module.exports = {
