@@ -289,7 +289,7 @@ async function comandoRifa(sock, chatId, msg, args) {
 const CLAVE_PROPIETARIO_JASC13 = 'rifajasc13_propietario';
 const CLAVE_PARTICIPANTES_JASC13 = 'rifajasc13_participantes';
 const CLAVE_MIGRACION_CASHBACK_JASC13 = 'rifajasc13_cashback_migrado_v1';
-const CLAVE_AJUSTE_PARTICIPANTES_JASC13 = 'rifajasc13_ajuste_participantes_v2';
+const CLAVE_AJUSTE_PARTICIPANTES_JASC13 = 'rifajasc13_ajuste_participantes_v3';
 const PORCENTAJE_CASHBACK_JASC13 = 0.05;
 
 function normalizarNumeroVisible(numero) {
@@ -376,6 +376,9 @@ async function aplicarAjusteParticipantesJasc13(participantes) {
     const ajuste = await Config.findOne({ clave: CLAVE_AJUSTE_PARTICIPANTES_JASC13 });
     if (ajuste?.valor === 'true') return;
 
+    // Orden y valores exactos proporcionados para los 9 participantes actuales.
+    // Internamente se conserva solo el remanente de PaVos y los boletos,
+    // pero "ver" reconstruye exactamente los puntos totales indicados.
     const valores = [
         { puntos: 6800, boletos: 6 },
         { puntos: 8900, boletos: 8 },
@@ -395,23 +398,24 @@ async function aplicarAjusteParticipantesJasc13(participantes) {
 
     const ids = Array.from(participantes.keys());
 
-    ids.forEach((id, index) => {
-        const valor = valores[index];
-        participantes.set(id, {
-            puntos: valor.puntos % 1000,
-            boletos: valor.boletos
-        });
-    });
-
     for (let index = 0; index < ids.length; index++) {
         const id = ids[index];
         const valor = valores[index];
-        const cashback = Number((valor.puntos * PORCENTAJE_CASHBACK_JASC13).toFixed(2));
 
+        participantes.set(id, {
+            // Los puntos almacenados son los sobrantes después de convertir
+            // los puntos totales en los boletos indicados.
+            puntos: valor.puntos % 1000,
+            boletos: valor.boletos
+        });
+
+        // Reemplazamos completamente el Cashback anterior por el cálculo nuevo.
+        // 5% del total exacto de puntos indicado.
+        const cashback = Number((valor.puntos * PORCENTAJE_CASHBACK_JASC13).toFixed(2));
         await RifaJasc13Cashback.findOneAndUpdate(
             { numero: id },
             { $set: { cashback } },
-            { upsert: true }
+            { upsert: true, new: true }
         );
     }
 
@@ -421,6 +425,8 @@ async function aplicarAjusteParticipantesJasc13(participantes) {
         { valor: 'true' },
         { upsert: true }
     );
+
+    console.log('✅ JASC13: puntos, boletos y Cashback actualizados con el orden indicado.');
 }
 
 async function cargarEstadoRifaJasc13() {
