@@ -739,7 +739,11 @@ async function comandoMute(sock, chatId, msg, args) {
     const tiempoMinutos = parseInt(args[1]) || 30;
     const expira = Date.now() + (tiempoMinutos * 60 * 1000);
     mutesActivos.set(`${chatId}_${objetivo}`, expira);
-    await sock.sendMessage(chatId, { text: `🔇 Usuario muteado durante ${tiempoMinutos} minutos.` }, { quoted: msg });
+    const contacto = await resolverContactoWhatsApp(sock, objetivo, chatId);
+    await sock.sendMessage(chatId, {
+        text: `🔇 ${contacto.nombre || contacto.numeroVisible} fue muteado durante ${tiempoMinutos} minutos.`,
+        mentions: contacto.jid ? [contacto.jid] : []
+    }, { quoted: msg });
 }
 
 async function comandoUnmute(sock, chatId, msg, args) {
@@ -750,7 +754,11 @@ async function comandoUnmute(sock, chatId, msg, args) {
         return;
     }
     mutesActivos.delete(`${chatId}_${objetivo}`);
-    await sock.sendMessage(chatId, { text: '🔊 Usuario desmuteado con éxito.' }, { quoted: msg });
+    const contacto = await resolverContactoWhatsApp(sock, objetivo, chatId);
+    await sock.sendMessage(chatId, {
+        text: `🔊 ${contacto.nombre || contacto.numeroVisible} fue desmuteado con éxito.`,
+        mentions: contacto.jid ? [contacto.jid] : []
+    }, { quoted: msg });
 }
 
 function verificarMute(chatId, remitente) {
