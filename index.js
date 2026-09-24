@@ -7,7 +7,6 @@ const { procesarMensaje } = require('./messageHandler');
 const { verificarNuevoMiembro } = require('./comandos/moderacion');
 const { iniciarCronAlertasDiarias } = require('./comandos/fortnite');
 const { limpiarEconomiaAlSalir } = require('./comandos/economia');
-const { registrarIdentidadJasc13, registrarMapeoLidJasc13 } = require('./comandos/rifas');
 const { iniciarPuenteDiscord, vincularChatWhatsApp } = require('./webBridge');
 const express = require('express');
 
@@ -179,7 +178,7 @@ async function arrancarSocket(metodo, numeroTelefono, onCodeReady = null) {
         if (!lid.endsWith('@lid') || !pn.endsWith('@s.whatsapp.net')) return;
 
         try {
-            await registrarMapeoLidJasc13(sock, lid, pn);
+
         } catch (e) {
             console.error('⚠️ Error guardando mapeo LID ↔ PN de JASC13:', e.message);
         }
@@ -316,19 +315,13 @@ async function arrancarSocket(metodo, numeroTelefono, onCodeReady = null) {
 
             // Si WhatsApp nos da el PN por separado, ese es el único valor
             // que permitimos guardar como teléfono.
-            await registrarIdentidadJasc13(
-                sock,
-                participant,
-                String(msg.key.participantUsername),
-                phoneNumber
-            );
 
             // Si el mensaje trae simultáneamente LID y PN, también dejamos
             // registrado el vínculo para futuras resoluciones.
             const lid = [participant, participantAlt]
                 .find(id => id.endsWith('@lid')) || null;
             if (lid && phoneNumber) {
-                await registrarMapeoLidJasc13(sock, lid, phoneNumber);
+
             }
         }
 
