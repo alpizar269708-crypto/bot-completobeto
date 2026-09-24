@@ -59,7 +59,7 @@ async function comandoCarry(sock, chatId, msg, comando, args = []) {
             for (const [idx, id] of listaNegra.entries()) {
                 const contacto = await resolverContactoWhatsApp(sock, id, chatId);
                 txt += `${idx + 1}. ${tokenMencionNativa(contacto.jid) || contacto.nombre || contacto.numeroVisible} · 📱 ${contacto.numeroVisible}\n`;
-                if (contacto.mentionJid) mencionesListaNegra.push(contacto.mentionJid);
+                if (contacto.jid) mencionesListaNegra.push(contacto.jid);
             }
             return await sock.sendMessage(chatId, { text: txt, mentions: [...new Set(mencionesListaNegra)] }, { quoted: msg });
         }
