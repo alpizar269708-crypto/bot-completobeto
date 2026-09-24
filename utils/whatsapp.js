@@ -1,5 +1,5 @@
 // Utilidades de WhatsApp.
-// Las menciones nativas se usan únicamente en comandos que muestran rifas o listas.
+// Las menciones nativas se aplican de forma uniforme cuando un comando identifica a un usuario.
 
 function extraerNumeroJid(jid) {
     return String(jid || '').split('@')[0].split(':')[0].replace(/[^0-9]/g, '');
@@ -94,7 +94,9 @@ async function resolverContactoWhatsApp(sock, valor, chatId = null) {
         } catch (error) {}
     }
 
-    return { jid, nombre: nombre || null, numero: extraerNumeroJid(jid), numeroVisible };
+    // Cuando un comando trabaja con una persona, usamos el mismo formato nativo
+    // que WhatsApp reconoce como mención: @ + número y mentions[] con el JID.
+    return { jid, nombre: tokenMencionNativa(jid) || nombre || null, numero: extraerNumeroJid(jid), numeroVisible };
 }
 
 // Para una mención nativa, el texto debe contener @ + identificador numérico
