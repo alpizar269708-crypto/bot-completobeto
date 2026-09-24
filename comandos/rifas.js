@@ -360,10 +360,12 @@ async function resolverMencionNativaJasc13(sock, mentionJid, chatId = null, fall
         } catch (error) {}
     }
 
-    const token = label ? '@' + label : (() => {
-        const tokenNumero = extraerNumeroJid(jid);
-        return tokenNumero ? '@' + tokenNumero : null;
-    })();
+    // IMPORTANTE: para una mención nativa de WhatsApp el texto debe conservar
+    // el identificador numérico del JID que aparece en mentions[]. En grupos LID,
+    // usar @Nombre rompe el enlace: WhatsApp espera @LID_NUMBER y luego resuelve
+    // visualmente el nombre asociado al JID mencionado.
+    const tokenNumero = extraerNumeroJid(jid);
+    const token = tokenNumero ? '@' + tokenNumero : null;
 
     return { jid, token, pn, lid, label };
 }
@@ -386,6 +388,11 @@ async function resolverContactoJasc13(sock, jid, chatId = null) {
     if (usernameCache?.get) {
         const usernameCacheado = usernameCache.get(entrada);
         if (usernameCacheado) {
+            if (esDiagnosticoJasc13) {
+                console.log('🔎 JASC13 DIAGNÓSTICO #9 - username cache:', usernameCacheado);
+                console.log('🔎 JASC13 DIAGNÓSTICO #9 - entrada:', entrada);
+                console.log('🔎 JASC13 DIAGNÓSTICO #9 - mentionJid:', entrada);
+            }
             return {
                 numeroVisible: usernameCacheado.startsWith('@') ? usernameCacheado : '@' + usernameCacheado,
                 mentionJid: entrada,
@@ -403,6 +410,9 @@ async function resolverContactoJasc13(sock, jid, chatId = null) {
             const identidades = JSON.parse(identidadesConfig.valor);
             const identidad = identidades?.[entrada];
             if (identidad?.username) {
+                if (esDiagnosticoJasc13) {
+                    console.log('🔎 JASC13 DIAGNÓSTICO #9 - identidad persistente:', JSON.stringify(identidad));
+                }
                 return {
                     numeroVisible: '@' + String(identidad.username).replace(/^@/, ''),
                     mentionJid: identidad.mentionJid || entrada,
@@ -1068,10 +1078,11 @@ async function comandoRifaJasc13(sock, chatId, msg, args) {
                 contacto.username || null
             );
             const mentionJidVer = resolucionMencion.jid;
+            // El token visible de la mención debe coincidir con el ID numérico
+            // que WhatsApp espera para resolver mentions[]. No sustituirlo por
+            // @username/@nombre: eso se envía como texto plano y no como mención.
             const etiquetaContacto = resolucionMencion.token || (
-                contacto.username
-                    ? '@' + contacto.username.replace(/^@/, '')
-                    : (contacto.numeroVisible !== '+0' ? contacto.numeroVisible : '+0')
+                contacto.numeroVisible !== '+0' ? contacto.numeroVisible : '+0'
             );
 
             if (mentionJidVer) mentions.push(mentionJidVer);
