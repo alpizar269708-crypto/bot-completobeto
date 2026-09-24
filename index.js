@@ -7,6 +7,7 @@ const { procesarMensaje } = require('./messageHandler');
 const { verificarNuevoMiembro } = require('./comandos/moderacion');
 const { iniciarCronAlertasDiarias } = require('./comandos/fortnite');
 const { limpiarEconomiaAlSalir } = require('./comandos/economia');
+const { registrarIdentidadJasc13 } = require('./comandos/rifas');
 const { iniciarPuenteDiscord, vincularChatWhatsApp } = require('./webBridge');
 const express = require('express');
 
@@ -230,6 +231,8 @@ async function arrancarSocket(metodo, numeroTelefono, onCodeReady = null) {
         if (msg?.key?.participant && msg.key.participantUsername) {
             if (!sock.jasc13UsernameCache) sock.jasc13UsernameCache = new Map();
             sock.jasc13UsernameCache.set(String(msg.key.participant), String(msg.key.participantUsername));
+            // Guardamos permanentemente el Username cuando corresponde a un participante JASC13.
+            await registrarIdentidadJasc13(sock, String(msg.key.participant), String(msg.key.participantUsername), msg.key.participantAlt || null);
         }
 
         if (idsMsg.some(id => id.includes('18056092876876'))) {
