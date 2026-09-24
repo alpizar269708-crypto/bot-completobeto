@@ -22,7 +22,7 @@ const {
 const { comandoRifa, comandoRifaInscripcion, comandoRifaJasc13, comandoMenuRifaJasc13, comandoAbrirRifa, comandoActivarRifaAqui, comandoCerrarRifa } = require('./comandos/rifas');
 const { comandoCarry } = require('./comandos/carry');
 const { esProgramadorBot } = require('./comandos/programadorbot');
-const { resolverJidUsuario, asegurarMencionesNativas } = require('./utils/whatsapp');
+const { resolverJidUsuario } = require('./utils/whatsapp');
 
 const categoriasMap = {
     'fortnite': ['pavos', 'destacadasstw', 'legendariasstw', 'epicasstw', 'alertasstw', 'stw', 'alerta', 'setgrupostw', 'unsetgrupostw', 'setprecio'],
@@ -63,7 +63,6 @@ const comandosValidos = new Set([
 ]);
 
 async function procesarMensaje(sock, msg) {
-    asegurarMencionesNativas(sock);
     const chatJid = msg.key.remoteJid;
     const textoOriginal = msg.message?.conversation || msg.message?.extendedTextMessage?.text || msg.message?.imageMessage?.caption || msg.message?.videoMessage?.caption || '';
     if (!textoOriginal) return;
