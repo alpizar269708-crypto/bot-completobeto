@@ -662,12 +662,12 @@ async function comandoListaNegra(sock, numero, msg) {
     let texto = `🚫 *LISTA NEGRA (BANEADOS)* (${baneados.length}):\n\n`;
     const mentions = [];
     
-    baneados.forEach((b, index) => {
-        const numeroLimpio = b.numero.split('@')[0];
+    for (const [index, b] of baneados.entries()) {
+        const contacto = await resolverContactoWhatsApp(sock, b.numero, chatJid);
         const motivo = b.banMotivo || 'Sin motivo especificado';
-        texto += `*${index + 1}.* @${numeroLimpio}\n   📝 Motivo: _${motivo}_y\n\n`;
+        texto += `*${index + 1}.* @${etiquetaUsuario(contacto)}\n   📝 Motivo: _${motivo}_\n\n`;
         mentions.push(b.numero);
-    });
+    }
 
     texto += `💡 Usa *unbanlist [número]* para desbanear por índice (Ej: unbanlist 2)`;
 
@@ -704,11 +704,11 @@ async function comandoUnbanList(sock, numero, msg, args = []) {
     usuarioObjetivo.banMotivo = '';
     await usuarioObjetivo.save();
 
-    const numeroLimpio = usuarioObjetivo.numero.split('@')[0];
+    const contacto = await resolverContactoWhatsApp(sock, usuarioObjetivo.numero, chatJid);
     
     // CORREGIDO: Se cambió 'chatId' por 'chatJid'
     await sock.sendMessage(chatJid, { 
-        text: `✅ El usuario @${numeroLimpio} (posición #${numeroIndice}) fue removido de la lista negra y sus advertencias se reiniciaron.`, 
+        text: `✅ El usuario @${etiquetaUsuario(contacto)} (posición #${numeroIndice}) fue removido de la lista negra y sus advertencias se reiniciaron.`, 
         mentions: [usuarioObjetivo.numero] 
     }, { quoted: msg });
 }
