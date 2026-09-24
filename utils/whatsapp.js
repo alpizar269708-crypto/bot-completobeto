@@ -111,7 +111,7 @@ function asegurarMencionesNativas(sock) {
     const enviarOriginal = sock.sendMessage.bind(sock);
     sock.sendMessage = async (chatId, contenido, opciones) => {
         if (contenido && typeof contenido === 'object' && typeof contenido.text === 'string') {
-            const encontrados = contenido.text.match(/@\\d{6,16}/g) || [];
+            const encontrados = contenido.text.match(/@\d{6,16}/g) || [];
             const jids = encontrados.map(x => x.slice(1) + '@s.whatsapp.net');
             if (jids.length > 0) {
                 contenido = { ...contenido, mentions: [...new Set([...(contenido.mentions || []), ...jids])] };
