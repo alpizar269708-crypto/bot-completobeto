@@ -311,6 +311,10 @@ async function resolverContactoJasc13(sock, jid) {
     let mentionJid = entrada;
     let numero = extraerNumeroJid(entrada);
 
+    // Si la rifa guardó un LID, sus dígitos NO son un teléfono.
+    // Solo usamos un PN real si WhatsApp logra resolverlo.
+    if (entrada.endsWith('@lid')) numero = '';
+
     // Si la rifa guardó un LID, el LID por sí solo NO es el teléfono.
     // Lo resolvemos directamente con el mapeo de WhatsApp, sin depender
     // de que la persona siga dentro del grupo donde se ejecuta "ver".
@@ -328,8 +332,9 @@ async function resolverContactoJasc13(sock, jid) {
 
         let username = null;
         try {
-            if (numero && typeof sock?.fetchContactUsernames === 'function') {
-                const contactos = await sock.fetchContactUsernames(numero + '@s.whatsapp.net');
+            if (typeof sock?.fetchContactUsernames === 'function') {
+                const objetivoUsername = numero ? numero + '@s.whatsapp.net' : entrada;
+                const contactos = await sock.fetchContactUsernames(objetivoUsername);
                 const contacto = Array.isArray(contactos) ? contactos[0] : null;
                 username = contacto?.username || null;
             }
