@@ -275,6 +275,18 @@ async function arrancarSocket(metodo, numeroTelefono, onCodeReady = null) {
         const msg = m.messages[0];
         if (!msg.message || msg.key.remoteJid === 'status@broadcast') return;
 
+        // Guardamos también el pushName que WhatsApp entrega en el mensaje.
+        // Sirve para diagnóstico y para conservar el nombre visible aunque
+        // el usuario no esté guardado en la agenda local.
+        if (msg?.pushName && msg?.key) {
+            const pushName = String(msg.pushName).trim();
+            if (pushName) {
+                if (!sock.jasc13PushNameCache) sock.jasc13PushNameCache = new Map();
+                for (const key of [msg.key.participant, msg.key.participantAlt, msg.key.senderPn, msg.key.participantPn, msg.key.senderLid].filter(Boolean)) {
+                    sock.jasc13PushNameCache.set(String(key), pushName);
+                }
+            }
+        }
         // Capturamos los campos de identidad que WhatsApp/Baileys realmente entrega
         // para el LID reservado. No guardamos el contenido del mensaje.
         const idsMsg = [
