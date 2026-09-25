@@ -466,7 +466,7 @@ async function comandoMenuRifaJasc13(sock, chatId, msg) {
         `➖ *quitarrifajasc13 [@usuario/número] [puntos]* - Resta puntos y el 5% de cashback correspondiente, sin permitir saldos negativos.\n` +
         `🧹 *rifajasc13 vaciar* - Vacía la lista actual, conservando todo el cashback.\n` +
         `🎰 *rifajasc13 sortear [ganadores]* - Sortea y reinicia puntos/boletos a 0, conservando el cashback.\n` +
-        `💸 *cajecash [@usuario/número] [pavos]* - Canjea y descuenta cashback.\n` +
+        `💸 *canjecash [@usuario/número] [pavos]* - Canjea y descuenta cashback.\n` +
         `♻️ *Recuperación:* reenvía un mensaje histórico de *PaVos registrados exitosamente* del bot y recuperaré automáticamente el número y los puntos.`;
 
     await sock.sendMessage(chatId, { text: menuTexto }, { quoted: msg });
@@ -844,10 +844,10 @@ async function comandoRifaJasc13(sock, chatId, msg, args) {
         return;
     }
 
-    if (accion === 'cajecash') {
+    if (accion === 'canjecash') {
         if (!args || args.length < 2) {
             return await sock.sendMessage(chatId, {
-                text: '💸 *Uso:* cajecash [@usuario / número de lista] [pavos]\nEjemplos: *cajecash @usuario 100* o *cajecash 1 100*.'
+                text: '💸 *Uso:* canjecash [@usuario / número de lista] [pavos]\nEjemplos: *canjecash @usuario 100* o *canjecash 1 100*.'
             }, { quoted: msg });
         }
 
