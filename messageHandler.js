@@ -122,10 +122,21 @@ Apoya a un creador: JASC13` });
 
     if (!esComandoPropioPermitido && await verificarAntiLinks(sock, msg)) return;
 
-   const remitenteOriginal = msg.key.participant || chatJid;
+  const remitenteOriginal = msg.key.participant || chatJid;
     // Para MongoDB usamos el PN/JID de teléfono cuando WhatsApp entrega un LID.
     // Conservamos msg.key.participant intacto para operaciones de grupo/permisos.
     const remitenteReal = await resolverJidUsuario(sock, remitenteOriginal);
+
+    // 🔥 NUEVO: Capturar y guardar el nombre de perfil de WhatsApp en tiempo real
+    const nombrePerfil = msg.pushName || '';
+    if (nombrePerfil && remitenteReal) {
+        Config.findOneAndUpdate(
+            { clave: `alias_${remitenteReal}` },
+            { valor: nombrePerfil },
+            { upsert: true }
+        ).catch(() => {}); // catch vacío para no interrumpir el bot
+    }
+
     if (!esComandoPropioPermitido && verificarMute(chatJid, remitenteReal)) {
         try { await sock.sendMessage(chatJid, { delete: msg.key }); } catch (e) {}
         return;
