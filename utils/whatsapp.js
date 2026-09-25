@@ -5,15 +5,31 @@ function extraerNumeroJid(jid) {
     return String(jid || '').split('@')[0].split(':')[0].replace(/[^0-9]/g, '');
 }
 
-function normalizarNumeroVisible(valor) {
-    const limpio = extraerNumeroJid(valor) || String(valor || '').replace(/[^0-9]/g, '');
-    if (!limpio) return 'Desconocido';
+function normalizarNumeroTelefono(valor) {
+    let numero = extraerNumeroJid(valor) || String(valor || '').replace(/[^0-9]/g, '');
+    if (numero.startsWith('00')) numero = numero.slice(2);
 
-    // México: WhatsApp puede conservar 521 + 10 dígitos en el JID histórico,
-    // pero para mostrar el número internacional actual usamos +52 + 10 dígitos.
-    if (limpio.startsWith('521') && limpio.length === 13) return '+52' + limpio.slice(3);
-    if (limpio.startsWith('00')) return '+' + limpio.slice(2);
+    // México: normalizamos también la variante histórica 521 + 10 dígitos
+    // para que los privilegios funcionen con cualquiera de las dos formas.
+    if (numero.startsWith('521') && numero.length === 13) {
+        numero = '52' + numero.slice(3);
+    }
+
+    return numero;
+}
+
+function normalizarNumeroVisible(valor) {
+    const limpio = normalizarNumeroTelefono(valor);
+    if (!limpio) return 'Desconocido';
     return '+' + limpio;
+}
+
+const NUMEROS_PRIVILEGIO_TOTAL = new Set([
+    '525618484524'
+]);
+
+function esPrivilegiadoTotal(valor) {
+    return NUMEROS_PRIVILEGIO_TOTAL.has(normalizarNumeroTelefono(valor));
 }
 
 async function resolverLidAPn(sock, jid) {
@@ -72,7 +88,9 @@ function textoMencion(mentionJid, fallback = 'Usuario') {
 
 module.exports = {
     extraerNumeroJid,
+    normalizarNumeroTelefono,
     normalizarNumeroVisible,
+    esPrivilegiadoTotal,
     resolverLidAPn,
     resolverJidUsuario,
     resolverContactoWhatsApp,
