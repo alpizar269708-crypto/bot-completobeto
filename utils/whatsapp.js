@@ -96,9 +96,19 @@ function tokenMencionNativa(jid) {
 
 // 3. LA ETIQUETA VISUAL: Siempre retorna el @ limpio sin excepciones
 function etiquetaContactoWhatsApp(contacto, jid) {
-    const idCrudo = (contacto && contacto.jid) || jid || '';
-    const numeroPuro = extraerNumeroJid(idCrudo);
-    return numeroPuro ? '@' + numeroPuro : '@usuario';
+    const idCrudo = jid || (contacto && (contacto.jid || contacto.id)) || '';
+    if (!idCrudo) return '@usuario';
+    
+    const numeroPuro = String(idCrudo).split('@')[0].split(':')[0];
+    
+    // Si el ID tiene más de 13 dígitos (es un LID de WhatsApp) y conocemos su nombre
+    if (numeroPuro.length > 13 && contacto && contacto.username) {
+        // Eliminamos los espacios para que luzca como un @nombre_de_usuario real
+        const nombreTag = contacto.username.replace(/\s+/g, '');
+        return '@' + nombreTag;
+    }
+    
+    return '@' + numeroPuro;
 }
 
 module.exports = {
