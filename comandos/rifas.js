@@ -366,12 +366,14 @@ async function comandoMenuRifaJasc13(sock, chatId, msg) {
     if (chatId.endsWith('@g.us')) return;
 
     const menuTexto = `🎟️ *MENÚ SECRETO - RIFA CÓDIGO DE CREADOR (JASC13)* 🎟️\n\n` +
-        `• *rifajasc13 iniciar* - Inicia la rifa y te registra como propietario único.\n` +
-        `• *rifajasc13 agregar [@usuario/número] [puntos]* - Suma puntos (1000 pts = 1 boleto).\n` +
-        `• *rifajasc13 ver* - Muestra la lista de participantes, puntos y boletos actuales.\n` +
-        `• *rifajasc13 quitar [número]* - Elimina a un participante de la lista.\n` +
-        `• *rifajasc13 vaciar* - Limpia toda la lista de participantes.\n` +
-        `• *rifajasc13 sortear [ganadores]* - Realiza el sorteo ponderado y reinicia la lista.`;
+        `🔒 El creador está fijado permanentemente. Ya no necesitas usar *rifajasc13 iniciar*.\n\n` +
+        `➕ *rifajasc13 agregar [@usuario/número] [puntos]* - Suma puntos y genera 5% de cashback.\n` +
+        `🔢 *rifajasc13 [número]sumar [puntos]* - Suma puntos directamente al participante de ese número.\n` +
+        `👀 *rifajasc13 ver* - Muestra participantes, puntos, boletos y cashback.\n` +
+        `🗑️ *rifajasc13 quitar [número]* - Quita al participante sin borrar su cashback.\n` +
+        `🧹 *rifajasc13 vaciar* - Vacía la lista actual, conservando todo el cashback.\n` +
+        `🎰 *rifajasc13 sortear [ganadores]* - Sortea y reinicia puntos/boletos a 0, conservando el cashback.\n` +
+        `💸 *cajecash [@usuario/número] [pavos]* - Canjea y descuenta cashback.`;
 
     await sock.sendMessage(chatId, { text: menuTexto }, { quoted: msg });
 }
