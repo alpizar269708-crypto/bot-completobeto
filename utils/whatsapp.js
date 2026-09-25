@@ -84,9 +84,19 @@ async function resolverContactoWhatsApp(sock, valor, chatId = null) {
         } catch (error) {}
     }
 
-    let numeroVerificado = true; 
+    // nombre = nombre real del contacto (pushName / notify del grupo)
+    // username se usa para etiquetas visuales limpias
+    // etiquetaNumero solo se usa como fallback para menciones nativas
     const etiquetaNumero = numeroContacto ? '@' + numeroContacto : '';
-    return { jid, nombre: etiquetaNumero || nombre || null, username: nombre || null, numero: numeroContacto, numeroVisible, numeroVerificado };
+    return {
+        jid,
+        nombre: nombre || null,
+        username: nombre || null,
+        numero: numeroContacto,
+        numeroVisible,
+        etiquetaNumero,
+        numeroVerificado: true
+    };
 }
 
 function tokenMencionNativa(jid) {
@@ -94,16 +104,25 @@ function tokenMencionNativa(jid) {
     return numero ? '@' + numero : '';
 }
 
-// 3. LA ETIQUETA VISUAL: Siempre retorna el @ limpio sin excepciones
+// 3. LA ETIQUETA VISUAL: Prefiere el nombre real en tiempo real; si no hay, usa @número para mención nativa
 function etiquetaContactoWhatsApp(contacto, jid) {
+    // Prioridad 1: nombre / username resuelto en tiempo real (pushName, notify del grupo, etc.)
+    if (contacto) {
+        const nombreLimpio = (contacto.username || contacto.nombre || '').trim();
+        if (nombreLimpio && !/^\d+$/.test(nombreLimpio.replace(/\s+/g, ''))) {
+            // Si parece un nombre real (no solo dígitos), lo usamos como etiqueta amigable
+            return nombreLimpio.replace(/\s+/g, ' ');
+        }
+    }
+
+    // Prioridad 2: token de mención nativa (@número) para que WhatsApp haga la mención real
     const idCrudo = jid || (contacto && (contacto.jid || contacto.id)) || '';
     if (!idCrudo) return '@usuario';
     
     const numeroPuro = String(idCrudo).split('@')[0].split(':')[0];
     
-    // Si el ID tiene más de 13 dígitos (es un LID de WhatsApp) y conocemos su nombre
+    // Para LIDs largos, si hay username lo usamos
     if (numeroPuro.length > 13 && contacto && contacto.username) {
-        // Eliminamos los espacios para que luzca como un @nombre_de_usuario real
         const nombreTag = contacto.username.replace(/\s+/g, '');
         return '@' + nombreTag;
     }
