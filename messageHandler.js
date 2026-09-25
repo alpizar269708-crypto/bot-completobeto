@@ -229,7 +229,7 @@ Apoya a un creador: JASC13` });
     if (comando === 'vertodosconandos' || comando === 'vertodoscomandos') {
         const comandosInfo = [
             ['activarcomandos', 'Activa todos los comandos o restringe el grupo a categorías concretas.'],
-            ['listablanca', 'Administra la lista blanca de links permitidos. Estructura: links_lista_blanca = ["https://ejemplo.com", "https://otro.com/ruta"].'],
+            ['listablanca', 'Administra la lista blanca de links y dominios completos. Ejemplo: *listablanca agregar betomaster.com* permite todas las rutas y subdominios de ese dominio.'],
             ['setprecio', 'Configura el precio de los pavos.'],
             ['ping', 'Comprueba que el bot esté activo.'],
             ['pavos', 'Muestra las misiones actuales que dan paVos en Salvar el Mundo.'],
