@@ -7,7 +7,7 @@ const categoriasMap = {
     carry: ['carryleader', 'carryjoin', 'carryleave', 'carryclose', 'blcarry', 'unblcarry', 'listcarrybl'],
     rifas: ['rifa', 'rifainscripcion', 'cerrarrifa', 'rifajasc13', 'cajecash', 'addvarios', 'abrirrifa', 'activarrifaaqui', 'menurifajasc13'],
     economia: ['cartera', 'bal', 'banco', 'pay', 'pagar', 'top', 'topdinero', 'daily', 'weekly', 'farmear', 'work', 'crime', 'mendigar', 'pescar', 'minar', 'cazar', 'explorar', 'ruleta', 'cf', 'slots', 'dados', 'adivina', 'buscaminas', 'rob', 'ppt', 'pelea', 'carrera', 'hackear', 'shop', 'buy', 'inventario', 'mochila', 'vender', 'use', 'regalar'],
-    utilidades: ['s', 'sticker', 'todos', 'tiktok', 'traduce', 'skin', 'stats', 'contacto', 'ping'],
+    utilidades: ['s', 'sticker', 'tiktok', 'traduce', 'skin', 'stats', 'contacto', 'ping'],
     ia: ['ia'],
     moderacion: ['warn', 'advertir', 'verwarns', 'limpiarwarns', 'ban', 'unban', 'listanegra', 'banlist', 'unbanlist', 'grupo', 'mute', 'unmute', 'inactivos', 'listablanca', 'desactivarbienvenida', 'activarbienvenida', 'personalizarbienvenida', 'restaurarbienvenida']
 };
@@ -158,7 +158,6 @@ async function ejecutarMenu(sock, chatId, msg, args) {
                     
         'utilidades': `🛠️ *MENÚ UTILIDADES* 🛠️\n\n` +
                       `*${prefijo}s / sticker* - Convierte imagen/video a sticker animado.\n` +
-                      `*${prefijo}todos* - Menciona a todos en el grupo.\n` +
                       `*${prefijo}tiktok [url]* - Descarga video sin marca de agua.\n` +
                       `*${prefijo}traduce [texto]* - Traduce texto al español.\n` +
                       `*${prefijo}skin [nombre] / stats [usuario]* - Info de Fortnite.\n` +
