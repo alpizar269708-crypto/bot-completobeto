@@ -103,7 +103,8 @@ async function ejecutarMenu(sock, chatId, msg, args) {
                  `*${prefijo}rifajasc13 addvarios* - Suma puntos a varios números en un solo mensaje.\n` +
                  `Ejemplo: 1. 1000 / 2. 3000 / 5) 5000.\n` +
                  `*${prefijo}rifajasc13 ver* - Muestra puntos, boletos y cashback.\n` +
-                 `*${prefijo}cajecash [@usuario/número] [pavos]* - Canjea y descuenta cashback.\n`,
+                 `*${prefijo}cajecash [@usuario/número] [pavos]* - Canjea y descuenta cashback.\n` +
+                 `♻️ *Recuperación JASC13:* reenvía un mensaje histórico de *PaVos registrados exitosamente* para recuperar automáticamente ese registro.\n`,
         'economia': `💰 *MENÚ ECONOMÍA* 💰\n\n` +
                     `*💼 Básico:*\n` +
                     `*${prefijo}cartera / bal* - Revisa tu dinero.\n` +
