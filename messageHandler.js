@@ -582,7 +582,6 @@ Apoya a un creador: JASC13` });
             await sock.sendMessage(chatJid, { text: `❌ Ocurrió un error interno al ejecutar el comando *${comando}*.` }, { quoted: msg });
         }
     }
-    }
 }
 
 module.exports = { procesarMensaje };
