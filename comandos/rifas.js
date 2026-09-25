@@ -767,25 +767,30 @@ async function comandoRifaJasc13(sock, chatId, msg, args) {
     }
 
     if (accion === 'quitarrifajasc13' || accion === 'quitarpuntos') {
-        if (!msg.key.fromMe) {
-            return await sock.sendMessage(chatId, { text: '❌ Solo el creador puede modificar puntos y cashback de la rifa JASC13.' }, { quoted: msg });
+        const sender = msg.key.participant || msg.key.remoteJid;
+        const tienePrivilegiosTotales = await esPrivilegiadoTotalAsync(sock, sender);
+
+        if (!tienePrivilegiosTotales) {
+            return await sock.sendMessage(chatId, { text: '❌ Solo los propietarios permanentes de JASC13 pueden modificar puntos y cashback de la rifa.' }, { quoted: msg });
         }
 
-        let puntosRestar = parseInt(args[1], 10);
+        // messageHandler envía: ['quitarrifajasc13', usuario_o_numero, puntos]
+        const objetivo = args[1];
+        const puntosRestar = parseInt(args[2], 10);
         let targetId = null;
         let numeroLista = null;
 
         // Formato: quitarrifajasc13 10 500
-        if (/^\d+$/.test(String(args[0] || ''))) {
-            numeroLista = parseInt(args[0], 10);
+        if (/^\d+$/.test(String(objetivo || ''))) {
+            numeroLista = parseInt(objetivo, 10);
             const lista = Array.from(participantes.entries());
             const item = lista[numeroLista - 1];
             if (item) targetId = item[0];
         } else {
             // Formato: quitarrifajasc13 @usuario 500
-            targetId = obtenerObjetivoRifaJasc13(msg, args);
-            if (!targetId && args[0]) {
-                const numero = String(args[0]).replace(/[^0-9]/g, '');
+            targetId = obtenerObjetivoRifaJasc13(msg, [objetivo, String(puntosRestar)]);
+            if (!targetId && objetivo) {
+                const numero = String(objetivo).replace(/[^0-9]/g, '');
                 if (numero.length > 5) targetId = numero + '@s.whatsapp.net';
             }
         }
@@ -808,8 +813,6 @@ async function comandoRifaJasc13(sock, chatId, msg, args) {
             }, { quoted: msg });
         }
 
-        // El cashback de JASC13 es el 5% de los puntos agregados.
-        // Al corregir puntos, se retira exactamente el cashback generado por esos puntos.
         const cashbackRestar = calcularCashbackJasc13(puntosRestar);
         const cashbackAnterior = Number(cashback.get(targetId) || 0);
         const cashbackNuevo = Math.max(0, Number((cashbackAnterior - cashbackRestar).toFixed(2)));
@@ -823,7 +826,7 @@ async function comandoRifaJasc13(sock, chatId, msg, args) {
 
         const boletos = Math.floor(datosUsuario.puntos / 1000);
         const resto = datosUsuario.puntos % 1000;
-        const faltantes = resto === 0 ? 1000 : 1000 - resto;
+        const faltantes = resto === 0 ? 0 : 1000 - resto;
 
         await sock.sendMessage(chatId, {
             text: '➖ *PUNTOS RESTADOS DE JASC13*\n\n' +
