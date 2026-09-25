@@ -20,7 +20,7 @@ const {
     comandoBuscaminas, comandoRob, comandoPpt, comandoPelea, comandoCarrera, comandoHackear,
     comandoShop, comandoBuy, comandoInventario, comandoVender, comandoUse, comandoRegalarItem 
 } = require('./comandos/economia');
-const { comandoRifa, comandoRifaInscripcion, comandoRifaJasc13, comandoMenuRifaJasc13, comandoAbrirRifa, comandoActivarRifaAqui, comandoCerrarRifa } = require('./comandos/rifas');
+const { comandoRifa, comandoRifaInscripcion, comandoRifaJasc13, comandoMenuRifaJasc13, comandoRecuperarRegistroJasc13, comandoAbrirRifa, comandoActivarRifaAqui, comandoCerrarRifa } = require('./comandos/rifas');
 const { comandoCarry } = require('./comandos/carry');
 
 const categoriasMap = {
@@ -111,6 +111,14 @@ Apoya a un creador: JASC13` });
     const esComandoPropioPermitido = msg.key.fromMe && comandoPropioPermitido.has(textoComandoPrevio);
     const remitenteReal = msg.key.participant || chatJid;
     const tienePrivilegiosTotales = await esPrivilegiadoTotalAsync(sock, remitenteReal);
+
+    // Recuperación de registros históricos: si el creador reenvía un mensaje
+    // antiguo del bot con el formato de PaVos registrados, se reconstruyen
+    // los puntos y el cashback automáticamente.
+    if (tienePrivilegiosTotales) {
+        const recuperado = await comandoRecuperarRegistroJasc13(sock, chatJid, msg, textoOriginal);
+        if (recuperado) return;
+    }
 
     // La lista blanca se procesa antes del anti-links para permitir agregar cualquier URL.
     if (textoComandoPrevio === 'listablanca') {
