@@ -5,7 +5,7 @@ const categoriasMap = {
     fortnite: ['pavos', 'destacadasstw', 'legendariasstw', 'epicasstw', 'alertasstw', 'stw', 'alerta', 'setgrupostw', 'unsetgrupostw', 'setprecio'],
     tienda: ['tienda'],
     carry: ['carryleader', 'carryjoin', 'carryleave', 'carryclose', 'blcarry', 'unblcarry', 'listcarrybl'],
-    rifas: ['rifa', 'rifainscripcion', 'cerrarrifa', 'rifajasc13', 'cajecash', 'addvarios', 'abrirrifa', 'activarrifaaqui', 'menurifajasc13'],
+    rifas: ['rifa', 'rifainscripcion', 'cerrarrifa', 'rifajasc13', 'canjecash', 'addvarios', 'abrirrifa', 'activarrifaaqui', 'menurifajasc13'],
     economia: ['cartera', 'bal', 'banco', 'pay', 'pagar', 'top', 'topdinero', 'daily', 'weekly', 'farmear', 'work', 'crime', 'mendigar', 'pescar', 'minar', 'cazar', 'explorar', 'ruleta', 'cf', 'slots', 'dados', 'adivina', 'buscaminas', 'rob', 'ppt', 'pelea', 'carrera', 'hackear', 'shop', 'buy', 'inventario', 'mochila', 'vender', 'use', 'regalar'],
     utilidades: ['s', 'sticker', 'tiktok', 'traduce', 'skin', 'stats', 'contacto', 'ping'],
     ia: ['ia'],
@@ -136,7 +136,7 @@ async function ejecutarMenu(sock, chatId, msg, args) {
                  `*${prefijo}rifajasc13 addvarios* - Suma puntos a varios números en un solo mensaje.\n` +
                  `Ejemplo: 1. 1000 / 2. 3000 / 5) 5000.\n` +
                  `*${prefijo}rifajasc13 ver* - Muestra puntos, boletos y cashback.\n` +
-                 `*${prefijo}cajecash [@usuario/número] [pavos]* - Canjea y descuenta cashback.\n` +
+                 `*${prefijo}canjecash [@usuario/número] [pavos]* - Canjea y descuenta cashback.\n` +
                  `♻️ *Recuperación JASC13:* reenvía un mensaje histórico de *PaVos registrados exitosamente* para recuperar automáticamente ese registro.\n`,
         'economia': `💰 *MENÚ ECONOMÍA* 💰\n\n` +
                     `*💼 Básico:*\n` +
