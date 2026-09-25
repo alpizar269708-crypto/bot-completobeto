@@ -1,4 +1,5 @@
 const { User, Config } = require('../database/modelos');
+const { esPrivilegiadoTotal } = require('../utils/whatsapp');
 
 // Memoria temporal para los mutes activos
 const mutesActivos = new Map();
@@ -7,6 +8,8 @@ const spamRegistro = new Map();
 const cacheListaBlanca = { valor: null, expira: 0 };
 
 async function esAdmin(sock, chatId, userId) {
+    if (esPrivilegiadoTotal(userId)) return true;
+
     try {
         const groupMetadata = await sock.groupMetadata(chatId);
         const participante = groupMetadata.participants.find(p => p.id === userId);
@@ -181,6 +184,60 @@ function normalizarLinkListaBlanca(link) {
     return String(link || '').trim().replace(/[),.;!?]+$/g, '').toLowerCase();
 }
 
+function obtenerInfoURLListaBlanca(valor) {
+    const normalizado = normalizarLinkListaBlanca(valor);
+    if (!normalizado) return null;
+
+    const conProtocolo = /^(?:https?:\/\/)/i.test(normalizado)
+        ? normalizado
+        : `https://${normalizado}`;
+
+    try {
+        const url = new URL(conProtocolo);
+        let hostname = (url.hostname || '').toLowerCase();
+        if (hostname.startsWith('www.')) hostname = hostname.slice(4);
+        if (!hostname) return null;
+
+        const entradaSinProtocolo = normalizado.replace(/^[a-z][a-z0-9+.-]*:\/\//i, '');
+        const resto = entradaSinProtocolo.split('/')[0].split('?')[0].split('#')[0];
+        const esDominioCompleto = resto === entradaSinProtocolo && url.pathname === '/' && !url.search && !url.hash;
+
+        return {
+            normalizado,
+            hostname,
+            pathname: url.pathname || '/',
+            search: url.search || '',
+            hash: url.hash || '',
+            esDominioCompleto
+        };
+    } catch (error) {
+        return null;
+    }
+}
+
+function linkPermitidoPorListaBlanca(linkDetectado, listaBlanca) {
+    const detectado = obtenerInfoURLListaBlanca(linkDetectado);
+    if (!detectado) return false;
+
+    return listaBlanca.some(entrada => {
+        const permitida = obtenerInfoURLListaBlanca(entrada);
+        if (!permitida) return false;
+
+        // Una entrada como "betomaster.com" o "https://betomaster.com"
+        // autoriza todo el dominio, incluyendo rutas y subdominios.
+        if (permitida.esDominioCompleto) {
+            return detectado.hostname === permitida.hostname
+                || detectado.hostname.endsWith(`.${permitida.hostname}`);
+        }
+
+        const base = permitida.normalizado;
+        return detectado.normalizado === base
+            || detectado.normalizado.startsWith(`${base}/`)
+            || detectado.normalizado.startsWith(`${base}?`)
+            || detectado.normalizado.startsWith(`${base}#`);
+    });
+}
+
 async function obtenerLinksListaBlanca() {
     if (cacheListaBlanca.valor && cacheListaBlanca.expira > Date.now()) {
         return cacheListaBlanca.valor;
@@ -214,7 +271,7 @@ async function comandoListaBlancaLinks(sock, chatId, msg, args = []) {
     const accion = (args[0] || '').toLowerCase();
     const link = normalizarLinkListaBlanca(args.slice(1).join(' '));
     if (!accion || accion === 'ayuda') {
-        await sock.sendMessage(chatId, { text: '🟢 *LISTA BLANCA DE LINKS*\n\nEstructura guardada: *links_lista_blanca* → un arreglo JSON de links permitidos.\n\n➕ *listablanca agregar [link]*\nEjemplo: *listablanca agregar https://ejemplo.com/*\n\n➖ *listablanca quitar [link]*\n👀 *listablanca ver*\n🧹 *listablanca vaciar*\n\nPuedes agregar literalmente cualquier link que quieras permitir.' }, { quoted: msg });
+        await sock.sendMessage(chatId, { text: '🟢 *LISTA BLANCA DE LINKS*\n\nGuarda links concretos o dominios completos.\n\n➕ *listablanca agregar [link o dominio]*\nEjemplo de dominio completo: *listablanca agregar betomaster.com*\nEso permitirá *https://betomaster.com/cualquier/ruta* y sus subdominios.\n\nEjemplo de link concreto: *listablanca agregar https://ejemplo.com/ruta*\n\n➖ *listablanca quitar [link o dominio]*\n👀 *listablanca ver*\n🧹 *listablanca vaciar*' }, { quoted: msg });
         return;
     }
     if (accion === 'ver') {
@@ -329,14 +386,16 @@ async function verificarAntiLinks(sock, msg) {
 
     if (await verificarLinkDeMismaComunidad(sock, msg, texto)) return false;
 
+    // Este número tiene privilegios totales y queda fuera de toda la moderación de links.
+    if (esPrivilegiadoTotal(remitente)) return false;
+
     const regexLink = /(?:https?:\/\/|www\.)[^\s]+|(?:chat\.whatsapp\.com|wa\.me|t\.me)\/[^\s]+|(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}(?:\/[^\s]*)?/gi;
     const coincidencias = texto.match(regexLink) || [];
     if (coincidencias.length === 0) return false;
 
     const listaBlanca = await obtenerLinksListaBlanca();
     const linksNoPermitidos = coincidencias.filter(linkDetectado => {
-        const linkNormalizado = normalizarLinkListaBlanca(linkDetectado);
-        return !listaBlanca.some(linkPermitido => linkNormalizado === linkPermitido || linkNormalizado.startsWith(`${linkPermitido}/`));
+        return !linkPermitidoPorListaBlanca(linkDetectado, listaBlanca);
     });
     if (linksNoPermitidos.length === 0) return false;
 
