@@ -1,0 +1,21 @@
+{
+  "name": "bot-servicios-whatsapp",
+  "version": "1.0.0",
+  "description": "Bot de WhatsApp para llevar cuentas de servicios en un solo grupo, con MongoDB y Baileys.",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "test": "node test.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "type": "commonjs",
+  "dependencies": {
+    "@hapi/boom": "^10.0.1",
+    "@whiskeysockets/baileys": "7.0.0-rc14",
+    "dotenv": "^17.4.2",
+    "mongoose": "^9.10.1",
+    "pino": "^10.3.1"
+  }
+}
