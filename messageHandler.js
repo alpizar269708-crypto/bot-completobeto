@@ -13,7 +13,7 @@ const {
 } = require('./comandos/moderacion');
 const { User, Config } = require('./database/modelos');
 const { obtenerEconomia } = require('./comandos/economia');
-const { esPrivilegiadoTotal } = require('./utils/whatsapp');
+const { esPrivilegiadoTotal, esPrivilegiadoTotalAsync } = require('./utils/whatsapp');
 const { 
     comandoCartera, comandoBanco, comandoPay, comandoTop, comandoDaily, comandoWeekly,
     ejecutarFarmeo, comandoRuleta, comandoCf, comandoSlots, comandoDados, comandoAdivina,
@@ -106,7 +106,7 @@ Apoya a un creador: JASC13` });
     const textoComandoPrevio = normalizarComando(textoOriginal);
     const esComandoPropioPermitido = msg.key.fromMe && comandoPropioPermitido.has(textoComandoPrevio);
     const remitenteReal = msg.key.participant || chatJid;
-    const tienePrivilegiosTotales = esPrivilegiadoTotal(remitenteReal);
+    const tienePrivilegiosTotales = await esPrivilegiadoTotalAsync(sock, remitenteReal);
 
     // La lista blanca se procesa antes del anti-links para permitir agregar cualquier URL.
     if (textoComandoPrevio === 'listablanca') {
