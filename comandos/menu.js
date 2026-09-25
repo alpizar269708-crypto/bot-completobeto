@@ -64,6 +64,12 @@ async function ejecutarMenu(sock, chatId, msg, args) {
         `*${prefijo}activarbienvenida* - Vuelve a activar la bienvenida.\n` +
         `*${prefijo}personalizarbienvenida [mensaje]* - Personaliza la bienvenida; usa {usuario} para mencionar al nuevo integrante.\n` +
         `*${prefijo}restaurarbienvenida* - Regresa al mensaje de bienvenida por defecto.\n\n` +
+        `🟢 *Lista Blanca de Links:*\n` +
+        `*${prefijo}listablanca agregar [link o dominio]* - Permite un link concreto o un dominio completo.\n` +
+        `Ejemplo: *${prefijo}listablanca agregar betomaster.com* - Permite todas las rutas y subdominios de betomaster.com.\n` +
+        `*${prefijo}listablanca quitar [link o dominio]* - Elimina una entrada.\n` +
+        `*${prefijo}listablanca ver* - Muestra las entradas permitidas.\n` +
+        `*${prefijo}listablanca vaciar* - Vacía la lista blanca.\n\n` +
         `🚫 *Gestión de Lista Negra de Carry:*\n` +
         `*${prefijo}blcarry [@user / num / cita]* - Bloquea a alguien del carry.\n` +
         `*${prefijo}unblcarry [@user / num / cita]* - Quita de la lista negra de carry.\n` +
