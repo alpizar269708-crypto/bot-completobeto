@@ -1,4 +1,30 @@
 const { esPrivilegiadoTotalAsync } = require('../utils/whatsapp');
+const { Config } = require('../database/modelos');
+
+const categoriasMap = {
+    fortnite: ['pavos', 'destacadasstw', 'legendariasstw', 'epicasstw', 'alertasstw', 'stw', 'alerta', 'setgrupostw', 'unsetgrupostw', 'setprecio'],
+    tienda: ['tienda'],
+    carry: ['carryleader', 'carryjoin', 'carryleave', 'carryclose', 'blcarry', 'unblcarry', 'listcarrybl'],
+    rifas: ['rifa', 'rifainscripcion', 'cerrarrifa', 'rifajasc13', 'cajecash', 'addvarios', 'abrirrifa', 'activarrifaaqui', 'menurifajasc13'],
+    economia: ['cartera', 'bal', 'banco', 'pay', 'pagar', 'top', 'topdinero', 'daily', 'weekly', 'farmear', 'work', 'crime', 'mendigar', 'pescar', 'minar', 'cazar', 'explorar', 'ruleta', 'cf', 'slots', 'dados', 'adivina', 'buscaminas', 'rob', 'ppt', 'pelea', 'carrera', 'hackear', 'shop', 'buy', 'inventario', 'mochila', 'vender', 'use', 'regalar'],
+    utilidades: ['s', 'sticker', 'todos', 'tiktok', 'traduce', 'skin', 'stats', 'contacto', 'ping'],
+    ia: ['ia'],
+    moderacion: ['warn', 'advertir', 'verwarns', 'limpiarwarns', 'ban', 'unban', 'listanegra', 'banlist', 'unbanlist', 'grupo', 'mute', 'unmute', 'inactivos', 'listablanca', 'desactivarbienvenida', 'activarbienvenida', 'personalizarbienvenida', 'restaurarbienvenida']
+};
+
+const nombresCategorias = ['fortnite', 'tienda', 'carry', 'rifas', 'economia', 'utilidades', 'ia', 'moderacion'];
+
+async function obtenerCategoriasActivas(chatId) {
+    if (!chatId.endsWith('@g.us')) return nombresCategorias;
+    const config = await Config.findOne({ clave: `comandos_${chatId}` }).lean();
+    if (!config?.valor) return nombresCategorias;
+    try {
+        const permitidos = JSON.parse(config.valor);
+        return nombresCategorias.filter(cat => permitidos.includes(cat));
+    } catch (e) {
+        return nombresCategorias;
+    }
+}
 
 async function ejecutarMenu(sock, chatId, msg, args) {
     const prefijo = ''; // Se dejó vacío para que no muestre ningún signo
@@ -15,22 +41,32 @@ async function ejecutarMenu(sock, chatId, msg, args) {
             console.log("Error verificando admin:", e);
         }
     }
-    if (msg.key.fromMe || await esPrivilegiadoTotalAsync(sock, sender)) isAdmin = true; 
+    if (msg.key.fromMe || await esPrivilegiadoTotalAsync(sock, sender)) isAdmin = true;
+
+    // La configuración de activarcomandos se aplica a TODOS los miembros,
+    // incluidos administradores y el creador. Solo cambia qué categorías están
+    // disponibles en ese grupo; no elimina comandos dentro de una categoría activa.
+    const categoriasActivas = await obtenerCategoriasActivas(chatId); 
+
+    const descripcionCategorias = {
+        fortnite: '🎮 *fortnite* - Alertas y pavos (Salvar el Mundo)',
+        tienda: '🛒 *tienda* - Tienda diaria de Battle Royale',
+        carry: '🚀 *carry* - Sistema de escuadrones y ayuda',
+        rifas: '🎟️ *rifas* - Sistema de sorteos',
+        economia: '💰 *economia* - Minijuegos, dinero y RPG',
+        utilidades: '🛠️ *utilidades* - Stickers, descargas y traductor',
+        ia: '🤖 *ia* - Inteligencia artificial',
+        moderacion: '🛡️ *moderacion* - Control del grupo (Admins)'
+    };
 
     let menuGeneral = `🤖 *MENÚ PRINCIPAL DEL BOT* 🤖\n\n` +
     `Usa *${prefijo}menu [categoría]* para ver los comandos de cada sección.\n` +
     `Ejemplo: *${prefijo}menu economia*\n\n` +
     `📂 *CATEGORÍAS DISPONIBLES:*\n` +
-    `🎮 *fortnite* - Alertas y pavos (Salvar el Mundo)\n` +
-    `🛒 *tienda* - Tienda diaria de Battle Royale\n` +
-    `🚀 *carry* - Sistema de escuadrones y ayuda\n` +
-    `🎟️ *rifas* - Sistema de sorteos\n` +
-    `💰 *economia* - Minijuegos, dinero y RPG\n` +
-    `🛠️ *utilidades* - Stickers, descargas y traductor\n` +
-    `🤖 *ia* - Inteligencia artificial\n`;
+    categoriasActivas.map(cat => descripcionCategorias[cat]).join('\n') + '\n';
 
-    if (isAdmin && isGroup) {
-        menuGeneral += `🛡️ *moderacion* - Control del grupo (Admins)\n\n` +
+    if (isAdmin && isGroup && categoriasActivas.includes('moderacion')) {
+        menuGeneral += `\n`;
         `⚙️ *CONFIGURACIÓN DEL GRUPO (Solo Admins):*\n` +
         `*${prefijo}activarcomandos [cat1] [cat2]* - Activa solo los módulos que quieras.\n` +
         `*${prefijo}activarcomandos todos* - Habilita todas las funciones en el grupo.\n`;
@@ -144,8 +180,10 @@ async function ejecutarMenu(sock, chatId, msg, args) {
 
     if (args.length > 0) {
         const categoria = args[0].toLowerCase();
-        if (menus[categoria]) {
+        if (menus[categoria] && categoriasActivas.includes(categoria)) {
             textoEnviar = menus[categoria];
+        } else if (menus[categoria] && !categoriasActivas.includes(categoria)) {
+            textoEnviar = `❌ Esa categoría no está activa en este grupo.\n\n` + menuGeneral;
         } else {
             textoEnviar = `❌ No encontré esa categoría.\n\n` + menuGeneral;
         }
