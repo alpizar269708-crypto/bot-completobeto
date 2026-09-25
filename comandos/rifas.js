@@ -1,5 +1,5 @@
 const { Config } = require('../database/modelos');
-const { esPrivilegiadoTotalAsync } = require('../utils/whatsapp');
+const { esPrivilegiadoTotalAsync, normalizarNumeroTelefono } = require('../utils/whatsapp');
 
 const rifasActivas = new Map();
 const rifasAbiertas = new Set();
@@ -295,6 +295,81 @@ const CLAVE_CASHBACK_JASC13 = 'rifajasc13_cashback';
 function calcularCashbackJasc13(puntos) {
     return Number((Number(puntos) * 0.05).toFixed(2));
 }
+function esMensajeRecuperableJasc13(texto) {
+    const limpio = String(texto || '').toLowerCase();
+    return limpio.includes('pavos registrados exitosamente') &&
+        limpio.includes('pavos registrados:') &&
+        limpio.includes('apoya a un creador:') &&
+        limpio.includes('jasc13');
+}
+
+function extraerRegistroJasc13DeMensaje(texto) {
+    if (!esMensajeRecuperableJasc13(texto)) return null;
+
+    const lineaUsuario = String(texto).match(/usuario:\s*@([^\n]+)/i);
+    const lineaPuntos = String(texto).match(/pavos registrados:\s*\*\+?([0-9][0-9,\s.]*)\*/i);
+
+    if (!lineaUsuario || !lineaPuntos) return null;
+
+    const numero = normalizarNumeroTelefono(lineaUsuario[1]);
+    const puntos = Number(lineaPuntos[1].replace(/[^0-9]/g, ''));
+
+    if (!numero || !Number.isInteger(puntos) || puntos <= 0) return null;
+    return { numero, puntos };
+}
+
+function encontrarIdParticipantePorNumeroJasc13(participantes, numeroNormalizado) {
+    for (const id of participantes.keys()) {
+        if (normalizarNumeroTelefono(id) === numeroNormalizado) return id;
+    }
+    return null;
+}
+
+async function comandoRecuperarRegistroJasc13(sock, chatId, msg, texto) {
+    const sender = msg.key.participant || msg.key.remoteJid;
+
+    if (!(await esPrivilegiadoTotalAsync(sock, sender))) return false;
+
+    const registro = extraerRegistroJasc13DeMensaje(texto);
+    if (!registro) return false;
+
+    const { participantes, cashback } = await cargarEstadoRifaJasc13();
+    let targetId = encontrarIdParticipantePorNumeroJasc13(participantes, registro.numero);
+
+    if (!targetId) targetId = registro.numero + '@s.whatsapp.net';
+
+    const datosUsuario = participantes.get(targetId) || { puntos: 0 };
+    const puntosAnteriores = Number(datosUsuario.puntos) || 0;
+    const cashbackGenerado = calcularCashbackJasc13(registro.puntos);
+    const cashbackAnterior = Number(cashback.get(targetId) || 0);
+    const cashbackNuevo = Number((cashbackAnterior + cashbackGenerado).toFixed(2));
+
+    datosUsuario.puntos = puntosAnteriores + registro.puntos;
+    participantes.set(targetId, datosUsuario);
+    cashback.set(targetId, cashbackNuevo);
+
+    await guardarParticipantesJasc13(participantes);
+    await guardarCashbackJasc13(cashback);
+
+    const boletos = Math.floor(datosUsuario.puntos / 1000);
+    const resto = datosUsuario.puntos % 1000;
+    const faltantes = resto === 0 ? 0 : 1000 - resto;
+
+    await sock.sendMessage(chatId, {
+        text: '♻️ *REGISTRO JASC13 RECUPERADO* ♻️\n\n' +
+            '👤 Usuario: @' + registro.numero + '\n' +
+            '➕ Puntos recuperados: *+' + registro.puntos + '*\n' +
+            '💎 Puntos actuales: *' + datosUsuario.puntos + '*\n' +
+            '🎟️ Boletos actuales: *' + boletos + '* (Faltan *' + faltantes + ' pts*)\n' +
+            '💰 Cashback generado: *+' + cashbackGenerado + ' pavos*\n' +
+            '💵 Cashback acumulado: *' + cashbackNuevo + ' pavos*\n\n' +
+            '✅ Se tomó únicamente la cantidad de PaVos registrados del mensaje histórico; boletos y cashback se calcularon automáticamente.',
+        mentions: [targetId]
+    }, { quoted: msg });
+
+    return true;
+}
+
 
 async function cargarEstadoRifaJasc13() {
     const participantesConfig = await Config.findOne({ clave: CLAVE_PARTICIPANTES_JASC13 });
@@ -373,7 +448,8 @@ async function comandoMenuRifaJasc13(sock, chatId, msg) {
         `🗑️ *rifajasc13 quitar [número]* - Quita al participante sin borrar su cashback.\n` +
         `🧹 *rifajasc13 vaciar* - Vacía la lista actual, conservando todo el cashback.\n` +
         `🎰 *rifajasc13 sortear [ganadores]* - Sortea y reinicia puntos/boletos a 0, conservando el cashback.\n` +
-        `💸 *cajecash [@usuario/número] [pavos]* - Canjea y descuenta cashback.`;
+        `💸 *cajecash [@usuario/número] [pavos]* - Canjea y descuenta cashback.\n` +
+        `♻️ *Recuperación:* reenvía un mensaje histórico de *PaVos registrados exitosamente* del bot y recuperaré automáticamente el número y los puntos.`;
 
     await sock.sendMessage(chatId, { text: menuTexto }, { quoted: msg });
 }
@@ -835,4 +911,4 @@ async function comandoRifaJasc13(sock, chatId, msg, args) {
     }
 }
 
-module.exports = { comandoRifa, comandoRifaInscripcion, comandoRifaJasc13, comandoMenuRifaJasc13, comandoAbrirRifa, comandoActivarRifaAqui, comandoCerrarRifa };
+module.exports = { comandoRifa, comandoRifaInscripcion, comandoRifaJasc13, comandoMenuRifaJasc13, comandoRecuperarRegistroJasc13, comandoAbrirRifa, comandoActivarRifaAqui, comandoCerrarRifa };
