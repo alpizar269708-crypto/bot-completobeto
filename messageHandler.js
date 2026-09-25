@@ -31,7 +31,7 @@ const categoriasMap = {
     'moderacion': ['warn', 'advertir', 'verwarns', 'limpiarwarns', 'ban', 'unban', 'listanegra', 'banlist', 'unbanlist', 'grupo', 'mute', 'unmute', 'inactivos', 'listablanca'],
     'tienda': ['tienda'],
     'carry': ['carryleader', 'carryjoin', 'carryleave', 'carryclose', 'blcarry', 'unblcarry', 'listcarrybl'],
-    'rifas': ['rifa', 'rifainscripcion', 'cerrarrifa'],
+    'rifas': ['rifa', 'rifainscripcion', 'cerrarrifa', 'rifajasc13', 'cajecash', 'addvarios'],
     'menu': ['menu', 'menusecreto']
 };
 
