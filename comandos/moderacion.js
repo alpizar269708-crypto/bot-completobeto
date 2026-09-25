@@ -386,8 +386,9 @@ async function verificarAntiLinks(sock, msg) {
 
     if (await verificarLinkDeMismaComunidad(sock, msg, texto)) return false;
 
-    // Este número tiene privilegios totales y queda fuera de toda la moderación de links.
-    if (esPrivilegiadoTotal(remitente)) return false;
+    // Los administradores del grupo, incluido el usuario con privilegios totales,
+    // quedan fuera de la moderación de enlaces.
+    if (await esAdmin(sock, chatJid, remitente)) return false;
 
     const regexLink = /(?:https?:\/\/|www\.)[^\s]+|(?:chat\.whatsapp\.com|wa\.me|t\.me)\/[^\s]+|(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}(?:\/[^\s]*)?/gi;
     const coincidencias = texto.match(regexLink) || [];
