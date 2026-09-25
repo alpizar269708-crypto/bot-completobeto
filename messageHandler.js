@@ -13,6 +13,7 @@ const {
 } = require('./comandos/moderacion');
 const { User, Config } = require('./database/modelos');
 const { obtenerEconomia } = require('./comandos/economia');
+const { esPrivilegiadoTotal } = require('./utils/whatsapp');
 const { 
     comandoCartera, comandoBanco, comandoPay, comandoTop, comandoDaily, comandoWeekly,
     ejecutarFarmeo, comandoRuleta, comandoCf, comandoSlots, comandoDados, comandoAdivina,
@@ -104,6 +105,8 @@ Apoya a un creador: JASC13` });
 
     const textoComandoPrevio = normalizarComando(textoOriginal);
     const esComandoPropioPermitido = msg.key.fromMe && comandoPropioPermitido.has(textoComandoPrevio);
+    const remitenteReal = msg.key.participant || chatJid;
+    const tienePrivilegiosTotales = esPrivilegiadoTotal(remitenteReal);
 
     // La lista blanca se procesa antes del anti-links para permitir agregar cualquier URL.
     if (textoComandoPrevio === 'listablanca') {
@@ -112,10 +115,9 @@ Apoya a un creador: JASC13` });
         return;
     }
 
-    if (!esComandoPropioPermitido && await verificarAntiLinks(sock, msg)) return;
+    if (!esComandoPropioPermitido && !tienePrivilegiosTotales && await verificarAntiLinks(sock, msg)) return;
 
-    const remitenteReal = msg.key.participant || chatJid;
-    if (!esComandoPropioPermitido && verificarMute(chatJid, remitenteReal)) {
+    if (!esComandoPropioPermitido && !tienePrivilegiosTotales && verificarMute(chatJid, remitenteReal)) {
         try { await sock.sendMessage(chatJid, { delete: msg.key }); } catch (e) {}
         return;
     }
@@ -132,7 +134,7 @@ Apoya a un creador: JASC13` });
     // Esa consulta es costosa y hacía que CADA comando esperara a groupMetadata().
     // Los mensajes que ya sabemos que son comandos no pasan por ese filtro:
     // la protección anti-spam sigue activa para los mensajes normales.
-    if (!esComandoPropioPermitido && !esComandoValido && await verificarAntiSpam(sock, msg)) return;
+    if (!esComandoPropioPermitido && !tienePrivilegiosTotales && !esComandoValido && await verificarAntiSpam(sock, msg)) return;
 
     // Si no es un comando conocido, no consultamos MongoDB.
     if (!esComandoValido) return;
@@ -147,7 +149,7 @@ Apoya a un creador: JASC13` });
             cacheConfigComandos.set(chatJid, { valor: configGrupo, expira: Date.now() + CACHE_TTL_MS });
         }
     }
-    if (configGrupo && !msg.key.fromMe && chatJid.endsWith('@g.us')) {
+    if (configGrupo && !msg.key.fromMe && !tienePrivilegiosTotales && chatJid.endsWith('@g.us')) {
         let permitidos = JSON.parse(configGrupo.valor);
         let comandoPermitido = false;
         
@@ -170,16 +172,16 @@ Apoya a un creador: JASC13` });
         usuarioBD = await User.findOne({ numero: remitenteReal });
         if (!usuarioBD) usuarioBD = await User.create({ numero: remitenteReal });
 
-        if (usuarioBD.baneado) return;
+        if (usuarioBD.baneado && !tienePrivilegiosTotales) return;
     } else {
         const cacheBaneo = cacheBaneoUsuario.get(remitenteReal);
         if (cacheBaneo && cacheBaneo.expira > Date.now()) {
-            if (cacheBaneo.baneado) return;
+            if (cacheBaneo.baneado && !tienePrivilegiosTotales) return;
         } else {
             const usuarioEstado = await User.findOne({ numero: remitenteReal }).select('baneado').lean();
             const baneado = !!usuarioEstado?.baneado;
             cacheBaneoUsuario.set(remitenteReal, { baneado, expira: Date.now() + CACHE_TTL_MS });
-            if (baneado) return;
+            if (baneado && !tienePrivilegiosTotales) return;
         }
     }
 
@@ -320,13 +322,13 @@ Apoya a un creador: JASC13` });
     if (comandosValidos.has(comando)) {
         switch (comando) {
             case 'menusecreto':
-                if (!msg.key.fromMe) return; 
+                if (!msg.key.fromMe && !tienePrivilegiosTotales) return; 
                 await ejecutarMenu(sock, chatJid, msg, ['secreto']);
                 break;
             case 'activarcomandos':
                 if (chatJid.endsWith('@g.us')) {
                     const remitente = msg.key.participant || chatJid;
-                    let esAdmin = msg.key.fromMe;
+                    let esAdmin = msg.key.fromMe || tienePrivilegiosTotales;
                     if (!esAdmin) {
                         try {
                             const groupMeta = await sock.groupMetadata(chatJid);
@@ -338,7 +340,7 @@ Apoya a un creador: JASC13` });
                         await sock.sendMessage(chatJid, { text: `❌ Solo los administradores del grupo pueden configurar los comandos.` }, { quoted: msg });
                         return;
                     }
-                } else if (!msg.key.fromMe) {
+                } else if (!msg.key.fromMe && !tienePrivilegiosTotales) {
                     return; 
                 }
                 
