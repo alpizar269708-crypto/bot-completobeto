@@ -58,7 +58,7 @@ async function comandoAbrirRifa(sock, chatId, msg) {
         propietario = sender;
     }
 
-    if (sender !== propietario && !esPrivilegiadoTotalAsync(sock, sender)) return;
+    if (sender !== propietario && !(await esPrivilegiadoTotalAsync(sock, sender))) return;
 
     await sock.sendMessage(chatId, {
         text: '🔓 *Rifa habilitada.*\n\nAhora usa *activarrifaaqui* dentro del grupo donde quieras abrir la inscripción.'
@@ -85,7 +85,7 @@ async function comandoCerrarRifa(sock, chatId, msg) {
         }
     } else {
         const propietario = await obtenerPropietarioRifas();
-        if (!propietario || (sender !== propietario && !esPrivilegiadoTotalAsync(sock, sender))) return;
+        if (!propietario || (sender !== propietario && !(await esPrivilegiadoTotalAsync(sock, sender)))) return;
     }
 
     rifasAbiertas.delete(chatId);
@@ -106,7 +106,7 @@ async function comandoActivarRifaAqui(sock, chatId, msg) {
     const sender = msg.key.participant || msg.key.remoteJid;
     const propietario = await obtenerPropietarioRifas();
 
-    if (!propietario || (sender !== propietario && !esPrivilegiadoTotalAsync(sock, sender))) return;
+    if (!propietario || (sender !== propietario && !(await esPrivilegiadoTotalAsync(sock, sender)))) return;
 
     rifasAbiertas.add(chatId);
     await Config.findOneAndUpdate(
@@ -252,7 +252,7 @@ async function comandoRifa(sock, chatId, msg, args) {
             }
         } else {
             const propietario = await obtenerPropietarioRifas();
-            if (!propietario || (sender !== propietario && !esPrivilegiadoTotalAsync(sock, sender))) {
+            if (!propietario || (sender !== propietario && !(await esPrivilegiadoTotalAsync(sock, sender)))) {
                 return await sock.sendMessage(chatId, { text: `❌ Permiso denegado. Solo la persona que abrió la rifa puede realizar el sorteo.` }, { quoted: msg });
             }
         }
@@ -360,7 +360,7 @@ async function comandoRifaJasc13(sock, chatId, msg, args) {
     let { propietario, participantes } = await cargarEstadoRifaJasc13();
 
     // El propietario queda guardado permanentemente hasta que se cambie explícitamente con iniciar.
-    if (propietario && sender !== propietario && !esPrivilegiadoTotalAsync(sock, sender)) {
+    if (propietario && sender !== propietario && !(await esPrivilegiadoTotalAsync(sock, sender))) {
         return await sock.sendMessage(chatId, {
             text: '❌ Acceso denegado. Esta rifa ya fue iniciada y está reservada para su propietario.'
         }, { quoted: msg });
