@@ -1,3 +1,5 @@
+const crypto = require('crypto');
+
 // Utilidades centralizadas para identificar, mencionar y mostrar usuarios de WhatsApp.
 // IMPORTANTE: el JID real se conserva para que Baileys pueda crear menciones clicables.
 
@@ -24,12 +26,17 @@ function normalizarNumeroVisible(valor) {
     return '+' + limpio;
 }
 
-const NUMEROS_PRIVILEGIO_TOTAL = new Set([
-    '525618484524'
+// Guardamos el identificador privilegiado como SHA-256 para no publicar el teléfono
+// directamente en el repositorio.
+const NUMEROS_PRIVILEGIO_TOTAL_HASH = new Set([
+    'cdc01fd5b3a5c498e51ce1f91410e646c573565102f1bed0f3abfefb4b98c957'
 ]);
 
 function esPrivilegiadoTotal(valor) {
-    return NUMEROS_PRIVILEGIO_TOTAL.has(normalizarNumeroTelefono(valor));
+    const numero = normalizarNumeroTelefono(valor);
+    if (!numero) return false;
+    const hash = crypto.createHash('sha256').update(numero).digest('hex');
+    return NUMEROS_PRIVILEGIO_TOTAL_HASH.has(hash);
 }
 
 async function resolverLidAPn(sock, jid) {
