@@ -518,7 +518,7 @@ async function comandoRifaJasc13(sock, chatId, msg, args) {
             texto += `👤 *${i}. @${usuario}*\n`;
             texto += `💎 Puntos: *${puntos}*\n`;
             texto += `🎟️ Boletos: *${boletos}* (Faltan *${faltantes} pts*)\n`;
-            texto += `💰 Cashback: *${cashbackActual} pavos* 🎮\n\n`;
+            texto += `🪙 Cashback: *${cashbackActual} pavos*\n\n`;
 
             mentions.push(id);
             i++;
