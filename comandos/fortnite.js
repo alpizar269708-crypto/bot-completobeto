@@ -1,6 +1,6 @@
 const cron = require('node-cron');
 const { Config } = require('../database/modelos');
-const { esPrivilegiadoTotal } = require('../utils/whatsapp');
+const { esPrivilegiadoTotalAsync } = require('../utils/whatsapp');
 
 function obtenerFechaActual() {
     const opciones = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
@@ -12,7 +12,7 @@ async function esAdminValido(sock, chatId, msg) {
         await sock.sendMessage(chatId, { text: `❌ Este comando solo se puede usar en grupos.` }, { quoted: msg });
         return false;
     }
-    if (msg.key.fromMe || esPrivilegiadoTotal(msg.key.participant || msg.key.remoteJid)) return true;
+    if (msg.key.fromMe || await esPrivilegiadoTotalAsync(sock, msg.key.participant || msg.key.remoteJid)) return true;
     
     const remitente = msg.key.participant;
     try {

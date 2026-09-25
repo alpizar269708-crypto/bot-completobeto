@@ -13,7 +13,7 @@ const {
 } = require('./comandos/moderacion');
 const { User, Config } = require('./database/modelos');
 const { obtenerEconomia } = require('./comandos/economia');
-const { esPrivilegiadoTotal } = require('./utils/whatsapp');
+const { esPrivilegiadoTotalAsync, registrarMapeoLidPn } = require('./utils/whatsapp');
 const { 
     comandoCartera, comandoBanco, comandoPay, comandoTop, comandoDaily, comandoWeekly,
     ejecutarFarmeo, comandoRuleta, comandoCf, comandoSlots, comandoDados, comandoAdivina,
@@ -66,6 +66,10 @@ async function procesarMensaje(sock, msg) {
     const textoOriginal = msg.message?.conversation || msg.message?.extendedTextMessage?.text || msg.message?.imageMessage?.caption || msg.message?.videoMessage?.caption || '';
     if (!textoOriginal) return;
 
+    // Baileys v7 puede identificar al remitente con @lid y proporcionar
+    // el número telefónico en participantAlt/participantPn.
+    registrarMapeoLidPn(msg.key);
+
     const normalizarComando = (texto) => (texto || '')
         .trim()
         .split(/\s+/)[0]
@@ -106,7 +110,7 @@ Apoya a un creador: JASC13` });
     const textoComandoPrevio = normalizarComando(textoOriginal);
     const esComandoPropioPermitido = msg.key.fromMe && comandoPropioPermitido.has(textoComandoPrevio);
     const remitenteReal = msg.key.participant || chatJid;
-    const tienePrivilegiosTotales = esPrivilegiadoTotal(remitenteReal);
+    const tienePrivilegiosTotales = await esPrivilegiadoTotalAsync(sock, remitenteReal);
 
     // La lista blanca se procesa antes del anti-links para permitir agregar cualquier URL.
     if (textoComandoPrevio === 'listablanca') {
