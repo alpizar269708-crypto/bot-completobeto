@@ -219,7 +219,7 @@ async function comandoRifa(sock, chatId, msg, args) {
             const contacto = await resolverContactoWhatsApp(sock, jid, chatId);
             const etiquetaContacto = etiquetaContactoWhatsApp(contacto, jid);
             if (contacto.jid || jid) mentions.push(contacto.jid || jid);
-            texto += `${i + 1}. ${etiquetaContacto}\n`;
+            texto += `${String(i + 1).padStart(2, '0')}. ${etiquetaContacto}\n`;
         }
         await sock.sendMessage(chatId, { text: texto, mentions }, { quoted: msg });
 
@@ -541,7 +541,7 @@ async function comandoRifaJasc13(sock, chatId, msg, args) {
             const etiquetaContacto = etiquetaContactoWhatsApp(contacto, jid);
             if (contacto.jid || jid) mentions.push(contacto.jid || jid);
 
-            texto += `${i}. ${etiquetaContacto}\n` +
+            texto += `${String(i).padStart(2, '0')}. ${etiquetaContacto}\n` +
                 `Puntos: *${puntosTotales}*\n` +
                 `Boletos: *${boletos}* (Faltan ${faltantes} pts)\n` +
                 `Cashback: *${cashback.toFixed(2)}* Pavos\n\n`;
@@ -649,7 +649,7 @@ async function comandoRifaJasc13(sock, chatId, msg, args) {
                     const jid = d.numero;
                     const contacto = await resolverContactoWhatsApp(sock, jid, chatId);
                     const etiquetaContacto = etiquetaContactoWhatsApp(contacto, jid);
-                    return `${i + 1}. 👤 ${etiquetaContacto} → *${(Number(d.cashback) || 0).toFixed(2)}* Pavos`;
+                    return `${String(i + 1).padStart(2, '0')}. 👤 ${etiquetaContacto} → *${(Number(d.cashback) || 0).toFixed(2)}* Pavos`;
                 }))
             ].join('\n');
 
