@@ -1,5 +1,5 @@
 const { esProgramadorBot } = require('./programadorbot');
-const { resolverContactoWhatsApp, resolverJidUsuario, etiquetaContactoWhatsApp, normalizarNumeroVisible } = require('../utils/whatsapp');
+const { resolverLidAPn } = require('../utils/whatsapp');
 const { Config, RifaJasc13Cashback } = require('../database/modelos');
 
 const rifasActivas = new Map();
@@ -165,21 +165,19 @@ async function comandoRifaInscripcion(sock, chatId, msg) {
     if (!(await rifaEstaAbierta(chatId))) return;
 
     const sender = msg.key.participant || msg.key.remoteJid;
-    const jid = sender;
-    const contacto = await resolverContactoWhatsApp(sock, jid, chatId);
-    const etiquetaContacto = etiquetaContactoWhatsApp(contacto, jid);
+    const pushName = msg.pushName || 'Usuario';
 
     const participantes = await cargarParticipantesRifa(chatId);
 
     const yaInscrito = participantes.find(p => p.id === sender);
     if (yaInscrito) {
-        return await sock.sendMessage(chatId, { text: `❌ Ya estás inscrito en la rifa actual, *${etiquetaContacto}*. Solo se permite una inscripción por número.`, mentions: [contacto.jid || jid].filter(Boolean) }, { quoted: msg });
+        return await sock.sendMessage(chatId, { text: `❌ Ya estás inscrito en la rifa actual, *${pushName}*. Solo se permite una inscripción por número.` }, { quoted: msg });
     }
 
-    participantes.push({ id: sender, nombre: etiquetaContacto });
+    participantes.push({ id: sender, nombre: pushName });
     await guardarParticipantesRifa(chatId, participantes);
 
-    await sock.sendMessage(chatId, { text: `✅ ¡Listo, *${etiquetaContacto}*! Te has inscrito a la rifa correctamente. (Participante #${participantes.length})`, mentions: [contacto.jid || jid].filter(Boolean) }, { quoted: msg });
+    await sock.sendMessage(chatId, { text: `✅ ¡Listo, *${pushName}*! Te has inscrito a la rifa correctamente. (Participante #${participantes.length})` }, { quoted: msg });
 }
 
 // === COMANDO EXCLUSIVO PARA ADMINISTRADORES ===
@@ -213,15 +211,8 @@ async function comandoRifa(sock, chatId, msg, args) {
     if (accion === 'ver') {
         if (participantes.length === 0) return await sock.sendMessage(chatId, { text: `📭 La rifa está vacía.` }, { quoted: msg });
         let texto = `🎟️ *PARTICIPANTES DE LA RIFA (${participantes.length}):*\n\n`;
-        const mentions = [];
-        for (const [i, p] of participantes.entries()) {
-            const jid = p.id;
-            const contacto = await resolverContactoWhatsApp(sock, jid, chatId);
-            const etiquetaContacto = etiquetaContactoWhatsApp(contacto, jid);
-            if (contacto.jid || jid) mentions.push(contacto.jid || jid);
-            texto += `${String(i + 1).padStart(2, '0')}. ${etiquetaContacto}\n`;
-        }
-        await sock.sendMessage(chatId, { text: texto, mentions }, { quoted: msg });
+        participantes.forEach((p, i) => texto += `${i + 1}. ${p.nombre}\n`);
+        await sock.sendMessage(chatId, { text: texto }, { quoted: msg });
 
     } else if (accion === 'quitar') {
         if (!parametro) return await sock.sendMessage(chatId, { text: `❌ Dime el número en la lista para quitar (ej. rifa quitar 1).` }, { quoted: msg });
@@ -230,10 +221,7 @@ async function comandoRifa(sock, chatId, msg, args) {
         if (!isNaN(index) && index >= 0 && index < participantes.length) {
             const eliminado = participantes.splice(index, 1)[0];
             await guardarParticipantesRifa(chatId, participantes);
-            const jid = eliminado.id;
-            const contacto = await resolverContactoWhatsApp(sock, jid, chatId);
-            const etiquetaContacto = etiquetaContactoWhatsApp(contacto, jid);
-            await sock.sendMessage(chatId, { text: `🗑️ Participante #${index + 1} (${etiquetaContacto}) eliminado.`, mentions: [contacto.jid || jid].filter(Boolean) }, { quoted: msg });
+            await sock.sendMessage(chatId, { text: `🗑️ Participante #${index + 1} (${eliminado.nombre}) eliminado.` }, { quoted: msg });
         } else {
             await sock.sendMessage(chatId, { text: `❌ Número no válido. Usa "rifa ver" para checar los números.` }, { quoted: msg });
         }
@@ -270,12 +258,11 @@ async function comandoRifa(sock, chatId, msg, args) {
         
         const ganador = participantes[Math.floor(Math.random() * participantes.length)];
         
-        const jid = ganador.id;
-        const contacto = await resolverContactoWhatsApp(sock, jid, chatId);
-        const etiquetaContacto = etiquetaContactoWhatsApp(contacto, jid);
         await sock.sendMessage(chatId, { 
-            text: `🎉 *¡TENEMOS GANADOR!*\n\n🏆 El ganador de la rifa es: ${etiquetaContacto} 🎊`,
-            mentions: [contacto.jid || jid].filter(Boolean)
+            text: `🎉 *¡TENEMOS GANADOR!*
+
+🏆 El ganador de la rifa es: @${ganador.id.split('@')[0]} 🎊`,
+            mentions: [ganador.id]
         });
 
         // Finalizar la rifa automáticamente: cerrar inscripciones y limpiar la lista.
@@ -301,10 +288,267 @@ async function comandoRifa(sock, chatId, msg, args) {
 // ==========================================
 const CLAVE_PROPIETARIO_JASC13 = 'rifajasc13_propietario';
 const CLAVE_PARTICIPANTES_JASC13 = 'rifajasc13_participantes';
+const CLAVE_IDENTIDADES_JASC13 = 'rifajasc13_identidades';
 const CLAVE_MIGRACION_CASHBACK_JASC13 = 'rifajasc13_cashback_migrado_v1';
 const CLAVE_AJUSTE_PARTICIPANTES_JASC13 = 'rifajasc13_ajuste_participantes_v5';
 const PORCENTAJE_CASHBACK_JASC13 = 0.05;
 
+function normalizarNumeroVisible(numero) {
+    const limpio = String(numero || '').replace(/[^0-9]/g, '');
+    if (!limpio) return '+0';
+    if (limpio.startsWith('521') && limpio.length === 13) return '+52' + limpio.slice(3);
+    return '+' + limpio;
+}
+
+function extraerNumeroJid(jid) {
+    return String(jid || '').split('@')[0].split(':')[0].replace(/[^0-9]/g, '');
+}
+
+async function resolverContactoJasc13(sock, jid, chatId = null) {
+    if (!jid) return { numeroVisible: '+0', mentionJid: null, mentionNumber: null, username: null };
+
+    const entrada = String(jid).trim();
+    const entradaNumero = extraerNumeroJid(entrada);
+    let mentionJid = entrada;
+    let numero = entradaNumero;
+    const esDiagnosticoJasc13 = entradaNumero === '18056092876876';
+
+    // WhatsApp entrega el Username real como participantUsername en mensajes.
+    // Lo reutilizamos para LIDs que ya fueron vistos por el bot.
+    const usernameCache = sock?.jasc13UsernameCache;
+    if (usernameCache?.get) {
+        const usernameCacheado = usernameCache.get(entrada);
+        if (usernameCacheado) {
+            return {
+                numeroVisible: usernameCacheado.startsWith('@') ? usernameCacheado : '@' + usernameCacheado,
+                mentionJid: entrada,
+                mentionNumber: entrada.endsWith('@lid') ? null : extraerNumeroJid(entrada),
+                username: usernameCacheado
+            };
+        }
+    }
+
+    // Si el bot ya registró esta identidad anteriormente, la recuperamos de MongoDB.
+    // Así el dato sobrevive reinicios y despliegues de Render.
+    try {
+        const identidadesConfig = await Config.findOne({ clave: CLAVE_IDENTIDADES_JASC13 }).select('valor').lean();
+        if (identidadesConfig?.valor) {
+            const identidades = JSON.parse(identidadesConfig.valor);
+            const identidad = identidades?.[entrada];
+            if (identidad?.username) {
+                return {
+                    numeroVisible: '@' + String(identidad.username).replace(/^@/, ''),
+                    mentionJid: identidad.mentionJid || entrada,
+                    mentionNumber: identidad.phoneNumber ? extraerNumeroJid(identidad.phoneNumber) : null,
+                    username: identidad.username
+                };
+            }
+            if (identidad?.phoneNumber) {
+                mentionJid = identidad.mentionJid || entrada;
+                numero = extraerNumeroJid(identidad.phoneNumber);
+            }
+        }
+    } catch (error) {
+        console.error('⚠️ No se pudo leer la identidad persistente JASC13:', error.message);
+    }
+
+    if (esDiagnosticoJasc13) {
+        console.log('🔎 JASC13 DIAGNÓSTICO #9 - entrada:', entrada);
+        console.log('🔎 JASC13 DIAGNÓSTICO #9 - entradaNumero:', entradaNumero);
+        console.log('🔎 JASC13 DIAGNÓSTICO #9 - termina en @lid:', entrada.endsWith('@lid'));
+        console.log('🔎 JASC13 DIAGNÓSTICO #9 - fetchUsername disponible:', typeof sock?.fetchUsername === 'function');
+        console.log('🔎 JASC13 DIAGNÓSTICO #9 - findUserId disponible:', typeof sock?.findUserId === 'function');
+        console.log('🔎 JASC13 DIAGNÓSTICO #9 - onWhatsApp disponible:', typeof sock?.onWhatsApp === 'function');
+    }
+
+    // WhatsApp puede entregar usuarios con Username mediante un identificador
+    // que parece teléfono, pero que NO es un teléfono real. En grupos, la
+    // metadata trae el username y el JID real del participante; esa fuente
+    // tiene prioridad para evitar fabricar una mención @s.whatsapp.net.
+    if (chatId?.endsWith('@g.us')) {
+        try {
+            const metadata = await sock.groupMetadata(chatId);
+            const participantesGrupo = Array.isArray(metadata?.participants) ? metadata.participants : [];
+
+            if (esDiagnosticoJasc13) {
+                console.log('🔎 JASC13 DIAGNÓSTICO #9 - participantes en metadata:', participantesGrupo.length);
+                const coincidenciaProfunda = participantesGrupo.find(p => {
+                    try {
+                        return JSON.stringify(p).includes(entradaNumero);
+                    } catch (error) {
+                        return false;
+                    }
+                });
+                if (coincidenciaProfunda) {
+                    console.log('🔎 JASC13 DIAGNÓSTICO #9 - coincidencia profunda:', JSON.stringify(coincidenciaProfunda));
+                    console.log('🔎 JASC13 DIAGNÓSTICO #9 - claves:', Object.keys(coincidenciaProfunda));
+                } else {
+                    console.log('🔎 JASC13 DIAGNÓSTICO #9 - NO aparece el LID en ninguna propiedad de participants');
+                }
+            }
+
+            const participante = participantesGrupo.find(p => {
+                const ids = [
+                    p?.id,
+                    p?.phoneNumber,
+                    p?.lid
+                ].filter(Boolean).map(String);
+
+                return ids.includes(entrada)
+                    || ids.some(id => extraerNumeroJid(id) && extraerNumeroJid(id) === entradaNumero);
+            });
+
+            if (participante) {
+                if (esDiagnosticoJasc13) {
+                    console.log('🔎 JASC13 DIAGNÓSTICO #9 - participante encontrado:', JSON.stringify(participante));
+                }
+                const username = participante.username || participante.notify || null;
+                if (username) {
+                    return {
+                        numeroVisible: username.startsWith('@') ? username : '@' + username,
+                        mentionJid: participante.id || entrada,
+                        mentionNumber: extraerNumeroJid(participante.id || entrada) || null,
+                        username
+                    };
+                }
+
+                if (participante.id && participante.id !== entrada) {
+                    mentionJid = participante.id;
+                }
+
+                if (participante.phoneNumber) {
+                    numero = extraerNumeroJid(participante.phoneNumber);
+                }
+            }
+        } catch (error) {}
+    }
+
+    // Primero intentamos obtener el Username directamente desde el JID.
+    // Baileys v7 expone fetchUsername() para este tipo de consulta.
+    let username = null;
+    try {
+        if (typeof sock?.fetchUsername === 'function') {
+            username = await sock.fetchUsername(mentionJid);
+            if (esDiagnosticoJasc13) {
+                console.log('🔎 JASC13 DIAGNÓSTICO #9 - fetchUsername resultado:', username);
+            }
+        }
+    } catch (error) {
+        if (esDiagnosticoJasc13) {
+            console.log('🔎 JASC13 DIAGNÓSTICO #9 - fetchUsername ERROR:', error?.message || error);
+        }
+    }
+
+    // Algunos usuarios con Username reservado llegan a la aplicación con un
+    // identificador numérico que parece teléfono, aunque no lo sea. Si el
+    // identificador no es un PN válido, intentamos resolverlo mediante la
+    // tabla PN <-> LID de WhatsApp y después consultar el Username del LID.
+    if (!username && typeof sock?.findUserId === 'function') {
+        try {
+            const ids = await sock.findUserId(mentionJid);
+            const lid = ids?.lid;
+            const pn = ids?.phoneNumber;
+            if (esDiagnosticoJasc13) {
+                console.log('🔎 JASC13 DIAGNÓSTICO #9 - findUserId resultado:', JSON.stringify(ids));
+            }
+
+            if (lid) {
+                mentionJid = lid;
+                username = typeof sock?.fetchUsername === 'function'
+                    ? await sock.fetchUsername(lid)
+                    : null;
+            }
+
+            if (!username && pn) {
+                const pnJid = String(pn).includes('@') ? String(pn) : pn + '@s.whatsapp.net';
+                username = typeof sock?.fetchUsername === 'function'
+                    ? await sock.fetchUsername(pnJid)
+                    : null;
+            }
+
+            if (pn) numero = extraerNumeroJid(pn);
+        } catch (error) {
+            if (esDiagnosticoJasc13) {
+                console.log('🔎 JASC13 DIAGNÓSTICO #9 - findUserId ERROR:', error?.message || error);
+            }
+        }
+    }
+
+    if (esDiagnosticoJasc13) {
+        try {
+            const proto = sock ? Object.getPrototypeOf(sock) : null;
+            const metodosRelacionados = Array.from(new Set([
+                ...Object.keys(sock || {}),
+                ...(proto ? Object.getOwnPropertyNames(proto) : [])
+            ])).filter(nombre => /username|user|lid|contact/i.test(nombre));
+            console.log('🔎 JASC13 DIAGNÓSTICO #9 - métodos relacionados disponibles:', metodosRelacionados.join(', ') || '(ninguno)');
+
+            try {
+                const versionBaileys = require('@whiskeysockets/baileys/package.json').version;
+                console.log('🔎 JASC13 DIAGNÓSTICO #9 - versión Baileys:', versionBaileys);
+            } catch (error) {
+                console.log('🔎 JASC13 DIAGNÓSTICO #9 - versión Baileys: no se pudo leer package.json');
+            }
+        } catch (error) {
+            console.log('🔎 JASC13 DIAGNÓSTICO #9 - inspección de runtime ERROR:', error?.message || error);
+        }
+
+        try {
+            if (typeof sock?.onWhatsApp === 'function') {
+                const resultadosOnWhatsApp = await sock.onWhatsApp(entradaNumero);
+                console.log('🔎 JASC13 DIAGNÓSTICO #9 - onWhatsApp resultado:', JSON.stringify(resultadosOnWhatsApp));
+            }
+        } catch (error) {
+            console.log('🔎 JASC13 DIAGNÓSTICO #9 - onWhatsApp ERROR:', error?.message || error);
+        }
+
+        try {
+            const mapping = sock?.signalRepository?.lidMapping;
+            if (mapping?.getPNForLID && entrada.endsWith('@lid')) {
+                const pnLid = await mapping.getPNForLID(entrada);
+                console.log('🔎 JASC13 DIAGNÓSTICO #9 - getPNForLID resultado:', pnLid);
+            } else {
+                console.log('🔎 JASC13 DIAGNÓSTICO #9 - getPNForLID no aplicó (no es @lid o API no disponible)');
+            }
+        } catch (error) {
+            console.log('🔎 JASC13 DIAGNÓSTICO #9 - getPNForLID ERROR:', error?.message || error);
+        }
+    }
+
+    if (username) {
+        return {
+            numeroVisible: username.startsWith('@') ? username : '@' + username,
+            mentionJid,
+            mentionNumber: extraerNumeroJid(mentionJid) || null,
+            username
+        };
+    }
+
+    // Si la rifa guardó un LID, sus dígitos NO son un teléfono.
+    if (entrada.endsWith('@lid')) {
+        numero = '';
+        try {
+            const pn = await resolverLidAPn(sock, entrada);
+            const numeroPN = extraerNumeroJid(pn);
+            if (numeroPN) numero = numeroPN;
+        } catch (error) {
+            console.error('⚠️ No se pudo resolver LID de JASC13:', error.message);
+        }
+    }
+
+    // En números mexicanos, 521 + 10 dígitos es una representación histórica.
+    if (numero.startsWith('521') && numero.length === 13) {
+        numero = '52' + numero.slice(3);
+        mentionJid = numero + '@s.whatsapp.net';
+    }
+
+    return {
+        numeroVisible: numero ? normalizarNumeroVisible(numero) : '+0',
+        mentionJid,
+        mentionNumber: extraerNumeroJid(mentionJid) || null,
+        username
+    };
+}
 
 async function aplicarAjusteParticipantesJasc13(participantes) {
     const ajuste = await Config.findOne({ clave: CLAVE_AJUSTE_PARTICIPANTES_JASC13 });
@@ -392,15 +636,22 @@ async function cargarEstadoRifaJasc13() {
             if (!item?.id) continue;
             const puntos = Number(item.puntos);
             if (!Number.isFinite(puntos)) continue;
+            const identidad = {
+                username: item.username || null,
+                phoneNumber: item.phoneNumber || null,
+                mentionJid: item.mentionJid || item.id
+            };
             if (Number.isFinite(Number(item.boletos))) {
                 participantes.set(item.id, {
                     puntos: Math.max(0, Math.floor(puntos)),
-                    boletos: Math.max(0, Math.floor(Number(item.boletos)))
+                    boletos: Math.max(0, Math.floor(Number(item.boletos))),
+                    ...identidad
                 });
             } else {
                 participantes.set(item.id, {
                     puntos: Math.max(0, Math.floor(puntos)) % 1000,
-                    boletos: Math.floor(Math.max(0, Math.floor(puntos)) / 1000)
+                    boletos: Math.floor(Math.max(0, Math.floor(puntos)) / 1000),
+                    ...identidad
                 });
                 requiereGuardar = true;
             }
@@ -426,7 +677,10 @@ async function guardarParticipantesJasc13(participantes) {
     const lista = Array.from(participantes.entries()).map(([id, data]) => ({
         id,
         puntos: Number(data.puntos) || 0,
-        boletos: Number(data.boletos) || 0
+        boletos: Number(data.boletos) || 0,
+        username: data.username || null,
+        phoneNumber: data.phoneNumber || null,
+        mentionJid: data.mentionJid || id
     }));
 
     await Config.findOneAndUpdate(
@@ -434,6 +688,68 @@ async function guardarParticipantesJasc13(participantes) {
         { valor: JSON.stringify(lista) },
         { upsert: true }
     );
+}
+
+async function registrarIdentidadJasc13(sock, jid, username, phoneNumber = null) {
+    if (!jid || !username) return false;
+    try {
+        const config = await Config.findOne({ clave: CLAVE_IDENTIDADES_JASC13 }).select('valor').lean();
+        let identidades = {};
+        if (config?.valor) {
+            try { identidades = JSON.parse(config.valor) || {}; } catch (error) { identidades = {}; }
+        }
+        const clave = String(jid);
+        // Solo registramos identidades de personas que ya pertenecen a la lista JASC13.
+        // Así un mensaje normal de cualquier otro contacto no llena MongoDB innecesariamente.
+        const participantesConfig = await Config.findOne({ clave: CLAVE_PARTICIPANTES_JASC13 }).select('valor').lean();
+        let lista = [];
+        if (participantesConfig?.valor) {
+            try { lista = JSON.parse(participantesConfig.valor); } catch (error) { lista = []; }
+        }
+        const participante = lista.find(item => item?.id === clave);
+        if (!participante) return false;
+
+        const identidadAnterior = identidades[clave] || {};
+        const identidadNueva = {
+            username: String(username).replace(/^@/, ''),
+            phoneNumber: phoneNumber || identidadAnterior.phoneNumber || null,
+            mentionJid: identidadAnterior.mentionJid || participante.mentionJid || clave
+        };
+        if (JSON.stringify(identidadAnterior) !== JSON.stringify(identidadNueva)) {
+            identidades[clave] = identidadNueva;
+            await Config.findOneAndUpdate(
+                { clave: CLAVE_IDENTIDADES_JASC13 },
+                { valor: JSON.stringify(identidades) },
+                { upsert: true }
+            );
+        }
+
+        // También incorporamos la identidad al registro principal de participantes.
+        if (participantesConfig?.valor) {
+            try { lista = JSON.parse(participantesConfig.valor); } catch (error) { lista = []; }
+            let cambio = false;
+            for (const item of lista) {
+                if (item?.id === clave) {
+                    item.username = identidadNueva.username;
+                    item.phoneNumber = identidadNueva.phoneNumber;
+                    item.mentionJid = identidadNueva.mentionJid;
+                    cambio = true;
+                    break;
+                }
+            }
+            if (cambio) {
+                await Config.findOneAndUpdate(
+                    { clave: CLAVE_PARTICIPANTES_JASC13 },
+                    { valor: JSON.stringify(lista) },
+                    { upsert: true }
+                );
+            }
+        }
+        return true;
+    } catch (error) {
+        console.error('⚠️ Error registrando identidad JASC13:', error.message);
+        return false;
+    }
 }
 
 async function guardarPropietarioJasc13(propietario) {
@@ -536,14 +852,20 @@ async function comandoRifaJasc13(sock, chatId, msg, args) {
             const faltantes = puntos === 0 ? 1000 : 1000 - puntos;
             const cashbackDoc = await RifaJasc13Cashback.findOne({ numero: id }).select('cashback').lean();
             const cashback = Number(cashbackDoc?.cashback) || 0;
-            const contacto = await resolverContactoWhatsApp(sock, id, chatId);
-            const jid = id;
-            const etiquetaContacto = etiquetaContactoWhatsApp(contacto, jid);
-            if (contacto.jid || jid) mentions.push(contacto.jid || jid);
+            const contacto = await resolverContactoJasc13(sock, id, chatId);
+            // Para que WhatsApp convierta la etiqueta en una mención interactiva,
+            // el texto debe contener @identificador y sendMessage debe recibir el JID
+            // correspondiente en "mentions".
+            const numeroMencion = contacto.mentionNumber || extraerNumeroJid(contacto.mentionJid);
+            const etiquetaContacto = contacto.username
+                ? `@${contacto.username.replace(/^@/, '')}`
+                : (numeroMencion ? `@${numeroMencion}` : (contacto.numeroVisible !== '+0' ? contacto.numeroVisible : '+0'));
 
-            // Se convierte la variable "i" a texto y se aplica padStart
-            const numLista = String(i).padStart(2, '0');
-            texto += `${numLista}. ${etiquetaContacto}\n` +
+            if (contacto.mentionJid) {
+                mentions.push(contacto.mentionJid);
+            }
+
+            texto += `${i}. ${etiquetaContacto}\n` +
                 `Puntos: *${puntosTotales}*\n` +
                 `Boletos: *${boletos}* (Faltan ${faltantes} pts)\n` +
                 `Cashback: *${cashback.toFixed(2)}* Pavos\n\n`;
@@ -600,10 +922,16 @@ async function comandoRifaJasc13(sock, chatId, msg, args) {
         else if (msg.message?.extendedTextMessage?.contextInfo?.participant) targetId = msg.message.extendedTextMessage.contextInfo.participant;
         else { const numLimpio = args[1]?.replace(/[^0-9]/g, ''); if (numLimpio && numLimpio.length > 5) targetId = numLimpio + '@s.whatsapp.net'; }
         if (!targetId) return await sock.sendMessage(chatId, { text: '❌ No se pudo identificar al usuario. Menciona al usuario o responde a su mensaje.' }, { quoted: msg });
+        const contactoRegistrado = await resolverContactoJasc13(sock, targetId, chatId);
         const datosUsuario = participantes.get(targetId) || {
             puntos: 0,
-            boletos: 0
+            boletos: 0,
+            username: contactoRegistrado.username || null,
+            phoneNumber: contactoRegistrado.mentionNumber && !targetId.endsWith('@lid') ? targetId : null,
+            mentionJid: contactoRegistrado.mentionJid || targetId
         };
+        if (contactoRegistrado.username) datosUsuario.username = contactoRegistrado.username;
+        if (contactoRegistrado.mentionJid) datosUsuario.mentionJid = contactoRegistrado.mentionJid;
         const puntosTotales = (Number(datosUsuario.puntos) || 0) + pavosAgregados;
         const boletosGanados = Math.floor(puntosTotales / 1000);
         datosUsuario.puntos = puntosTotales % 1000;
@@ -611,27 +939,20 @@ async function comandoRifaJasc13(sock, chatId, msg, args) {
         const cashbackGanado = Number((pavosAgregados * PORCENTAJE_CASHBACK_JASC13).toFixed(2));
         if (cashbackGanado > 0) await RifaJasc13Cashback.findOneAndUpdate({ numero: targetId }, { $inc: { cashback: cashbackGanado } }, { upsert: true });
         participantes.set(targetId, datosUsuario);
+        if (contactoRegistrado.username) {
+            await registrarIdentidadJasc13(sock, targetId, contactoRegistrado.username, contactoRegistrado.mentionNumber && !targetId.endsWith('@lid') ? targetId : null);
+        }
         await guardarParticipantesJasc13(participantes);
         const faltantes = datosUsuario.puntos === 0 ? 1000 : 1000 - datosUsuario.puntos;
         const cashbackDoc = await RifaJasc13Cashback.findOne({ numero: targetId }).select('cashback').lean();
         const cashbackTotal = Number(cashbackDoc?.cashback) || 0;
-        const jid = targetId;
-        const contacto = await resolverContactoWhatsApp(sock, jid, chatId);
-        const etiquetaContacto = etiquetaContactoWhatsApp(contacto, jid);
-        const respuesta = `✅ *PaVos registrados exitosamente*\n👤 Usuario: ${etiquetaContacto}\n➕ PaVos registrados: *+${pavosAgregados}*\n🎟️ Boletos agregados: *+${boletosGanados}*\n🎟️ Boletos actuales: *${datosUsuario.boletos}*\n📌 Puntos sobrantes guardados: *${datosUsuario.puntos}*\n📍 Faltan para otro boleto: *${faltantes} pts*\n💰 Cashback ganado: *+${cashbackGanado.toFixed(2)}* Pavos\n💰 Cashback acumulado: *${cashbackTotal.toFixed(2)}* Pavos`;
-        return await sock.sendMessage(chatId, { text: respuesta, mentions: [contacto.jid || jid].filter(Boolean) });
+        const contacto = await resolverContactoJasc13(sock, targetId);
+        const respuesta = `✅ *PaVos registrados exitosamente*\n👤 Usuario: @${contacto.mentionNumber || targetId.split('@')[0]}\n📱 Teléfono: *${contacto.numeroVisible}*\n➕ PaVos registrados: *+${pavosAgregados}*\n🎟️ Boletos agregados: *+${boletosGanados}*\n🎟️ Boletos actuales: *${datosUsuario.boletos}*\n📌 Puntos sobrantes guardados: *${datosUsuario.puntos}*\n📍 Faltan para otro boleto: *${faltantes} pts*\n💰 Cashback ganado: *+${cashbackGanado.toFixed(2)}* Pavos\n💰 Cashback acumulado: *${cashbackTotal.toFixed(2)}* Pavos`;
+        return await sock.sendMessage(chatId, { text: respuesta, mentions: contacto.mentionJid ? [contacto.mentionJid] : [] });
     }
 
     if (accion === 'cashback') {
         const subaccion = (args[1] || '').toLowerCase();
-
-        // cashback vaciar: elimina TODO el Cashback acumulado de todos los usuarios
-        if (subaccion === 'vaciar') {
-            const resultado = await RifaJasc13Cashback.deleteMany({});
-            return await sock.sendMessage(chatId, {
-                text: `🧹 *¡CASHBACK VACIADO!*\n\nSe eliminó todo el Cashback acumulado de todos los usuarios.\n👥 Registros eliminados: *${resultado.deletedCount || 0}*`
-            }, { quoted: msg });
-        }
 
         // cashback todos
         if (subaccion === 'todos') {
@@ -648,17 +969,26 @@ async function comandoRifaJasc13(sock, chatId, msg, args) {
                 '💰 *CASHBACK JASC13*',
                 '',
                 ...await Promise.all(docs.map(async (d, i) => {
-                    const jid = d.numero;
-                    const contacto = await resolverContactoWhatsApp(sock, jid, chatId);
-                    const etiquetaContacto = etiquetaContactoWhatsApp(contacto, jid);
-                    return `${String(i + 1).padStart(2, '0')}. 👤 ${etiquetaContacto} → *${(Number(d.cashback) || 0).toFixed(2)}* Pavos`;
+                    const contacto = await resolverContactoJasc13(sock, d.numero);
+                    const esLid = String(d.numero || '').endsWith('@lid');
+
+                    // Los contactos con LID se muestran por su mención de WhatsApp.
+                    // Los contactos normales se muestran únicamente por teléfono.
+                    if (esLid && contacto.mentionNumber) {
+                        return `${i + 1}. 👤 @${contacto.mentionNumber} → *${(Number(d.cashback) || 0).toFixed(2)}* Pavos`;
+                    }
+
+                    return `${i + 1}. 📱 @${contacto.mentionNumber || contacto.numeroVisible.replace(/[^0-9]/g, '')} → *${(Number(d.cashback) || 0).toFixed(2)}* Pavos`;
                 }))
             ].join('\n');
 
             const mencionesCashback = await Promise.all(docs.map(async d => {
-                const jid = d.numero;
-                const contacto = await resolverContactoWhatsApp(sock, jid, chatId);
-                return contacto.jid || jid;
+                const contacto = await resolverContactoJasc13(sock, d.numero);
+                const esLid = String(d.numero || '').endsWith('@lid');
+
+                // Conservamos el LID original para que WhatsApp pueda renderizar
+                // el username asociado a ese contacto.
+                return contacto.mentionJid;
             }));
 
             return await sock.sendMessage(chatId, {
@@ -687,12 +1017,10 @@ async function comandoRifaJasc13(sock, chatId, msg, args) {
             const cashbackDoc = await RifaJasc13Cashback.findOne({ numero: targetId }).select('cashback').lean();
             const disponible = Number(cashbackDoc?.cashback) || 0;
 
-            const jid = targetId;
-            const contacto = await resolverContactoWhatsApp(sock, jid, chatId);
-            const etiquetaContacto = etiquetaContactoWhatsApp(contacto, jid);
+            const contacto = await resolverContactoJasc13(sock, targetId);
             return await sock.sendMessage(chatId, {
-                text: `💰 *CASHBACK DISPONIBLE*\n\n👤 Usuario: ${etiquetaContacto}\n📱 Teléfono: *${contacto.numeroVisible}*\n💳 Cashback actual: *${disponible.toFixed(2)}* Pavos`,
-                mentions: [contacto.jid || jid].filter(Boolean)
+                text: `💰 *CASHBACK DISPONIBLE*\n\n👤 Usuario: @${contacto.mentionNumber || targetId.split('@')[0]}\n📱 Teléfono: *${contacto.numeroVisible}*\n💳 Cashback actual: *${disponible.toFixed(2)}* Pavos`,
+                mentions: contacto.mentionJid ? [contacto.mentionJid] : []
             }, { quoted: msg });
         }
 
@@ -715,12 +1043,10 @@ async function comandoRifaJasc13(sock, chatId, msg, args) {
         cashbackDoc.cashback = Number((disponible - cantidadCashback).toFixed(2));
         await cashbackDoc.save();
 
-        const jid = targetId;
-        const contacto = await resolverContactoWhatsApp(sock, jid, chatId);
-        const etiquetaContacto = etiquetaContactoWhatsApp(contacto, jid);
+        const contactoCanje = await resolverContactoJasc13(sock, targetId);
         return await sock.sendMessage(chatId, {
-            text: `💸 *CASHBACK CANJEADO*\n\n👤 Usuario: ${etiquetaContacto}\n📱 Teléfono: *${contactoCanje.numeroVisible}*\n➖ Utilizado: *${cantidadCashback.toFixed(2)}* Pavos\n💰 Restante: *${Number(cashbackDoc.cashback).toFixed(2)}* Pavos`,
-            mentions: [contacto.jid || jid].filter(Boolean)
+            text: `💸 *CASHBACK CANJEADO*\n\n👤 Usuario: @${contactoCanje.mentionNumber || targetId.split('@')[0]}\n📱 Teléfono: *${contactoCanje.numeroVisible}*\n➖ Utilizado: *${cantidadCashback.toFixed(2)}* Pavos\n💰 Restante: *${Number(cashbackDoc.cashback).toFixed(2)}* Pavos`,
+            mentions: contactoCanje.mentionJid ? [contactoCanje.mentionJid] : []
         }, { quoted: msg });
     }
 
@@ -785,16 +1111,17 @@ async function comandoRifaJasc13(sock, chatId, msg, args) {
             return await sock.sendMessage(chatId, { text: '❌ No fue posible realizar el sorteo.' }, { quoted: msg });
         }
 
-        const contactosGanadores = await Promise.all(ganadores.map(ganadorId => resolverContactoWhatsApp(sock, ganadorId, chatId)));
-        const mentions = contactosGanadores.map((contacto, index) => contacto.jid || ganadores[index]).filter(Boolean);
+        const contactosGanadores = await Promise.all(ganadores.map(ganadorId => resolverContactoJasc13(sock, ganadorId)));
+        const mentions = contactosGanadores.map(contacto => contacto.mentionJid).filter(Boolean);
         let mensajeGanador = ganadores.length === 1
             ? '🎉 *¡TENEMOS GANADOR DE LA RIFA EXCLUSIVA!* 🎉\n\n'
             : `🎉 *¡TENEMOS ${ganadores.length} GANADORES DE LA RIFA EXCLUSIVA!* 🎉\n\n`;
 
         contactosGanadores.forEach((contacto, index) => {
-            const jid = ganadores[index];
-            const etiquetaContacto = etiquetaContactoWhatsApp(contacto, jid);
-            mensajeGanador += `🏆 *Ganador ${index + 1}:* ${etiquetaContacto} · 📱 ${contacto.numeroVisible} 🎊\n`;
+            const etiquetaGanador = contacto.username
+                ? '@' + contacto.username.replace(/^@/, '')
+                : (contacto.mentionNumber ? '@' + contacto.mentionNumber : contacto.numeroVisible);
+            mensajeGanador += `🏆 *Ganador ${index + 1}:* ${etiquetaGanador} · 📱 ${contacto.numeroVisible} 🎊\n`;
         });
 
         mensajeGanador += '\n❤️ ¡Muchas gracias por apoyar usando el código de creador *JASC13*!\n';
@@ -827,4 +1154,4 @@ async function comandoRifaJasc13(sock, chatId, msg, args) {
     }
 }
 
-module.exports = { comandoRifa, comandoRifaInscripcion, comandoRifaJasc13, comandoMenuRifaJasc13, comandoAbrirRifa, comandoActivarRifaAqui, comandoCerrarRifa };
+module.exports = { comandoRifa, comandoRifaInscripcion, comandoRifaJasc13, comandoMenuRifaJasc13, comandoAbrirRifa, comandoActivarRifaAqui, comandoCerrarRifa, registrarIdentidadJasc13 };

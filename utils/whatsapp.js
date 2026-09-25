@@ -1,14 +1,17 @@
-// Utilidades de WhatsApp.
+// Utilidades centralizadas para identificar, mencionar y mostrar usuarios de WhatsApp.
+// IMPORTANTE: el JID real se conserva para que Baileys pueda crear menciones clicables.
 
-// 1. EL FILTRO MAESTRO: Mata dominios, mata :0 y mata espacios
 function extraerNumeroJid(jid) {
     return String(jid || '').split('@')[0].split(':')[0].replace(/[^0-9]/g, '');
 }
 
 function normalizarNumeroVisible(valor) {
-    const limpio = extraerNumeroJid(valor);
+    const limpio = extraerNumeroJid(valor) || String(valor || '').replace(/[^0-9]/g, '');
     if (!limpio) return 'Desconocido';
-    if (limpio.startsWith('521') && limpio.length === 13) return '+52 ' + limpio.slice(3);
+
+    // México: WhatsApp puede conservar 521 + 10 dígitos en el JID histórico,
+    // pero para mostrar el número internacional actual usamos +52 + 10 dígitos.
+    if (limpio.startsWith('521') && limpio.length === 13) return '+52' + limpio.slice(3);
     if (limpio.startsWith('00')) return '+' + limpio.slice(2);
     return '+' + limpio;
 }
@@ -21,113 +24,50 @@ async function resolverLidAPn(sock, jid) {
             const pn = await mapping.getPNForLID(jid);
             if (pn) return pn;
         }
-    } catch (error) {}
+    } catch (error) {
+        console.error('⚠️ No se pudo resolver LID a teléfono:', error.message);
+    }
     return jid;
 }
 
-// 2. EL CONSTRUCTOR DE JID: Garantiza que TODO el bot use IDs puros
 async function resolverJidUsuario(sock, valor) {
     if (!valor) return null;
-    const entrada = String(valor).trim();
-    
-    if (entrada.endsWith('@lid')) {
-        const pn = await resolverLidAPn(sock, entrada);
-        return extraerNumeroJid(pn) + '@s.whatsapp.net';
+    let entrada = String(valor).trim();
+    if (entrada.includes('@')) return await resolverLidAPn(sock, entrada);
+
+    let numero = entrada.replace(/[^0-9]/g, '');
+    if (numero.startsWith('00')) numero = numero.slice(2);
+    if (!numero || numero.length < 6) return null;
+
+    // Primero dejamos que WhatsApp resuelva el número. Esto evita inventar JIDs
+    // y además encuentra la variante 521/52 de números mexicanos cuando existe.
+    if (typeof sock?.onWhatsApp === 'function') {
+        const candidatos = [numero];
+        if (numero.startsWith('52') && numero.length === 12) candidatos.push('521' + numero.slice(2));
+        if (numero.startsWith('521') && numero.length === 13) candidatos.push('52' + numero.slice(3));
+        for (const candidato of [...new Set(candidatos)]) {
+            try {
+                const resultados = await sock.onWhatsApp(candidato);
+                const encontrado = Array.isArray(resultados) ? resultados.find(x => x?.exists && x?.jid) : null;
+                if (encontrado?.jid) return await resolverLidAPn(sock, encontrado.jid);
+            } catch (error) {}
+        }
     }
 
-    const numero = extraerNumeroJid(entrada);
-    if (!numero || numero.length < 6) return null;
-    
+    // Fallback: conserva la representación recibida, sin asumir país alguno.
     return numero + '@s.whatsapp.net';
 }
 
-async function resolverContactoWhatsApp(sock, valor, chatId = null) {
-    let jid = await resolverJidUsuario(sock, valor);
-    const numeroVisible = normalizarNumeroVisible(jid || valor);
-    const numeroContacto = extraerNumeroJid(jid || valor);
-    
-    let nombre = null;
-    const candidatos = [jid, valor, numeroContacto].filter(Boolean).map(String);
-
-    const pushCache = sock?.jasc13PushNameCache;
-    if (pushCache?.get) {
-        for (const candidato of candidatos) {
-            const encontrado = pushCache.get(candidato);
-            if (encontrado) {
-                nombre = String(encontrado).trim();
-                if (nombre) break;
-            }
-        }
-    }
-
-    const usernameCache = sock?.jasc13UsernameCache;
-    if (!nombre && usernameCache?.get) {
-        for (const candidato of candidatos) {
-            const encontrado = usernameCache.get(candidato);
-            if (encontrado) {
-                nombre = String(encontrado).replace(/^@/, '').trim();
-                if (nombre) break;
-            }
-        }
-    }
-
-    if (!nombre && chatId?.endsWith('@g.us') && typeof sock?.groupMetadata === 'function') {
-        try {
-            const metadata = await sock.groupMetadata(chatId);
-            const participante = (metadata?.participants || []).find(p => {
-                const ids = [p?.id, p?.lid, p?.phoneNumber].map(extraerNumeroJid);
-                return ids.includes(numeroContacto);
-            });
-            
-            const nombreGrupo = participante?.notify || participante?.name || participante?.shortName;
-            if (nombreGrupo) nombre = String(nombreGrupo).trim();
-        } catch (error) {}
-    }
-
-    // nombre = nombre real del contacto (pushName / notify del grupo)
-    // username se usa para etiquetas visuales limpias
-    // etiquetaNumero solo se usa como fallback para menciones nativas
-    const etiquetaNumero = numeroContacto ? '@' + numeroContacto : '';
-    return {
-        jid,
-        nombre: nombre || null,
-        username: nombre || null,
-        numero: numeroContacto,
-        numeroVisible,
-        etiquetaNumero,
-        numeroVerificado: true
-    };
+async function resolverContactoWhatsApp(sock, valor) {
+    const mentionJid = await resolverJidUsuario(sock, valor);
+    const numeroVisible = normalizarNumeroVisible(mentionJid || valor);
+    const mentionNumber = extraerNumeroJid(mentionJid);
+    return { mentionJid, mentionNumber, numeroVisible };
 }
 
-function tokenMencionNativa(jid) {
-    const numero = extraerNumeroJid(jid);
-    return numero ? '@' + numero : '';
-}
-
-// 3. LA ETIQUETA VISUAL: Prefiere el nombre real en tiempo real; si no hay, usa @número para mención nativa
-function etiquetaContactoWhatsApp(contacto, jid) {
-    // Prioridad 1: nombre / username resuelto en tiempo real (pushName, notify del grupo, etc.)
-    if (contacto) {
-        const nombreLimpio = (contacto.username || contacto.nombre || '').trim();
-        if (nombreLimpio && !/^\d+$/.test(nombreLimpio.replace(/\s+/g, ''))) {
-            // Si parece un nombre real (no solo dígitos), lo usamos como etiqueta amigable
-            return nombreLimpio.replace(/\s+/g, ' ');
-        }
-    }
-
-    // Prioridad 2: token de mención nativa (@número) para que WhatsApp haga la mención real
-    const idCrudo = jid || (contacto && (contacto.jid || contacto.id)) || '';
-    if (!idCrudo) return '@usuario';
-    
-    const numeroPuro = String(idCrudo).split('@')[0].split(':')[0];
-    
-    // Para LIDs largos, si hay username lo usamos
-    if (numeroPuro.length > 13 && contacto && contacto.username) {
-        const nombreTag = contacto.username.replace(/\s+/g, '');
-        return '@' + nombreTag;
-    }
-    
-    return '@' + numeroPuro;
+function textoMencion(mentionJid, fallback = 'Usuario') {
+    const numero = extraerNumeroJid(mentionJid);
+    return numero ? '@' + numero : fallback;
 }
 
 module.exports = {
@@ -136,6 +76,5 @@ module.exports = {
     resolverLidAPn,
     resolverJidUsuario,
     resolverContactoWhatsApp,
-    tokenMencionNativa,
-    etiquetaContactoWhatsApp
+    textoMencion
 };

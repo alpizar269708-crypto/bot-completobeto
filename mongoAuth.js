@@ -11,24 +11,6 @@ async function resetMongoDBAuthState(collectionName) {
     await Auth.deleteMany({});
 }
 
-async function forzarNuevaVinculacionUnaVez(clave) {
-    const yaEjecutado = await Auth.findOne({ _id: clave });
-
-    if (yaEjecutado) return false;
-
-    // Borra únicamente la colección auth_session, que contiene las
-    // credenciales de WhatsApp. No toca las demás colecciones de MongoDB.
-    await Auth.deleteMany({});
-
-    // Dejamos una marca para que este reinicio sea de una sola vez.
-    await Auth.create({
-        _id: clave,
-        data: '1'
-    });
-
-    return true;
-}
-
 async function useMongoDBAuthState(collectionName) {
     const writeData = async (data, id) => {
         const informationToStore = JSON.stringify(data, BufferJSON.replacer);
@@ -89,4 +71,4 @@ async function useMongoDBAuthState(collectionName) {
         }
     };
 }
-module.exports = { useMongoDBAuthState, resetMongoDBAuthState, forzarNuevaVinculacionUnaVez };
+module.exports = { useMongoDBAuthState, resetMongoDBAuthState };
