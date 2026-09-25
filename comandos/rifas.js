@@ -297,25 +297,70 @@ function calcularCashbackJasc13(puntos) {
 }
 function esMensajeRecuperableJasc13(texto) {
     const limpio = String(texto || '').toLowerCase();
-    return limpio.includes('pavos registrados exitosamente') &&
-        limpio.includes('pavos registrados:') &&
+
+    const esFormatoActual =
+        limpio.includes('puntos registrados exitosamente') &&
+        limpio.includes('puntos sumados:') &&
+        limpio.includes('cashback generado:');
+
+    const esFormatoAnterior =
+        limpio.includes('pavos registrados exitosamente') &&
+        limpio.includes('pavos registrados:');
+
+    return (esFormatoActual || esFormatoAnterior) &&
         limpio.includes('apoya a un creador:') &&
         limpio.includes('jasc13');
 }
 
-function extraerRegistroJasc13DeMensaje(texto) {
+function extraerRegistroJasc13DeMensaje(texto, msg) {
     if (!esMensajeRecuperableJasc13(texto)) return null;
 
-    const lineaUsuario = String(texto).match(/usuario:\s*@([^\n]+)/i);
-    const lineaPuntos = String(texto).match(/pavos registrados:\s*\*\+?([0-9][0-9,\s.]*)\*/i);
+    const textoLimpio = String(texto || '');
 
-    if (!lineaUsuario || !lineaPuntos) return null;
+    // La mención visible (@H, @Usuario, etc.) no contiene el número real.
+    // WhatsApp conserva el JID mencionado en contextInfo.mentionedJid,
+    // incluso cuando el mensaje fue reenviado.
+    const contextInfo =
+        msg?.message?.extendedTextMessage?.contextInfo ||
+        msg?.message?.conversation?.contextInfo ||
+        msg?.message?.imageMessage?.contextInfo ||
+        msg?.message?.videoMessage?.contextInfo ||
+        {};
 
-    const numero = normalizarNumeroTelefono(lineaUsuario[1]);
+    const mencionado = Array.isArray(contextInfo.mentionedJid)
+        ? contextInfo.mentionedJid.find(Boolean)
+        : null;
+
+    let numero = mencionado ? normalizarNumeroTelefono(mencionado) : null;
+
+    // Formato actual: "Puntos sumados: *+1*"
+    // Formato anterior: "PaVos registrados: *+1*"
+    const lineaPuntos =
+        textoLimpio.match(/puntos sumados:\s*\*\+?([0-9][0-9,\s.]*)\*/i) ||
+        textoLimpio.match(/pavos registrados:\s*\*\+?([0-9][0-9,\s.]*)\*/i);
+
+    if (!lineaPuntos) return null;
+
     const puntos = Number(lineaPuntos[1].replace(/[^0-9]/g, ''));
 
     if (!numero || !Number.isInteger(puntos) || puntos <= 0) return null;
-    return { numero, puntos };
+
+    // El cashback generado de ese registro también viene en el mensaje.
+    // Se usa el valor de esa operación, no el cashback acumulado.
+    const lineaCashback = textoLimpio.match(
+        /cashback generado:\s*\*\+?([0-9]+(?:[.,][0-9]+)?)\s*pavos\*/i
+    );
+    const cashbackGenerado = lineaCashback
+        ? Number(lineaCashback[1].replace(',', '.'))
+        : calcularCashbackJasc13(puntos);
+
+    return {
+        numero,
+        puntos,
+        cashbackGenerado: Number.isFinite(cashbackGenerado) && cashbackGenerado >= 0
+            ? Number(cashbackGenerado.toFixed(2))
+            : calcularCashbackJasc13(puntos)
+    };
 }
 
 function encontrarIdParticipantePorNumeroJasc13(participantes, numeroNormalizado) {
@@ -330,7 +375,7 @@ async function comandoRecuperarRegistroJasc13(sock, chatId, msg, texto) {
 
     if (!(await esPrivilegiadoTotalAsync(sock, sender))) return false;
 
-    const registro = extraerRegistroJasc13DeMensaje(texto);
+    const registro = extraerRegistroJasc13DeMensaje(texto, msg);
     if (!registro) return false;
 
     const { participantes, cashback } = await cargarEstadoRifaJasc13();
@@ -340,7 +385,7 @@ async function comandoRecuperarRegistroJasc13(sock, chatId, msg, texto) {
 
     const datosUsuario = participantes.get(targetId) || { puntos: 0 };
     const puntosAnteriores = Number(datosUsuario.puntos) || 0;
-    const cashbackGenerado = calcularCashbackJasc13(registro.puntos);
+    const cashbackGenerado = registro.cashbackGenerado;
     const cashbackAnterior = Number(cashback.get(targetId) || 0);
     const cashbackNuevo = Number((cashbackAnterior + cashbackGenerado).toFixed(2));
 
