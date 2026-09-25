@@ -3,7 +3,7 @@ const { ejecutarMenu } = require('./comandos/menu');
 const { alertasSTW, comandoDestacadasSTW, comandoPreguntarAlerta, activarAlertasDiarias, desactivarAlertasDiarias } = require('./comandos/fortnite');
 const { comandoTiendaMenu, comandoTiendaCategoria } = require('./comandos/tienda'); 
 const { 
-    comandoSticker, comandoTiktok, comandoTraduce, comandoSkin, comandoStats, comandoContacto 
+    comandoSticker, comandoTodos, comandoTiktok, comandoTraduce, comandoSkin, comandoStats, comandoContacto 
 } = require('./comandos/utilidades');
 const { responderConIA } = require('./comandos/ia');
 const { 
@@ -21,15 +21,13 @@ const {
 } = require('./comandos/economia');
 const { comandoRifa, comandoRifaInscripcion, comandoRifaJasc13, comandoMenuRifaJasc13, comandoAbrirRifa, comandoActivarRifaAqui, comandoCerrarRifa } = require('./comandos/rifas');
 const { comandoCarry } = require('./comandos/carry');
-const { esProgramadorBot } = require('./comandos/programadorbot');
-const { resolverJidUsuario } = require('./utils/whatsapp');
 
 const categoriasMap = {
     'fortnite': ['pavos', 'destacadasstw', 'legendariasstw', 'epicasstw', 'alertasstw', 'stw', 'alerta', 'setgrupostw', 'unsetgrupostw', 'setprecio'],
     'economia': ['cartera', 'bal', 'banco', 'pay', 'pagar', 'top', 'topdinero', 'daily', 'weekly', 'farmear', 'work', 'crime', 'mendigar', 'pescar', 'minar', 'cazar', 'explorar', 'ruleta', 'cf', 'slots', 'dados', 'adivina', 'buscaminas', 'rob', 'ppt', 'pelea', 'carrera', 'hackear', 'shop', 'buy', 'inventario', 'mochila', 'vender', 'use', 'regalar'],
-    'utilidades': ['s', 'sticker', 'tiktok', 'traduce', 'skin', 'stats', 'contacto'],
+    'utilidades': ['s', 'sticker', 'todos', 'tiktok', 'traduce', 'skin', 'stats', 'contacto'],
     'ia': ['ia'],
-    'moderacion': ['warn', 'advertir', 'verwarns', 'limpiarwarns', 'ban', 'unban', 'listanegra', 'banlist', 'unbanlist', 'grupo', 'mute', 'unmute', 'inactivos', 'listablanca', 'dominioblanco'],
+    'moderacion': ['warn', 'advertir', 'verwarns', 'limpiarwarns', 'ban', 'unban', 'listanegra', 'banlist', 'unbanlist', 'grupo', 'mute', 'unmute', 'inactivos', 'listablanca'],
     'tienda': ['tienda'],
     'carry': ['carryleader', 'carryjoin', 'carryleave', 'carryclose', 'blcarry', 'unblcarry', 'listcarrybl'],
     'rifas': ['rifa', 'rifainscripcion', 'cerrarrifa'],
@@ -52,14 +50,14 @@ const comandosConUsuarioBD = new Set([
 const comandosValidos = new Set([
         'activarcomandos', 'setprecio', 'ping', 'pavos', 'destacadasstw', 'legendariasstw', 'epicasstw', 'alertasstw', 'stw', 'alerta', 
         'setgrupostw', 'unsetgrupostw', 'grupo', 'mute', 'unmute', 'inactivos', 'tienda', 'ia', 'menu', 'menusecreto',
-        's', 'sticker', 'tiktok', 'traduce', 'skin', 'stats', 'contacto',
+        's', 'sticker', 'todos', 'tiktok', 'traduce', 'skin', 'stats', 'contacto',
         'warn', 'advertir', 'verwarns', 'limpiarwarns', 'ban', 'unban', 'listanegra', 'banlist', 'unbanlist', 
         'cartera', 'bal', 'banco', 'pay', 'pagar', 'top', 'topdinero', 'daily', 'weekly',
         'farmear', 'work', 'crime', 'mendigar', 'pescar', 'minar', 'cazar', 'explorar',
         'ruleta', 'cf', 'slots', 'dados', 'adivina', 'buscaminas', 'rob', 'ppt', 'pelea',
         'carrera', 'hackear', 'shop', 'buy', 'inventario', 'mochila', 'vender', 'use', 'regalar',
-        'rifa', 'rifainscripcion', 'cerrarrifa', 'rifajasc13', 'programadorbot', 'abrirrifa', 'activarrifaaqui', 'menurifajasc13', 'carryleader', 'carryjoin', 'carryleave', 'carryclose', 'blcarry', 'unblcarry', 'listcarrybl',
-        'vertodosconandos', 'vertodoscomandos', 'listablanca', 'dominioblanco', 'desactivarbienvenida', 'activarbienvenida', 'personalizarbienvenida', 'restaurarbienvenida'
+        'rifa', 'rifainscripcion', 'cerrarrifa', 'rifajasc13', 'abrirrifa', 'activarrifaaqui', 'menurifajasc13', 'carryleader', 'carryjoin', 'carryleave', 'carryclose', 'blcarry', 'unblcarry', 'listcarrybl',
+        'vertodosconandos', 'vertodoscomandos', 'listablanca', 'desactivarbienvenida', 'activarbienvenida', 'personalizarbienvenida', 'restaurarbienvenida'
 ]);
 
 async function procesarMensaje(sock, msg) {
@@ -75,9 +73,6 @@ async function procesarMensaje(sock, msg) {
         .replace(/[\u0300-\u036f]/g, '')
         .replace(/^[!/.]/, '');
 
-    const esProgramador = esProgramadorBot(msg);
-    msg.programadorBot = esProgramador;
-
     const comandoPropioPermitido = new Set([
         'warn', 'advertir', 'verwarns', 'limpiarwarns',
         'ban', 'unban', 'listanegra', 'banlist', 'unbanlist',
@@ -86,7 +81,7 @@ async function procesarMensaje(sock, msg) {
 
     // Los mensajes enviados por el propio número del bot normalmente se ignoran.
     // Excepción: solo se aceptan los comandos de warns/lista negra definidos arriba.
-    if (!esProgramador && msg.key.fromMe && !comandoPropioPermitido.has(normalizarComando(textoOriginal))) return;
+    if (msg.key.fromMe && !comandoPropioPermitido.has(normalizarComando(textoOriginal))) return;
 
     if (normalizarComando(textoOriginal) === 'cerrarsesionauth') {
         if (msg.key.fromMe || true) { 
@@ -108,24 +103,18 @@ Apoya a un creador: JASC13` });
     }
 
     const textoComandoPrevio = normalizarComando(textoOriginal);
-    const esComandoPropioPermitido = esProgramador || (msg.key.fromMe && comandoPropioPermitido.has(textoComandoPrevio));
+    const esComandoPropioPermitido = msg.key.fromMe && comandoPropioPermitido.has(textoComandoPrevio);
 
     // La lista blanca se procesa antes del anti-links para permitir agregar cualquier URL.
-    if (textoComandoPrevio === 'listablanca' || textoComandoPrevio === 'dominioblanco') {
+    if (textoComandoPrevio === 'listablanca') {
         const partesListaBlanca = textoOriginal.trim().split(/\s+/);
-        const comandoLista = textoComandoPrevio === 'dominioblanco'
-            ? ['dominio', ...partesListaBlanca.slice(1)]
-            : partesListaBlanca.slice(1);
-        await comandoListaBlancaLinks(sock, chatJid, msg, comandoLista);
+        await comandoListaBlancaLinks(sock, chatJid, msg, partesListaBlanca.slice(1));
         return;
     }
 
     if (!esComandoPropioPermitido && await verificarAntiLinks(sock, msg)) return;
 
-    const remitenteOriginal = msg.key.participant || chatJid;
-    // Para MongoDB usamos el PN/JID de teléfono cuando WhatsApp entrega un LID.
-    // Conservamos msg.key.participant intacto para operaciones de grupo/permisos.
-    const remitenteReal = await resolverJidUsuario(sock, remitenteOriginal);
+    const remitenteReal = msg.key.participant || chatJid;
     if (!esComandoPropioPermitido && verificarMute(chatJid, remitenteReal)) {
         try { await sock.sendMessage(chatJid, { delete: msg.key }); } catch (e) {}
         return;
@@ -158,7 +147,7 @@ Apoya a un creador: JASC13` });
             cacheConfigComandos.set(chatJid, { valor: configGrupo, expira: Date.now() + CACHE_TTL_MS });
         }
     }
-    if (configGrupo && !msg.key.fromMe && !esProgramador && chatJid.endsWith('@g.us')) {
+    if (configGrupo && !msg.key.fromMe && chatJid.endsWith('@g.us')) {
         let permitidos = JSON.parse(configGrupo.valor);
         let comandoPermitido = false;
         
@@ -181,16 +170,16 @@ Apoya a un creador: JASC13` });
         usuarioBD = await User.findOne({ numero: remitenteReal });
         if (!usuarioBD) usuarioBD = await User.create({ numero: remitenteReal });
 
-        if (usuarioBD.baneado && !esProgramador) return;
+        if (usuarioBD.baneado) return;
     } else {
         const cacheBaneo = cacheBaneoUsuario.get(remitenteReal);
         if (cacheBaneo && cacheBaneo.expira > Date.now()) {
-            if (cacheBaneo.baneado && !esProgramador) return;
+            if (cacheBaneo.baneado) return;
         } else {
             const usuarioEstado = await User.findOne({ numero: remitenteReal }).select('baneado').lean();
             const baneado = !!usuarioEstado?.baneado;
             cacheBaneoUsuario.set(remitenteReal, { baneado, expira: Date.now() + CACHE_TTL_MS });
-            if (baneado && !esProgramador) return;
+            if (baneado) return;
         }
     }
 
@@ -198,12 +187,6 @@ Apoya a un creador: JASC13` });
     let economiaBD = null;
     if (comandosEconomia.has(comando)) {
         economiaBD = await obtenerEconomia(chatJid, remitenteReal);
-    }
-
-    if (comando === 'programadorbot') {
-        if (!esProgramador) return;
-        await sock.sendMessage(chatJid, { text: '🛠️ *PROGRAMADORBOT ACTIVO*\n\nAcceso maestro habilitado para este número. Las restricciones de administrador, propietario, comandos restringidos, mute y baneo del bot quedan ignoradas para tus comandos.' }, { quoted: msg });
-        return;
     }
 
     if (comando === 'desactivarbienvenida') {
@@ -260,7 +243,6 @@ Apoya a un creador: JASC13` });
             ['mute', 'Silencia a un usuario del grupo.'],
             ['unmute', 'Quita el silencio a un usuario.'],
             ['inactivos', 'Muestra quiénes llevan tiempo sin participar en el grupo.'],
-            ['dominioblanco', 'Gestiona dominios completos permitidos por el anti-links.'],
             ['tienda', 'Muestra la tienda diaria de Fortnite o una categoría concreta.'],
             ['ia', 'Permite conversar con la inteligencia artificial del bot.'],
             ['menu', 'Muestra el menú principal o una categoría específica.'],
@@ -338,13 +320,13 @@ Apoya a un creador: JASC13` });
     if (comandosValidos.has(comando)) {
         switch (comando) {
             case 'menusecreto':
-                if (!msg.key.fromMe && !esProgramador) return; 
+                if (!msg.key.fromMe) return; 
                 await ejecutarMenu(sock, chatJid, msg, ['secreto']);
                 break;
             case 'activarcomandos':
                 if (chatJid.endsWith('@g.us')) {
                     const remitente = msg.key.participant || chatJid;
-                    let esAdmin = msg.key.fromMe || esProgramador;
+                    let esAdmin = msg.key.fromMe;
                     if (!esAdmin) {
                         try {
                             const groupMeta = await sock.groupMetadata(chatJid);
@@ -356,7 +338,7 @@ Apoya a un creador: JASC13` });
                         await sock.sendMessage(chatJid, { text: `❌ Solo los administradores del grupo pueden configurar los comandos.` }, { quoted: msg });
                         return;
                     }
-                } else if (!msg.key.fromMe && !esProgramador) {
+                } else if (!msg.key.fromMe) {
                     return; 
                 }
                 
@@ -414,6 +396,9 @@ Apoya a un creador: JASC13` });
             case 's':
             case 'sticker':
                 await comandoSticker(sock, msg);
+                break;
+            case 'todos':
+                await comandoTodos(sock, chatJid, msg);
                 break;
             case 'tiktok':
                 await comandoTiktok(sock, chatJid, msg, args);

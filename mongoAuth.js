@@ -7,10 +7,6 @@ const Schema = new mongoose.Schema({
 });
 const Auth = mongoose.model('auth_session', Schema);
 
-async function resetMongoDBAuthState(collectionName) {
-    await Auth.deleteMany({});
-}
-
 async function useMongoDBAuthState(collectionName) {
     const writeData = async (data, id) => {
         const informationToStore = JSON.stringify(data, BufferJSON.replacer);
@@ -71,4 +67,4 @@ async function useMongoDBAuthState(collectionName) {
         }
     };
 }
-module.exports = { useMongoDBAuthState, resetMongoDBAuthState };
+module.exports = { useMongoDBAuthState };

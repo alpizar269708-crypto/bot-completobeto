@@ -1,6 +1,4 @@
-const { esProgramadorBot } = require('./programadorbot');
 const { User, Config } = require('../database/modelos');
-const { resolverContactoWhatsApp, resolverJidUsuario, normalizarNumeroVisible } = require('../utils/whatsapp');
 
 // Memoria temporal para los mutes activos
 const mutesActivos = new Map();
@@ -18,7 +16,7 @@ async function esAdmin(sock, chatId, userId) {
     }
 }
 
-async function obtenerObjetivo(sock, msg, args = []) {
+function obtenerObjetivo(msg, args = []) {
     const citado = msg.message?.extendedTextMessage?.contextInfo;
     const mencionadoPorEtiqueta = citado?.mentionedJid?.[0];
     const mencionadoPorRespuesta = citado?.participant;
@@ -30,7 +28,7 @@ async function obtenerObjetivo(sock, msg, args = []) {
         const textoUnido = args.join('');
         const numeros = textoUnido.replace(/[^0-9]/g, '');
         if (numeros.length > 5) {
-            return await resolverJidUsuario(sock, numeros);
+            return `${numeros}@s.whatsapp.net`;
         }
     }
     return null;
@@ -38,7 +36,7 @@ async function obtenerObjetivo(sock, msg, args = []) {
 
 // Banear, guardar motivo y expulsar de todos los grupos
 async function banearYExpulsar(sock, userId, motivo = 'Baneado por un administrador') {
-    const cleanId = await resolverJidUsuario(sock, userId);
+    const cleanId = userId.includes('@') ? userId : `${userId.replace(/[^0-9]/g, '')}@s.whatsapp.net`;
     
     await User.findOneAndUpdate(
         { numero: cleanId }, 
@@ -80,17 +78,15 @@ async function verificarNuevoMiembro(sock, update) {
     const bienvenidaPersonalizada = await Config.findOne({ clave: `bienvenida_personalizada_${chatId}` });
 
     for (const participante of nuevosParticipantes) {
-        const jidOriginal = typeof participante === 'string' ? participante : (participante.id || participante.phoneNumber);
-        if (!jidOriginal) continue;
-        const contacto = await resolverContactoWhatsApp(sock, jidOriginal);
-        const jid = contacto.mentionJid || jidOriginal;
+        const jid = typeof participante === 'string' ? participante : (participante.id || participante.phoneNumber);
+        if (!jid) continue;
 
         let usuarioBD = await User.findOne({ numero: jid });
         if (usuarioBD && usuarioBD.baneado) {
             try {
                 await sock.groupParticipantsUpdate(chatId, [jid], 'remove');
                 await sock.sendMessage(chatId, {
-                    text: `🚨 @${contacto.mentionNumber || jid.split('@')[0]} · 📱 ${contacto.numeroVisible} está en la lista negra (Motivo: ${usuarioBD.banMotivo}) y no puede permanecer en este grupo. Expulsado automáticamente.`,
+                    text: `🚨 @${jid.split('@')[0]} está en la lista negra (Motivo: ${usuarioBD.banMotivo}) y no puede permanecer en este grupo. Expulsado automáticamente.`,
                     mentions: [jid]
                 });
             } catch (error) {
@@ -99,8 +95,8 @@ async function verificarNuevoMiembro(sock, update) {
         } else if (!bienvenidaDesactivada || bienvenidaDesactivada.valor !== 'true') {
             try {
                 const textoBienvenida = bienvenidaPersonalizada?.valor
-                    ? bienvenidaPersonalizada.valor.replace(/\\{usuario\\}/gi, `@${contacto.mentionNumber || jid.split('@')[0]}`)
-                    : `Bienvenido/a @${contacto.mentionNumber || jid.split('@')[0]} · 📱 ${contacto.numeroVisible} a la escupidera de Salty, esperamos que seas lo suficientemente rudo para estar aquí.`;
+                    ? bienvenidaPersonalizada.valor.replace(/\\{usuario\\}/gi, `@${jid.split('@')[0]}`)
+                    : `Bienvenido/a @${jid.split('@')[0]} a la escupidera de Salty, esperamos que seas lo suficientemente rudo para estar aquí.`;
 
                 await sock.sendMessage(chatId, {
                     text: textoBienvenida,
@@ -119,7 +115,7 @@ async function comandoDesactivarBienvenida(sock, chatId, msg) {
         return;
     }
 
-    if (!esProgramadorBot(msg) && !(await esAdmin(sock, chatId, msg.key.participant))) {
+    if (!(await esAdmin(sock, chatId, msg.key.participant))) {
         await sock.sendMessage(chatId, { text: '❌ Solo los administradores del grupo pueden configurar la bienvenida.' }, { quoted: msg });
         return;
     }
@@ -135,7 +131,7 @@ async function comandoDesactivarBienvenida(sock, chatId, msg) {
 
 async function comandoActivarBienvenida(sock, chatId, msg) {
     if (!chatId.endsWith('@g.us')) return;
-    if (!esProgramadorBot(msg) && !(await esAdmin(sock, chatId, msg.key.participant))) return;
+    if (!(await esAdmin(sock, chatId, msg.key.participant))) return;
 
     await Config.deleteOne({ clave: `bienvenida_desactivada_${chatId}` });
     await sock.sendMessage(chatId, { text: '🔔 Bienvenida activada. Se usará el mensaje personalizado si existe; de lo contrario, el mensaje por defecto.' }, { quoted: msg });
@@ -147,7 +143,7 @@ async function comandoPersonalizarBienvenida(sock, chatId, msg, texto) {
         return;
     }
 
-    if (!esProgramadorBot(msg) && !(await esAdmin(sock, chatId, msg.key.participant))) {
+    if (!(await esAdmin(sock, chatId, msg.key.participant))) {
         await sock.sendMessage(chatId, { text: '❌ Solo los administradores del grupo pueden personalizar la bienvenida.' }, { quoted: msg });
         return;
     }
@@ -170,7 +166,7 @@ async function comandoPersonalizarBienvenida(sock, chatId, msg, texto) {
 
 async function comandoRestaurarBienvenida(sock, chatId, msg) {
     if (!chatId.endsWith('@g.us')) return;
-    if (!esProgramadorBot(msg) && !(await esAdmin(sock, chatId, msg.key.participant))) return;
+    if (!(await esAdmin(sock, chatId, msg.key.participant))) return;
 
     await Config.deleteOne({ clave: `bienvenida_personalizada_${chatId}` });
     await Config.deleteOne({ clave: `bienvenida_desactivada_${chatId}` });
@@ -183,27 +179,6 @@ function normalizarLinkListaBlanca(link) {
         link = link.url || link.link || link.href || '';
     }
     return String(link || '').trim().replace(/[),.;!?]+$/g, '').toLowerCase();
-}
-
-function normalizarDominioListaBlanca(dominio) {
-    let valor = String(dominio || '').trim().toLowerCase();
-    valor = valor.replace(/^https?:\/\//, '').replace(/^www\./, '');
-    valor = valor.split('/')[0].split('?')[0].split('#')[0].replace(/\.$/, '');
-    return /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$/.test(valor) ? valor : '';
-}
-
-function extraerDominioLink(link) {
-    try {
-        const texto = String(link || '').trim();
-        const url = new URL(/^(?:https?:\/\/|www\.)/i.test(texto) ? (/^www\./i.test(texto) ? 'https://' + texto : texto) : 'https://' + texto);
-        return url.hostname.toLowerCase().replace(/^www\./, '');
-    } catch (error) {
-        return '';
-    }
-}
-
-function esDominioListaBlanca(entrada) {
-    return String(entrada || '').startsWith('dominio:');
 }
 
 async function obtenerLinksListaBlanca() {
@@ -237,58 +212,9 @@ async function comandoListaBlancaLinks(sock, chatId, msg, args = []) {
         return;
     }
     const accion = (args[0] || '').toLowerCase();
-    const subaccion = (args[1] || '').toLowerCase();
     const link = normalizarLinkListaBlanca(args.slice(1).join(' '));
     if (!accion || accion === 'ayuda') {
-        await sock.sendMessage(chatId, { text: '🟢 *LISTA BLANCA DE LINKS*\n\n➕ *listablanca agregar [link]*\nEjemplo: *listablanca agregar https://ejemplo.com/*\n\n🌐 *listablanca dominio agregar [dominio]*\nEjemplo: *listablanca dominio agregar whatsapp.com*\n\n➖ *listablanca quitar [link]*\n🌐 *listablanca dominio quitar [dominio]*\n👀 *listablanca ver*\n🧹 *listablanca vaciar*\n\nUn dominio permite todos sus enlaces y subdominios. Por ejemplo, *whatsapp.com* permite *https://www.whatsapp.com/* y *https://blog.whatsapp.com/...*.' }, { quoted: msg });
-        return;
-    }
-    if (accion === 'dominio') {
-        const dominio = normalizarDominioListaBlanca(args.slice(2).join(' '));
-        if (!subaccion || subaccion === 'ayuda') {
-            await sock.sendMessage(chatId, { text: '🌐 *LISTA BLANCA POR DOMINIO*\n\n➕ *listablanca dominio agregar [dominio]*\nEjemplo: *listablanca dominio agregar whatsapp.com*\n\n➖ *listablanca dominio quitar [dominio]*\nEjemplo: *listablanca dominio quitar whatsapp.com*\n\n👀 *listablanca dominio ver*' }, { quoted: msg });
-            return;
-        }
-        if (subaccion === 'ver') {
-            const listaDominios = (await obtenerLinksListaBlanca()).filter(esDominioListaBlanca).map(x => x.slice(8));
-            const textoDominios = listaDominios.length ? `🌐 *DOMINIOS EN LISTA BLANCA* (${listaDominios.length}):\\n\\n${listaDominios.map((d, i) => `*${i + 1}.* ${d}`).join('\\n')}` : '🌐 No hay dominios en la lista blanca.';
-            await sock.sendMessage(chatId, { text: textoDominios }, { quoted: msg });
-            return;
-        }
-        if (subaccion !== 'agregar' && subaccion !== 'añadir' && subaccion !== 'add' && subaccion !== 'quitar' && subaccion !== 'eliminar' && subaccion !== 'remove') {
-            await sock.sendMessage(chatId, { text: '❌ Uso incorrecto. Debes indicar *agregar*, *quitar* o *ver*.\\nEjemplo: *listablanca dominio agregar whatsapp.com*' }, { quoted: msg });
-            return;
-        }
-        if (!dominio) {
-            await sock.sendMessage(chatId, { text: '❌ Debes indicar un dominio válido.\\nEjemplo: *listablanca dominio agregar whatsapp.com*\\nTambién puedes usar *listablanca dominio quitar whatsapp.com*.' }, { quoted: msg });
-            return;
-        }
-        const entradaDominio = `dominio:${dominio}`;
-        const listaActual = await obtenerLinksListaBlanca();
-        if (subaccion === 'agregar' || subaccion === 'añadir' || subaccion === 'add') {
-            if (listaActual.includes(entradaDominio)) {
-                await sock.sendMessage(chatId, { text: `ℹ️ El dominio *${dominio}* ya está en la lista blanca.` }, { quoted: msg });
-                return;
-            }
-            listaActual.push(entradaDominio);
-            await Config.findOneAndUpdate({ clave: 'links_lista_blanca' }, { valor: JSON.stringify(listaActual) }, { upsert: true });
-            cacheListaBlanca.valor = listaActual;
-            cacheListaBlanca.expira = Date.now() + 5000;
-            await sock.sendMessage(chatId, { text: `✅ Dominio agregado a la lista blanca.\\n\\n🌐 *${dominio}*\\n\\nTodos los enlaces de este dominio y sus subdominios quedarán permitidos por el anti-links.` }, { quoted: msg });
-            return;
-        }
-        const entradaQuitar = `dominio:${dominio}`;
-        const indiceDominio = listaActual.indexOf(entradaQuitar);
-        if (indiceDominio === -1) {
-            await sock.sendMessage(chatId, { text: `❌ El dominio *${dominio}* no está en la lista blanca.` }, { quoted: msg });
-            return;
-        }
-        listaActual.splice(indiceDominio, 1);
-        if (listaActual.length === 0) await Config.deleteOne({ clave: 'links_lista_blanca' });
-        else await Config.findOneAndUpdate({ clave: 'links_lista_blanca' }, { valor: JSON.stringify(listaActual) }, { upsert: true });
-        cacheListaBlanca.valor = listaActual;
-        cacheListaBlanca.expira = Date.now() + 5000;
-        await sock.sendMessage(chatId, { text: `✅ Dominio eliminado de la lista blanca.\\n\\n🌐 *${dominio}*` }, { quoted: msg });
+        await sock.sendMessage(chatId, { text: '🟢 *LISTA BLANCA DE LINKS*\n\nEstructura guardada: *links_lista_blanca* → un arreglo JSON de links permitidos.\n\n➕ *listablanca agregar [link]*\nEjemplo: *listablanca agregar https://ejemplo.com/*\n\n➖ *listablanca quitar [link]*\n👀 *listablanca ver*\n🧹 *listablanca vaciar*\n\nPuedes agregar literalmente cualquier link que quieras permitir.' }, { quoted: msg });
         return;
     }
     if (accion === 'ver') {
@@ -401,10 +327,6 @@ async function verificarAntiLinks(sock, msg) {
     const chatJid = msg.key.remoteJid;
     if (!chatJid.endsWith('@g.us')) return false;
 
-    // Exclusión total del anti-links para administradores.
-    // El rol se valida contra los participantes actuales del grupo.
-    if (msg.key.fromMe || (await esAdmin(sock, chatJid, remitente))) return false;
-
     if (await verificarLinkDeMismaComunidad(sock, msg, texto)) return false;
 
     const regexLink = /(?:https?:\/\/|www\.)[^\s]+|(?:chat\.whatsapp\.com|wa\.me|t\.me)\/[^\s]+|(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}(?:\/[^\s]*)?/gi;
@@ -414,14 +336,7 @@ async function verificarAntiLinks(sock, msg) {
     const listaBlanca = await obtenerLinksListaBlanca();
     const linksNoPermitidos = coincidencias.filter(linkDetectado => {
         const linkNormalizado = normalizarLinkListaBlanca(linkDetectado);
-        const dominioDetectado = extraerDominioLink(linkDetectado);
-        return !listaBlanca.some(linkPermitido => {
-            if (esDominioListaBlanca(linkPermitido)) {
-                const dominioPermitido = linkPermitido.slice(8);
-                return dominioDetectado === dominioPermitido || dominioDetectado.endsWith(`.${dominioPermitido}`);
-            }
-            return linkNormalizado === linkPermitido || linkNormalizado.startsWith(`${linkPermitido}/`);
-        });
+        return !listaBlanca.some(linkPermitido => linkNormalizado === linkPermitido || linkNormalizado.startsWith(`${linkPermitido}/`));
     });
     if (linksNoPermitidos.length === 0) return false;
 
@@ -512,7 +427,7 @@ async function comandoWarn(sock, numero, msg, args = []) {
         return;
     }
 
-    const objetivo = await obtenerObjetivo(sock, msg, args);
+    const objetivo = obtenerObjetivo(msg, args);
 
     if (!objetivo) {
         await sock.sendMessage(chatJid, { text: '❌ Debes etiquetar a alguien o responder al mensaje. Ejemplo:\nwarn @usuario motivo' }, { quoted: msg });
@@ -560,7 +475,7 @@ async function comandoLimpiarWarns(sock, numero, msg, args = []) {
         await sock.sendMessage(chatJid, { text: '❌ Solo los administradores pueden limpiar los warns.' }, { quoted: msg });
         return;
     }
-    const objetivo = await obtenerObjetivo(sock, msg, args);
+    const objetivo = obtenerObjetivo(msg, args);
     if (!objetivo) {
         await sock.sendMessage(chatJid, { text: '❌ Debes mencionar o responder al usuario al que quieres limpiar los warns.\nEjemplo: *limpiarwarns @usuario*' }, { quoted: msg });
         return;
@@ -578,7 +493,7 @@ async function comandoLimpiarWarns(sock, numero, msg, args = []) {
 
 async function comandoVerWarns(sock, numero, msg, args = []) {
     const chatJid = msg.key.remoteJid;
-    const objetivo = await obtenerObjetivo(sock, msg, args) || msg.key.participant || chatJid;
+    const objetivo = obtenerObjetivo(msg, args) || msg.key.participant || chatJid;
 
     let usuarioBD = await User.findOne({ numero: objetivo });
     if (!usuarioBD || !Array.isArray(usuarioBD.warns) || usuarioBD.warns.length === 0) {
@@ -605,7 +520,7 @@ async function comandoBan(sock, numero, msg, args = []) {
         return;
     }
 
-    const objetivo = await obtenerObjetivo(sock, msg, args);
+    const objetivo = obtenerObjetivo(msg, args);
     if (!objetivo) {
         await sock.sendMessage(chatJid, { text: '❌ Etiqueta o responde al mensaje de quien deseas banear con un motivo. Ejemplo:\nban @usuario Motivo aquí' }, { quoted: msg });
         return;
@@ -633,7 +548,7 @@ async function comandoUnban(sock, numero, msg, args = []) {
         return;
     }
 
-    const objetivo = await obtenerObjetivo(sock, msg, args);
+    const objetivo = obtenerObjetivo(msg, args);
     if (!objetivo) {
         await sock.sendMessage(chatJid, { text: '❌ Etiqueta o responde al mensaje de quien deseas desbanear. Ejemplo:\nunban @usuario' }, { quoted: msg });
         return;
@@ -715,7 +630,7 @@ async function comandoUnbanList(sock, numero, msg, args = []) {
 
 // 🔒 Abrir / Cerrar Grupo
 async function comandoGrupo(sock, chatId, msg, args) {
-    if (!esProgramadorBot(msg) && !(await esAdmin(sock, chatId, msg.key.participant))) {
+    if (!(await esAdmin(sock, chatId, msg.key.participant))) {
         await sock.sendMessage(chatId, { text: '❌ Solo los administradores pueden usar este comando.' }, { quoted: msg });
         return;
     }
@@ -733,8 +648,8 @@ async function comandoGrupo(sock, chatId, msg, args) {
 
 // 🔇 Mute / Unmute
 async function comandoMute(sock, chatId, msg, args) {
-    if (!esProgramadorBot(msg) && !(await esAdmin(sock, chatId, msg.key.participant))) return;
-    const objetivo = await obtenerObjetivo(sock, msg, args);
+    if (!(await esAdmin(sock, chatId, msg.key.participant))) return;
+    const objetivo = obtenerObjetivo(msg, args);
     if (!objetivo) {
         await sock.sendMessage(chatId, { text: '⚠️ Debes mencionar o responder al usuario que deseas mutear.' }, { quoted: msg });
         return;
@@ -746,8 +661,8 @@ async function comandoMute(sock, chatId, msg, args) {
 }
 
 async function comandoUnmute(sock, chatId, msg, args) {
-    if (!esProgramadorBot(msg) && !(await esAdmin(sock, chatId, msg.key.participant))) return;
-    const objetivo = await obtenerObjetivo(sock, msg, args);
+    if (!(await esAdmin(sock, chatId, msg.key.participant))) return;
+    const objetivo = obtenerObjetivo(msg, args);
     if (!objetivo) {
         await sock.sendMessage(chatId, { text: '⚠️ Debes mencionar o responder al usuario.' }, { quoted: msg });
         return;
@@ -768,7 +683,7 @@ function verificarMute(chatId, remitente) {
 
 // 👥 Inactivos
 async function comandoInactivos(sock, chatId, msg) {
-    if (!esProgramadorBot(msg) && !(await esAdmin(sock, chatId, msg.key.participant))) return;
+    if (!(await esAdmin(sock, chatId, msg.key.participant))) return;
     try {
         const groupMetadata = await sock.groupMetadata(chatId);
         await sock.sendMessage(chatId, { text: `👥 El grupo cuenta actualmente con *${groupMetadata.participants.length}* miembros registrados.` }, { quoted: msg });

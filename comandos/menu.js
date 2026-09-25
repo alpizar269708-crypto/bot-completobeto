@@ -1,4 +1,3 @@
-const { esProgramadorBot } = require('./programadorbot');
 async function ejecutarMenu(sock, chatId, msg, args) {
     const prefijo = ''; // Se dejó vacío para que no muestre ningún signo
     const sender = msg.key.participant || msg.key.remoteJid;
@@ -14,7 +13,7 @@ async function ejecutarMenu(sock, chatId, msg, args) {
             console.log("Error verificando admin:", e);
         }
     }
-    if (msg.key.fromMe || esProgramadorBot(msg)) isAdmin = true; 
+    if (msg.key.fromMe) isAdmin = true; 
 
     let menuGeneral = `🤖 *MENÚ PRINCIPAL DEL BOT* 🤖\n\n` +
     `Usa *${prefijo}menu [categoría]* para ver los comandos de cada sección.\n` +
@@ -59,8 +58,6 @@ async function ejecutarMenu(sock, chatId, msg, args) {
         `*${prefijo}grupo [abrir/cerrar]* - Abre o cierra el chat del grupo.\n` +
         `*${prefijo}mute [@user] / unmute* - Silencia a alguien.\n` +
         `*${prefijo}inactivos* - Revisa quién no habla en el grupo.\n` +
-        `*${prefijo}listablanca* - Gestiona links permitidos; también permite autorizar dominios completos.\n` +
-        `*${prefijo}dominioblanco agregar [dominio]* - Autoriza todo un dominio y sus subdominios. Ejemplo: *dominioblanco agregar whatsapp.com*.\n` +
         `*${prefijo}desactivarbienvenida* - Desactiva la bienvenida en este grupo.\n` +
         `*${prefijo}activarbienvenida* - Vuelve a activar la bienvenida.\n` +
         `*${prefijo}personalizarbienvenida [mensaje]* - Personaliza la bienvenida; usa {usuario} para mencionar al nuevo integrante.\n` +
@@ -114,6 +111,7 @@ async function ejecutarMenu(sock, chatId, msg, args) {
                     
         'utilidades': `🛠️ *MENÚ UTILIDADES* 🛠️\n\n` +
                       `*${prefijo}s / sticker* - Convierte imagen/video a sticker animado.\n` +
+                      `*${prefijo}todos* - Menciona a todos en el grupo.\n` +
                       `*${prefijo}tiktok [url]* - Descarga video sin marca de agua.\n` +
                       `*${prefijo}traduce [texto]* - Traduce texto al español.\n` +
                       `*${prefijo}skin [nombre] / stats [usuario]* - Info de Fortnite.\n` +

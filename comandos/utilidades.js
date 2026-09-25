@@ -1,5 +1,4 @@
 const crypto = require('crypto');
-const { resolverContactoWhatsApp } = require('../utils/whatsapp');
 const { downloadMediaMessage } = require('@whiskeysockets/baileys');
 const { Sticker, StickerTypes } = require('wa-sticker-formatter');
 
@@ -185,7 +184,27 @@ async function comandoSticker(sock, msg) {
     }
 }
 
-// 🎬 2. TikTok (Descarga sin marca de agua)
+// 📢 2. Todos (Etiqueta masiva a miembros del grupo)
+async function comandoTodos(sock, chatId, msg) {
+    if (!chatId.endsWith('@g.us')) {
+        await sock.sendMessage(chatId, { text: '❌ Este comando solo se puede usar en grupos.' }, { quoted: msg });
+        return;
+    }
+    try {
+        const metadata = await sock.groupMetadata(chatId);
+        let texto = '📢 *¡ATENCIÓN A TODOS!* 📢\n\n';
+        let mentions = [];
+        metadata.participants.forEach(p => {
+            texto += `@${p.id.split('@')[0]} `;
+            mentions.push(p.id);
+        });
+        await sock.sendMessage(chatId, { text: texto, mentions }, { quoted: msg });
+    } catch (e) {
+        await sock.sendMessage(chatId, { text: '❌ No se pudo etiquetar a los miembros.' }, { quoted: msg });
+    }
+}
+
+// 🎬 3. TikTok (Descarga sin marca de agua)
 async function comandoTiktok(sock, chatId, msg, args) {
     const url = args[0];
     if (!url || !url.includes('tiktok.com')) {
@@ -311,6 +330,7 @@ async function comandoContacto(sock, chatId, msg) {
 
 module.exports = {
     comandoSticker,
+    comandoTodos,
     comandoTiktok,
     comandoTraduce,
     comandoSkin,

@@ -1,12 +1,10 @@
-const { esProgramadorBot } = require('./programadorbot');
 const { Config } = require('../database/modelos');
-const { resolverContactoWhatsApp, resolverJidUsuario } = require('../utils/whatsapp');
 const escuadronesActivos = new Map();
 
 // Función auxiliar para verificar si el usuario es admin del grupo
 async function esAdminValido(sock, chatId, msg) {
     if (!chatId.endsWith('@g.us')) return false;
-    if (msg.key.fromMe || esProgramadorBot(msg)) return true;
+    if (msg.key.fromMe) return true;
     const remitente = msg.key.participant;
     try {
         const groupMetadata = await sock.groupMetadata(chatId);
@@ -19,7 +17,7 @@ async function esAdminValido(sock, chatId, msg) {
 }
 
 // Extraer número de usuario de mención, texto o mensaje citado
-async function extraerUsuarioObjetivo(sock, msg, args) {
+function extraerUsuarioObjetivo(msg, args) {
     // 1. Si responde a un mensaje
     const quoted = msg.message?.extendedTextMessage?.contextInfo;
     if (quoted && quoted.participant) {
@@ -29,7 +27,7 @@ async function extraerUsuarioObjetivo(sock, msg, args) {
     if (args.length > 0) {
         let limpio = args[0].replace(/[^0-9]/g, '');
         if (limpio.length >= 10) {
-            return await resolverJidUsuario(sock, limpio);
+            return limpio + '@s.whatsapp.net';
         }
     }
     return null;
@@ -55,41 +53,34 @@ async function comandoCarry(sock, chatId, msg, comando, args = []) {
                 return await sock.sendMessage(chatId, { text: `📋 La lista negra de carry en este grupo está vacía.` }, { quoted: msg });
             }
             let txt = `🚫 *LISTA NEGRA DE CARRY*\n\n`;
-            const mencionesListaNegra = [];
-            for (const [idx, id] of listaNegra.entries()) {
-                const contacto = await resolverContactoWhatsApp(sock, id);
-                txt += `${idx + 1}. @${contacto.mentionNumber || id.split('@')[0]} · 📱 ${contacto.numeroVisible}\n`;
-                if (contacto.mentionJid) mencionesListaNegra.push(contacto.mentionJid);
-            }
-            return await sock.sendMessage(chatId, { text: txt, mentions: [...new Set(mencionesListaNegra)] }, { quoted: msg });
+            listaNegra.forEach((id, idx) => {
+                txt += `${idx + 1}. @${id.split('@')[0]}\n`;
+            });
+            return await sock.sendMessage(chatId, { text: txt, mentions: listaNegra }, { quoted: msg });
         }
 
-        let objetivo = await extraerUsuarioObjetivo(sock, msg, args);
+        let objetivo = extraerUsuarioObjetivo(msg, args);
         if (!objetivo) {
             return await sock.sendMessage(chatId, { text: `❌ Debes mencionar a un usuario, escribir su número o responder a un mensaje suyo.` }, { quoted: msg });
         }
 
         if (comando === 'blcarry') {
             if (listaNegra.includes(objetivo)) {
-                const contacto = await resolverContactoWhatsApp(sock, objetivo);
-                return await sock.sendMessage(chatId, { text: `⚠️ El usuario @${contacto.mentionNumber || objetivo.split('@')[0]} · 📱 ${contacto.numeroVisible} ya está en la lista negra de carry.`, mentions: contacto.mentionJid ? [contacto.mentionJid] : [] }, { quoted: msg });
+                return await sock.sendMessage(chatId, { text: `⚠️ El usuario @${objetivo.split('@')[0]} ya está en la lista negra de carry.`, mentions: [objetivo] }, { quoted: msg });
             }
             listaNegra.push(objetivo);
             await Config.findOneAndUpdate({ clave: `carry_bl_${chatId}` }, { valor: JSON.stringify(listaNegra) }, { upsert: true });
-            const contacto = await resolverContactoWhatsApp(sock, objetivo);
-            return await sock.sendMessage(chatId, { text: `🚫 El usuario @${contacto.mentionNumber || objetivo.split('@')[0]} · 📱 ${contacto.numeroVisible} ha sido agregado a la lista negra de carry.`, mentions: contacto.mentionJid ? [contacto.mentionJid] : [] }, { quoted: msg });
+            return await sock.sendMessage(chatId, { text: `🚫 El usuario @${objetivo.split('@')[0]} ha sido agregado a la lista negra de carry.`, mentions: [objetivo] }, { quoted: msg });
         }
 
         if (comando === 'unblcarry') {
             let index = listaNegra.indexOf(objetivo);
             if (index === -1) {
-                const contacto = await resolverContactoWhatsApp(sock, objetivo);
-                return await sock.sendMessage(chatId, { text: `⚠️ El usuario @${contacto.mentionNumber || objetivo.split('@')[0]} · 📱 ${contacto.numeroVisible} no estaba en la lista negra.`, mentions: contacto.mentionJid ? [contacto.mentionJid] : [] }, { quoted: msg });
+                return await sock.sendMessage(chatId, { text: `⚠️ El usuario @${objetivo.split('@')[0]} no estaba en la lista negra.`, mentions: [objetivo] }, { quoted: msg });
             }
             listaNegra.splice(index, 1);
             await Config.findOneAndUpdate({ clave: `carry_bl_${chatId}` }, { valor: JSON.stringify(listaNegra) }, { upsert: true });
-            const contacto = await resolverContactoWhatsApp(sock, objetivo);
-            return await sock.sendMessage(chatId, { text: `✅ El usuario @${contacto.mentionNumber || objetivo.split('@')[0]} · 📱 ${contacto.numeroVisible} fue removido de la lista negra de carry.`, mentions: contacto.mentionJid ? [contacto.mentionJid] : [] }, { quoted: msg });
+            return await sock.sendMessage(chatId, { text: `✅ El usuario @${objetivo.split('@')[0]} fue removido de la lista negra de carry.`, mentions: [objetivo] }, { quoted: msg });
         }
         return;
     }
@@ -154,20 +145,19 @@ async function comandoCarry(sock, chatId, msg, comando, args = []) {
                 mentions: participantesGrupo
             }, { quoted: msg });
         } else {
-            const contactosSquad = await Promise.all([
-                resolverContactoWhatsApp(sock, escuadron.liderId),
-                ...escuadron.miembros.map(m => resolverContactoWhatsApp(sock, m.id))
-            ]);
-            const todasLasMenciones = contactosSquad.map(c => c.mentionJid).filter(Boolean);
-            let textoLleno = `🚀 *¡ESCUADRÓN LLENO!*\n🎯 *Objetivo:* ${escuadron.motivo}\n\n👑 Líder: @${contactosSquad[0]?.mentionNumber || escuadron.liderId.split('@')[0]} · 📱 ${contactosSquad[0]?.numeroVisible || 'Desconocido'}\n`;
-            contactosSquad.slice(1).forEach((contacto, i) => {
-                textoLleno += `🎮 P${i+2}: @${contacto.mentionNumber || 'Usuario'} · 📱 ${contacto.numeroVisible}\n`;
+            let mencionesSquad = [escuadron.liderId, ...escuadron.miembros.map(m => m.id)];
+            let todasLasMenciones = [...new Set([...mencionesSquad, ...participantesGrupo])];
+            
+            let textoLleno = `🚀 *¡ESCUADRÓN LLENO!*\n🎯 *Objetivo:* ${escuadron.motivo}\n\n👑 Líder: @${escuadron.liderId.split('@')[0]}\n`;
+            
+            escuadron.miembros.forEach((m, i) => {
+                textoLleno += `🎮 P${i+2}: @${m.id.split('@')[0]}\n`;
             });
             textoLleno += `\n¡Listos para darle!`;
 
             await sock.sendMessage(chatId, { 
                 text: textoLleno, 
-                mentions: [...new Set(todasLasMenciones)]
+                mentions: todasLasMenciones
             });
             escuadronesActivos.delete(chatId); 
         }

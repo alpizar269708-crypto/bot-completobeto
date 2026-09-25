@@ -1,4 +1,3 @@
-const { esProgramadorBot } = require('./programadorbot');
 const cron = require('node-cron');
 const { Config } = require('../database/modelos');
 
@@ -12,7 +11,7 @@ async function esAdminValido(sock, chatId, msg) {
         await sock.sendMessage(chatId, { text: `❌ Este comando solo se puede usar en grupos.` }, { quoted: msg });
         return false;
     }
-    if (msg.key.fromMe || esProgramadorBot(msg)) return true;
+    if (msg.key.fromMe) return true;
     
     const remitente = msg.key.participant;
     try {
