@@ -1,5 +1,5 @@
 const { esProgramadorBot } = require('./programadorbot');
-const { resolverLidAPn, resolverContactoWhatsApp, etiquetaContactoWhatsApp } = require('../utils/whatsapp');
+const { resolverContactoWhatsApp, resolverJidUsuario, etiquetaContactoWhatsApp, normalizarNumeroVisible } = require('../utils/whatsapp');
 const { Config, RifaJasc13Cashback } = require('../database/modelos');
 
 const rifasActivas = new Map();
