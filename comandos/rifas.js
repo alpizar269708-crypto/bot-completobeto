@@ -407,6 +407,22 @@ async function cargarEstadoRifaJasc13() {
         }
     }
 
+    // Migración automática para participantes antiguos de JASC13:
+    // si el participante ya existía con puntos pero todavía no tenía una
+    // entrada de cashback, se le asigna una sola vez el 5% de sus puntos actuales.
+    let cashbackMigrado = false;
+    for (const [id, data] of participantes.entries()) {
+        if (cashback.has(id)) continue;
+
+        const puntosActuales = Number(data.puntos) || 0;
+        cashback.set(id, calcularCashbackJasc13(puntosActuales));
+        cashbackMigrado = true;
+    }
+
+    if (cashbackMigrado) {
+        await guardarCashbackJasc13(cashback);
+    }
+
     return { participantes, cashback };
 }
 
