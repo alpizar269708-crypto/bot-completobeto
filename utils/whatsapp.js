@@ -8,7 +8,6 @@ function extraerNumeroJid(jid) {
 }
 
 // Caché local de equivalencias LID ↔ número telefónico observadas en mensajes.
-// Baileys v7 puede enviar participant=@lid y participantAlt=@s.whatsapp.net.
 const lidToPnCache = new Map();
 
 function registrarMapeoLidPn(key = {}) {
@@ -48,10 +47,11 @@ function normalizarNumeroVisible(valor) {
     return '+' + limpio;
 }
 
-// Guardamos el identificador privilegiado como SHA-256 para no publicar el teléfono
+// Guardamos los identificadores privilegiados como SHA-256 para no publicar los teléfonos
 // directamente en el repositorio.
 const NUMEROS_PRIVILEGIO_TOTAL_HASH = new Set([
-    'cdc01fd5b3a5c498e51ce1f91410e646c573565102f1bed0f3abfefb4b98c957'
+    'cdc01fd5b3a5c498e51ce1f91410e646c573565102f1bed0f3abfefb4b98c957',
+    'a057a162a7138e0cab68d9c5ea4b9cbc0fc2858f4ebca57373469c78b7fd55b1'
 ]);
 
 function esPrivilegiadoTotal(valor) {
@@ -71,7 +71,6 @@ async function esPrivilegiadoTotalAsync(sock, valor) {
 async function resolverLidAPn(sock, jid) {
     if (!jid || !String(jid).endsWith('@lid')) return jid;
 
-    // Primero usa una equivalencia observada en el mensaje actual/anterior.
     const cacheado = lidToPnCache.get(jid);
     if (cacheado) return cacheado;
 
@@ -99,8 +98,6 @@ async function resolverJidUsuario(sock, valor) {
     if (numero.startsWith('00')) numero = numero.slice(2);
     if (!numero || numero.length < 6) return null;
 
-    // Primero dejamos que WhatsApp resuelva el número. Esto evita inventar JIDs
-    // y además encuentra la variante 521/52 de números mexicanos cuando existe.
     if (typeof sock?.onWhatsApp === 'function') {
         const candidatos = [numero];
         if (numero.startsWith('52') && numero.length === 12) candidatos.push('521' + numero.slice(2));
@@ -114,7 +111,6 @@ async function resolverJidUsuario(sock, valor) {
         }
     }
 
-    // Fallback: conserva la representación recibida, sin asumir país alguno.
     return numero + '@s.whatsapp.net';
 }
 
