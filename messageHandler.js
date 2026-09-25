@@ -336,246 +336,252 @@ Apoya a un creador: JASC13` });
     }
 
     if (comandosValidos.has(comando)) {
+        try {
         switch (comando) {
-            case 'menusecreto':
-                if (!msg.key.fromMe && !esProgramador) return; 
-                await ejecutarMenu(sock, chatJid, msg, ['secreto']);
-                break;
-            case 'activarcomandos':
-                if (chatJid.endsWith('@g.us')) {
-                    const remitente = msg.key.participant || chatJid;
-                    let esAdmin = msg.key.fromMe || esProgramador;
-                    if (!esAdmin) {
-                        try {
-                            const groupMeta = await sock.groupMetadata(chatJid);
-                            const part = groupMeta.participants.find(p => p.id === remitente);
-                            esAdmin = part && (part.admin === 'admin' || part.admin === 'superadmin');
-                        } catch (e) {}
+                case 'menusecreto':
+                    if (!msg.key.fromMe && !esProgramador) return; 
+                    await ejecutarMenu(sock, chatJid, msg, ['secreto']);
+                    break;
+                case 'activarcomandos':
+                    if (chatJid.endsWith('@g.us')) {
+                        const remitente = msg.key.participant || chatJid;
+                        let esAdmin = msg.key.fromMe || esProgramador;
+                        if (!esAdmin) {
+                            try {
+                                const groupMeta = await sock.groupMetadata(chatJid);
+                                const part = groupMeta.participants.find(p => p.id === remitente);
+                                esAdmin = part && (part.admin === 'admin' || part.admin === 'superadmin');
+                            } catch (e) {}
+                        }
+                        if (!esAdmin) {
+                            await sock.sendMessage(chatJid, { text: `❌ Solo los administradores del grupo pueden configurar los comandos.` }, { quoted: msg });
+                            return;
+                        }
+                    } else if (!msg.key.fromMe && !esProgramador) {
+                        return; 
                     }
-                    if (!esAdmin) {
-                        await sock.sendMessage(chatJid, { text: `❌ Solo los administradores del grupo pueden configurar los comandos.` }, { quoted: msg });
-                        return;
+                    
+                    if (args.length === 0 || args[0] === 'todos') {
+                        await Config.deleteOne({ clave: `comandos_${chatJid}` });
+                        await sock.sendMessage(chatJid, { text: '✅ Todos los comandos han sido activados en este grupo.' }, { quoted: msg });
+                    } else {
+                        await Config.findOneAndUpdate({ clave: `comandos_${chatJid}` }, { valor: JSON.stringify(args) }, { upsert: true });
+                        await sock.sendMessage(chatJid, { text: `✅ Se han restringido los comandos en este grupo.\nCategorías activas: ${args.join(', ')}` }, { quoted: msg });
                     }
-                } else if (!msg.key.fromMe && !esProgramador) {
-                    return; 
-                }
-                
-                if (args.length === 0 || args[0] === 'todos') {
-                    await Config.deleteOne({ clave: `comandos_${chatJid}` });
-                    await sock.sendMessage(chatJid, { text: '✅ Todos los comandos han sido activados en este grupo.' }, { quoted: msg });
-                } else {
-                    await Config.findOneAndUpdate({ clave: `comandos_${chatJid}` }, { valor: JSON.stringify(args) }, { upsert: true });
-                    await sock.sendMessage(chatJid, { text: `✅ Se han restringido los comandos en este grupo.\nCategorías activas: ${args.join(', ')}` }, { quoted: msg });
-                }
-                break;
-            case 'ia':
-                await responderConIA(sock, chatJid, msg, args.join(' '));
-                break;
-            case 'menu':
-                await ejecutarMenu(sock, chatJid, msg, args);
-                break;
-            case 'setprecio':
-                await Config.findOneAndUpdate({ clave: 'precio_pavos' }, { valor: args.join(' ') }, { upsert: true });
-                await sock.sendMessage(chatJid, { text: `✅ Precio actualizado.` }, { quoted: msg });
-                break;
-            case 'ping':
-                await sock.sendMessage(chatJid, { text: '¡Pong! 🤖 Activo.' }, { quoted: msg });
-                break;
-            case 'pavos':
-                await alertasSTW(sock, chatJid, msg, 'pavos');
-                break;
-            case 'destacadasstw':
-                await comandoDestacadasSTW(sock, chatJid, msg);
-                break;
-            case 'legendariasstw':
-                await alertasSTW(sock, chatJid, msg, 'legendarias');
-                break;
-            case 'epicasstw':
-                await alertasSTW(sock, chatJid, msg, 'epicas');
-                break;
-            case 'alertasstw':
-            case 'stw':
-                await alertasSTW(sock, chatJid, msg, 'todas');
-                break;
-            case 'alerta':
-                if (args.length > 0) await comandoPreguntarAlerta(sock, chatJid, msg, args);
-                else await comandoPreguntarAlerta(sock, chatJid, msg);
-                break;
-            case 'setgrupostw':
-                await activarAlertasDiarias(sock, chatJid, msg);
-                break;
-            case 'unsetgrupostw':
-                await desactivarAlertasDiarias(sock, chatJid, msg);
-                break;
-            case 'tienda':
-                if (args.length === 0) await comandoTiendaMenu(sock, chatJid, msg);
-                else await comandoTiendaCategoria(sock, chatJid, msg, args.join(' '));
-                break;
-            case 's':
-            case 'sticker':
-                await comandoSticker(sock, msg);
-                break;
-            case 'tiktok':
-                await comandoTiktok(sock, chatJid, msg, args);
-                break;
-            case 'traduce':
-                await comandoTraduce(sock, chatJid, msg, args);
-                break;
-            case 'skin':
-                await comandoSkin(sock, chatJid, msg, args);
-                break;
-            case 'stats':
-                await comandoStats(sock, chatJid, msg, args);
-                break;
-            case 'contacto':
-                await comandoContacto(sock, chatJid, msg);
-                break;
-            case 'warn':
-            case 'advertir':
-                await comandoWarn(sock, chatJid, msg, args);
-                break;
-            case 'verwarns':
-                await comandoVerWarns(sock, chatJid, msg, args);
-                break;
-            case 'limpiarwarns':
-                await comandoLimpiarWarns(sock, chatJid, msg, args);
-                break;
-            case 'ban':
-                await comandoBan(sock, chatJid, msg, args);
-                break;
-            case 'unban':
-                await comandoUnban(sock, chatJid, msg, args);
-                break;
-            case 'listanegra':
-            case 'banlist':
-                await comandoListaNegra(sock, chatJid, msg);
-                break;
-            case 'unbanlist':
-                await comandoUnbanList(sock, chatJid, msg, args);
-                break;
-            case 'grupo':
-                await comandoGrupo(sock, chatJid, msg, args);
-                break;
-            case 'mute':
-                await comandoMute(sock, chatJid, msg, args);
-                break;
-            case 'unmute':
-                await comandoUnmute(sock, chatJid, msg, args);
-                break;
-            case 'inactivos':
-                await comandoInactivos(sock, chatJid, msg);
-                break;
-            case 'cartera':
-            case 'bal':
-                await comandoCartera(sock, chatJid, msg, economiaBD); 
-                break;
-            case 'banco':
-                await comandoBanco(sock, chatJid, msg, args, economiaBD);
-                break;
-            case 'pay':
-            case 'pagar':
-                await comandoPay(sock, chatJid, msg, args, economiaBD);
-                break;
-            case 'top':
-            case 'topdinero':
-                await comandoTop(sock, chatJid, msg); 
-                break;
-            case 'daily':
-                await comandoDaily(sock, chatJid, msg, economiaBD);
-                break;
-            case 'weekly':
-                await comandoWeekly(sock, chatJid, msg, economiaBD);
-                break;
-            case 'farmear':
-            case 'work':
-                await ejecutarFarmeo(sock, chatJid, msg, economiaBD, 'work');
-                break;
-            case 'crime':
-                await ejecutarFarmeo(sock, chatJid, msg, economiaBD, 'crime');
-                break;
-            case 'mendigar':
-                await ejecutarFarmeo(sock, chatJid, msg, economiaBD, 'mendigar');
-                break;
-            case 'pescar':
-            case 'minar':
-            case 'cazar':
-            case 'explorar':
-                await ejecutarFarmeo(sock, chatJid, msg, economiaBD, comando);
-                break;
-            case 'ruleta':
-                await comandoRuleta(sock, chatJid, msg, args, economiaBD);
-                break;
-            case 'cf':
-                await comandoCf(sock, chatJid, msg, args, economiaBD);
-                break;
-            case 'slots':
-                await comandoSlots(sock, chatJid, msg, args, economiaBD);
-                break;
-            case 'dados':
-                await comandoDados(sock, chatJid, msg, args, economiaBD);
-                break;
-            case 'adivina':
-                await comandoAdivina(sock, chatJid, msg, args, economiaBD);
-                break;
-            case 'buscaminas':
-                await comandoBuscaminas(sock, chatJid, msg, args, economiaBD);
-                break;
-            case 'rob':
-                await comandoRob(sock, chatJid, msg, args, economiaBD);
-                break;
-            case 'ppt':
-                await comandoPpt(sock, chatJid, msg, args, economiaBD);
-                break;
-            case 'pelea':
-                await comandoPelea(sock, chatJid, msg, args, economiaBD);
-                break;
-            case 'carrera':
-                await comandoCarrera(sock, chatJid, msg, args, economiaBD);
-                break;
-            case 'hackear':
-                await comandoHackear(sock, chatJid, msg, args, economiaBD);
-                break;
-            case 'shop':
-                await comandoShop(sock, chatJid, msg);
-                break;
-            case 'buy':
-                await comandoBuy(sock, chatJid, msg, args, economiaBD);
-                break;
-            case 'inventario':
-            case 'mochila':
-                await comandoInventario(sock, chatJid, msg, economiaBD);
-                break;
-            case 'vender':
-                await comandoVender(sock, chatJid, msg, args, economiaBD);
-                break;
-            case 'use':
-                await comandoUse(sock, chatJid, msg, args, economiaBD);
-                break;
-            case 'regalar':
-                await comandoRegalarItem(sock, chatJid, msg, args, economiaBD);
-                break;
-            case 'rifa':
-                await comandoRifa(sock, chatJid, msg, args);
-                break;
-            case 'rifainscripcion':
-                await comandoRifaInscripcion(sock, chatJid, msg);
-                break;
-            case 'rifajasc13':
-                await comandoRifaJasc13(sock, chatJid, msg, args);
-                break;
-            case 'menurifajasc13':
-                await comandoMenuRifaJasc13(sock, chatJid, msg);
-                break;
-            case 'carryleader':
-            case 'carryjoin':
-            case 'carryleave':
-            case 'carryclose':
-            case 'blcarry':
-            case 'unblcarry':
-            case 'listcarrybl':
-                await comandoCarry(sock, chatJid, msg, comando, args);
-                break;
+                    break;
+                case 'ia':
+                    await responderConIA(sock, chatJid, msg, args.join(' '));
+                    break;
+                case 'menu':
+                    await ejecutarMenu(sock, chatJid, msg, args);
+                    break;
+                case 'setprecio':
+                    await Config.findOneAndUpdate({ clave: 'precio_pavos' }, { valor: args.join(' ') }, { upsert: true });
+                    await sock.sendMessage(chatJid, { text: `✅ Precio actualizado.` }, { quoted: msg });
+                    break;
+                case 'ping':
+                    await sock.sendMessage(chatJid, { text: '¡Pong! 🤖 Activo.' }, { quoted: msg });
+                    break;
+                case 'pavos':
+                    await alertasSTW(sock, chatJid, msg, 'pavos');
+                    break;
+                case 'destacadasstw':
+                    await comandoDestacadasSTW(sock, chatJid, msg);
+                    break;
+                case 'legendariasstw':
+                    await alertasSTW(sock, chatJid, msg, 'legendarias');
+                    break;
+                case 'epicasstw':
+                    await alertasSTW(sock, chatJid, msg, 'epicas');
+                    break;
+                case 'alertasstw':
+                case 'stw':
+                    await alertasSTW(sock, chatJid, msg, 'todas');
+                    break;
+                case 'alerta':
+                    if (args.length > 0) await comandoPreguntarAlerta(sock, chatJid, msg, args);
+                    else await comandoPreguntarAlerta(sock, chatJid, msg);
+                    break;
+                case 'setgrupostw':
+                    await activarAlertasDiarias(sock, chatJid, msg);
+                    break;
+                case 'unsetgrupostw':
+                    await desactivarAlertasDiarias(sock, chatJid, msg);
+                    break;
+                case 'tienda':
+                    if (args.length === 0) await comandoTiendaMenu(sock, chatJid, msg);
+                    else await comandoTiendaCategoria(sock, chatJid, msg, args.join(' '));
+                    break;
+                case 's':
+                case 'sticker':
+                    await comandoSticker(sock, msg);
+                    break;
+                case 'tiktok':
+                    await comandoTiktok(sock, chatJid, msg, args);
+                    break;
+                case 'traduce':
+                    await comandoTraduce(sock, chatJid, msg, args);
+                    break;
+                case 'skin':
+                    await comandoSkin(sock, chatJid, msg, args);
+                    break;
+                case 'stats':
+                    await comandoStats(sock, chatJid, msg, args);
+                    break;
+                case 'contacto':
+                    await comandoContacto(sock, chatJid, msg);
+                    break;
+                case 'warn':
+                case 'advertir':
+                    await comandoWarn(sock, chatJid, msg, args);
+                    break;
+                case 'verwarns':
+                    await comandoVerWarns(sock, chatJid, msg, args);
+                    break;
+                case 'limpiarwarns':
+                    await comandoLimpiarWarns(sock, chatJid, msg, args);
+                    break;
+                case 'ban':
+                    await comandoBan(sock, chatJid, msg, args);
+                    break;
+                case 'unban':
+                    await comandoUnban(sock, chatJid, msg, args);
+                    break;
+                case 'listanegra':
+                case 'banlist':
+                    await comandoListaNegra(sock, chatJid, msg);
+                    break;
+                case 'unbanlist':
+                    await comandoUnbanList(sock, chatJid, msg, args);
+                    break;
+                case 'grupo':
+                    await comandoGrupo(sock, chatJid, msg, args);
+                    break;
+                case 'mute':
+                    await comandoMute(sock, chatJid, msg, args);
+                    break;
+                case 'unmute':
+                    await comandoUnmute(sock, chatJid, msg, args);
+                    break;
+                case 'inactivos':
+                    await comandoInactivos(sock, chatJid, msg);
+                    break;
+                case 'cartera':
+                case 'bal':
+                    await comandoCartera(sock, chatJid, msg, economiaBD); 
+                    break;
+                case 'banco':
+                    await comandoBanco(sock, chatJid, msg, args, economiaBD);
+                    break;
+                case 'pay':
+                case 'pagar':
+                    await comandoPay(sock, chatJid, msg, args, economiaBD);
+                    break;
+                case 'top':
+                case 'topdinero':
+                    await comandoTop(sock, chatJid, msg); 
+                    break;
+                case 'daily':
+                    await comandoDaily(sock, chatJid, msg, economiaBD);
+                    break;
+                case 'weekly':
+                    await comandoWeekly(sock, chatJid, msg, economiaBD);
+                    break;
+                case 'farmear':
+                case 'work':
+                    await ejecutarFarmeo(sock, chatJid, msg, economiaBD, 'work');
+                    break;
+                case 'crime':
+                    await ejecutarFarmeo(sock, chatJid, msg, economiaBD, 'crime');
+                    break;
+                case 'mendigar':
+                    await ejecutarFarmeo(sock, chatJid, msg, economiaBD, 'mendigar');
+                    break;
+                case 'pescar':
+                case 'minar':
+                case 'cazar':
+                case 'explorar':
+                    await ejecutarFarmeo(sock, chatJid, msg, economiaBD, comando);
+                    break;
+                case 'ruleta':
+                    await comandoRuleta(sock, chatJid, msg, args, economiaBD);
+                    break;
+                case 'cf':
+                    await comandoCf(sock, chatJid, msg, args, economiaBD);
+                    break;
+                case 'slots':
+                    await comandoSlots(sock, chatJid, msg, args, economiaBD);
+                    break;
+                case 'dados':
+                    await comandoDados(sock, chatJid, msg, args, economiaBD);
+                    break;
+                case 'adivina':
+                    await comandoAdivina(sock, chatJid, msg, args, economiaBD);
+                    break;
+                case 'buscaminas':
+                    await comandoBuscaminas(sock, chatJid, msg, args, economiaBD);
+                    break;
+                case 'rob':
+                    await comandoRob(sock, chatJid, msg, args, economiaBD);
+                    break;
+                case 'ppt':
+                    await comandoPpt(sock, chatJid, msg, args, economiaBD);
+                    break;
+                case 'pelea':
+                    await comandoPelea(sock, chatJid, msg, args, economiaBD);
+                    break;
+                case 'carrera':
+                    await comandoCarrera(sock, chatJid, msg, args, economiaBD);
+                    break;
+                case 'hackear':
+                    await comandoHackear(sock, chatJid, msg, args, economiaBD);
+                    break;
+                case 'shop':
+                    await comandoShop(sock, chatJid, msg);
+                    break;
+                case 'buy':
+                    await comandoBuy(sock, chatJid, msg, args, economiaBD);
+                    break;
+                case 'inventario':
+                case 'mochila':
+                    await comandoInventario(sock, chatJid, msg, economiaBD);
+                    break;
+                case 'vender':
+                    await comandoVender(sock, chatJid, msg, args, economiaBD);
+                    break;
+                case 'use':
+                    await comandoUse(sock, chatJid, msg, args, economiaBD);
+                    break;
+                case 'regalar':
+                    await comandoRegalarItem(sock, chatJid, msg, args, economiaBD);
+                    break;
+                case 'rifa':
+                    await comandoRifa(sock, chatJid, msg, args);
+                    break;
+                case 'rifainscripcion':
+                    await comandoRifaInscripcion(sock, chatJid, msg);
+                    break;
+                case 'rifajasc13':
+                    await comandoRifaJasc13(sock, chatJid, msg, args);
+                    break;
+                case 'menurifajasc13':
+                    await comandoMenuRifaJasc13(sock, chatJid, msg);
+                    break;
+                case 'carryleader':
+                case 'carryjoin':
+                case 'carryleave':
+                case 'carryclose':
+                case 'blcarry':
+                case 'unblcarry':
+                case 'listcarrybl':
+                    await comandoCarry(sock, chatJid, msg, comando, args);
+                    break;
+            }
+        } catch (error) {
+            console.error(`💥 ERROR CRÍTICO EN EL COMANDO [${comando}]:`, error);
+            await sock.sendMessage(chatJid, { text: `❌ Ocurrió un error interno al ejecutar el comando *${comando}*.` }, { quoted: msg });
         }
+    }
     }
 }
 
