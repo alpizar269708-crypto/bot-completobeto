@@ -57,7 +57,7 @@ const comandosValidos = new Set([
         'farmear', 'work', 'crime', 'mendigar', 'pescar', 'minar', 'cazar', 'explorar',
         'ruleta', 'cf', 'slots', 'dados', 'adivina', 'buscaminas', 'rob', 'ppt', 'pelea',
         'carrera', 'hackear', 'shop', 'buy', 'inventario', 'mochila', 'vender', 'use', 'regalar',
-        'rifa', 'rifainscripcion', 'cerrarrifa', 'rifajasc13', 'cajecash', 'addvarios', 'abrirrifa', 'activarrifaaqui', 'menurifajasc13', 'carryleader', 'carryjoin', 'carryleave', 'carryclose', 'blcarry', 'unblcarry', 'listcarrybl',
+        'rifa', 'rifainscripcion', 'cerrarrifa', 'rifajasc13', 'cajecash', 'addvarios', 'abrirrifa', 'activarrifaaqui', 'menurifajasc13', 'quitarrifajasc13', 'carryleader', 'carryjoin', 'carryleave', 'carryclose', 'blcarry', 'unblcarry', 'listcarrybl',
         'vertodosconandos', 'vertodoscomandos', 'listablanca', 'desactivarbienvenida', 'activarbienvenida', 'personalizarbienvenida', 'restaurarbienvenida'
 ]);
 
@@ -563,6 +563,9 @@ Apoya a un creador: JASC13` });
                 break;
             case 'rifajasc13':
                 await comandoRifaJasc13(sock, chatJid, msg, args);
+                break;
+            case 'quitarrifajasc13':
+                await comandoRifaJasc13(sock, chatJid, msg, ['quitarrifajasc13', ...args]);
                 break;
             case 'cajecash':
                 await comandoRifaJasc13(sock, chatJid, msg, ['cajecash', ...args]);
