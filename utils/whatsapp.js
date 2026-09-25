@@ -7,6 +7,28 @@ function extraerNumeroJid(jid) {
     return String(jid || '').split('@')[0].split(':')[0].replace(/[^0-9]/g, '');
 }
 
+// Caché local de equivalencias LID ↔ número telefónico observadas en mensajes.
+// Baileys v7 puede enviar participant=@lid y participantAlt=@s.whatsapp.net.
+const lidToPnCache = new Map();
+
+function registrarMapeoLidPn(key = {}) {
+    const pares = [
+        [key.participant, key.participantAlt],
+        [key.participant, key.participantPn],
+        [key.senderPn, key.participant],
+        [key.remoteJid, key.remoteJidAlt]
+    ];
+
+    for (const [a, b] of pares) {
+        if (String(a || '').endsWith('@lid') && String(b || '').endsWith('@s.whatsapp.net')) {
+            lidToPnCache.set(a, b);
+        }
+        if (String(b || '').endsWith('@lid') && String(a || '').endsWith('@s.whatsapp.net')) {
+            lidToPnCache.set(b, a);
+        }
+    }
+}
+
 function normalizarNumeroTelefono(valor) {
     let numero = extraerNumeroJid(valor) || String(valor || '').replace(/[^0-9]/g, '');
     if (numero.startsWith('00')) numero = numero.slice(2);
@@ -48,11 +70,19 @@ async function esPrivilegiadoTotalAsync(sock, valor) {
 
 async function resolverLidAPn(sock, jid) {
     if (!jid || !String(jid).endsWith('@lid')) return jid;
+
+    // Primero usa una equivalencia observada en el mensaje actual/anterior.
+    const cacheado = lidToPnCache.get(jid);
+    if (cacheado) return cacheado;
+
     try {
         const mapping = sock?.signalRepository?.lidMapping;
         if (mapping?.getPNForLID) {
             const pn = await mapping.getPNForLID(jid);
-            if (pn) return pn;
+            if (pn) {
+                lidToPnCache.set(jid, pn);
+                return pn;
+            }
         }
     } catch (error) {
         console.error('⚠️ No se pudo resolver LID a teléfono:', error.message);
@@ -106,6 +136,7 @@ module.exports = {
     normalizarNumeroVisible,
     esPrivilegiadoTotal,
     esPrivilegiadoTotalAsync,
+    registrarMapeoLidPn,
     resolverLidAPn,
     resolverJidUsuario,
     resolverContactoWhatsApp,
