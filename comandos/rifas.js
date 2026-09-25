@@ -532,6 +532,100 @@ async function comandoRifaJasc13(sock, chatId, msg, args) {
         return await sock.sendMessage(chatId, { text: respuesta, mentions: [targetId] });
     }
 
+    if (accion === 'addvarios') {
+        const textoMensaje = msg.message?.conversation ||
+            msg.message?.extendedTextMessage?.text ||
+            msg.message?.imageMessage?.caption ||
+            msg.message?.videoMessage?.caption ||
+            '';
+
+        // Lee las líneas que aparecen debajo de "rifajasc13 addvarios".
+        const lineas = textoMensaje.split(/\r?\n/).slice(1);
+        const operaciones = [];
+
+        for (const linea of lineas) {
+            const coincidencia = linea.match(/^\s*(\d+)\s*[.)\-:]?\s+(\d+)\s*$/);
+            if (!coincidencia) continue;
+
+            const numeroLista = parseInt(coincidencia[1], 10);
+            const puntosAgregados = parseInt(coincidencia[2], 10);
+
+            if (Number.isInteger(numeroLista) && numeroLista >= 1 && Number.isInteger(puntosAgregados) && puntosAgregados > 0) {
+                operaciones.push({ numeroLista, puntosAgregados });
+            }
+        }
+
+        if (operaciones.length === 0) {
+            return await sock.sendMessage(chatId, {
+                text: '❌ No encontré operaciones válidas.\n\nUsa *rifajasc13 addvarios* y debajo escribe, por ejemplo:\n\n1. 1000\n2. 3000\n5) 5000'
+            }, { quoted: msg });
+        }
+
+        const ids = Array.from(participantes.keys());
+        const resultados = [];
+        const errores = [];
+        const mentions = [];
+
+        for (const operacion of operaciones) {
+            const { numeroLista, puntosAgregados } = operacion;
+
+            if (numeroLista > ids.length) {
+                errores.push(`#${numeroLista}: no existe`);
+                continue;
+            }
+
+            const targetId = ids[numeroLista - 1];
+            const datosUsuario = participantes.get(targetId) || { puntos: 0 };
+            const puntosAnteriores = Number(datosUsuario.puntos) || 0;
+            const cashbackGenerado = calcularCashbackJasc13(puntosAgregados);
+            const cashbackAnterior = Number(cashback.get(targetId) || 0);
+            const cashbackNuevo = Number((cashbackAnterior + cashbackGenerado).toFixed(2));
+
+            datosUsuario.puntos = puntosAnteriores + puntosAgregados;
+            participantes.set(targetId, datosUsuario);
+            cashback.set(targetId, cashbackNuevo);
+
+            resultados.push({
+                numeroLista,
+                targetId,
+                puntosAgregados,
+                puntosTotales: datosUsuario.puntos,
+                boletos: Math.floor(datosUsuario.puntos / 1000),
+                cashbackGenerado,
+                cashbackNuevo
+            });
+
+            mentions.push(targetId);
+        }
+
+        if (resultados.length === 0) {
+            return await sock.sendMessage(chatId, {
+                text: '❌ Ningún número de la lista era válido. Usa *rifajasc13 ver* para revisar los participantes.'
+            }, { quoted: msg });
+        }
+
+        await guardarParticipantesJasc13(participantes);
+        await guardarCashbackJasc13(cashback);
+
+        let respuesta = '✅ *ACTUALIZACIÓN MÚLTIPLE JASC13* ✅\n\n';
+        for (const resultado of resultados) {
+            respuesta += `👤 *#${resultado.numeroLista}. @${resultado.targetId.split('@')[0]}*\n`;
+            respuesta += `➕ Puntos agregados: *+${resultado.puntosAgregados}*\n`;
+            respuesta += `💎 Puntos totales: *${resultado.puntosTotales}*\n`;
+            respuesta += `🎟️ Boletos: *${resultado.boletos}*\n`;
+            respuesta += `💰 Cashback generado: *+${resultado.cashbackGenerado} pavos*\n`;
+            respuesta += `💵 Cashback acumulado: *${resultado.cashbackNuevo} pavos*\n\n`;
+        }
+
+        if (errores.length > 0) {
+            respuesta += '⚠️ *No se procesaron:* ' + errores.join(', ') + '.\n\n';
+        }
+
+        respuesta += `📌 Se actualizaron *${resultados.length}* participante(s).`;
+
+        return await sock.sendMessage(chatId, { text: respuesta, mentions }, { quoted: msg });
+    }
+
     const sumarPorNumero = accion.match(/^(\d+)sumar$/);
     if (sumarPorNumero) {
         const numeroLista = parseInt(sumarPorNumero[1], 10);
