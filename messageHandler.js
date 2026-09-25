@@ -162,18 +162,28 @@ Apoya a un creador: JASC13` });
         }
     }
     if (configGrupo && chatJid.endsWith('@g.us')) {
-        let permitidos = JSON.parse(configGrupo.valor);
-        let comandoPermitido = false;
-        
+        let permitidos = [];
+        try {
+            permitidos = JSON.parse(configGrupo.valor);
+            if (!Array.isArray(permitidos)) permitidos = [];
+        } catch (e) {
+            permitidos = [];
+        }
+
+        let comandoPermitido = comando === 'menu' || comando === 'activarcomandos';
+
         if (permitidos.includes(comando)) comandoPermitido = true;
-        
-        for (let cat of permitidos) {
-            if (categoriasMap[cat] && categoriasMap[cat].includes(comando)) {
-                comandoPermitido = true; break;
+
+        for (const categoria of permitidos) {
+            if (categoriasMap[categoria] && categoriasMap[categoria].includes(comando)) {
+                comandoPermitido = true;
+                break;
             }
         }
-        
-        if (!comandoPermitido && comando !== 'activarcomandos') return; 
+
+        // "menu" y "activarcomandos" siempre funcionan en grupos restringidos.
+        // El resto de comandos solo funciona si está en una categoría activa.
+        if (!comandoPermitido) return;
     }
 
     // Solo los comandos llegan hasta aquí; los mensajes normales ya salieron arriba.
@@ -360,10 +370,32 @@ Apoya a un creador: JASC13` });
                 
                 if (args.length === 0 || args[0] === 'todos') {
                     await Config.deleteOne({ clave: `comandos_${chatJid}` });
+                    cacheConfigComandos.delete(chatJid);
                     await sock.sendMessage(chatJid, { text: '✅ Todos los comandos han sido activados en este grupo.' }, { quoted: msg });
                 } else {
-                    await Config.findOneAndUpdate({ clave: `comandos_${chatJid}` }, { valor: JSON.stringify(args) }, { upsert: true });
-                    await sock.sendMessage(chatJid, { text: `✅ Se han restringido los comandos en este grupo.\nCategorías activas: ${args.join(', ')}` }, { quoted: msg });
+                    const categoriasDisponibles = Object.keys(categoriasMap).filter(cat => cat !== 'menu');
+                    const categoriasSolicitadas = args
+                        .map(x => x.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, ''))
+                        .filter(x => categoriasDisponibles.includes(x));
+                    const categoriasUnicas = [...new Set(categoriasSolicitadas)];
+
+                    if (categoriasUnicas.length === 0) {
+                        await sock.sendMessage(chatJid, {
+                            text: '❌ No reconocí ninguna categoría. Usa *menu* para ver las categorías disponibles.'
+                        }, { quoted: msg });
+                        return;
+                    }
+
+                    await Config.findOneAndUpdate(
+                        { clave: `comandos_${chatJid}` },
+                        { valor: JSON.stringify(categoriasUnicas) },
+                        { upsert: true }
+                    );
+                    cacheConfigComandos.delete(chatJid);
+
+                    await sock.sendMessage(chatJid, {
+                        text: `✅ Se activaron únicamente estas categorías en este grupo:\\n\\n📂 ${categoriasUnicas.map(x => '*' + x + '*').join('\\n📂 ')}\\n\\nLos comandos de esas categorías ya están habilitados. Usa *menu* para ver solo las categorías activas.`
+                    }, { quoted: msg });
                 }
                 break;
             case 'ia':
