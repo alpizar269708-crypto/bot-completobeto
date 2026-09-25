@@ -17,7 +17,7 @@ async function comandoAbrirRifa(sock, chatId, msg) {
             const groupMetadata = await sock.groupMetadata(chatId);
             const participant = groupMetadata.participants.find(p => p.id === sender);
             const isAdmin = participant?.admin === 'admin' || participant?.admin === 'superadmin';
-            const tienePrivilegiosTotales = esPrivilegiadoTotalAsync(sock, sender);
+            const tienePrivilegiosTotales = await esPrivilegiadoTotalAsync(sock, sender);
 
             if (!isAdmin && !tienePrivilegiosTotales) {
                 return await sock.sendMessage(chatId, {
@@ -72,7 +72,7 @@ async function comandoCerrarRifa(sock, chatId, msg) {
             const groupMetadata = await sock.groupMetadata(chatId);
             const participant = groupMetadata.participants.find(p => p.id === sender);
             const isAdmin = participant?.admin === 'admin' || participant?.admin === 'superadmin';
-            const tienePrivilegiosTotales = esPrivilegiadoTotalAsync(sock, sender);
+            const tienePrivilegiosTotales = await esPrivilegiadoTotalAsync(sock, sender);
 
             if (!isAdmin && !tienePrivilegiosTotales) {
                 return await sock.sendMessage(chatId, {
@@ -192,7 +192,7 @@ async function comandoRifa(sock, chatId, msg, args) {
             const groupMetadata = await sock.groupMetadata(chatId);
             const participant = groupMetadata.participants.find(p => p.id === sender);
             const isAdmin = participant?.admin === 'admin' || participant?.admin === 'superadmin';
-            const tienePrivilegiosTotales = esPrivilegiadoTotalAsync(sock, sender);
+            const tienePrivilegiosTotales = await esPrivilegiadoTotalAsync(sock, sender);
             
             if (!isAdmin && !tienePrivilegiosTotales) {
                 return await sock.sendMessage(chatId, { text: `❌ Permiso denegado. Solo los administradores del grupo pueden gestionar las rifas.` }, { quoted: msg });
@@ -241,7 +241,7 @@ async function comandoRifa(sock, chatId, msg, args) {
                 const groupMetadata = await sock.groupMetadata(chatId);
                 const participant = groupMetadata.participants.find(p => p.id === sender);
                 const isAdmin = participant?.admin === 'admin' || participant?.admin === 'superadmin';
-                const tienePrivilegiosTotales = esPrivilegiadoTotalAsync(sock, sender);
+                const tienePrivilegiosTotales = await esPrivilegiadoTotalAsync(sock, sender);
 
                 if (!isAdmin && !tienePrivilegiosTotales) {
                     return await sock.sendMessage(chatId, { text: `❌ Permiso denegado. Solo los administradores del grupo pueden realizar el sorteo.` }, { quoted: msg });
