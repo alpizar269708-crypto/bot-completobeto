@@ -394,7 +394,7 @@ Apoya a un creador: JASC13` });
                     cacheConfigComandos.delete(chatJid);
 
                     await sock.sendMessage(chatJid, {
-                        text: `✅ Se activaron únicamente estas categorías en este grupo:\\n\\n📂 ${categoriasUnicas.map(x => '*' + x + '*').join('\\n📂 ')}\\n\\nLos comandos de esas categorías ya están habilitados. Usa *menu* para ver solo las categorías activas.`
+                        text: `✅✨ *Categorías activadas en este grupo:*\n\n📂 ${categoriasUnicas.map(x => '*' + x + '*').join('\n📂 ')}\n\n🎮 Los comandos de estas categorías ya están habilitados.\n\n📋 Usa *menu* para ver las categorías activas.\n\n💚 *Apoya a un creador:* 🎮 *JASC13*`
                     }, { quoted: msg });
                 }
                 break;
