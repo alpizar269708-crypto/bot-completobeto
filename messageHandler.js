@@ -122,7 +122,7 @@ Apoya a un creador: JASC13` });
 
     if (!esComandoPropioPermitido && await verificarAntiLinks(sock, msg)) return;
 
-    const remitenteOriginal = msg.key.participant || chatJid;
+   const remitenteOriginal = msg.key.participant || chatJid;
     // Para MongoDB usamos el PN/JID de teléfono cuando WhatsApp entrega un LID.
     // Conservamos msg.key.participant intacto para operaciones de grupo/permisos.
     const remitenteReal = await resolverJidUsuario(sock, remitenteOriginal);
