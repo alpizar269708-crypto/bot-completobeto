@@ -526,7 +526,7 @@ async function comandoRifaJasc13(sock, chatId, msg, args) {
         }
 
         let texto = '🎟️ *PARTICIPANTES - RIFA JASC13*\n\n';
-        let i = 1;
+        let i = 0;
         const mentions = [];
 
         for (const [id, data] of participantes.entries()) {
@@ -542,7 +542,7 @@ async function comandoRifaJasc13(sock, chatId, msg, args) {
             const etiquetaContacto = etiquetaContactoWhatsApp(contacto, jid);
             if (contacto.jid || jid) mentions.push(contacto.jid || jid);
 
-            texto += `${String(i).padStart(2, '0')}. ${etiquetaContacto}\n` +
+            texto += `${String(i + 1).padStart(2, '0')}. ${etiquetaContacto}\n` +
                 `Puntos: *${puntosTotales}*\n` +
                 `Boletos: *${boletos}* (Faltan ${faltantes} pts)\n` +
                 `Cashback: *${cashback.toFixed(2)}* Pavos\n\n`;
