@@ -65,9 +65,8 @@ async function ejecutarMenu(sock, chatId, msg, args) {
     `📂 *CATEGORÍAS DISPONIBLES:*\n` +
     categoriasActivas.map(cat => descripcionCategorias[cat]).join('\n') + '\n';
 
-    if (isAdmin && isGroup && categoriasActivas.includes('moderacion')) {
-        menuGeneral += `\n`;
-        `⚙️ *CONFIGURACIÓN DEL GRUPO (Solo Admins):*\n` +
+    if (isAdmin && isGroup) {
+        menuGeneral += `\n⚙️ *CONFIGURACIÓN DEL GRUPO (Solo Admins):*\n` +
         `*${prefijo}activarcomandos [cat1] [cat2]* - Activa solo los módulos que quieras.\n` +
         `*${prefijo}activarcomandos todos* - Habilita todas las funciones en el grupo.\n`;
     }
@@ -80,12 +79,10 @@ async function ejecutarMenu(sock, chatId, msg, args) {
     `*${prefijo}alertasstw* - Resumen general de alertas.\n` +
     `*${prefijo}alerta [nombre]* - Busca una recompensa específica.\n`;
 
-    if (isAdmin && isGroup) {
-        menuFortnite += `\n⚙️ *Gestión del Grupo (Admins):*\n` +
+    menuFortnite += `\n⚙️ *Gestión del Grupo:*\n` +
         `*${prefijo}setprecio* - Configura precio de venta de pavos.\n` +
         `*${prefijo}setgrupostw* - Activa reportes diarios a las 6:05 PM aquí.\n` +
         `*${prefijo}unsetgrupostw* - Desactiva los reportes diarios.\n`;
-    }
 
     let menuModeracion = `🛡️ *MENÚ MODERACIÓN (Admins)* 🛡️\n\n`;
     if (isAdmin && isGroup) {
