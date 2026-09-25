@@ -1,6 +1,6 @@
 const { esProgramadorBot } = require('./programadorbot');
 const { Config } = require('../database/modelos');
-const { resolverContactoWhatsApp, resolverJidUsuario, etiquetaContactoWhatsApp } = require('../utils/whatsapp');
+const { resolverContactoWhatsApp, resolverJidUsuario, etiquetaContactoWhatsApp, normalizarNumeroVisible } = require('../utils/whatsapp');
 const escuadronesActivos = new Map();
 
 // Función auxiliar para verificar si el usuario es admin del grupo
