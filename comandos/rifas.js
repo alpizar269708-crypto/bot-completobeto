@@ -526,11 +526,10 @@ async function comandoRifaJasc13(sock, chatId, msg, args) {
         }
 
         let texto = '🎟️ *PARTICIPANTES - RIFA JASC13*\n\n';
-        let i = 0;
+        let i = 1;
         const mentions = [];
 
         for (const [id, data] of participantes.entries()) {
-            try {
             const boletos = Number(data.boletos) || 0;
             const puntos = Number(data.puntos) || 0;
             const puntosTotales = (boletos * 1000) + puntos;
@@ -542,14 +541,13 @@ async function comandoRifaJasc13(sock, chatId, msg, args) {
             const etiquetaContacto = etiquetaContactoWhatsApp(contacto, jid);
             if (contacto.jid || jid) mentions.push(contacto.jid || jid);
 
-            texto += `${String(i + 1).padStart(2, '0')}. ${etiquetaContacto}\n` +
+            // Se convierte la variable "i" a texto y se aplica padStart
+            const numLista = String(i).padStart(2, '0');
+            texto += `${numLista}. ${etiquetaContacto}\n` +
                 `Puntos: *${puntosTotales}*\n` +
                 `Boletos: *${boletos}* (Faltan ${faltantes} pts)\n` +
                 `Cashback: *${cashback.toFixed(2)}* Pavos\n\n`;
             i++;
-            } catch (error) {
-                console.error('⚠️ JASC13: participante omitido por error:', id, error?.message || error);
-            }
         }
 
         return await sock.sendMessage(chatId, { text: texto, mentions });
