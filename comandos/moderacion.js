@@ -252,7 +252,7 @@ async function comandoListaBlancaLinks(sock, chatId, msg, args = []) {
         }
         if (subaccion === 'ver') {
             const listaDominios = (await obtenerLinksListaBlanca()).filter(esDominioListaBlanca).map(x => x.slice(8));
-            const textoDominios = listaDominios.length ? `🌐 *DOMINIOS EN LISTA BLANCA* (${listaDominios.length}):\\n\\n${listaDominios.map((d, i) => `*${i + 1}.* ${d}`).join('\\n')}` : '🌐 No hay dominios en la lista blanca.';
+            const textoDominios = listaDominios.length ? `🌐 *DOMINIOS EN LISTA BLANCA* (${listaDominios.length}):\\n\\n${listaDominios.map((d, i) => `*${String(i + 1).padStart(2, '0')}.* ${d}`).join('\\n')}` : '🌐 No hay dominios en la lista blanca.';
             await sock.sendMessage(chatId, { text: textoDominios }, { quoted: msg });
             return;
         }
@@ -294,7 +294,7 @@ async function comandoListaBlancaLinks(sock, chatId, msg, args = []) {
     }
     if (accion === 'ver') {
         const lista = await obtenerLinksListaBlanca();
-        const texto = lista.length ? `🟢 *LINKS EN LISTA BLANCA* (${lista.length}):\n\n${lista.map((l, i) => `*${i + 1}.* ${l}`).join('\n')}` : '🟢 La lista blanca de links está vacía.';
+        const texto = lista.length ? `🟢 *LINKS EN LISTA BLANCA* (${lista.length}):\n\n${lista.map((l, i) => `*${String(i + 1).padStart(2, '0')}.* ${l}`).join('\n')}` : '🟢 La lista blanca de links está vacía.';
         await sock.sendMessage(chatId, { text: texto }, { quoted: msg });
         return;
     }
@@ -607,7 +607,7 @@ async function comandoVerWarns(sock, numero, msg, args = []) {
 
     usuarioBD.warns.forEach((w, index) => {
         const fechaFormateada = new Date(w.fecha || Date.now()).toLocaleDateString();
-        historial += `*${index + 1}.* ${w.motivo} _(${fechaFormateada})_\n`;
+        historial += `*${String(index + 1).padStart(2, '0')}.* ${w.motivo} _(${fechaFormateada})_\n`;
     });
 
     await sock.sendMessage(chatJid, { text: historial, mentions: [contacto.jid || jid].filter(Boolean) }, { quoted: msg });
@@ -688,7 +688,7 @@ async function comandoListaNegra(sock, numero, msg) {
         const motivo = b.banMotivo || 'Sin motivo especificado';
         const jid = b.numero;
         const etiquetaContacto = etiquetaContactoWhatsApp(contacto, jid);
-        texto += `*${index + 1}.* ${etiquetaContacto}\n   📝 Motivo: _${motivo}_\n\n`;
+        texto += `*${String(index + 1).padStart(2, '0')}.* ${etiquetaContacto}\n   📝 Motivo: _${motivo}_\n\n`;
         if (contacto.jid || b.numero) mentions.push(contacto.jid || jid);
     }
 
