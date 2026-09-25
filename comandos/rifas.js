@@ -379,15 +379,16 @@ async function comandoMenuRifaJasc13(sock, chatId, msg) {
 async function comandoRifaJasc13(sock, chatId, msg, args) {
     const sender = msg.key.participant || msg.key.remoteJid;
 
-    // Todo el estado se recupera de MongoDB, por lo que sobrevive reinicios/deploys de Render.
-    let { propietario, participantes } = await cargarEstadoRifaJasc13();
-
-    // El propietario queda guardado permanentemente hasta que se cambie explícitamente con iniciar.
-    if (propietario && sender !== propietario && !(await esPrivilegiadoTotalAsync(sock, sender))) {
+    // El creador de JASC13 está fijado al número con privilegios totales.
+    // Ya no se utiliza iniciar para elegir o cambiar propietario.
+    if (!(await esPrivilegiadoTotalAsync(sock, sender))) {
         return await sock.sendMessage(chatId, {
-            text: '❌ Acceso denegado. Esta rifa ya fue iniciada y está reservada para su propietario.'
+            text: '❌ Acceso denegado. Esta rifa JASC13 solo puede ser administrada por su creador.'
         }, { quoted: msg });
     }
+
+    // Todo el estado se recupera de MongoDB y sobrevive reinicios/deploys de Render.
+    const { participantes, cashback } = await cargarEstadoRifaJasc13();
 
     if (!args || args.length === 0) {
         return await sock.sendMessage(chatId, {
@@ -398,26 +399,8 @@ async function comandoRifaJasc13(sock, chatId, msg, args) {
     const accion = args[0].toLowerCase();
 
     if (accion === 'iniciar') {
-        if (!propietario) {
-            propietario = sender;
-            await guardarPropietarioJasc13(propietario);
-        }
-
-        participantes.clear();
-        await Config.findOneAndUpdate(
-            { clave: CLAVE_PARTICIPANTES_JASC13 },
-            { valor: '[]' },
-            { upsert: true }
-        );
-
         return await sock.sendMessage(chatId, {
-            text: '🚀 *¡Rifa JASC13 iniciada!* Has quedado vinculado como el único propietario y administrador permanente de esta rifa.'
-        }, { quoted: msg });
-    }
-
-    if (!propietario) {
-        return await sock.sendMessage(chatId, {
-            text: '❌ La rifa aún no ha sido iniciada.\n\nEjecuta el comando para abrir la rifa.'
+            text: '🔒 *Rifa JASC13 fijada.* El creador está establecido permanentemente y ya no es necesario usar *rifajasc13 iniciar*.'
         }, { quoted: msg });
     }
 
@@ -426,19 +409,22 @@ async function comandoRifaJasc13(sock, chatId, msg, args) {
             return await sock.sendMessage(chatId, { text: '📭 La rifa exclusiva JASC13 está vacía.' }, { quoted: msg });
         }
 
-        let texto = '🎟️ *PARTICIPANTES - RIFA JASC13*\n\n';
+        let texto = '🎟️ *PARTICIPANTES - RIFA JASC13* 🎟️\n\n';
         let i = 1;
         const mentions = [];
 
         for (const [id, data] of participantes.entries()) {
             const usuario = id?.split('@')[0] || 'Usuario desconocido';
-            const boletos = Math.floor(data.puntos / 1000);
-            const resto = data.puntos % 1000;
+            const puntos = Number(data.puntos) || 0;
+            const boletos = Math.floor(puntos / 1000);
+            const resto = puntos % 1000;
             const faltantes = resto === 0 ? 0 : 1000 - resto;
+            const cashbackActual = Number(cashback.get(id) || 0);
 
             texto += `👤 *${i}. @${usuario}*\n`;
-            texto += `💎 Puntos: *${data.puntos}*\n`;
-            texto += `🎟️ Boletos: *${boletos}* (Faltan *${faltantes} pts*)\n\n`;
+            texto += `💎 Puntos: *${puntos}*\n`;
+            texto += `🎟️ Boletos: *${boletos}* (Faltan *${faltantes} pts*)\n`;
+            texto += `💰 Cashback: *${cashbackActual} pavos* 🎮\n\n`;
 
             mentions.push(id);
             i++;
@@ -456,7 +442,7 @@ async function comandoRifaJasc13(sock, chatId, msg, args) {
         );
 
         return await sock.sendMessage(chatId, {
-            text: '🧹 *¡Lista limpiada!* Se han borrado todos los participantes de la rifa JASC13.'
+            text: '🧹 *¡Lista limpiada!* Se borraron los participantes de la rifa JASC13, pero el 💰 cashback se conserva.'
         }, { quoted: msg });
     }
 
