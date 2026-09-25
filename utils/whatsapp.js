@@ -132,11 +132,8 @@ function tokenMencionNativa(jid) {
 }
 
 function etiquetaContactoWhatsApp(contacto, jid) {
-    // Extraemos el ID de donde venga (priorizando el jid explícito)
     const idCrudo = jid || (contacto && (contacto.jid || contacto.id)) || '';
     if (!idCrudo) return '@usuario';
-    
-    // Convertimos a String para evitar que el .split() crashee si llega como entero
     const numeroPuro = String(idCrudo).split('@')[0].split(':')[0];
     return '@' + numeroPuro;
 }
