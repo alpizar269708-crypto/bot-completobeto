@@ -97,8 +97,11 @@ async function ejecutarMenu(sock, chatId, msg, args) {
                  `*${prefijo}rifa ver* - Mira la lista de participantes inscritos.\n` +
                  `*${prefijo}rifa quitar [número]* - Elimina a un participante de la lista.\n` +
                  `*${prefijo}rifa vaciar* - Limpia toda la lista de participantes.\n` +
-                 `*${prefijo}rifa sortear* - Elige un ganador al azar y lo menciona.\n`,
-                    
+                 `*${prefijo}rifa sortear* - Elige un ganador al azar y lo menciona.\n\n` +
+                 `⭐ *RIFA JASC13 (solo creador):*\n` +
+                 `*${prefijo}rifajasc13 [número]sumar [puntos]* - Suma puntos por número y genera 5% de cashback.\n` +
+                 `*${prefijo}rifajasc13 ver* - Muestra puntos, boletos y cashback.\n` +
+                 `*${prefijo}cajecash [@usuario/número] [pavos]* - Canjea y descuenta cashback.\n`,
         'economia': `💰 *MENÚ ECONOMÍA* 💰\n\n` +
                     `*💼 Básico:*\n` +
                     `*${prefijo}cartera / bal* - Revisa tu dinero.\n` +
