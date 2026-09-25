@@ -1,5 +1,5 @@
 const { User, Config } = require('../database/modelos');
-const { esPrivilegiadoTotal } = require('../utils/whatsapp');
+const { esPrivilegiadoTotal, esPrivilegiadoTotalAsync } = require('../utils/whatsapp');
 
 // Memoria temporal para los mutes activos
 const mutesActivos = new Map();
@@ -8,7 +8,7 @@ const spamRegistro = new Map();
 const cacheListaBlanca = { valor: null, expira: 0 };
 
 async function esAdmin(sock, chatId, userId) {
-    if (esPrivilegiadoTotal(userId)) return true;
+    if (await esPrivilegiadoTotalAsync(sock, userId)) return true;
 
     try {
         const groupMetadata = await sock.groupMetadata(chatId);
