@@ -1,5 +1,5 @@
 const { Config } = require('../database/modelos');
-const { esPrivilegiadoTotalAsync, normalizarNumeroTelefono } = require('../utils/whatsapp');
+const { esPrivilegiadoTotalAsync, normalizarNumeroTelefono, resolverLidAPn } = require('../utils/whatsapp');
 
 const rifasActivas = new Map();
 const rifasAbiertas = new Set();
@@ -312,7 +312,7 @@ function esMensajeRecuperableJasc13(texto) {
         limpio.includes('jasc13');
 }
 
-function extraerRegistroJasc13DeMensaje(texto, msg) {
+async function extraerRegistroJasc13DeMensaje(texto, msg, sock) {
     if (!esMensajeRecuperableJasc13(texto)) return null;
 
     const textoLimpio = String(texto || '');
@@ -331,7 +331,8 @@ function extraerRegistroJasc13DeMensaje(texto, msg) {
         ? contextInfo.mentionedJid.find(Boolean)
         : null;
 
-    let numero = mencionado ? normalizarNumeroTelefono(mencionado) : null;
+    const mencionadoResuelto = mencionado ? await resolverLidAPn(sock, mencionado) : null;
+    let numero = mencionadoResuelto ? normalizarNumeroTelefono(mencionadoResuelto) : null;
 
     // Formato actual: "Puntos sumados: *+1*"
     // Formato anterior: "PaVos registrados: *+1*"
@@ -375,7 +376,7 @@ async function comandoRecuperarRegistroJasc13(sock, chatId, msg, texto) {
 
     if (!(await esPrivilegiadoTotalAsync(sock, sender))) return false;
 
-    const registro = extraerRegistroJasc13DeMensaje(texto, msg);
+    const registro = await extraerRegistroJasc13DeMensaje(texto, msg, sock);
     if (!registro) return false;
 
     const { participantes, cashback } = await cargarEstadoRifaJasc13();
