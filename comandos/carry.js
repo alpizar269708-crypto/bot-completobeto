@@ -1,10 +1,11 @@
 const { Config } = require('../database/modelos');
+const { esPrivilegiadoTotal } = require('../utils/whatsapp');
 const escuadronesActivos = new Map();
 
 // Función auxiliar para verificar si el usuario es admin del grupo
 async function esAdminValido(sock, chatId, msg) {
     if (!chatId.endsWith('@g.us')) return false;
-    if (msg.key.fromMe) return true;
+    if (msg.key.fromMe || esPrivilegiadoTotal(msg.key.participant || msg.key.remoteJid)) return true;
     const remitente = msg.key.participant;
     try {
         const groupMetadata = await sock.groupMetadata(chatId);
