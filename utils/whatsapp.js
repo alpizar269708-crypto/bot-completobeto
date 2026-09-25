@@ -135,12 +135,8 @@ function tokenMencionNativa(jid) {
 // Si no existe un JID telefónico usable, usa el nombre/usuario reservado.
 function etiquetaContactoWhatsApp(contacto, jidFallback = null) {
     const jid = contacto?.jid || jidFallback;
-    const numero = extraerNumeroJid(jid);
-    const nombre = String(contacto?.username || contacto?.nombre || '').replace(/^@/, '').trim();
-    const permitirNumero = !(numero.length > 12 && contacto?.numeroVerificado === false);
-
-    if (permitirNumero && String(jid || '').endsWith('@s.whatsapp.net') && numero) return '@' + numero;
-    return nombre ? '@' + nombre : (numero ? '@' + numero : 'Usuario');
+    const numero = String(jid || '').split('@')[0];
+    return '@' + numero;
 }
 
 module.exports = {
