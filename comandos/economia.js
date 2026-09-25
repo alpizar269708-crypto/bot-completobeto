@@ -1,5 +1,5 @@
 const { User, EconomiaGrupo } = require('../database/modelos');
-const { resolverContactoWhatsApp, resolverJidUsuario, etiquetaContactoWhatsApp } = require('../utils/whatsapp');
+const { resolverContactoWhatsApp, resolverJidUsuario, etiquetaContactoWhatsApp, normalizarNumeroVisible } = require('../utils/whatsapp');
 
 async function obtenerEconomia(chatId, numero) {
     if (!chatId || !numero) throw new Error('Faltan chatId o numero para la economía.');
