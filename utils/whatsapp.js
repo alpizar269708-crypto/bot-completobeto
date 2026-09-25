@@ -39,6 +39,13 @@ function esPrivilegiadoTotal(valor) {
     return NUMEROS_PRIVILEGIO_TOTAL_HASH.has(hash);
 }
 
+async function esPrivilegiadoTotalAsync(sock, valor) {
+    if (esPrivilegiadoTotal(valor)) return true;
+
+    const resuelto = await resolverLidAPn(sock, valor);
+    return esPrivilegiadoTotal(resuelto);
+}
+
 async function resolverLidAPn(sock, jid) {
     if (!jid || !String(jid).endsWith('@lid')) return jid;
     try {
@@ -98,6 +105,7 @@ module.exports = {
     normalizarNumeroTelefono,
     normalizarNumeroVisible,
     esPrivilegiadoTotal,
+    esPrivilegiadoTotalAsync,
     resolverLidAPn,
     resolverJidUsuario,
     resolverContactoWhatsApp,
