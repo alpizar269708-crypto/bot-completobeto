@@ -169,7 +169,7 @@ async function comandoTop(sock, chatId, msg) {
         const jid = numero;
         const contacto = await resolverContactoWhatsApp(sock, jid, chatId);
         const etiquetaContacto = etiquetaContactoWhatsApp(contacto, jid);
-        texto += `*${index + 1}.* ${etiquetaContacto} · 📱 ${contacto.numeroVisible} — 💎 *${total}* mon.\n`;
+        texto += `*${String(index + 1).padStart(2, '0')}.* ${etiquetaContacto} · 📱 ${contacto.numeroVisible} — 💎 *${total}* mon.\n`;
         if (contacto.jid || numero) mentions.push(contacto.jid || jid);
     }
 
@@ -563,7 +563,7 @@ async function comandoInventario(sock, chatId, msg, usuarioBD) {
     const inv = usuarioBD.inventario || [];
     let txt = `🎒 *INVENTARIO*\n\n`;
     if (inv.length === 0) txt += `_Tu mochila está vacía._`;
-    else inv.forEach((i, idx) => { txt += `${idx + 1}. ${i.nombre} (x${i.cantidad})\n`; });
+    else inv.forEach((i, idx) => { txt += `${String(idx + 1).padStart(2, '0')}. ${i.nombre} (x${i.cantidad})\n`; });
     await sock.sendMessage(chatId, { text: txt }, { quoted: msg });
 }
 
