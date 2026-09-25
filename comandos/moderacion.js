@@ -1,6 +1,7 @@
 const { esProgramadorBot } = require('./programadorbot');
 const { User, Config } = require('../database/modelos');
-const { resolverContactoWhatsApp, resolverJidUsuario, normalizarNumeroVisible, tokenMencionNativa } = require('../utils/whatsapp');
+const { resolverContactoWhatsApp, resolverJidUsuario, etiquetaContactoWhatsApp, normalizarNumeroVisible } = require('../utils/whatsapp');
+const { tokenMencionNativa } = require('../utils/whatsapp');
 
 // Memoria temporal para los mutes activos
 const mutesActivos = new Map();
