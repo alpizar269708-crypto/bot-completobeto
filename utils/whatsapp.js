@@ -135,7 +135,7 @@ function etiquetaContactoWhatsApp(contacto, jid) {
     if (!jid) return '@usuario';
     // 1. Quita el dominio (@s.whatsapp.net o @lid)
     // 2. Quita cualquier sufijo de dispositivo de Baileys (ej. :0, :1)
-    const numeroPuro = jid.split('@')[0].split(':')[0];
+    const numeroPuro = String(jid).split('@')[0].split(':')[0];
     return '@' + numeroPuro;
 }
 
