@@ -563,7 +563,7 @@ async function comandoInventario(sock, chatId, msg, usuarioBD) {
     const inv = usuarioBD.inventario || [];
     let txt = `🎒 *INVENTARIO*\n\n`;
     if (inv.length === 0) txt += `_Tu mochila está vacía._`;
-    else inv.forEach((i, idx) => { txt += `${String(idx + 1).padStart(2, '0')}. ${i.nombre} (x${i.cantidad})\n`; });
+    else inv.forEach((item, idx) => { txt += `${String(idx + 1).padStart(2, '0')}. ${item.nombre} (x${item.cantidad})\n`; });
     await sock.sendMessage(chatId, { text: txt }, { quoted: msg });
 }
 
