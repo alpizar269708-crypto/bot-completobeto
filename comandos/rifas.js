@@ -289,24 +289,28 @@ async function comandoRifa(sock, chatId, msg, args) {
 // ==========================================
 // RIFAS EXCLUSIVAS CÓDIGO DE CREADOR (JASC13)
 // ==========================================
-const CLAVE_PROPIETARIO_JASC13 = 'rifajasc13_propietario';
 const CLAVE_PARTICIPANTES_JASC13 = 'rifajasc13_participantes';
+const CLAVE_CASHBACK_JASC13 = 'rifajasc13_cashback';
+
+function calcularCashbackJasc13(puntos) {
+    return Number((Number(puntos) * 0.05).toFixed(2));
+}
 
 async function cargarEstadoRifaJasc13() {
-    const propietarioConfig = await Config.findOne({ clave: CLAVE_PROPIETARIO_JASC13 });
     const participantesConfig = await Config.findOne({ clave: CLAVE_PARTICIPANTES_JASC13 });
+    const cashbackConfig = await Config.findOne({ clave: CLAVE_CASHBACK_JASC13 });
 
-    const propietario = propietarioConfig?.valor || null;
     const participantes = new Map();
+    const cashback = new Map();
 
     if (participantesConfig?.valor) {
         try {
             const lista = JSON.parse(participantesConfig.valor);
             if (Array.isArray(lista)) {
                 for (const item of lista) {
-                    if (item?.id && Number.isFinite(Number(item.puntos))) {
-                        participantes.set(item.id, { puntos: Number(item.puntos) });
-                    }
+                    if (!item?.id) continue;
+                    const puntos = Number(item.puntos);
+                    if (Number.isFinite(puntos)) participantes.set(item.id, { puntos });
                 }
             }
         } catch (e) {
@@ -314,7 +318,21 @@ async function cargarEstadoRifaJasc13() {
         }
     }
 
-    return { propietario, participantes };
+    if (cashbackConfig?.valor) {
+        try {
+            const listaCashback = JSON.parse(cashbackConfig.valor);
+            if (Array.isArray(listaCashback)) {
+                for (const item of listaCashback) {
+                    const valor = Number(item?.cashback);
+                    if (item?.id && Number.isFinite(valor) && valor >= 0) cashback.set(item.id, valor);
+                }
+            }
+        } catch (e) {
+            console.error('Error cargando cashback JASC13:', e.message);
+        }
+    }
+
+    return { participantes, cashback };
 }
 
 async function guardarParticipantesJasc13(participantes) {
@@ -330,10 +348,15 @@ async function guardarParticipantesJasc13(participantes) {
     );
 }
 
-async function guardarPropietarioJasc13(propietario) {
+async function guardarCashbackJasc13(cashback) {
+    const lista = Array.from(cashback.entries()).map(([id, valor]) => ({
+        id,
+        cashback: Number(valor) || 0
+    }));
+
     await Config.findOneAndUpdate(
-        { clave: CLAVE_PROPIETARIO_JASC13 },
-        { valor: propietario },
+        { clave: CLAVE_CASHBACK_JASC13 },
+        { valor: JSON.stringify(lista) },
         { upsert: true }
     );
 }
