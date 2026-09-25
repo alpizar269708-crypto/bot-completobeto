@@ -408,10 +408,15 @@ async function comandoRifaJasc13(sock, chatId, msg, args) {
         const mentions = [];
 
         for (const [id, data] of participantes.entries()) {
+            const usuario = id?.split('@')[0] || 'Usuario desconocido';
             const boletos = Math.floor(data.puntos / 1000);
             const resto = data.puntos % 1000;
             const faltantes = resto === 0 ? 0 : 1000 - resto;
-            texto += `${i}. @${id.split('@')[0]} → Puntos: *${data.puntos}* | Boletos: *${boletos}* (Faltan ${faltantes} pts)\n`;
+
+            texto += `👤 *${i}. @${usuario}*\n`;
+            texto += `💎 Puntos: *${data.puntos}*\n`;
+            texto += `🎟️ Boletos: *${boletos}* (Faltan *${faltantes} pts*)\n\n`;
+
             mentions.push(id);
             i++;
         }
