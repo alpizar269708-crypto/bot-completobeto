@@ -31,7 +31,7 @@ const categoriasMap = {
     'moderacion': ['warn', 'advertir', 'verwarns', 'limpiarwarns', 'ban', 'unban', 'listanegra', 'banlist', 'unbanlist', 'grupo', 'mute', 'unmute', 'inactivos', 'listablanca', 'desactivarbienvenida', 'activarbienvenida', 'personalizarbienvenida', 'restaurarbienvenida'],
     'tienda': ['tienda'],
     'carry': ['carryleader', 'carryjoin', 'carryleave', 'carryclose', 'blcarry', 'unblcarry', 'listcarrybl'],
-    'rifas': ['rifa', 'rifainscripcion', 'cerrarrifa', 'rifajasc13', 'cajecash', 'addvarios', 'abrirrifa', 'activarrifaaqui', 'menurifajasc13'],
+    'rifas': ['rifa', 'rifainscripcion', 'cerrarrifa', 'rifajasc13', 'canjecash', 'addvarios', 'abrirrifa', 'activarrifaaqui', 'menurifajasc13'],
     'menu': ['menu', 'menusecreto']
 };
 
@@ -57,7 +57,7 @@ const comandosValidos = new Set([
         'farmear', 'work', 'crime', 'mendigar', 'pescar', 'minar', 'cazar', 'explorar',
         'ruleta', 'cf', 'slots', 'dados', 'adivina', 'buscaminas', 'rob', 'ppt', 'pelea',
         'carrera', 'hackear', 'shop', 'buy', 'inventario', 'mochila', 'vender', 'use', 'regalar',
-        'rifa', 'rifainscripcion', 'cerrarrifa', 'rifajasc13', 'cajecash', 'addvarios', 'abrirrifa', 'activarrifaaqui', 'menurifajasc13', 'quitarrifajasc13', 'carryleader', 'carryjoin', 'carryleave', 'carryclose', 'blcarry', 'unblcarry', 'listcarrybl',
+        'rifa', 'rifainscripcion', 'cerrarrifa', 'rifajasc13', 'canjecash', 'addvarios', 'abrirrifa', 'activarrifaaqui', 'menurifajasc13', 'quitarrifajasc13', 'carryleader', 'carryjoin', 'carryleave', 'carryclose', 'blcarry', 'unblcarry', 'listcarrybl',
         'vertodosconandos', 'vertodoscomandos', 'listablanca', 'desactivarbienvenida', 'activarbienvenida', 'personalizarbienvenida', 'restaurarbienvenida'
 ]);
 
@@ -307,7 +307,7 @@ Apoya a un creador: JASC13` });
             ['rifainscripcion', 'Permite inscribirse en la rifa activa.'],
             ['cerrarrifa', 'Cierra la rifa general e impide nuevas inscripciones sin borrar a los participantes actuales.'],
             ['rifajasc13', 'Gestiona la rifa especial de JASC13; usa [número]sumar para añadir puntos por número.'],
-            ['cajecash', 'Canjea cashback de JASC13 en pavos; solo el creador puede descontarlo.'],
+            ['canjecash', 'Canjea cashback de JASC13 en pavos; solo el creador puede descontarlo.'],
             ['addvarios', 'Suma puntos a varios participantes de JASC13 en un solo mensaje.'],
             ['menurifajasc13', 'Muestra el menú de la rifa JASC13.'],
             ['abrirrifa', 'Inicia una rifa; en grupos la puede iniciar un administrador.'],
@@ -595,8 +595,8 @@ Apoya a un creador: JASC13` });
             case 'quitarrifajasc13':
                 await comandoRifaJasc13(sock, chatJid, msg, ['quitarrifajasc13', ...args]);
                 break;
-            case 'cajecash':
-                await comandoRifaJasc13(sock, chatJid, msg, ['cajecash', ...args]);
+            case 'canjecash':
+                await comandoRifaJasc13(sock, chatJid, msg, ['canjecash', ...args]);
                 break;
             case 'menurifajasc13':
                 await comandoMenuRifaJasc13(sock, chatJid, msg);
