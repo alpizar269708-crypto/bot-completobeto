@@ -132,10 +132,12 @@ function tokenMencionNativa(jid) {
 }
 
 function etiquetaContactoWhatsApp(contacto, jid) {
-    if (!jid) return '@usuario';
-    // 1. Quita el dominio (@s.whatsapp.net o @lid)
-    // 2. Quita cualquier sufijo de dispositivo de Baileys (ej. :0, :1)
-    const numeroPuro = String(jid).split('@')[0].split(':')[0];
+    // Extraemos el ID de donde venga (priorizando el jid explícito)
+    const idCrudo = jid || (contacto && (contacto.jid || contacto.id)) || '';
+    if (!idCrudo) return '@usuario';
+    
+    // Convertimos a String para evitar que el .split() crashee si llega como entero
+    const numeroPuro = String(idCrudo).split('@')[0].split(':')[0];
     return '@' + numeroPuro;
 }
 
