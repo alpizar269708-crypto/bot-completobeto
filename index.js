@@ -17,6 +17,7 @@ let botArrancado = false;
 let authState = null;
 let socketActual = null;
 let reconexionProgramada = false;
+let vinculacionEstado = '<div style="font-family: Arial; text-align: center; margin-top: 50px;"><h2>⏳ Iniciando WhatsApp...</h2><p>Espera unos segundos mientras se genera el método de vinculación.</p></div>';
 
 app.get('/', async (req, res) => {
     if (botArrancado) {
@@ -51,15 +52,28 @@ app.get('/', async (req, res) => {
 
 app.post('/iniciar', (req, res) => {
     if (botArrancado) {
-        return res.send('<h2 style="font-family: Arial; text-align: center; margin-top: 50px;">El bot ya está arrancando.</h2>');
+        return res.send(`<!doctype html><html><head><meta charset="utf-8"><title>Vincular Bot</title></head><body style="font-family:Arial;text-align:center;padding:30px;">${vinculacionEstado}<script>setTimeout(()=>location.href='/estado-vinculacion',1000);</script></body></html>`);
     }
-    
+
     const { metodo, numero } = req.body;
     const numeroLimpio = numero ? numero.replace(/[^0-9]/g, '') : '';
-    
+
+    vinculacionEstado = '<div style="font-family: Arial; text-align: center; margin-top: 50px;"><h2>⏳ Generando vinculación...</h2><p>Render puede tardar un poco en despertar el servicio gratuito.</p><p>No cierres esta página.</p></div>';
+
     arrancarSocket(metodo, numeroLimpio, (htmlRespuesta) => {
-        res.send(htmlRespuesta);
+        vinculacionEstado = htmlRespuesta;
+    }).catch((e) => {
+        vinculacionEstado = '<div style="font-family: Arial; text-align: center; margin-top: 50px; color:red;"><h2>❌ Error al iniciar WhatsApp</h2><p>' + (e.message || 'Error desconocido') + '</p></div>';
     });
+
+    res.send(`<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Vincular Bot</title></head><body style="font-family:Arial;text-align:center;padding:30px;max-width:700px;margin:auto;"><div id="estado">${vinculacionEstado}</div><script>
+async function actualizar(){try{const r=await fetch('/estado-vinculacion?t='+Date.now(),{cache:'no-store'});document.getElementById('estado').innerHTML=await r.text();setTimeout(actualizar,1500)}catch(e){setTimeout(actualizar,2500)}}setTimeout(actualizar,1000);
+</script></body></html>`);
+});
+
+app.get('/estado-vinculacion', (req, res) => {
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.send(vinculacionEstado);
 });
 
 const PORT = process.env.PORT || 3000;
@@ -119,13 +133,14 @@ async function arrancarSocket(metodo, numeroTelefono, onCodeReady = null) {
                 console.log(`\n🔢 TU CÓDIGO ES: ${codigoFormat}\n`);
                 
                 if (onCodeReady) {
-                    onCodeReady(`
+                    vinculacionEstado = `
                         <div style="font-family: Arial; text-align: center; margin-top: 50px;">
                             <h2>🔢 Tu código de vinculación es:</h2>
                             <h1 style="font-size: 48px; letter-spacing: 5px; color: #25D366; background: #eee; display: inline-block; padding: 10px 20px; border-radius: 10px;">${codigoFormat}</h1>
                             <p>Abre WhatsApp en tu teléfono, ve a <b>Dispositivos Vinculados > Vincular con número de teléfono</b>, e ingresa este código.</p>
                         </div>
-                    `);
+                    `;
+                    if (onCodeReady) onCodeReady(vinculacionEstado);
                     onCodeReady = null; 
                 }
             } catch (e) {
@@ -143,13 +158,14 @@ async function arrancarSocket(metodo, numeroTelefono, onCodeReady = null) {
             const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(qr)}`;
             
             if (onCodeReady) {
-                onCodeReady(`
+                vinculacionEstado = `
                     <div style="font-family: Arial; text-align: center; margin-top: 50px;">
                         <h2>📱 Escanea este código QR</h2>
                         <img src="${qrUrl}" alt="QR Code" style="border: 1px solid #ccc; border-radius: 10px; padding: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.1);" />
                         <p>Abre WhatsApp > Dispositivos Vinculados > Vincular un dispositivo.</p>
                     </div>
-                `);
+                `;
+                onCodeReady(vinculacionEstado);
                 onCodeReady = null;
             }
         }
@@ -180,12 +196,13 @@ async function arrancarSocket(metodo, numeroTelefono, onCodeReady = null) {
             console.log('\n🟢 BOT EN LÍNEA Y LISTO PARA TRABAJAR 🟢\n');
             
             if (onCodeReady) {
-                onCodeReady(`
+                vinculacionEstado = `
                     <div style="font-family: Arial; text-align: center; margin-top: 50px;">
                         <h2 style="color: #25D366;">✅ ¡Bot vinculado correctamente!</h2>
                         <p>El bot ya está en línea y listo para trabajar.</p>
                     </div>
-                `);
+                `;
+                onCodeReady(vinculacionEstado);
                 onCodeReady = null;
             }
             
