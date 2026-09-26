@@ -109,6 +109,7 @@ async function arrancarSocket(metodo, numeroTelefono, onCodeReady = null) {
     if (!authState) throw new Error('La autenticación de WhatsApp todavía no está lista.');
     const { state, saveCreds } = authState;
 
+    console.log(`🚀 Creando conexión WhatsApp. Método: ${metodo === '2' ? 'código' : 'QR'}`);
     const sock = makeWASocket({
         auth: state,
         printQRInTerminal: false,
@@ -124,6 +125,7 @@ async function arrancarSocket(metodo, numeroTelefono, onCodeReady = null) {
 
     socketActual = sock;
     botArrancado = true;
+    vinculacionEstado = '<div style="font-family: Arial; text-align: center; margin-top: 50px;"><h2>🔄 Iniciando conexión...</h2><p>Esperando a que WhatsApp entregue el QR o código.</p></div>';
     vinculacionEstado = '<div style="font-family: Arial; text-align: center; margin-top: 50px;"><h2>🔄 Conectando con WhatsApp...</h2><p>Esperando respuesta del servidor de WhatsApp.</p></div>';
 
     const originalSendMessage = sock.sendMessage;
@@ -137,6 +139,10 @@ async function arrancarSocket(metodo, numeroTelefono, onCodeReady = null) {
     };
 
     if (metodo === '2' && !state.creds.me) {
+        if (!numeroTelefono) {
+            vinculacionEstado = '<div style="font-family: Arial; text-align: center; margin-top: 50px; color:red;"><h2>❌ Falta el número</h2><p>Escribe tu número de WhatsApp con código de país.</p></div>';
+            return;
+        }
         setTimeout(async () => {
             try {
                 const code = await sock.requestPairingCode(numeroTelefono);
@@ -170,6 +176,7 @@ async function arrancarSocket(metodo, numeroTelefono, onCodeReady = null) {
         }
         
         if (qr && metodo === '1') {
+            console.log('📱 QR DE WHATSAPP RECIBIDO. Longitud:', qr.length);
             const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(qr)}`;
             
             if (onCodeReady) {
