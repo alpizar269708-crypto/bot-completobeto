@@ -31,7 +31,8 @@ const categoriasMap = {
     'moderacion': ['warn', 'advertir', 'verwarns', 'limpiarwarns', 'ban', 'unban', 'listanegra', 'banlist', 'unbanlist', 'grupo', 'mute', 'unmute', 'inactivos', 'listablanca', 'desactivarbienvenida', 'activarbienvenida', 'personalizarbienvenida', 'restaurarbienvenida'],
     'tienda': ['tienda'],
     'carry': ['carryleader', 'carryjoin', 'carryleave', 'carryclose', 'blcarry', 'unblcarry', 'listcarrybl'],
-    'rifas': ['rifa', 'rifainscripcion', 'cerrarrifa', 'rifajasc13', 'canjecash', 'addvarios', 'abrirrifa', 'activarrifaaqui', 'menurifajasc13'],
+    'rifas': ['rifa', 'rifainscripcion', 'cerrarrifa', 'rifajasc13', 'addvarios', 'abrirrifa', 'activarrifaaqui', 'menurifajasc13'],
+    'cashback': ['addcashback', 'delcashback', 'vercash', 'delvcash', 'canjecash'],
     'menu': ['menu', 'menusecreto']
 };
 
@@ -57,7 +58,7 @@ const comandosValidos = new Set([
         'farmear', 'work', 'crime', 'mendigar', 'pescar', 'minar', 'cazar', 'explorar',
         'ruleta', 'cf', 'slots', 'dados', 'adivina', 'buscaminas', 'rob', 'ppt', 'pelea',
         'carrera', 'hackear', 'shop', 'buy', 'inventario', 'mochila', 'vender', 'use', 'regalar',
-        'rifa', 'rifainscripcion', 'cerrarrifa', 'rifajasc13', 'canjecash', 'addvarios', 'abrirrifa', 'activarrifaaqui', 'menurifajasc13', 'quitarrifajasc13', 'carryleader', 'carryjoin', 'carryleave', 'carryclose', 'blcarry', 'unblcarry', 'listcarrybl',
+        'rifa', 'rifainscripcion', 'cerrarrifa', 'rifajasc13', 'addvarios', 'abrirrifa', 'activarrifaaqui', 'menurifajasc13', 'quitarrifajasc13', 'addcashback', 'delcashback', 'vercash', 'delvcash', 'canjecash', 'carryleader', 'carryjoin', 'carryleave', 'carryclose', 'blcarry', 'unblcarry', 'listcarrybl',
         'vertodosconandos', 'vertodoscomandos', 'listablanca', 'desactivarbienvenida', 'activarbienvenida', 'personalizarbienvenida', 'restaurarbienvenida'
 ]);
 
@@ -595,8 +596,12 @@ Apoya a un creador: JASC13` });
             case 'quitarrifajasc13':
                 await comandoRifaJasc13(sock, chatJid, msg, ['quitarrifajasc13', ...args]);
                 break;
+            case 'addcashback':
+            case 'delcashback':
+            case 'vercash':
+            case 'delvcash':
             case 'canjecash':
-                await comandoRifaJasc13(sock, chatJid, msg, ['canjecash', ...args]);
+                await comandoRifaJasc13(sock, chatJid, msg, [comando, ...args]);
                 break;
             case 'menurifajasc13':
                 await comandoMenuRifaJasc13(sock, chatJid, msg);
