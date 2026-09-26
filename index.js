@@ -252,10 +252,19 @@ async function arrancarSocket(metodo, numeroTelefono, onCodeReady = null) {
         if (pairingCodeTimer) { clearTimeout(pairingCodeTimer); pairingCodeTimer = null; }
     };
 
-    // No generamos otro código automáticamente mientras el actual pueda estar
-    // siendo introducido. Una segunda solicitud puede sobrescribir pairingCode
-    // dentro de las credenciales y romper la primera vinculación.
-    const programarNuevoCodigo = () => {};
+    // Generamos un código nuevo cada 2 minutos si el anterior no logró vincular.
+    // Nunca se solicitan dos códigos al mismo tiempo.
+    const programarNuevoCodigo = () => {
+        if (metodo !== '2' || state.creds.me) return;
+        if (pairingCodeTimer) clearTimeout(pairingCodeTimer);
+        pairingCodeTimer = setTimeout(() => {
+            pairingCodeTimer = null;
+            if (socketActual !== sock || state.creds.me) return;
+            console.log('⏰ 2 minutos sin vincular. Generando un nuevo código de 8 dígitos...');
+            pairingSolicitado = false;
+            solicitarCodigo();
+        }, 120000);
+    };
 
     const solicitarCodigo = async () => {
         if (metodo !== '2' || pairingSolicitado || state.creds.me) return;
@@ -266,14 +275,16 @@ async function arrancarSocket(metodo, numeroTelefono, onCodeReady = null) {
             const codigoFormat = code?.match(/.{1,4}/g)?.join('-') || code;
             console.log(`\n🔢 TU CÓDIGO ES: ${codigoFormat}\n`);
 
-            // El mismo código se mantiene hasta que termine este intento.
+            // El código actual se mantiene durante 2 minutos. Después se genera
+            // automáticamente uno nuevo si todavía no se completó la vinculación.
+            programarNuevoCodigo();
 
             vinculacionEstado = `
                 <div style="font-family: Arial; text-align: center; margin-top: 50px;">
                     <h2>🔢 Tu código de vinculación es:</h2>
                     <h1 style="font-size: 48px; letter-spacing: 5px; color: #25D366; background: #eee; display: inline-block; padding: 10px 20px; border-radius: 10px;">${codigoFormat}</h1>
                     <p>Abre WhatsApp en tu teléfono, ve a <b>Dispositivos Vinculados &gt; Vincular con número de teléfono</b>, e ingresa este código.</p>
-                    <p>🔄 Si tarda demasiado, el bot seguirá intentando automáticamente.</p>
+                    <p>⏱️ Si no lo vinculas en 2 minutos, se generará automáticamente un código nuevo.</p>
                 </div>
             `;
             if (onCodeReady) {
