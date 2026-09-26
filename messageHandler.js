@@ -58,7 +58,7 @@ const comandosValidos = new Set([
         'farmear', 'work', 'crime', 'mendigar', 'pescar', 'minar', 'cazar', 'explorar',
         'ruleta', 'cf', 'slots', 'dados', 'adivina', 'buscaminas', 'rob', 'ppt', 'pelea',
         'carrera', 'hackear', 'shop', 'buy', 'inventario', 'mochila', 'vender', 'use', 'regalar',
-        'rifa', 'rifainscripcion', 'cerrarrifa', 'rifajasc13', 'addvarios', 'abrirrifa', 'activarrifaaqui', 'menurifajasc13', 'quitarrifajasc13', 'addcashback', 'delcashback', 'vercash', 'delvcash', 'canjecash', 'carryleader', 'carryjoin', 'carryleave', 'carryclose', 'blcarry', 'unblcarry', 'listcarrybl',
+        'rifa', 'rifainscripcion', 'cerrarrifa', 'rifajasc13', 'addvarios', 'abrirrifa', 'activarrifaaqui', 'menurifajasc13', 'quitarrifajasc13', 'addcashback', 'delcashback', 'vercash', 'delvcash', 'canjecash', 'activarchash', 'carryleader', 'carryjoin', 'carryleave', 'carryclose', 'blcarry', 'unblcarry', 'listcarrybl',
         'vertodosconandos', 'vertodoscomandos', 'listablanca', 'desactivarbienvenida', 'activarbienvenida', 'personalizarbienvenida', 'restaurarbienvenida'
 ]);
 
@@ -171,7 +171,7 @@ Apoya a un creador: JASC13` });
             permitidos = [];
         }
 
-        let comandoPermitido = comando === 'menu' || comando === 'activarcomandos';
+        let comandoPermitido = comando === 'menu' || comando === 'activarcomandos' || comando === 'activarchash';
 
         if (permitidos.includes(comando)) comandoPermitido = true;
 
@@ -231,6 +231,70 @@ Apoya a un creador: JASC13` });
 
     if (comando === 'restaurarbienvenida') {
         await comandoRestaurarBienvenida(sock, chatJid, msg);
+        return;
+    }
+
+    if (comando === 'activarchash') {
+        if (!chatJid.endsWith('@g.us')) {
+            await sock.sendMessage(chatJid, { text: '❌ *activarchash* solo se puede usar dentro de un grupo.' }, { quoted: msg });
+            return;
+        }
+
+        const remitente = msg.key.participant || chatJid;
+        let esAdmin = msg.key.fromMe || tienePrivilegiosTotales;
+
+        if (!esAdmin) {
+            try {
+                const groupMeta = await sock.groupMetadata(chatJid);
+                const part = groupMeta.participants.find(p => p.id === remitente);
+                esAdmin = part && (part.admin === 'admin' || part.admin === 'superadmin');
+            } catch (e) {
+                console.error('Error verificando administrador para activarchash:', e);
+            }
+        }
+
+        if (!esAdmin) {
+            await sock.sendMessage(chatJid, {
+                text: '❌ Solo los administradores del grupo pueden activar los comandos de cashback.'
+            }, { quoted: msg });
+            return;
+        }
+
+        // Agrega la categoría cashback sin borrar las demás categorías
+        // que ya estén activadas en este grupo.
+        let categoriasActuales = [];
+        const configActual = await Config.findOne({ clave: `comandos_${chatJid}` });
+
+        if (configActual?.valor) {
+            try {
+                const parsed = JSON.parse(configActual.valor);
+                if (Array.isArray(parsed)) categoriasActuales = parsed;
+            } catch (e) {
+                categoriasActuales = [];
+            }
+        }
+
+        if (!categoriasActuales.includes('cashback')) {
+            categoriasActuales.push('cashback');
+        }
+
+        await Config.findOneAndUpdate(
+            { clave: `comandos_${chatJid}` },
+            { valor: JSON.stringify(categoriasActuales) },
+            { upsert: true }
+        );
+        cacheConfigComandos.delete(chatJid);
+
+        await sock.sendMessage(chatJid, {
+            text: '✅💰 *CASHBACK ACTIVADO EN ESTE GRUPO* 💰\n\n' +
+                'Ya están habilitados estos comandos:\n' +
+                '➕ *addcashback* — agregar cashback\n' +
+                '➖ *delcashback* — descontar cashback\n' +
+                '👀 *vercash* — consultar la lista de cashback\n' +
+                '🗑️ *delvcash* — eliminar registros\n' +
+                '💸 *canjecash* — canjear cashback\n\n' +
+                '📌 Esta activación es independiente para este grupo y no desactiva las demás categorías.'
+        }, { quoted: msg });
         return;
     }
 
@@ -309,6 +373,11 @@ Apoya a un creador: JASC13` });
             ['cerrarrifa', 'Cierra la rifa general e impide nuevas inscripciones sin borrar a los participantes actuales.'],
             ['rifajasc13', 'Gestiona la rifa especial de JASC13; usa [número]sumar para añadir puntos por número.'],
             ['canjecash', 'Canjea cashback de JASC13 en pavos; solo el creador puede descontarlo.'],
+            ['activarchash', 'Activa todos los comandos de cashback en este grupo; solo los administradores pueden usarlo.'],
+            ['addcashback', 'Agrega cashback al usuario indicado.'],
+            ['delcashback', 'Descuenta cashback del usuario indicado.'],
+            ['vercash', 'Muestra la lista de cashback.'],
+            ['delvcash', 'Elimina registros de cashback de la lista.'],
             ['addvarios', 'Suma puntos a varios participantes de JASC13 en un solo mensaje.'],
             ['menurifajasc13', 'Muestra el menú de la rifa JASC13.'],
             ['abrirrifa', 'Inicia una rifa; en grupos la puede iniciar un administrador.'],
