@@ -252,17 +252,10 @@ async function arrancarSocket(metodo, numeroTelefono, onCodeReady = null) {
         if (pairingCodeTimer) { clearTimeout(pairingCodeTimer); pairingCodeTimer = null; }
     };
 
-    const programarNuevoCodigo = (ms = 60000) => {
-        if (metodo !== '2' || state.creds.registered || state.creds.me || socketActual !== sock) return;
-        if (pairingCodeTimer) clearTimeout(pairingCodeTimer);
-        pairingCodeTimer = setTimeout(async () => {
-            pairingCodeTimer = null;
-            if (state.creds.registered || state.creds.me || socketActual !== sock) return;
-            console.log('⏱️ Código sin usar. Solicitando automáticamente un código nuevo...');
-            pairingSolicitado = false;
-            await solicitarCodigo();
-        }, ms);
-    };
+    // No generamos otro código automáticamente mientras el actual pueda estar
+    // siendo introducido. Una segunda solicitud puede sobrescribir pairingCode
+    // dentro de las credenciales y romper la primera vinculación.
+    const programarNuevoCodigo = () => {};
 
     const solicitarCodigo = async () => {
         if (metodo !== '2' || pairingSolicitado || state.creds.me) return;
@@ -273,7 +266,7 @@ async function arrancarSocket(metodo, numeroTelefono, onCodeReady = null) {
             const codigoFormat = code?.match(/.{1,4}/g)?.join('-') || code;
             console.log(`\n🔢 TU CÓDIGO ES: ${codigoFormat}\n`);
 
-            programarNuevoCodigo(60000);
+            // El mismo código se mantiene hasta que termine este intento.
 
             vinculacionEstado = `
                 <div style="font-family: Arial; text-align: center; margin-top: 50px;">
@@ -372,10 +365,14 @@ async function arrancarSocket(metodo, numeroTelefono, onCodeReady = null) {
                     setTimeout(async () => {
                         reconexionProgramada = false;
                         try {
-                            vinculacionEstado = '<div style="font-family: Arial; text-align: center; color:#b45309;"><h2>🔄 Intentando de nuevo...</h2><p>Generando una nueva conexión y un nuevo código.</p></div>';
-                            await arrancarSocket('2', numeroTelefono, onCodeReady);
+                            // Baileys rc14 tiene reportes recientes de fallos de
+                            // vinculación por código con 401 aunque el código se
+                            // genere correctamente. Después de 401 no encadenamos
+                            // nuevos códigos: limpiamos el intento y pasamos a QR.
+                            vinculacionEstado = '<div style="font-family: Arial; text-align: center; color:#b45309;"><h2>📱 Cambiando a QR...</h2><p>WhatsApp rechazó la vinculación por código. Se limpiará el intento y se mostrará un QR nuevo.</p></div>';
+                            await arrancarSocket('1', '', onCodeReady);
                         }
-                        catch (e) { console.error('❌ Error reintentando la vinculación:', e.message); }
+                        catch (e) { console.error('❌ Error iniciando el QR de respaldo:', e.message); }
                     }, 1000);
                 }
                 return;
