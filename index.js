@@ -471,9 +471,5 @@ async function arrancarSocket(metodo, numeroTelefono, onCodeReady = null) {
 }
 
 // MongoDB NO se inicializa al arrancar cuando no existe una sesión conocida.
- // La conexión/carga se difiere hasta que el usuario inicia una vinculación.
+// La conexión/carga se difiere hasta que el usuario inicia una vinculación.
 inicializacionBasePromise = Promise.resolve();
-    console.error('❌ Error inicializando MongoDB:', e);
-    vinculacionEstado = '<div style="font-family: Arial; text-align: center; margin-top: 50px; color:red;"><h2>❌ Error al iniciar el servicio</h2><p>' + (e.message || 'No se pudo iniciar el servicio.') + '</p></div>';
-    throw e;
-});
