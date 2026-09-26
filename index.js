@@ -273,14 +273,15 @@ async function arrancarSocket(metodo, numeroTelefono, onCodeReady = null) {
 
             programarNuevoCodigo(60000);
 
+            vinculacionEstado = `
+                <div style="font-family: Arial; text-align: center; margin-top: 50px;">
+                    <h2>🔢 Tu código de vinculación es:</h2>
+                    <h1 style="font-size: 48px; letter-spacing: 5px; color: #25D366; background: #eee; display: inline-block; padding: 10px 20px; border-radius: 10px;">${codigoFormat}</h1>
+                    <p>Abre WhatsApp en tu teléfono, ve a <b>Dispositivos Vinculados &gt; Vincular con número de teléfono</b>, e ingresa este código.</p>
+                    <p>🔄 Si tarda demasiado, el bot seguirá intentando automáticamente.</p>
+                </div>
+            `;
             if (onCodeReady) {
-                vinculacionEstado = `
-                    <div style="font-family: Arial; text-align: center; margin-top: 50px;">
-                        <h2>🔢 Tu código de vinculación es:</h2>
-                        <h1 style="font-size: 48px; letter-spacing: 5px; color: #25D366; background: #eee; display: inline-block; padding: 10px 20px; border-radius: 10px;">${codigoFormat}</h1>
-                        <p>Abre WhatsApp en tu teléfono, ve a <b>Dispositivos Vinculados &gt; Vincular con número de teléfono</b>, e ingresa este código.</p>
-                    </div>
-                `;
                 onCodeReady(vinculacionEstado);
                 onCodeReady = null;
             }
