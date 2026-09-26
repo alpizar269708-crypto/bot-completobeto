@@ -24,9 +24,12 @@ let vinculacionEstado = '<div style="font-family: Arial; text-align: center; mar
 app.get('/', async (req, res) => {
     if (botArrancado) {
         return res.send(`
-            <div style="font-family: Arial; text-align: center; margin-top: 50px;">
+            <div style="font-family: Arial; text-align: center; margin-top: 50px; max-width:600px; margin-left:auto; margin-right:auto;">
                 <h2>🤖 Bot de WhatsApp activo</h2>
                 <p>El bot ya está vinculado y trabajando en el servidor.</p>
+                <form action="/cerrar-sesion" method="POST" onsubmit="return confirm('¿Seguro que quieres cerrar la sesión y limpiar la vinculación?');">
+                    <button type="submit" style="padding:12px 20px; background:#dc2626; color:white; border:none; cursor:pointer; font-size:16px; border-radius:7px; width:100%;">🚪 Cerrar sesión y limpiar</button>
+                </form>
             </div>
         `);
     }
@@ -60,11 +63,21 @@ app.post('/iniciar', async (req, res) => {
     const { metodo, numero } = req.body;
     const numeroLimpio = numero ? numero.replace(/[^0-9]/g, '') : '';
 
-    vinculacionEstado = '<div style="font-family: Arial; text-align: center; margin-top: 50px;"><h2>⏳ Preparando vinculación...</h2><p>Conectando con MongoDB y WhatsApp...</p><p>No cierres esta página.</p></div>';
+    vinculacionEstado = '<div style="font-family: Arial; text-align: center; margin-top: 50px;"><h2>⏳ Preparando vinculación...</h2><p>Conectando con WhatsApp...</p><p>No cierres esta página.</p></div>';
 
     try {
         if (inicializacionBasePromise) await inicializacionBasePromise;
-        if (!authState) throw new Error('La conexión con MongoDB todavía no está lista. Recarga la página e inténtalo de nuevo.');
+        if (!authState) throw new Error('El servicio todavía no está listo. Recarga la página e inténtalo de nuevo.');
+
+        if (metodo === '2') {
+            if (!numeroLimpio) {
+                throw new Error('Escribe tu número de WhatsApp con código de país, por ejemplo 525512345678.');
+            }
+            // Una vinculación por código siempre comienza con una sesión limpia.
+            await resetMongoDBAuthState();
+            authState = await useMongoDBAuthState('sesion');
+        }
+
         arrancarSocket(metodo, numeroLimpio, (htmlRespuesta) => {
         vinculacionEstado = htmlRespuesta;
         }).catch((e) => {
@@ -77,6 +90,35 @@ app.post('/iniciar', async (req, res) => {
     res.send(`<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Vincular Bot</title></head><body style="font-family:Arial;text-align:center;padding:30px;max-width:700px;margin:auto;"><div id="estado">${vinculacionEstado}</div><script>
 async function actualizar(){try{const r=await fetch('/estado-vinculacion?t='+Date.now(),{cache:'no-store'});document.getElementById('estado').innerHTML=await r.text();setTimeout(actualizar,120000)}catch(e){setTimeout(actualizar,2500)}}setTimeout(actualizar,1000);
 </script></body></html>`);
+});
+
+app.post('/cerrar-sesion', async (req, res) => {
+    try {
+        reconexionProgramada = false;
+        botArrancado = false;
+
+        if (socketActual) {
+            try {
+                socketActual.ev.removeAllListeners();
+            } catch (e) {}
+            try {
+                await socketActual.logout();
+            } catch (e) {
+                console.log('⚠️ No se pudo cerrar la sesión desde WhatsApp:', e.message);
+            }
+            socketActual = null;
+        }
+
+        await resetMongoDBAuthState();
+        authState = await useMongoDBAuthState('sesion');
+
+        vinculacionEstado = '<div style="font-family: Arial; text-align: center; margin-top: 50px;"><h2>✅ Sesión cerrada</h2><p>La vinculación fue limpiada correctamente.</p><a href="/" style="display:inline-block;margin-top:15px;padding:12px 20px;background:#25D366;color:white;text-decoration:none;border-radius:7px;">🔄 Volver a vincular</a></div>';
+
+        res.send(`<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Sesión cerrada</title></head><body style="font-family:Arial;text-align:center;padding:30px;">${vinculacionEstado}</body></html>`);
+    } catch (e) {
+        console.error('❌ Error al cerrar sesión:', e);
+        res.status(500).send(`<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Error</title></head><body style="font-family:Arial;text-align:center;padding:30px;color:red;"><h2>❌ No se pudo cerrar la sesión</h2><p>${e.message || 'Error desconocido'}</p><a href="/">Volver</a></body></html>`);
+    }
 });
 
 app.get('/estado-vinculacion', (req, res) => {
@@ -148,33 +190,34 @@ async function arrancarSocket(metodo, numeroTelefono, onCodeReady = null) {
         return originalSendMessage.call(this, jid, content, options);
     };
 
-    if (metodo === '2' && !state.creds.me) {
-        if (!numeroTelefono) {
-            vinculacionEstado = '<div style="font-family: Arial; text-align: center; margin-top: 50px; color:red;"><h2>❌ Falta el número</h2><p>Escribe tu número de WhatsApp con código de país.</p></div>';
-            return;
-        }
-        setTimeout(async () => {
-            try {
-                const code = await sock.requestPairingCode(numeroTelefono);
-                const codigoFormat = code?.match(/.{1,4}/g)?.join('-') || code;
-                console.log(`\n🔢 TU CÓDIGO ES: ${codigoFormat}\n`);
-                
-                if (onCodeReady) {
-                    vinculacionEstado = `
-                        <div style="font-family: Arial; text-align: center; margin-top: 50px;">
-                            <h2>🔢 Tu código de vinculación es:</h2>
-                            <h1 style="font-size: 48px; letter-spacing: 5px; color: #25D366; background: #eee; display: inline-block; padding: 10px 20px; border-radius: 10px;">${codigoFormat}</h1>
-                            <p>Abre WhatsApp en tu teléfono, ve a <b>Dispositivos Vinculados > Vincular con número de teléfono</b>, e ingresa este código.</p>
-                        </div>
-                    `;
-                    if (onCodeReady) onCodeReady(vinculacionEstado);
-                    onCodeReady = null; 
-                }
-            } catch (e) {
-                if (onCodeReady) onCodeReady('<h2 style="font-family: Arial; text-align: center; color: red;">❌ Error al generar código. Verifica que el número sea correcto (ej. 525512345678).</h2>');
+    let pairingSolicitado = false;
+
+    const solicitarCodigo = async () => {
+        if (metodo !== '2' || pairingSolicitado || state.creds.me) return;
+        pairingSolicitado = true;
+
+        try {
+            const code = await sock.requestPairingCode(numeroTelefono);
+            const codigoFormat = code?.match(/.{1,4}/g)?.join('-') || code;
+            console.log(`\n🔢 TU CÓDIGO ES: ${codigoFormat}\n`);
+
+            if (onCodeReady) {
+                vinculacionEstado = `
+                    <div style="font-family: Arial; text-align: center; margin-top: 50px;">
+                        <h2>🔢 Tu código de vinculación es:</h2>
+                        <h1 style="font-size: 48px; letter-spacing: 5px; color: #25D366; background: #eee; display: inline-block; padding: 10px 20px; border-radius: 10px;">${codigoFormat}</h1>
+                        <p>Abre WhatsApp en tu teléfono, ve a <b>Dispositivos Vinculados &gt; Vincular con número de teléfono</b>, e ingresa este código.</p>
+                    </div>
+                `;
+                onCodeReady(vinculacionEstado);
+                onCodeReady = null;
             }
-        }, 3000);
-    }
+        } catch (e) {
+            pairingSolicitado = false;
+            console.error('❌ Error generando código de vinculación:', e.message);
+            if (onCodeReady) onCodeReady('<h2 style="font-family: Arial; text-align: center; color: red;">❌ No se pudo generar el código. Verifica el número e inténtalo de nuevo.</h2>');
+        }
+    };
 
     sock.ev.on('creds.update', saveCreds);
 
@@ -183,6 +226,9 @@ async function arrancarSocket(metodo, numeroTelefono, onCodeReady = null) {
         console.log('📡 Estado WhatsApp:', connection || 'actualización', qr ? '(QR recibido)' : '');
         if (connection === 'connecting') {
             vinculacionEstado = '<div style="font-family: Arial; text-align: center; margin-top: 50px;"><h2>🔄 Conectando con WhatsApp...</h2><p>El servidor ya está intentando establecer la conexión.</p></div>';
+            if (metodo === '2') {
+                setTimeout(() => solicitarCodigo(), 1200);
+            }
         }
         
         if (qr && metodo === '1') {
@@ -290,6 +336,6 @@ async function arrancarSocket(metodo, numeroTelefono, onCodeReady = null) {
 
 inicializacionBasePromise = inicializarBase().catch((e) => {
     console.error('❌ Error inicializando MongoDB:', e);
-    vinculacionEstado = '<div style="font-family: Arial; text-align: center; margin-top: 50px; color:red;"><h2>❌ Error con MongoDB</h2><p>' + (e.message || 'No se pudo inicializar la base de datos.') + '</p></div>';
+    vinculacionEstado = '<div style="font-family: Arial; text-align: center; margin-top: 50px; color:red;"><h2>❌ Error al iniciar el servicio</h2><p>' + (e.message || 'No se pudo iniciar el servicio.') + '</p></div>';
     throw e;
 });
