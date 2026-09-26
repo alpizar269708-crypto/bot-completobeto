@@ -229,21 +229,10 @@ async function arrancarSocket(metodo, numeroTelefono, onCodeReady = null) {
 
     metodo = String(metodo) === '2' ? '2' : '1';
     console.log(`🚀 Creando conexión WhatsApp. Método: ${metodo === '2' ? 'código de 8 dígitos' : 'QR'}`);
-    // Consultamos la versión actual de WhatsApp antes de crear el socket.
-    // Esto tarda un poco más, pero evita errores de vinculación cuando
-    // la versión integrada de Baileys queda desactualizada.
-    let waVersion;
-    try {
-        const latest = await fetchLatestBaileysVersion();
-        waVersion = latest?.version;
-        console.log('📦 Versión WhatsApp:', waVersion ? waVersion.join('.') : 'predeterminada');
-    } catch (e) {
-        console.log('⚠️ No se pudo consultar la versión de WhatsApp; usando la predeterminada.');
-    }
-
+    // 🚀 ARRANQUE ULTRARRÁPIDO: no hacemos ninguna petición de red
+    // antes de crear el socket. Baileys usa su versión compatible integrada.
     const sock = makeWASocket({
         auth: state,
-        ...(waVersion ? { version: waVersion } : {}),
         printQRInTerminal: false,
         logger: pino({ level: 'silent' }),
         browser: metodo === '2' ? Browsers.macOS('Chrome') : Browsers.macOS('Desktop'),
@@ -320,7 +309,7 @@ async function arrancarSocket(metodo, numeroTelefono, onCodeReady = null) {
             // socket ya está en estado "connecting". Pedirlo demasiado pronto puede
             // generar el código pero dejar el socket sin completar el enlace.
             if (metodo === '2' && !pairingSolicitado && !state.creds.registered) {
-                setTimeout(() => solicitarCodigo(), 1500);
+                setTimeout(() => solicitarCodigo(), 200);
             }
         }
         
