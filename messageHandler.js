@@ -286,14 +286,7 @@ Apoya a un creador: JASC13` });
         cacheConfigComandos.delete(chatJid);
 
         await sock.sendMessage(chatJid, {
-            text: '✅💰 *CASHBACK ACTIVADO EN ESTE GRUPO* 💰\n\n' +
-                'Ya están habilitados estos comandos:\n' +
-                '➕ *addcashback* — agregar cashback\n' +
-                '➖ *delcashback* — descontar cashback\n' +
-                '👀 *vercash* — consultar la lista de cashback\n' +
-                '🗑️ *delvcash* — eliminar registros\n' +
-                '💸 *canjecash* — canjear cashback\n\n' +
-                '📌 Esta activación es independiente para este grupo y no desactiva las demás categorías.'
+            text: '✅💰 Cashback activado correctamente.'
         }, { quoted: msg });
         return;
     }
