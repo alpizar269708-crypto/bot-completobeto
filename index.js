@@ -27,8 +27,11 @@ app.get('/', async (req, res) => {
             <div style="font-family: Arial; text-align: center; margin-top: 50px; max-width:600px; margin-left:auto; margin-right:auto;">
                 <h2>🤖 Bot de WhatsApp activo</h2>
                 <p>El bot ya está vinculado y trabajando en el servidor.</p>
-                <form action="/cerrar-sesion" method="POST" onsubmit="return confirm('¿Seguro que quieres cerrar la sesión y limpiar la vinculación?');">
+                <form action="/cerrar-sesion" method="POST" onsubmit="return confirm('¿Seguro que quieres cerrar la sesión?');">
                     <button type="submit" style="padding:12px 20px; background:#dc2626; color:white; border:none; cursor:pointer; font-size:16px; border-radius:7px; width:100%;">🚪 Cerrar sesión</button>
+                </form>
+                <form action="/limpiar-whatsapp" method="POST" onsubmit="return confirm('¿Seguro que quieres borrar toda la vinculación guardada de WhatsApp y dejarlo listo para vincular de nuevo?');" style="margin-top:12px;">
+                    <button type="submit" style="padding:12px 20px; background:#111827; color:white; border:none; cursor:pointer; font-size:16px; border-radius:7px; width:100%;">🧹 Limpiar toda la vinculación de WhatsApp</button>
                 </form>
             </div>
         `);
@@ -118,6 +121,37 @@ app.post('/cerrar-sesion', async (req, res) => {
     } catch (e) {
         console.error('❌ Error al cerrar sesión:', e);
         res.status(500).send(`<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Error</title></head><body style="font-family:Arial;text-align:center;padding:30px;color:red;"><h2>❌ No se pudo cerrar la sesión</h2><p>${e.message || 'Error desconocido'}</p><a href="/">Volver</a></body></html>`);
+    }
+});
+
+app.post('/limpiar-whatsapp', async (req, res) => {
+    try {
+        reconexionProgramada = false;
+        botArrancado = false;
+
+        if (socketActual) {
+            try {
+                await socketActual.logout();
+            } catch (e) {
+                console.log('⚠️ No se pudo cerrar la sesión de WhatsApp:', e.message);
+            }
+            try {
+                socketActual.ev.removeAllListeners();
+            } catch (e) {}
+            socketActual = null;
+        }
+
+        // IMPORTANTE: esto solo elimina la autenticación de WhatsApp.
+        // No toca ninguna otra colección ni ningún otro dato del bot.
+        await resetMongoDBAuthState();
+        authState = await useMongoDBAuthState('sesion');
+
+        vinculacionEstado = '<div style="font-family: Arial; text-align: center; margin-top: 50px;"><h2>🧹 Vinculación de WhatsApp limpiada</h2><p>Se eliminó únicamente la información necesaria para volver a vincular WhatsApp.</p><a href="/" style="display:inline-block;margin-top:15px;padding:12px 20px;background:#25D366;color:white;text-decoration:none;border-radius:7px;">🔄 Volver</a></div>';
+
+        res.send(`<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>WhatsApp limpiado</title></head><body style="font-family:Arial;text-align:center;padding:30px;">${vinculacionEstado}</body></html>`);
+    } catch (e) {
+        console.error('❌ Error limpiando la vinculación de WhatsApp:', e);
+        res.status(500).send(`<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Error</title></head><body style="font-family:Arial;text-align:center;padding:30px;color:red;"><h2>❌ No se pudo limpiar la vinculación</h2><p>${e.message || 'Error desconocido'}</p><a href="/">Volver</a></body></html>`);
     }
 });
 
@@ -221,14 +255,17 @@ async function arrancarSocket(metodo, numeroTelefono, onCodeReady = null) {
 
     sock.ev.on('creds.update', saveCreds);
 
+    if (metodo === '2') {
+        // El código se solicita directamente al crear el socket.
+        // No dependemos de que Baileys emita primero "connecting".
+        setTimeout(() => solicitarCodigo(), 800);
+    }
+
     sock.ev.on('connection.update', async (update) => {
         const { connection, lastDisconnect, qr } = update;
         console.log('📡 Estado WhatsApp:', connection || 'actualización', qr ? '(QR recibido)' : '');
         if (connection === 'connecting') {
             vinculacionEstado = '<div style="font-family: Arial; text-align: center; margin-top: 50px;"><h2>🔄 Conectando con WhatsApp...</h2><p>El servidor ya está intentando establecer la conexión.</p></div>';
-            if (metodo === '2') {
-                setTimeout(() => solicitarCodigo(), 1200);
-            }
         }
         
         if (qr && metodo === '1') {
