@@ -12,8 +12,27 @@ async function resetMongoDBAuthState() {
 }
 
 async function useMongoDBAuthState(collectionName) {
+    // Cargamos toda la sesión de WhatsApp una sola vez al arrancar.
+    // Antes se hacía una consulta a MongoDB por cada clave de Baileys,
+    // lo que podía provocar decenas/cientos de consultas y hacer que
+    // WhatsApp tardara muchísimo en terminar de iniciar sesión.
+    const documentos = await Auth.find({}).lean();
+    const cache = new Map();
+
+    for (const documento of documentos) {
+        if (documento?._id && documento?.data) {
+            try {
+                cache.set(documento._id, JSON.parse(documento.data, BufferJSON.reviver));
+            } catch (error) {
+                console.error('⚠️ No se pudo leer una credencial de WhatsApp:', documento._id);
+            }
+        }
+    }
+
     const writeData = async (data, id) => {
         const informationToStore = JSON.stringify(data, BufferJSON.replacer);
+        cache.set(id, data);
+
         await Auth.findOneAndUpdate(
             { _id: id },
             { data: informationToStore },
@@ -22,15 +41,11 @@ async function useMongoDBAuthState(collectionName) {
     };
 
     const readData = async (id) => {
-        try {
-            const data = await Auth.findOne({ _id: id });
-            return data ? JSON.parse(data.data, BufferJSON.reviver) : null;
-        } catch (error) {
-            return null;
-        }
+        return cache.get(id) ?? null;
     };
 
     const removeData = async (id) => {
+        cache.delete(id);
         await Auth.deleteOne({ _id: id });
     };
 
