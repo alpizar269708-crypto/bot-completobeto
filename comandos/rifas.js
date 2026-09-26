@@ -896,16 +896,17 @@ async function comandoRifaJasc13(sock, chatId, msg, args) {
 
     // CASHBACK INDEPENDIENTE JASC13
     if (accion === 'addcashback') {
-        const cantidad = Number(args[args.length - 1]);
-        if (!Number.isFinite(cantidad) || cantidad <= 0) return await sock.sendMessage(chatId, { text: '❌ Uso: *addcashback @usuario cantidad* o responde al mensaje: *addcashback cantidad*.' }, { quoted: msg });
+        const monto = Number(args[args.length - 1]);
+        if (!Number.isFinite(monto) || monto <= 0) return await sock.sendMessage(chatId, { text: '❌ Uso: *addcashback @usuario cantidad* o responde al mensaje: *addcashback cantidad*.' }, { quoted: msg });
         const contextInfo = msg.message?.extendedTextMessage?.contextInfo || {};
         const targetId = Array.isArray(contextInfo.mentionedJid) && contextInfo.mentionedJid[0] ? contextInfo.mentionedJid[0] : contextInfo.participant || null;
         if (!targetId) return await sock.sendMessage(chatId, { text: '❌ Menciona al usuario o responde a su mensaje y usa *addcashback cantidad*.' }, { quoted: msg });
+        const cashbackGenerado = Number((monto * 0.05).toFixed(2));
         const actual = Number(cashback.get(targetId) || 0);
-        const nuevo = Number((actual + cantidad).toFixed(2));
+        const nuevo = Number((actual + cashbackGenerado).toFixed(2));
         cashback.set(targetId, nuevo);
         await guardarCashbackJasc13(cashback);
-        return await sock.sendMessage(chatId, { text: '💰 *CASHBACK AGREGADO*\n\n👤 Usuario: @' + targetId.split('@')[0] + '\n➕ Cashback agregado: *+' + cantidad + ' pavos*\n💵 Cashback acumulado: *' + nuevo + ' pavos*', mentions: [targetId] }, { quoted: msg });
+        return await sock.sendMessage(chatId, { text: '💰 *CASHBACK AGREGADO*\n\n👤 Usuario: @' + targetId.split('@')[0] + '\n💵 Monto: *' + monto + ' pavos*\n➕ Cashback (5%): *+' + cashbackGenerado + ' pavos*\n💰 Cashback acumulado: *' + nuevo + ' pavos*', mentions: [targetId] }, { quoted: msg });
     }
 
     if (accion === 'delcashback') {
