@@ -84,7 +84,9 @@ app.post('/iniciar', async (req, res) => {
         return res.send(`<!doctype html><html><head><meta charset="utf-8"><title>Vincular Bot</title></head><body style="font-family:Arial;text-align:center;padding:30px;">${vinculacionEstado}<script>setTimeout(()=>location.href='/estado-vinculacion',1000);</script></body></html>`);
     }
 
-    const { metodo, numero } = req.body;
+    const metodoSeleccionado = String(req.body.metodo || '1') === '2' ? '2' : '1';
+    const numero = req.body.numero;
+    const metodo = metodoSeleccionado;
     const numeroLimpio = numero ? numero.replace(/[^0-9]/g, '') : '';
 
     vinculacionEstado = '<div style="font-family: Arial; text-align: center; margin-top: 50px;"><h2>⏳ Preparando vinculación...</h2><p>Conectando con WhatsApp...</p><p>No cierres esta página.</p></div>';
@@ -206,7 +208,8 @@ async function arrancarSocket(metodo, numeroTelefono, onCodeReady = null) {
     if (!authState) throw new Error('La autenticación de WhatsApp todavía no está lista.');
     const { state, saveCreds } = authState;
 
-    console.log(`🚀 Creando conexión WhatsApp. Método: ${metodo === '2' ? 'código' : 'QR'}`);
+    metodo = String(metodo) === '2' ? '2' : '1';
+    console.log(`🚀 Creando conexión WhatsApp. Método: ${metodo === '2' ? 'código de 8 dígitos' : 'QR'}`);
     let waVersion;
     try {
         const latest = await fetchLatestBaileysVersion();
@@ -289,6 +292,12 @@ async function arrancarSocket(metodo, numeroTelefono, onCodeReady = null) {
             vinculacionEstado = '<div style="font-family: Arial; text-align: center; margin-top: 50px;"><h2>🔄 Conectando con WhatsApp...</h2><p>El servidor ya está intentando establecer la conexión.</p></div>';
         }
         
+        // WhatsApp puede emitir un QR incluso cuando estamos usando código de 8 dígitos.
+        // En ese modo NUNCA debemos mostrarlo ni usarlo para la vinculación.
+        if (qr && metodo === '2') {
+            console.log('ℹ️ QR recibido pero ignorado porque la vinculación seleccionada es por código de 8 dígitos.');
+        }
+
         if (qr && metodo === '1') {
             console.log('📱 QR DE WHATSAPP RECIBIDO. Longitud:', qr.length);
             const qrUrl = await QRCode.toDataURL(qr, { width: 400, margin: 2 });
