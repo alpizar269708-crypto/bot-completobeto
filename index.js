@@ -242,6 +242,25 @@ async function arrancarSocket(metodo, numeroTelefono, onCodeReady = null) {
     };
 
     let pairingSolicitado = false;
+    let pairingRetryTimer = null;
+    let pairingCodeTimer = null;
+
+    const limpiarTimersPairing = () => {
+        if (pairingRetryTimer) { clearTimeout(pairingRetryTimer); pairingRetryTimer = null; }
+        if (pairingCodeTimer) { clearTimeout(pairingCodeTimer); pairingCodeTimer = null; }
+    };
+
+    const programarNuevoCodigo = (ms = 60000) => {
+        if (metodo !== '2' || state.creds.registered || state.creds.me || socketActual !== sock) return;
+        if (pairingCodeTimer) clearTimeout(pairingCodeTimer);
+        pairingCodeTimer = setTimeout(async () => {
+            pairingCodeTimer = null;
+            if (state.creds.registered || state.creds.me || socketActual !== sock) return;
+            console.log('⏱️ Código sin usar. Solicitando automáticamente un código nuevo...');
+            pairingSolicitado = false;
+            await solicitarCodigo();
+        }, ms);
+    };
 
     const solicitarCodigo = async () => {
         if (metodo !== '2' || pairingSolicitado || state.creds.me) return;
@@ -251,6 +270,8 @@ async function arrancarSocket(metodo, numeroTelefono, onCodeReady = null) {
             const code = await sock.requestPairingCode(numeroTelefono);
             const codigoFormat = code?.match(/.{1,4}/g)?.join('-') || code;
             console.log(`\n🔢 TU CÓDIGO ES: ${codigoFormat}\n`);
+
+            programarNuevoCodigo(60000);
 
             if (onCodeReady) {
                 vinculacionEstado = `
@@ -266,7 +287,11 @@ async function arrancarSocket(metodo, numeroTelefono, onCodeReady = null) {
         } catch (e) {
             pairingSolicitado = false;
             console.error('❌ Error generando código de vinculación:', e.message);
-            if (onCodeReady) onCodeReady('<h2 style="font-family: Arial; text-align: center; color: red;">❌ No se pudo generar el código. Verifica el número e inténtalo de nuevo.</h2>');
+            vinculacionEstado = '<div style="font-family: Arial; text-align: center; color:#b45309;"><h2>🔄 Reintentando vinculación...</h2><p>WhatsApp todavía no entregó el código. El bot seguirá intentando automáticamente.</p></div>';
+            if (onCodeReady) { onCodeReady(vinculacionEstado); onCodeReady = null; }
+            if (socketActual === sock && !state.creds.registered && !state.creds.me) {
+                pairingRetryTimer = setTimeout(() => { pairingRetryTimer = null; solicitarCodigo(); }, 3000);
+            }
         }
     };
 
@@ -290,8 +315,9 @@ async function arrancarSocket(metodo, numeroTelefono, onCodeReady = null) {
             // Para pairing code, Baileys recomienda solicitar el código cuando el
             // socket ya está en estado "connecting". Pedirlo demasiado pronto puede
             // generar el código pero dejar el socket sin completar el enlace.
-            if (metodo === '2' && !pairingSolicitado && !state.creds.registered) {
-                setTimeout(() => solicitarCodigo(), 1500);
+            if (metodo === '2' && !pairingSolicitado && !state.creds.registered && !state.creds.me) {
+                if (pairingRetryTimer) clearTimeout(pairingRetryTimer);
+                pairingRetryTimer = setTimeout(() => { pairingRetryTimer = null; solicitarCodigo(); }, 1200);
             }
         }
         
@@ -319,12 +345,34 @@ async function arrancarSocket(metodo, numeroTelefono, onCodeReady = null) {
         }
 
         if (connection === 'close') {
+            limpiarTimersPairing();
             const razon = lastDisconnect?.error?.output?.statusCode;
             console.error('❌ WhatsApp cerró la conexión. Código:', razon, 'Detalle:', lastDisconnect?.error?.message || lastDisconnect?.error || 'sin detalle');
             if (metodo === '2' && razon === 515) {
                 console.log('🔁 Código 515 detectado: WhatsApp indica que el enlace fue aceptado y requiere reiniciar el socket con las credenciales nuevas.');
             }
             socketActual = null;
+
+            if (metodo === '2' && !state.creds.registered && !state.creds.me && razon === 401) {
+                console.log('🔁 401 durante vinculación inicial. Limpiando credenciales y reintentando automáticamente...');
+                botArrancado = false;
+                try {
+                    await resetMongoDBAuthState();
+                    authState = await useMongoDBAuthState('sesion');
+                    vinculacionEstado = '<div style="font-family: Arial; text-align: center; color:#b45309;"><h2>🔄 Reiniciando vinculación...</h2><p>WhatsApp rechazó este intento. El bot está reintentando automáticamente.</p></div>';
+                } catch (e) {
+                    console.error('❌ No se pudo reiniciar la autenticación:', e.message);
+                }
+                if (!reconexionProgramada) {
+                    reconexionProgramada = true;
+                    setTimeout(async () => {
+                        reconexionProgramada = false;
+                        try { await arrancarSocket('2', numeroTelefono, onCodeReady); }
+                        catch (e) { console.error('❌ Error reintentando la vinculación:', e.message); }
+                    }, 1000);
+                }
+                return;
+            }
 
             if (razon === DisconnectReason.loggedOut) {
                 botArrancado = false;
@@ -370,6 +418,8 @@ async function arrancarSocket(metodo, numeroTelefono, onCodeReady = null) {
             }, razon === 515 ? 500 : 1500);
         } else if (connection === 'open') {
             reconexionProgramada = false;
+            limpiarTimersPairing();
+            pairingSolicitado = false;
             console.log('\n🟢 BOT EN LÍNEA Y LISTO PARA TRABAJAR 🟢\n');
             
             if (onCodeReady) {
