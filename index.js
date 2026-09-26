@@ -1,5 +1,5 @@
 require('dotenv').config();
-const { default: makeWASocket, DisconnectReason, Browsers, fetchLatestBaileysVersion } = require('@whiskeysockets/baileys');
+const { default: makeWASocket, DisconnectReason, Browsers } = require('@whiskeysockets/baileys');
 const { useMongoDBAuthState, resetMongoDBAuthState } = require('./mongoAuth');
 const mongoose = require('mongoose');
 const pino = require('pino');
