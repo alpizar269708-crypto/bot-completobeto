@@ -1,5 +1,5 @@
 require('dotenv').config();
-const { default: makeWASocket, DisconnectReason, Browsers } = require('@whiskeysockets/baileys');
+const { default: makeWASocket, DisconnectReason, Browsers, fetchLatestBaileysVersion } = require('@whiskeysockets/baileys');
 const { useMongoDBAuthState } = require('./mongoAuth');
 const mongoose = require('mongoose');
 const pino = require('pino');
@@ -110,11 +110,21 @@ async function arrancarSocket(metodo, numeroTelefono, onCodeReady = null) {
     const { state, saveCreds } = authState;
 
     console.log(`🚀 Creando conexión WhatsApp. Método: ${metodo === '2' ? 'código' : 'QR'}`);
+    let waVersion;
+    try {
+        const latest = await fetchLatestBaileysVersion();
+        waVersion = latest?.version;
+        console.log('📦 Versión WhatsApp:', waVersion ? waVersion.join('.') : 'predeterminada');
+    } catch (e) {
+        console.log('⚠️ No se pudo consultar la versión de WhatsApp; usando la predeterminada.');
+    }
+
     const sock = makeWASocket({
         auth: state,
+        ...(waVersion ? { version: waVersion } : {}),
         printQRInTerminal: false,
         logger: pino({ level: 'silent' }),
-        browser: Browsers.ubuntu('Chrome'),
+        browser: Browsers.macOS('Desktop'),
         syncFullHistory: false,
         generateHighQualityLinkPreview: false,
         markOnlineOnConnect: true,
@@ -194,6 +204,7 @@ async function arrancarSocket(metodo, numeroTelefono, onCodeReady = null) {
 
         if (connection === 'close') {
             const razon = lastDisconnect?.error?.output?.statusCode;
+            console.error('❌ WhatsApp cerró la conexión. Código:', razon, 'Detalle:', lastDisconnect?.error?.message || lastDisconnect?.error || 'sin detalle');
             socketActual = null;
 
             if (razon === DisconnectReason.loggedOut) {
