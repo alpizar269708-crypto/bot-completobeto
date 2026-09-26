@@ -11,12 +11,13 @@ async function resetMongoDBAuthState() {
     await Auth.deleteMany({});
 }
 
-async function useMongoDBAuthState(collectionName) {
+async function useMongoDBAuthState(collectionName, options = {}) {
+    const lazy = !!options.lazy;
     // Cargamos toda la sesión de WhatsApp una sola vez al arrancar.
     // Antes se hacía una consulta a MongoDB por cada clave de Baileys,
     // lo que podía provocar decenas/cientos de consultas y hacer que
     // WhatsApp tardara muchísimo en terminar de iniciar sesión.
-    const documentos = await Auth.find({}).lean();
+    const documentos = lazy ? [] : await Auth.find({}).lean();
     const cache = new Map();
 
     for (const documento of documentos) {
@@ -29,15 +30,32 @@ async function useMongoDBAuthState(collectionName) {
         }
     }
 
+    let persistente = !lazy;
+
     const writeData = async (data, id) => {
         const informationToStore = JSON.stringify(data, BufferJSON.replacer);
         cache.set(id, data);
+
+        if (!persistente) return;
 
         await Auth.findOneAndUpdate(
             { _id: id },
             { data: informationToStore },
             { upsert: true }
         );
+    };
+
+    const activarPersistencia = async () => {
+        if (persistente) return;
+        await Auth.deleteMany({});
+        for (const [id, data] of cache.entries()) {
+            await Auth.findOneAndUpdate(
+                { _id: id },
+                { data: JSON.stringify(data, BufferJSON.replacer) },
+                { upsert: true }
+            );
+        }
+        persistente = true;
     };
 
     const readData = async (id) => {
@@ -83,7 +101,8 @@ async function useMongoDBAuthState(collectionName) {
         },
         saveCreds: () => {
             return writeData(creds, 'creds');
-        }
+        },
+        activatePersistence: activarPersistencia
     };
 }
 module.exports = { useMongoDBAuthState, resetMongoDBAuthState };
