@@ -28,7 +28,7 @@ app.get('/', async (req, res) => {
                 <h2>🤖 Bot de WhatsApp activo</h2>
                 <p>El bot ya está vinculado y trabajando en el servidor.</p>
                 <form action="/cerrar-sesion" method="POST" onsubmit="return confirm('¿Seguro que quieres cerrar la sesión y limpiar la vinculación?');">
-                    <button type="submit" style="padding:12px 20px; background:#dc2626; color:white; border:none; cursor:pointer; font-size:16px; border-radius:7px; width:100%;">🚪 Cerrar sesión y limpiar</button>
+                    <button type="submit" style="padding:12px 20px; background:#dc2626; color:white; border:none; cursor:pointer; font-size:16px; border-radius:7px; width:100%;">🚪 Cerrar sesión</button>
                 </form>
             </div>
         `);
