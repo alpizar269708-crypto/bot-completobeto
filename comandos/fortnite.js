@@ -381,7 +381,7 @@ async function enviarAlertaPavosAutomatica(sock, enviarAunqueNoHayaPavos = false
         // En los reintentos solo se envía cuando aparecen PaVos.
         if (datos.pavos.length === 0) {
             if (enviarAunqueNoHayaPavos) {
-                const mensajeSinPavos = '🎮 *ALERTAS DE PAVOS — 6:02 PM*\\n\\n_No hay alertas de pavos registradas._\\n\\nSupport-a-Creator: *JASC13* ❤️';
+                const mensajeSinPavos = '🎮 *ALERTAS DE PAVOS — 6:02 PM*\n\n_No hay alertas de pavos registradas._\n\nSupport-a-Creator: *JASC13* ❤️';
                 for (const grupo of grupos) {
                     try {
                         await sock.sendMessage(grupo, { text: mensajeSinPavos });
