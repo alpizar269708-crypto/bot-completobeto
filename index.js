@@ -210,18 +210,11 @@ async function arrancarSocket(metodo, numeroTelefono, onCodeReady = null) {
 
     metodo = String(metodo) === '2' ? '2' : '1';
     console.log(`🚀 Creando conexión WhatsApp. Método: ${metodo === '2' ? 'código de 8 dígitos' : 'QR'}`);
-    let waVersion;
-    try {
-        const latest = await fetchLatestBaileysVersion();
-        waVersion = latest?.version;
-        console.log('📦 Versión WhatsApp:', waVersion ? waVersion.join('.') : 'predeterminada');
-    } catch (e) {
-        console.log('⚠️ No se pudo consultar la versión de WhatsApp; usando la predeterminada.');
-    }
-
+    // No consultamos la versión por Internet al arrancar: esa petición añade
+    // una espera innecesaria antes de crear el socket. Baileys usa la versión
+    // compatible instalada en package.json.
     const sock = makeWASocket({
         auth: state,
-        ...(waVersion ? { version: waVersion } : {}),
         printQRInTerminal: false,
         logger: pino({ level: 'silent' }),
         browser: metodo === '2' ? Browsers.macOS('Chrome') : Browsers.macOS('Desktop'),
@@ -398,17 +391,23 @@ async function arrancarSocket(metodo, numeroTelefono, onCodeReady = null) {
     });
 
     sock.ev.on('messages.upsert', async (m) => {
-        const msg = m.messages[0];
-        if (!msg.message || msg.key.remoteJid === 'status@broadcast') return;
+        // Solo procesamos mensajes que llegan en tiempo real.
+        // Los eventos "append" son historial/sincronización de chats anteriores
+        // y se ignoran completamente para que el bot empiece desde este instante.
+        if (m.type !== 'notify') return;
 
-        const textoCompleto = msg.message.conversation || msg.message.extendedTextMessage?.text || '';
+        for (const msg of (m.messages || [])) {
+            if (!msg.message || msg.key.remoteJid === 'status@broadcast') continue;
+
+            const textoCompleto = msg.message.conversation || msg.message.extendedTextMessage?.text || '';
         if (msg.key.fromMe && (textoCompleto.includes('¡Pong!') || textoCompleto.includes('🤖'))) return;
 
         if (textoCompleto.startsWith('setgrupostw') || textoCompleto.startsWith('!setgrupostw')) {
             vincularChatWhatsApp(msg.key.remoteJid);
         }
 
-        await procesarMensaje(sock, msg);
+            await procesarMensaje(sock, msg);
+        }
     });
 
     sock.ev.on('group-participants.update', async (update) => {
