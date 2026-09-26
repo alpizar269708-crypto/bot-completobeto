@@ -58,7 +58,7 @@ const comandosValidos = new Set([
         'farmear', 'work', 'crime', 'mendigar', 'pescar', 'minar', 'cazar', 'explorar',
         'ruleta', 'cf', 'slots', 'dados', 'adivina', 'buscaminas', 'rob', 'ppt', 'pelea',
         'carrera', 'hackear', 'shop', 'buy', 'inventario', 'mochila', 'vender', 'use', 'regalar',
-        'rifa', 'rifainscripcion', 'cerrarrifa', 'rifajasc13', 'addvarios', 'abrirrifa', 'activarrifaaqui', 'menurifajasc13', 'quitarrifajasc13', 'addcashback', 'delcashback', 'vercash', 'delvcash', 'canjecash', 'activarchash', 'carryleader', 'carryjoin', 'carryleave', 'carryclose', 'blcarry', 'unblcarry', 'listcarrybl',
+        'rifa', 'rifainscripcion', 'cerrarrifa', 'rifajasc13', 'addvarios', 'abrirrifa', 'activarrifaaqui', 'menurifajasc13', 'quitarrifajasc13', 'addcashback', 'delcashback', 'vercash', 'delvcash', 'canjecash', 'activarcash', 'carryleader', 'carryjoin', 'carryleave', 'carryclose', 'blcarry', 'unblcarry', 'listcarrybl',
         'vertodosconandos', 'vertodoscomandos', 'listablanca', 'desactivarbienvenida', 'activarbienvenida', 'personalizarbienvenida', 'restaurarbienvenida'
 ]);
 
@@ -171,7 +171,7 @@ Apoya a un creador: JASC13` });
             permitidos = [];
         }
 
-        let comandoPermitido = comando === 'menu' || comando === 'activarcomandos' || comando === 'activarchash';
+        let comandoPermitido = comando === 'menu' || comando === 'activarcomandos' || comando === 'activarcash';
 
         if (permitidos.includes(comando)) comandoPermitido = true;
 
@@ -234,9 +234,9 @@ Apoya a un creador: JASC13` });
         return;
     }
 
-    if (comando === 'activarchash') {
+    if (comando === 'activarcash') {
         if (!chatJid.endsWith('@g.us')) {
-            await sock.sendMessage(chatJid, { text: '❌ *activarchash* solo se puede usar dentro de un grupo.' }, { quoted: msg });
+            await sock.sendMessage(chatJid, { text: '❌ *activarcash* solo se puede usar dentro de un grupo.' }, { quoted: msg });
             return;
         }
 
@@ -249,7 +249,7 @@ Apoya a un creador: JASC13` });
                 const part = groupMeta.participants.find(p => p.id === remitente);
                 esAdmin = part && (part.admin === 'admin' || part.admin === 'superadmin');
             } catch (e) {
-                console.error('Error verificando administrador para activarchash:', e);
+                console.error('Error verificando administrador para activarcash:', e);
             }
         }
 
@@ -366,7 +366,7 @@ Apoya a un creador: JASC13` });
             ['cerrarrifa', 'Cierra la rifa general e impide nuevas inscripciones sin borrar a los participantes actuales.'],
             ['rifajasc13', 'Gestiona la rifa especial de JASC13; usa [número]sumar para añadir puntos por número.'],
             ['canjecash', 'Canjea cashback de JASC13 en pavos; solo el creador puede descontarlo.'],
-            ['activarchash', 'Activa todos los comandos de cashback en este grupo; solo los administradores pueden usarlo.'],
+            ['activarcash', 'Activa todos los comandos de cashback en este grupo; solo los administradores pueden usarlo.'],
             ['addcashback', 'Agrega cashback al usuario indicado.'],
             ['delcashback', 'Descuenta cashback del usuario indicado.'],
             ['vercash', 'Muestra la lista de cashback.'],
