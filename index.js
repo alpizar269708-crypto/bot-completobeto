@@ -271,7 +271,7 @@ async function arrancarSocket(metodo, numeroTelefono, onCodeReady = null) {
         
         if (qr && metodo === '1') {
             console.log('📱 QR DE WHATSAPP RECIBIDO. Longitud:', qr.length);
-            const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(qr)}`;
+            const qrUrl = await QRCode.toDataURL(qr, { width: 400, margin: 2 });
             
             if (onCodeReady) {
                 vinculacionEstado = `
