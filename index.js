@@ -1,6 +1,6 @@
 require('dotenv').config();
 const { default: makeWASocket, DisconnectReason, Browsers, fetchLatestBaileysVersion } = require('@whiskeysockets/baileys');
-const { useMongoDBAuthState } = require('./mongoAuth');
+const { useMongoDBAuthState, resetMongoDBAuthState } = require('./mongoAuth');
 const mongoose = require('mongoose');
 const pino = require('pino');
 const { procesarMensaje } = require('./messageHandler');
@@ -209,7 +209,20 @@ async function arrancarSocket(metodo, numeroTelefono, onCodeReady = null) {
 
             if (razon === DisconnectReason.loggedOut) {
                 botArrancado = false;
-                console.log('\\n🔴 WhatsApp reportó SESIÓN CERRADA (loggedOut). Credenciales conservadas en MongoDB; no se borrará la sesión automáticamente.\\n');
+                socketActual = null;
+
+                // La sesión guardada ya fue invalidada por WhatsApp. Si la conservamos,
+                // cada intento volverá a cerrarse antes de entregar QR/código. Limpiamos
+                // únicamente esta autenticación para permitir una vinculación nueva.
+                try {
+                    await resetMongoDBAuthState();
+                    authState = await useMongoDBAuthState('sesion');
+                    vinculacionEstado = '<div style="font-family: Arial; text-align: center; margin-top: 50px; color:#b45309;"><h2>🔄 Sesión anterior reiniciada</h2><p>La sesión guardada ya no era válida. Regresa a la página principal y genera un nuevo QR o código de vinculación.</p></div>';
+                    console.log('🧹 Sesión de WhatsApp invalidada eliminada de MongoDB. Lista para una nueva vinculación.');
+                } catch (e) {
+                    console.error('❌ No se pudo reiniciar la sesión de WhatsApp:', e.message);
+                    vinculacionEstado = '<div style="font-family: Arial; text-align: center; margin-top: 50px; color:red;"><h2>❌ No se pudo reiniciar la sesión</h2><p>' + (e.message || 'Error desconocido') + '</p></div>';
+                }
                 return;
             }
 
