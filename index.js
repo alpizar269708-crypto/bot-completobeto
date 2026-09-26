@@ -80,6 +80,14 @@ app.get('/', async (req, res) => {
 });
 
 app.post('/iniciar', async (req, res) => {
+    // Permite volver a intentar una vinculacion que quedo atascada sin sesion.
+    if (botArrancado && socketActual && !authState?.state?.creds?.me) {
+        try { socketActual.ev.removeAllListeners(); } catch (e) {}
+        try { socketActual.ws?.close(); } catch (e) {}
+        socketActual = null;
+        botArrancado = false;
+        reconexionProgramada = false;
+    }
     if (botArrancado) {
         return res.send(`<!doctype html><html><head><meta charset="utf-8"><title>Vincular Bot</title></head><body style="font-family:Arial;text-align:center;padding:30px;">${vinculacionEstado}<script>setTimeout(()=>location.href='/estado-vinculacion',1000);</script></body></html>`);
     }
