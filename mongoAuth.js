@@ -8,6 +8,13 @@ const Schema = new mongoose.Schema({
 const Auth = mongoose.model('auth_session', Schema);
 
 async function resetMongoDBAuthState() {
+    // En el arranque rápido MongoDB puede estar desconectado. Si WhatsApp
+    // devuelve 401 y aquí intentamos borrar la sesión, Mongoose deja
+    // deleteMany() en buffer y termina en "buffering timed out".
+    if (mongoose.connection.readyState === 0) {
+        await mongoose.connect(process.env.MONGO_URI);
+    }
+
     await Auth.deleteMany({});
 }
 
