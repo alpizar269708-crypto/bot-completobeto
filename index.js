@@ -20,8 +20,6 @@ let socketActual = null;
 let reconexionProgramada = false;
 let baseLista = false;
 let inicializacionBasePromise = null;
-let mongoConectada = false;
-let sesionPersistente = false;
 let vinculacionEstado = '<div style="font-family: Arial; text-align: center; margin-top: 50px;"><h2>⏳ Iniciando WhatsApp...</h2><p>Espera unos segundos mientras se genera el método de vinculación.</p></div>';
 
 app.get('/', async (req, res) => {
@@ -82,14 +80,6 @@ app.get('/', async (req, res) => {
 });
 
 app.post('/iniciar', async (req, res) => {
-    // Permite volver a intentar una vinculacion que quedo atascada sin sesion.
-    if (botArrancado && !authState?.state?.creds?.me) {
-        try { socketActual?.ev?.removeAllListeners(); } catch (e) {}
-        try { socketActual?.ws?.close(); } catch (e) {}
-        socketActual = null;
-        botArrancado = false;
-        reconexionProgramada = false;
-    }
     if (botArrancado) {
         return res.send(`<!doctype html><html><head><meta charset="utf-8"><title>Vincular Bot</title></head><body style="font-family:Arial;text-align:center;padding:30px;">${vinculacionEstado}<script>setTimeout(()=>location.href='/estado-vinculacion',1000);</script></body></html>`);
     }
@@ -102,23 +92,16 @@ app.post('/iniciar', async (req, res) => {
     vinculacionEstado = '<div style="font-family: Arial; text-align: center; margin-top: 50px;"><h2>⏳ Preparando vinculación...</h2><p>Conectando con WhatsApp...</p><p>No cierres esta página.</p></div>';
 
     try {
-        // Para una vinculación nueva NO esperamos a MongoDB ni cargamos la base.
-        // Se crea una sesión temporal en memoria y WhatsApp puede empezar a vincular
-        // inmediatamente. La persistencia se activa después de que WhatsApp confirme
-        // la vinculación.
-        if (!authState) {
-            authState = await useMongoDBAuthState('sesion', { lazy: true });
-        }
+        if (inicializacionBasePromise) await inicializacionBasePromise;
+        if (!authState) throw new Error('El servicio todavía no está listo. Recarga la página e inténtalo de nuevo.');
 
         if (metodo === '2') {
             if (!numeroLimpio) {
                 throw new Error('Escribe tu número de WhatsApp con código de país, por ejemplo 525512345678.');
             }
-            // La vinculación nueva usa una sesión temporal en memoria.
-            // No consultamos ni borramos MongoDB antes de que WhatsApp confirme
-            // el enlace; así evitamos que la base retrase o bloquee la vinculación.
-            authState = await useMongoDBAuthState('sesion', { lazy: true });
-            sesionPersistente = false;
+            // Una vinculación por código siempre comienza con una sesión limpia.
+            await resetMongoDBAuthState();
+            authState = await useMongoDBAuthState('sesion');
         }
 
         arrancarSocket(metodo, numeroLimpio, (htmlRespuesta) => {
@@ -222,27 +205,16 @@ async function inicializarBase() {
 
 async function arrancarSocket(metodo, numeroTelefono, onCodeReady = null) {
     if (reconexionProgramada || socketActual) return;
-    if (!authState) {
-        authState = await useMongoDBAuthState('sesion', { lazy: true });
-    }
+    if (!authState) throw new Error('La autenticación de WhatsApp todavía no está lista.');
     const { state, saveCreds } = authState;
 
     metodo = String(metodo) === '2' ? '2' : '1';
     console.log(`🚀 Creando conexión WhatsApp. Método: ${metodo === '2' ? 'código de 8 dígitos' : 'QR'}`);
-    // 🔐 Mantenemos la consulta de versión que se usó en el commit estable
-    // porque es necesaria para conservar la vinculación de WhatsApp.
-    let waVersion;
-    try {
-        const latest = await fetchLatestBaileysVersion();
-        waVersion = latest?.version;
-        console.log('📦 Versión WhatsApp:', waVersion ? waVersion.join('.') : 'predeterminada');
-    } catch (e) {
-        console.log('⚠️ No se pudo consultar la versión de WhatsApp; usando la predeterminada.');
-    }
-
+    // No consultamos la versión por Internet al arrancar: esa petición añade
+    // una espera innecesaria antes de crear el socket. Baileys usa la versión
+    // compatible instalada en package.json.
     const sock = makeWASocket({
         auth: state,
-        ...(waVersion ? { version: waVersion } : {}),
         printQRInTerminal: false,
         logger: pino({ level: 'silent' }),
         browser: metodo === '2' ? Browsers.macOS('Chrome') : Browsers.macOS('Desktop'),
@@ -319,7 +291,7 @@ async function arrancarSocket(metodo, numeroTelefono, onCodeReady = null) {
             // socket ya está en estado "connecting". Pedirlo demasiado pronto puede
             // generar el código pero dejar el socket sin completar el enlace.
             if (metodo === '2' && !pairingSolicitado && !state.creds.registered) {
-                setTimeout(() => solicitarCodigo(), 200);
+                setTimeout(() => solicitarCodigo(), 1500);
             }
         }
         
@@ -398,22 +370,6 @@ async function arrancarSocket(metodo, numeroTelefono, onCodeReady = null) {
             }, razon === 515 ? 500 : 1500);
         } else if (connection === 'open') {
             reconexionProgramada = false;
-
-            // Solo después de que WhatsApp esté vinculado abrimos MongoDB y
-            // guardamos la sesión. Hasta este punto no se cargan datos de Mongo.
-            try {
-                if (mongoose.connection.readyState === 0) {
-                    await mongoose.connect(process.env.MONGO_URI);
-                }
-                mongoConectada = true;
-                if (authState?.activatePersistence && !sesionPersistente) {
-                    await authState.activatePersistence();
-                    sesionPersistente = true;
-                    console.log('💾 Sesión de WhatsApp guardada en MongoDB después de vincular.');
-                }
-            } catch (e) {
-                console.error('❌ No se pudo activar la persistencia después de vincular:', e.message);
-            }
             console.log('\n🟢 BOT EN LÍNEA Y LISTO PARA TRABAJAR 🟢\n');
             
             if (onCodeReady) {
@@ -469,6 +425,8 @@ async function arrancarSocket(metodo, numeroTelefono, onCodeReady = null) {
     });
 }
 
-// MongoDB NO se inicializa al arrancar cuando no existe una sesión conocida.
-// La conexión/carga se difiere hasta que el usuario inicia una vinculación.
-inicializacionBasePromise = Promise.resolve();
+inicializacionBasePromise = inicializarBase().catch((e) => {
+    console.error('❌ Error inicializando MongoDB:', e);
+    vinculacionEstado = '<div style="font-family: Arial; text-align: center; margin-top: 50px; color:red;"><h2>❌ Error al iniciar el servicio</h2><p>' + (e.message || 'No se pudo iniciar el servicio.') + '</p></div>';
+    throw e;
+});
