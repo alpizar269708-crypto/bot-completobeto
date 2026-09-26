@@ -379,23 +379,17 @@ async function comandoRecuperarRegistroJasc13(sock, chatId, msg, texto) {
     const registro = await extraerRegistroJasc13DeMensaje(texto, msg, sock);
     if (!registro) return false;
 
-    const { participantes, cashback } = await cargarEstadoRifaJasc13();
+    const { participantes } = await cargarEstadoRifaJasc13();
     let targetId = encontrarIdParticipantePorNumeroJasc13(participantes, registro.numero);
 
     if (!targetId) targetId = registro.numero + '@s.whatsapp.net';
 
     const datosUsuario = participantes.get(targetId) || { puntos: 0 };
     const puntosAnteriores = Number(datosUsuario.puntos) || 0;
-    const cashbackGenerado = registro.cashbackGenerado;
-    const cashbackAnterior = Number(cashback.get(targetId) || 0);
-    const cashbackNuevo = Number((cashbackAnterior + cashbackGenerado).toFixed(2));
-
     datosUsuario.puntos = puntosAnteriores + registro.puntos;
     participantes.set(targetId, datosUsuario);
-    cashback.set(targetId, cashbackNuevo);
 
     await guardarParticipantesJasc13(participantes);
-    await guardarCashbackJasc13(cashback);
 
     const boletos = Math.floor(datosUsuario.puntos / 1000);
     const resto = datosUsuario.puntos % 1000;
@@ -407,9 +401,8 @@ async function comandoRecuperarRegistroJasc13(sock, chatId, msg, texto) {
             '➕ Puntos recuperados: *+' + registro.puntos + '*\n' +
             '💎 Puntos actuales: *' + datosUsuario.puntos + '*\n' +
             '🎟️ Boletos actuales: *' + boletos + '* (Faltan *' + faltantes + ' pts*)\n' +
-            '💰 Cashback generado: *+' + cashbackGenerado + ' pavos*\n' +
-            '💵 Cashback acumulado: *' + cashbackNuevo + ' pavos*\n\n' +
-            '✅ Se tomó únicamente la cantidad de PaVos registrados del mensaje histórico; boletos y cashback se calcularon automáticamente.',
+            'ℹ️ El cashback ya no se modifica automáticamente al recuperar puntos.\n\n' +
+            '✅ Se tomó únicamente la cantidad de PaVos registrados del mensaje histórico; el cashback se administra por separado con el menú *cashback*.',
         mentions: [targetId]
     }, { quoted: msg });
 
@@ -453,22 +446,7 @@ async function cargarEstadoRifaJasc13() {
         }
     }
 
-    // Migración automática para participantes antiguos de JASC13:
-    // si el participante ya existía con puntos pero todavía no tenía una
-    // entrada de cashback, se le asigna una sola vez el 5% de sus puntos actuales.
-    let cashbackMigrado = false;
-    for (const [id, data] of participantes.entries()) {
-        if (cashback.has(id)) continue;
-
-        const puntosActuales = Number(data.puntos) || 0;
-        cashback.set(id, calcularCashbackJasc13(puntosActuales));
-        cashbackMigrado = true;
-    }
-
-    if (cashbackMigrado) {
-        await guardarCashbackJasc13(cashback);
-    }
-
+    // El cashback es independiente de la rifa. Los registros existentes se conservan y ningún cambio de puntos los crea, resta o elimina.
     return { participantes, cashback };
 }
 
@@ -504,15 +482,14 @@ async function comandoMenuRifaJasc13(sock, chatId, msg) {
 
     const menuTexto = `🎟️ *MENÚ SECRETO - RIFA CÓDIGO DE CREADOR (JASC13)* 🎟️\n\n` +
         `🔒 El creador está fijado permanentemente. Ya no necesitas usar *rifajasc13 iniciar*.\n\n` +
-        `➕ *rifajasc13 agregar [@usuario/número] [puntos]* - Suma puntos y genera 5% de cashback.\n` +
+        `➕ *rifajasc13 agregar [@usuario/número] [puntos]* - Suma puntos a la rifa.\n` +
         `🔢 *rifajasc13 [número]sumar [puntos]* - Suma puntos directamente al participante de ese número.\n` +
         `➕➕ *rifajasc13 addvarios* - Suma puntos a varios participantes usando los números de la lista.\n` +
-        `👀 *rifajasc13 ver* - Muestra participantes, puntos, boletos y cashback.\n` +
-        `🗑️ *rifajasc13 quitar [número]* - Quita al participante sin borrar su cashback.\n` +
-        `➖ *quitarrifajasc13 [@usuario/número] [puntos]* - Resta puntos y el 5% de cashback correspondiente, sin permitir saldos negativos.\n` +
-        `🧹 *rifajasc13 vaciar* - Vacía la lista actual, conservando todo el cashback.\n` +
-        `🎰 *rifajasc13 sortear [ganadores]* - Sortea y reinicia puntos/boletos a 0, conservando el cashback.\n` +
-        `💸 *canjecash [@usuario/número] [pavos]* - Canjea y descuenta cashback.\n` +
+        `👀 *rifajasc13 ver* - Muestra participantes, puntos y boletos.\n` +
+        `🗑️ *rifajasc13 quitar [número]* - Quita al participante de la lista; el cashback independiente no se toca.\n` +
+        `➖ *quitarrifajasc13 [@usuario/número] [puntos]* - Resta puntos sin modificar el cashback independiente.\n` +
+        `🧹 *rifajasc13 vaciar* - Vacía la lista de la rifa sin tocar el cashback.\n` +
+        `🎰 *rifajasc13 sortear [ganadores]* - Sortea y reinicia puntos/boletos sin tocar el cashback.\n` +
         `♻️ *Recuperación:* reenvía un mensaje histórico de *PaVos registrados exitosamente* del bot y recuperaré automáticamente el número y los puntos.`;
 
     await sock.sendMessage(chatId, { text: menuTexto }, { quoted: msg });
@@ -561,12 +538,9 @@ async function comandoRifaJasc13(sock, chatId, msg, args) {
             const boletos = Math.floor(puntos / 1000);
             const resto = puntos % 1000;
             const faltantes = resto === 0 ? 0 : 1000 - resto;
-            const cashbackActual = Number(cashback.get(id) || 0);
-
             texto += `👤 *${i}. @${usuario}*\n`;
             texto += `💎 Puntos: *${puntos}*\n`;
-            texto += `🎟️ Boletos: *${boletos}* (Faltan *${faltantes} pts*)\n`;
-            texto += `🪙 Cashback: *${cashbackActual} pavos*\n\n`;
+            texto += `🎟️ Boletos: *${boletos}* (Faltan *${faltantes} pts*)\n\n`;
 
             mentions.push(id);
             i++;
@@ -643,9 +617,6 @@ async function comandoRifaJasc13(sock, chatId, msg, args) {
 
         const datosUsuario = participantes.get(targetId) || { puntos: 0 };
         const puntosAnteriores = Number(datosUsuario.puntos) || 0;
-        const cashbackGenerado = calcularCashbackJasc13(puntosAgregados);
-        const cashbackAnterior = Number(cashback.get(targetId) || 0);
-        const cashbackNuevo = Number((cashbackAnterior + cashbackGenerado).toFixed(2));
 
         datosUsuario.puntos = puntosAnteriores + puntosAgregados;
 
@@ -656,18 +627,14 @@ async function comandoRifaJasc13(sock, chatId, msg, args) {
         const faltantes = resto === 0 ? 0 : 1000 - resto;
 
         participantes.set(targetId, datosUsuario);
-        cashback.set(targetId, cashbackNuevo);
         await guardarParticipantesJasc13(participantes);
-        await guardarCashbackJasc13(cashback);
 
         const respuesta = `✅ *Puntos registrados exitosamente*\n` +
             `👤 Usuario: @${targetId.split('@')[0]}\n` +
             `➕ Puntos sumados: *+${puntosAgregados}*\n` +
             `📊 Puntos totales: *${datosUsuario.puntos}*\n` +
             `🎟️ Boletos totales: *${boletosNuevos}* ${boletosGanados > 0 ? `(¡Ganó +${boletosGanados} boleto(s) nuevos!)` : ''}\n` +
-            `📌 Puntos faltantes para el siguiente boleto: *${faltantes}*\n` +
-            `💰 Cashback generado: *+${cashbackGenerado} pavos*\n` +
-            `💵 Cashback acumulado: *${cashbackNuevo} pavos*`;
+            `📌 Puntos faltantes para el siguiente boleto: *${faltantes}*`;
 
         return await sock.sendMessage(chatId, { text: respuesta, mentions: [targetId] });
     }
@@ -717,22 +684,16 @@ async function comandoRifaJasc13(sock, chatId, msg, args) {
             const targetId = ids[numeroLista - 1];
             const datosUsuario = participantes.get(targetId) || { puntos: 0 };
             const puntosAnteriores = Number(datosUsuario.puntos) || 0;
-            const cashbackGenerado = calcularCashbackJasc13(puntosAgregados);
-            const cashbackAnterior = Number(cashback.get(targetId) || 0);
-            const cashbackNuevo = Number((cashbackAnterior + cashbackGenerado).toFixed(2));
 
             datosUsuario.puntos = puntosAnteriores + puntosAgregados;
             participantes.set(targetId, datosUsuario);
-            cashback.set(targetId, cashbackNuevo);
 
             resultados.push({
                 numeroLista,
                 targetId,
                 puntosAgregados,
                 puntosTotales: datosUsuario.puntos,
-                boletos: Math.floor(datosUsuario.puntos / 1000),
-                cashbackGenerado,
-                cashbackNuevo
+                boletos: Math.floor(datosUsuario.puntos / 1000)
             });
 
             mentions.push(targetId);
@@ -745,7 +706,6 @@ async function comandoRifaJasc13(sock, chatId, msg, args) {
         }
 
         await guardarParticipantesJasc13(participantes);
-        await guardarCashbackJasc13(cashback);
 
         let respuesta = '✅ *ACTUALIZACIÓN MÚLTIPLE JASC13* ✅\n\n';
         for (const resultado of resultados) {
@@ -753,8 +713,7 @@ async function comandoRifaJasc13(sock, chatId, msg, args) {
             respuesta += `➕ Puntos agregados: *+${resultado.puntosAgregados}*\n`;
             respuesta += `💎 Puntos totales: *${resultado.puntosTotales}*\n`;
             respuesta += `🎟️ Boletos: *${resultado.boletos}*\n`;
-            respuesta += `💰 Cashback generado: *+${resultado.cashbackGenerado} pavos*\n`;
-            respuesta += `💵 Cashback acumulado: *${resultado.cashbackNuevo} pavos*\n\n`;
+            respuesta += '\n';
         }
 
         if (errores.length > 0) {
@@ -787,16 +746,11 @@ async function comandoRifaJasc13(sock, chatId, msg, args) {
         const targetId = ids[numeroLista - 1];
         const datosUsuario = participantes.get(targetId) || { puntos: 0 };
         const puntosAnteriores = Number(datosUsuario.puntos) || 0;
-        const cashbackGenerado = calcularCashbackJasc13(puntosAgregados);
-        const cashbackAnterior = Number(cashback.get(targetId) || 0);
-        const cashbackNuevo = Number((cashbackAnterior + cashbackGenerado).toFixed(2));
 
         datosUsuario.puntos = puntosAnteriores + puntosAgregados;
         participantes.set(targetId, datosUsuario);
-        cashback.set(targetId, cashbackNuevo);
 
         await guardarParticipantesJasc13(participantes);
-        await guardarCashbackJasc13(cashback);
 
         const boletosNuevos = Math.floor(datosUsuario.puntos / 1000);
         const resto = datosUsuario.puntos % 1000;
@@ -807,9 +761,7 @@ async function comandoRifaJasc13(sock, chatId, msg, args) {
                 '👤 Usuario: @' + targetId.split('@')[0] + '\n' +
                 '➕ Puntos añadidos: *+' + puntosAgregados + '*\n' +
                 '📊 Puntos totales: *' + datosUsuario.puntos + '*\n' +
-                '🎟️ Boletos: *' + boletosNuevos + '* (Faltan *' + faltantes + ' pts*)\n' +
-                '💰 Cashback generado: *+' + cashbackGenerado + ' pavos*\n' +
-                '💵 Cashback acumulado: *' + cashbackNuevo + ' pavos*',
+                '🎟️ Boletos: *' + boletosNuevos + '* (Faltan *' + faltantes + ' pts*)',
             mentions: [targetId]
         }, { quoted: msg });
     }
@@ -861,16 +813,10 @@ async function comandoRifaJasc13(sock, chatId, msg, args) {
             }, { quoted: msg });
         }
 
-        const cashbackRestar = calcularCashbackJasc13(puntosRestar);
-        const cashbackAnterior = Number(cashback.get(targetId) || 0);
-        const cashbackNuevo = Math.max(0, Number((cashbackAnterior - cashbackRestar).toFixed(2)));
-
         datosUsuario.puntos = puntosAnteriores - puntosRestar;
         participantes.set(targetId, datosUsuario);
-        cashback.set(targetId, cashbackNuevo);
 
         await guardarParticipantesJasc13(participantes);
-        await guardarCashbackJasc13(cashback);
 
         const boletos = Math.floor(datosUsuario.puntos / 1000);
         const resto = datosUsuario.puntos % 1000;
@@ -882,8 +828,7 @@ async function comandoRifaJasc13(sock, chatId, msg, args) {
                 '➖ Puntos restados: *-' + puntosRestar + '*\n' +
                 '💎 Puntos actuales: *' + datosUsuario.puntos + '*\n' +
                 '🎟️ Boletos actuales: *' + boletos + '*\n' +
-                '💰 Cashback restado: *-' + cashbackRestar + ' pavos*\n' +
-                '💵 Cashback actual: *' + cashbackNuevo + ' pavos*\n' +
+                '💰 Cashback independiente: *no modificado*\n' +
                 '📌 Faltan *' + faltantes + '* puntos para el siguiente boleto.',
             mentions: [targetId]
         }, { quoted: msg });
@@ -949,6 +894,70 @@ async function comandoRifaJasc13(sock, chatId, msg, args) {
         }, { quoted: msg });
     }
 
+    // CASHBACK INDEPENDIENTE JASC13
+    if (accion === 'addcashback') {
+        const cantidad = Number(args[args.length - 1]);
+        if (!Number.isFinite(cantidad) || cantidad <= 0) return await sock.sendMessage(chatId, { text: '❌ Uso: *addcashback @usuario cantidad* o responde al mensaje: *addcashback cantidad*.' }, { quoted: msg });
+        const contextInfo = msg.message?.extendedTextMessage?.contextInfo || {};
+        const targetId = Array.isArray(contextInfo.mentionedJid) && contextInfo.mentionedJid[0] ? contextInfo.mentionedJid[0] : contextInfo.participant || null;
+        if (!targetId) return await sock.sendMessage(chatId, { text: '❌ Menciona al usuario o responde a su mensaje y usa *addcashback cantidad*.' }, { quoted: msg });
+        const actual = Number(cashback.get(targetId) || 0);
+        const nuevo = Number((actual + cantidad).toFixed(2));
+        cashback.set(targetId, nuevo);
+        await guardarCashbackJasc13(cashback);
+        return await sock.sendMessage(chatId, { text: '💰 *CASHBACK AGREGADO*\n\n👤 Usuario: @' + targetId.split('@')[0] + '\n➕ Cashback agregado: *+' + cantidad + ' pavos*\n💵 Cashback acumulado: *' + nuevo + ' pavos*', mentions: [targetId] }, { quoted: msg });
+    }
+
+    if (accion === 'delcashback') {
+        const cantidad = Number(args[args.length - 1]);
+        if (!Number.isFinite(cantidad) || cantidad <= 0) return await sock.sendMessage(chatId, { text: '❌ Uso: *delcashback @usuario cantidad* o responde al mensaje: *delcashback cantidad*.' }, { quoted: msg });
+        const contextInfo = msg.message?.extendedTextMessage?.contextInfo || {};
+        const targetId = Array.isArray(contextInfo.mentionedJid) && contextInfo.mentionedJid[0] ? contextInfo.mentionedJid[0] : contextInfo.participant || null;
+        if (!targetId) return await sock.sendMessage(chatId, { text: '❌ Menciona al usuario o responde a su mensaje y usa *delcashback cantidad*.' }, { quoted: msg });
+        if (!cashback.has(targetId)) return await sock.sendMessage(chatId, { text: '❌ Ese usuario no tiene un registro de cashback.' }, { quoted: msg });
+        const actual = Number(cashback.get(targetId) || 0);
+        if (cantidad > actual) return await sock.sendMessage(chatId, { text: '❌ No puedes quitar más cashback del disponible.\n\n💵 Disponible: *' + actual + ' pavos*' }, { quoted: msg });
+        const nuevo = Number((actual - cantidad).toFixed(2));
+        cashback.set(targetId, nuevo);
+        await guardarCashbackJasc13(cashback);
+        return await sock.sendMessage(chatId, { text: '➖ *CASHBACK DESCONTADO*\n\n👤 Usuario: @' + targetId.split('@')[0] + '\n➖ Cashback quitado: *-' + cantidad + ' pavos*\n💵 Cashback restante: *' + nuevo + ' pavos*', mentions: [targetId] }, { quoted: msg });
+    }
+
+    if (accion === 'vercash') {
+        if (cashback.size === 0) return await sock.sendMessage(chatId, { text: '📭 *CASHBACK*\n\nNo hay usuarios agregados al cashback.' }, { quoted: msg });
+        let texto = '💰 *LISTA DE CASHBACK JASC13* 💰\n\n';
+        const mentions = [];
+        let i = 1;
+        for (const [id, valor] of cashback.entries()) {
+            const cantidad = Number(valor);
+            texto += i + '. @' + id.split('@')[0] + ' — *' + (Number.isInteger(cantidad) ? cantidad : cantidad.toFixed(2)) + ' pavos*\n';
+            mentions.push(id);
+            i++;
+        }
+        return await sock.sendMessage(chatId, { text: texto, mentions }, { quoted: msg });
+    }
+
+    if (accion === 'delvcash') {
+        if (cashback.size === 0) return await sock.sendMessage(chatId, { text: '📭 No hay registros de cashback para eliminar.' }, { quoted: msg });
+        const especificacion = args.slice(1).join(' ').trim();
+        if (!especificacion) return await sock.sendMessage(chatId, { text: '❌ Indica los números a eliminar. Ejemplo: *delvcash 1-3, 5, 9, 15-27*.' }, { quoted: msg });
+        const indices = new Set();
+        for (const parte of especificacion.split(',')) {
+            const valor = parte.trim();
+            const rango = valor.match(/^(\d+)\s*-\s*(\d+)$/);
+            if (rango) { let inicio = parseInt(rango[1], 10), fin = parseInt(rango[2], 10); if (inicio > fin) [inicio, fin] = [fin, inicio]; for (let n = inicio; n <= fin; n++) indices.add(n); }
+            else if (/^\d+$/.test(valor)) indices.add(parseInt(valor, 10));
+        }
+        if (indices.size === 0) return await sock.sendMessage(chatId, { text: '❌ Formato no válido. Ejemplo: *delvcash 1-3, 5, 9, 15-27*.' }, { quoted: msg });
+        const lista = Array.from(cashback.entries());
+        const validos = [...indices].filter(n => n >= 1 && n <= lista.length).sort((a,b) => b-a);
+        const invalidos = [...indices].filter(n => n < 1 || n > lista.length).sort((a,b) => a-b);
+        for (const numero of validos) cashback.delete(lista[numero - 1][0]);
+        await guardarCashbackJasc13(cashback);
+        let respuesta = '🗑️ *CASHBACK ELIMINADO*\n\nSe eliminaron *' + validos.length + '* registro(s) de cashback.';
+        if (invalidos.length) respuesta += '\n⚠️ Fuera de rango: ' + invalidos.join(', ') + '.';
+        return await sock.sendMessage(chatId, { text: respuesta }, { quoted: msg });
+    }
     if (accion === 'sortear') {
         if (participantes.size === 0) {
             return await sock.sendMessage(chatId, {
