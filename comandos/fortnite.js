@@ -201,7 +201,7 @@ async function alertasSTW(sock, chatId, msg, categoria = 'todas') {
         lineasPavos.push('🎮 *ALERTAS DE PAVOS*');
 
         if (datos.pavos.length === 0) {
-            lineasPavos.push('_No hay alertas de pavos registradas 💔._', '');
+            lineasPavos.push('*No hay alertas de pavos registradas* 💔', '');
         } else {
             let totalPavos = 0;
 
