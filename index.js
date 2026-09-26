@@ -114,9 +114,11 @@ app.post('/iniciar', async (req, res) => {
             if (!numeroLimpio) {
                 throw new Error('Escribe tu número de WhatsApp con código de país, por ejemplo 525512345678.');
             }
-            // Una vinculación por código siempre comienza con una sesión limpia.
-            await resetMongoDBAuthState();
-            authState = await useMongoDBAuthState('sesion');
+            // La vinculación nueva usa una sesión temporal en memoria.
+            // No consultamos ni borramos MongoDB antes de que WhatsApp confirme
+            // el enlace; así evitamos que la base retrase o bloquee la vinculación.
+            authState = await useMongoDBAuthState('sesion', { lazy: true });
+            sesionPersistente = false;
         }
 
         arrancarSocket(metodo, numeroLimpio, (htmlRespuesta) => {
