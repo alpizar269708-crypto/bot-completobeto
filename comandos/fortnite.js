@@ -195,11 +195,10 @@ function formatearAlertaSTW(item, encabezado = '') {
 async function alertasSTW(sock, chatId, msg, categoria = 'todas') {
     const datos = await obtenerAlertasSTW(true);
     const fechaHoy = obtenerFechaActual();
-    const lineasPavos = [`📅 _${fechaHoy}_`, ''];
+    const lineasPavos = [`📅 _${fechaHoy}_`, '', '🎮 *ALERTAS DE PAVOS*', ''];
 
     if (categoria === 'pavos' || categoria === 'todas') {
-        lineasPavos.push('🎮 *ALERTAS DE PAVOS*');
-
+        
         if (datos.pavos.length === 0) {
             lineasPavos.push('*No hay alertas de pavos registradas* 💔', '');
         } else {
