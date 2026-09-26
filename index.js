@@ -224,7 +224,7 @@ async function arrancarSocket(metodo, numeroTelefono, onCodeReady = null) {
         ...(waVersion ? { version: waVersion } : {}),
         printQRInTerminal: false,
         logger: pino({ level: 'silent' }),
-        browser: Browsers.macOS('Desktop'),
+        browser: metodo === '2' ? Browsers.macOS('Chrome') : Browsers.macOS('Desktop'),
         syncFullHistory: false,
         generateHighQualityLinkPreview: false,
         markOnlineOnConnect: true,
@@ -277,19 +277,29 @@ async function arrancarSocket(metodo, numeroTelefono, onCodeReady = null) {
         }
     };
 
-    sock.ev.on('creds.update', saveCreds);
-
-    if (metodo === '2') {
-        // El código se solicita directamente al crear el socket.
-        // No dependemos de que Baileys emita primero "connecting".
-        setTimeout(() => solicitarCodigo(), 800);
-    }
+    sock.ev.on('creds.update', async (creds) => {
+        try {
+            await saveCreds();
+            if (metodo === '2') {
+                console.log('🔐 Credenciales actualizadas. registered:', !!state.creds.registered, 'me:', !!state.creds.me);
+            }
+        } catch (e) {
+            console.error('❌ Error guardando credenciales de WhatsApp:', e.message);
+        }
+    });
 
     sock.ev.on('connection.update', async (update) => {
         const { connection, lastDisconnect, qr } = update;
         console.log('📡 Estado WhatsApp:', connection || 'actualización', qr ? '(QR recibido)' : '');
         if (connection === 'connecting') {
             vinculacionEstado = '<div style="font-family: Arial; text-align: center; margin-top: 50px;"><h2>🔄 Conectando con WhatsApp...</h2><p>El servidor ya está intentando establecer la conexión.</p></div>';
+
+            // Para pairing code, Baileys recomienda solicitar el código cuando el
+            // socket ya está en estado "connecting". Pedirlo demasiado pronto puede
+            // generar el código pero dejar el socket sin completar el enlace.
+            if (metodo === '2' && !pairingSolicitado && !state.creds.registered) {
+                setTimeout(() => solicitarCodigo(), 1500);
+            }
         }
         
         // WhatsApp puede emitir un QR incluso cuando estamos usando código de 8 dígitos.
@@ -318,6 +328,9 @@ async function arrancarSocket(metodo, numeroTelefono, onCodeReady = null) {
         if (connection === 'close') {
             const razon = lastDisconnect?.error?.output?.statusCode;
             console.error('❌ WhatsApp cerró la conexión. Código:', razon, 'Detalle:', lastDisconnect?.error?.message || lastDisconnect?.error || 'sin detalle');
+            if (metodo === '2' && razon === 515) {
+                console.log('🔁 Código 515 detectado: WhatsApp indica que el enlace fue aceptado y requiere reiniciar el socket con las credenciales nuevas.');
+            }
             socketActual = null;
 
             if (razon === DisconnectReason.loggedOut) {
@@ -345,11 +358,23 @@ async function arrancarSocket(metodo, numeroTelefono, onCodeReady = null) {
             setTimeout(async () => {
                 reconexionProgramada = false;
                 try {
+                    // En el pairing por código, WhatsApp puede cerrar el socket con
+                    // 515 después de aceptar el código. Ese cierre significa
+                    // "reinicia usando las credenciales nuevas", no "volver a pedir código".
+                    if (metodo === '2' && razon !== DisconnectReason.loggedOut) {
+                        try {
+                            authState = await useMongoDBAuthState('sesion');
+                            console.log('🔄 Auth de MongoDB recargada antes de continuar el enlace. registered:', !!authState.state.creds.registered, 'me:', !!authState.state.creds.me);
+                        } catch (e) {
+                            console.error('❌ No se pudo recargar la autenticación antes de reconectar:', e.message);
+                        }
+                    }
+
                     await arrancarSocket(metodo, numeroTelefono);
                 } catch (e) {
                     console.error('Error al reconectar WhatsApp:', e.message);
                 }
-            }, 3000);
+            }, razon === 515 ? 500 : 1500);
         } else if (connection === 'open') {
             reconexionProgramada = false;
             console.log('\n🟢 BOT EN LÍNEA Y LISTO PARA TRABAJAR 🟢\n');
