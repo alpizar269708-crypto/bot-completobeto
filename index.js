@@ -17,6 +17,8 @@ let botArrancado = false;
 let authState = null;
 let socketActual = null;
 let reconexionProgramada = false;
+let baseLista = false;
+let inicializacionBasePromise = null;
 let vinculacionEstado = '<div style="font-family: Arial; text-align: center; margin-top: 50px;"><h2>⏳ Iniciando WhatsApp...</h2><p>Espera unos segundos mientras se genera el método de vinculación.</p></div>';
 
 app.get('/', async (req, res) => {
@@ -50,7 +52,7 @@ app.get('/', async (req, res) => {
     res.send(html);
 });
 
-app.post('/iniciar', (req, res) => {
+app.post('/iniciar', async (req, res) => {
     if (botArrancado) {
         return res.send(`<!doctype html><html><head><meta charset="utf-8"><title>Vincular Bot</title></head><body style="font-family:Arial;text-align:center;padding:30px;">${vinculacionEstado}<script>setTimeout(()=>location.href='/estado-vinculacion',1000);</script></body></html>`);
     }
@@ -58,13 +60,19 @@ app.post('/iniciar', (req, res) => {
     const { metodo, numero } = req.body;
     const numeroLimpio = numero ? numero.replace(/[^0-9]/g, '') : '';
 
-    vinculacionEstado = '<div style="font-family: Arial; text-align: center; margin-top: 50px;"><h2>⏳ Generando vinculación...</h2><p>Render puede tardar un poco en despertar el servicio gratuito.</p><p>No cierres esta página.</p></div>';
+    vinculacionEstado = '<div style="font-family: Arial; text-align: center; margin-top: 50px;"><h2>⏳ Preparando vinculación...</h2><p>Conectando con MongoDB y WhatsApp...</p><p>No cierres esta página.</p></div>';
 
-    arrancarSocket(metodo, numeroLimpio, (htmlRespuesta) => {
+    try {
+        if (inicializacionBasePromise) await inicializacionBasePromise;
+        if (!authState) throw new Error('La conexión con MongoDB todavía no está lista. Recarga la página e inténtalo de nuevo.');
+        arrancarSocket(metodo, numeroLimpio, (htmlRespuesta) => {
         vinculacionEstado = htmlRespuesta;
-    }).catch((e) => {
-        vinculacionEstado = '<div style="font-family: Arial; text-align: center; margin-top: 50px; color:red;"><h2>❌ Error al iniciar WhatsApp</h2><p>' + (e.message || 'Error desconocido') + '</p></div>';
-    });
+        }).catch((e) => {
+            vinculacionEstado = '<div style="font-family: Arial; text-align: center; margin-top: 50px; color:red;"><h2>❌ Error al iniciar WhatsApp</h2><p>' + (e.message || 'Error desconocido') + '</p></div>';
+        });
+    } catch (e) {
+        vinculacionEstado = '<div style="font-family: Arial; text-align: center; margin-top: 50px; color:red;"><h2>❌ Error al preparar WhatsApp</h2><p>' + (e.message || 'Error desconocido') + '</p></div>';
+    }
 
     res.send(`<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Vincular Bot</title></head><body style="font-family:Arial;text-align:center;padding:30px;max-width:700px;margin:auto;"><div id="estado">${vinculacionEstado}</div><script>
 async function actualizar(){try{const r=await fetch('/estado-vinculacion?t='+Date.now(),{cache:'no-store'});document.getElementById('estado').innerHTML=await r.text();setTimeout(actualizar,120000)}catch(e){setTimeout(actualizar,2500)}}setTimeout(actualizar,1000);
@@ -86,6 +94,7 @@ async function inicializarBase() {
         await mongoose.connect(process.env.MONGO_URI);
     }
     authState = await useMongoDBAuthState('sesion');
+    baseLista = true;
     
     if (authState.state.creds.me) {
         console.log('✅ Sesión previa detectada. Arrancando bot automáticamente...');
@@ -97,7 +106,7 @@ async function inicializarBase() {
 
 async function arrancarSocket(metodo, numeroTelefono, onCodeReady = null) {
     if (reconexionProgramada || socketActual) return;
-    botArrancado = true;
+    if (!authState) throw new Error('La autenticación de WhatsApp todavía no está lista.');
     const { state, saveCreds } = authState;
 
     const sock = makeWASocket({
@@ -114,6 +123,8 @@ async function arrancarSocket(metodo, numeroTelefono, onCodeReady = null) {
     });
 
     socketActual = sock;
+    botArrancado = true;
+    vinculacionEstado = '<div style="font-family: Arial; text-align: center; margin-top: 50px;"><h2>🔄 Conectando con WhatsApp...</h2><p>Esperando respuesta del servidor de WhatsApp.</p></div>';
 
     const originalSendMessage = sock.sendMessage;
     sock.sendMessage = async function(jid, content, options) {
@@ -153,6 +164,10 @@ async function arrancarSocket(metodo, numeroTelefono, onCodeReady = null) {
 
     sock.ev.on('connection.update', async (update) => {
         const { connection, lastDisconnect, qr } = update;
+        console.log('📡 Estado WhatsApp:', connection || 'actualización', qr ? '(QR recibido)' : '');
+        if (connection === 'connecting') {
+            vinculacionEstado = '<div style="font-family: Arial; text-align: center; margin-top: 50px;"><h2>🔄 Conectando con WhatsApp...</h2><p>El servidor ya está intentando establecer la conexión.</p></div>';
+        }
         
         if (qr && metodo === '1') {
             const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(qr)}`;
@@ -242,4 +257,8 @@ async function arrancarSocket(metodo, numeroTelefono, onCodeReady = null) {
     });
 }
 
-inicializarBase();
+inicializacionBasePromise = inicializarBase().catch((e) => {
+    console.error('❌ Error inicializando MongoDB:', e);
+    vinculacionEstado = '<div style="font-family: Arial; text-align: center; margin-top: 50px; color:red;"><h2>❌ Error con MongoDB</h2><p>' + (e.message || 'No se pudo inicializar la base de datos.') + '</p></div>';
+    throw e;
+});
