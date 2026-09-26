@@ -3,6 +3,7 @@ const { default: makeWASocket, DisconnectReason, Browsers, fetchLatestBaileysVer
 const { useMongoDBAuthState, resetMongoDBAuthState } = require('./mongoAuth');
 const mongoose = require('mongoose');
 const pino = require('pino');
+const QRCode = require('qrcode');
 const { procesarMensaje } = require('./messageHandler');
 const { verificarNuevoMiembro } = require('./comandos/moderacion');
 const { iniciarCronAlertasDiarias } = require('./comandos/fortnite');
