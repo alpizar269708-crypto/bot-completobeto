@@ -217,7 +217,9 @@ async function arrancarSocket(metodo, numeroTelefono, onCodeReady = null) {
         auth: state,
         printQRInTerminal: false,
         logger: pino({ level: 'silent' }),
-        browser: metodo === '2' ? Browsers.macOS('Chrome') : Browsers.macOS('Desktop'),
+        browser: metodo === '2' ? Browsers.ubuntu('Chrome') : Browsers.macOS('Desktop'),
+        connectTimeoutMs: 120000,
+        keepAliveIntervalMs: 10000,
         syncFullHistory: false,
         generateHighQualityLinkPreview: false,
         markOnlineOnConnect: true,
@@ -354,13 +356,14 @@ async function arrancarSocket(metodo, numeroTelefono, onCodeReady = null) {
             }
             socketActual = null;
 
-            if (metodo === '2' && !state.creds.registered && !state.creds.me && razon === 401) {
-                console.log('🔁 401 durante vinculación inicial. Limpiando credenciales y reintentando automáticamente...');
+            if (metodo === '2' && razon === 401) {
+                console.log('🔁 401 durante vinculación por código. WhatsApp rechazó este intento; se limpiarán las credenciales parciales y se intentará de nuevo automáticamente...');
                 botArrancado = false;
                 try {
+                    await new Promise(resolve => setTimeout(resolve, 1500));
                     await resetMongoDBAuthState();
                     authState = await useMongoDBAuthState('sesion');
-                    vinculacionEstado = '<div style="font-family: Arial; text-align: center; color:#b45309;"><h2>🔄 Reiniciando vinculación...</h2><p>WhatsApp rechazó este intento. El bot está reintentando automáticamente.</p></div>';
+                    vinculacionEstado = '<div style="font-family: Arial; text-align: center; color:#b45309;"><h2>🔄 Reiniciando vinculación...</h2><p>WhatsApp rechazó este intento. Se generará automáticamente un nuevo código.</p></div>';
                 } catch (e) {
                     console.error('❌ No se pudo reiniciar la autenticación:', e.message);
                 }
@@ -368,7 +371,10 @@ async function arrancarSocket(metodo, numeroTelefono, onCodeReady = null) {
                     reconexionProgramada = true;
                     setTimeout(async () => {
                         reconexionProgramada = false;
-                        try { await arrancarSocket('2', numeroTelefono, onCodeReady); }
+                        try {
+                            vinculacionEstado = '<div style="font-family: Arial; text-align: center; color:#b45309;"><h2>🔄 Intentando de nuevo...</h2><p>Generando una nueva conexión y un nuevo código.</p></div>';
+                            await arrancarSocket('2', numeroTelefono, onCodeReady);
+                        }
                         catch (e) { console.error('❌ Error reintentando la vinculación:', e.message); }
                     }, 1000);
                 }
