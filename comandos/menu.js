@@ -5,14 +5,15 @@ const categoriasMap = {
     fortnite: ['pavos', 'destacadasstw', 'legendariasstw', 'epicasstw', 'alertasstw', 'stw', 'alerta', 'setgrupostw', 'unsetgrupostw', 'setprecio'],
     tienda: ['tienda'],
     carry: ['carryleader', 'carryjoin', 'carryleave', 'carryclose', 'blcarry', 'unblcarry', 'listcarrybl'],
-    rifas: ['rifa', 'rifainscripcion', 'cerrarrifa', 'rifajasc13', 'canjecash', 'addvarios', 'abrirrifa', 'activarrifaaqui', 'menurifajasc13'],
+    rifas: ['rifa', 'rifainscripcion', 'cerrarrifa', 'rifajasc13', 'addvarios', 'abrirrifa', 'activarrifaaqui', 'menurifajasc13'],
+    cashback: ['addcashback', 'delcashback', 'vercash', 'delvcash', 'canjecash'],
     economia: ['cartera', 'bal', 'banco', 'pay', 'pagar', 'top', 'topdinero', 'daily', 'weekly', 'farmear', 'work', 'crime', 'mendigar', 'pescar', 'minar', 'cazar', 'explorar', 'ruleta', 'cf', 'slots', 'dados', 'adivina', 'buscaminas', 'rob', 'ppt', 'pelea', 'carrera', 'hackear', 'shop', 'buy', 'inventario', 'mochila', 'vender', 'use', 'regalar'],
     utilidades: ['s', 'sticker', 'tiktok', 'traduce', 'skin', 'stats', 'contacto', 'ping'],
     ia: ['ia'],
     moderacion: ['warn', 'advertir', 'verwarns', 'limpiarwarns', 'ban', 'unban', 'listanegra', 'banlist', 'unbanlist', 'grupo', 'mute', 'unmute', 'inactivos', 'listablanca', 'desactivarbienvenida', 'activarbienvenida', 'personalizarbienvenida', 'restaurarbienvenida']
 };
 
-const nombresCategorias = ['fortnite', 'tienda', 'carry', 'rifas', 'economia', 'utilidades', 'ia', 'moderacion'];
+const nombresCategorias = ['fortnite', 'tienda', 'carry', 'rifas', 'cashback', 'economia', 'utilidades', 'ia', 'moderacion'];
 
 async function obtenerCategoriasActivas(chatId) {
     if (!chatId.endsWith('@g.us')) return nombresCategorias;
@@ -53,6 +54,7 @@ async function ejecutarMenu(sock, chatId, msg, args) {
         tienda: '🛒 *tienda* - Tienda diaria de Battle Royale',
         carry: '🚀 *carry* - Sistema de escuadrones y ayuda',
         rifas: '🎟️ *rifas* - Sistema de sorteos',
+        cashback: '💰 *cashback* - Gestión independiente de cashback',
         economia: '💰 *economia* - Minijuegos, dinero y RPG',
         utilidades: '🛠️ *utilidades* - Stickers, descargas y traductor',
         ia: '🤖 *ia* - Inteligencia artificial',
@@ -132,12 +134,20 @@ async function ejecutarMenu(sock, chatId, msg, args) {
                  `*${prefijo}rifa vaciar* - Limpia toda la lista de participantes.\n` +
                  `*${prefijo}rifa sortear* - Elige un ganador al azar y lo menciona.\n\n` +
                  `⭐ *RIFA JASC13 (solo creador):*\n` +
-                 `*${prefijo}rifajasc13 [número]sumar [puntos]* - Suma puntos por número y genera 5% de cashback.\n` +
+                 `*${prefijo}rifajasc13 [número]sumar [puntos]* - Suma puntos a la rifa.\n` +
                  `*${prefijo}rifajasc13 addvarios* - Suma puntos a varios números en un solo mensaje.\n` +
                  `Ejemplo: 1. 1000 / 2. 3000 / 5) 5000.\n` +
-                 `*${prefijo}rifajasc13 ver* - Muestra puntos, boletos y cashback.\n` +
-                 `*${prefijo}canjecash [@usuario/número] [pavos]* - Canjea y descuenta cashback.\n` +
-                 `♻️ *Recuperación JASC13:* reenvía un mensaje histórico de *PaVos registrados exitosamente* para recuperar automáticamente ese registro.\n`,
+                 `*${prefijo}rifajasc13 ver* - Muestra puntos y boletos.\n` +
+                 `♻️ *Recuperación JASC13:* reenvía un mensaje histórico para recuperar los puntos sin tocar el cashback.\n`,
+        'cashback': `💰 *MENÚ CASHBACK JASC13* 💰\n\n` +
+                 `🔒 Todos estos comandos son solo para el propietario de la rifa JASC13.\n\n` +
+                 `➕ *${prefijo}addcashback @usuario cantidad* - Agrega cashback.\n` +
+                 `↩️ También puedes responder al mensaje del usuario: *${prefijo}addcashback cantidad*.\n` +
+                 `➖ *${prefijo}delcashback @usuario cantidad* - Quita cashback.\n` +
+                 `↩️ También puedes responder al mensaje del usuario: *${prefijo}delcashback cantidad*.\n` +
+                 `👀 *${prefijo}vercash* - Muestra todos los usuarios con cashback y sus saldos.\n` +
+                 `🗑️ *${prefijo}delvcash 1-3, 5, 9, 15-27* - Elimina registros por número.\n` +
+                 `💸 *${prefijo}canjecash @usuario cantidad* - Canjea y descuenta cashback.\n`,
         'economia': `💰 *MENÚ ECONOMÍA* 💰\n\n` +
                     `*💼 Básico:*\n` +
                     `*${prefijo}cartera / bal* - Revisa tu dinero.\n` +
