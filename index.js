@@ -1,5 +1,5 @@
 require('dotenv').config();
-const { default: makeWASocket, DisconnectReason, Browsers } = require('@whiskeysockets/baileys');
+const { default: makeWASocket, DisconnectReason, Browsers, fetchLatestBaileysVersion } = require('@whiskeysockets/baileys');
 const { useMongoDBAuthState, resetMongoDBAuthState } = require('./mongoAuth');
 const mongoose = require('mongoose');
 const pino = require('pino');
@@ -217,9 +217,7 @@ async function arrancarSocket(metodo, numeroTelefono, onCodeReady = null) {
         auth: state,
         printQRInTerminal: false,
         logger: pino({ level: 'silent' }),
-        browser: metodo === '2' ? Browsers.ubuntu('Chrome') : Browsers.macOS('Desktop'),
-        connectTimeoutMs: 120000,
-        keepAliveIntervalMs: 10000,
+        browser: metodo === '2' ? Browsers.macOS('Chrome') : Browsers.macOS('Desktop'),
         syncFullHistory: false,
         generateHighQualityLinkPreview: false,
         markOnlineOnConnect: true,
@@ -244,27 +242,6 @@ async function arrancarSocket(metodo, numeroTelefono, onCodeReady = null) {
     };
 
     let pairingSolicitado = false;
-    let pairingRetryTimer = null;
-    let pairingCodeTimer = null;
-
-    const limpiarTimersPairing = () => {
-        if (pairingRetryTimer) { clearTimeout(pairingRetryTimer); pairingRetryTimer = null; }
-        if (pairingCodeTimer) { clearTimeout(pairingCodeTimer); pairingCodeTimer = null; }
-    };
-
-    // Generamos un código nuevo cada 2 minutos si el anterior no logró vincular.
-    // Nunca se solicitan dos códigos al mismo tiempo.
-    const programarNuevoCodigo = () => {
-        if (metodo !== '2' || state.creds.me) return;
-        if (pairingCodeTimer) clearTimeout(pairingCodeTimer);
-        pairingCodeTimer = setTimeout(() => {
-            pairingCodeTimer = null;
-            if (socketActual !== sock || state.creds.me) return;
-            console.log('⏰ 2 minutos sin vincular. Generando un nuevo código de 8 dígitos...');
-            pairingSolicitado = false;
-            solicitarCodigo();
-        }, 120000);
-    };
 
     const solicitarCodigo = async () => {
         if (metodo !== '2' || pairingSolicitado || state.creds.me) return;
@@ -275,30 +252,21 @@ async function arrancarSocket(metodo, numeroTelefono, onCodeReady = null) {
             const codigoFormat = code?.match(/.{1,4}/g)?.join('-') || code;
             console.log(`\n🔢 TU CÓDIGO ES: ${codigoFormat}\n`);
 
-            // El código actual se mantiene durante 2 minutos. Después se genera
-            // automáticamente uno nuevo si todavía no se completó la vinculación.
-            programarNuevoCodigo();
-
-            vinculacionEstado = `
-                <div style="font-family: Arial; text-align: center; margin-top: 50px;">
-                    <h2>🔢 Tu código de vinculación es:</h2>
-                    <h1 style="font-size: 48px; letter-spacing: 5px; color: #25D366; background: #eee; display: inline-block; padding: 10px 20px; border-radius: 10px;">${codigoFormat}</h1>
-                    <p>Abre WhatsApp en tu teléfono, ve a <b>Dispositivos Vinculados &gt; Vincular con número de teléfono</b>, e ingresa este código.</p>
-                    <p>⏱️ Si no lo vinculas en 2 minutos, se generará automáticamente un código nuevo.</p>
-                </div>
-            `;
             if (onCodeReady) {
+                vinculacionEstado = `
+                    <div style="font-family: Arial; text-align: center; margin-top: 50px;">
+                        <h2>🔢 Tu código de vinculación es:</h2>
+                        <h1 style="font-size: 48px; letter-spacing: 5px; color: #25D366; background: #eee; display: inline-block; padding: 10px 20px; border-radius: 10px;">${codigoFormat}</h1>
+                        <p>Abre WhatsApp en tu teléfono, ve a <b>Dispositivos Vinculados &gt; Vincular con número de teléfono</b>, e ingresa este código.</p>
+                    </div>
+                `;
                 onCodeReady(vinculacionEstado);
                 onCodeReady = null;
             }
         } catch (e) {
             pairingSolicitado = false;
             console.error('❌ Error generando código de vinculación:', e.message);
-            vinculacionEstado = '<div style="font-family: Arial; text-align: center; color:#b45309;"><h2>🔄 Reintentando vinculación...</h2><p>WhatsApp todavía no entregó el código. El bot seguirá intentando automáticamente.</p></div>';
-            if (onCodeReady) { onCodeReady(vinculacionEstado); onCodeReady = null; }
-            if (socketActual === sock && !state.creds.registered && !state.creds.me) {
-                pairingRetryTimer = setTimeout(() => { pairingRetryTimer = null; solicitarCodigo(); }, 3000);
-            }
+            if (onCodeReady) onCodeReady('<h2 style="font-family: Arial; text-align: center; color: red;">❌ No se pudo generar el código. Verifica el número e inténtalo de nuevo.</h2>');
         }
     };
 
@@ -322,9 +290,8 @@ async function arrancarSocket(metodo, numeroTelefono, onCodeReady = null) {
             // Para pairing code, Baileys recomienda solicitar el código cuando el
             // socket ya está en estado "connecting". Pedirlo demasiado pronto puede
             // generar el código pero dejar el socket sin completar el enlace.
-            if (metodo === '2' && !pairingSolicitado && !state.creds.registered && !state.creds.me) {
-                if (pairingRetryTimer) clearTimeout(pairingRetryTimer);
-                pairingRetryTimer = setTimeout(() => { pairingRetryTimer = null; solicitarCodigo(); }, 1200);
+            if (metodo === '2' && !pairingSolicitado && !state.creds.registered) {
+                setTimeout(() => solicitarCodigo(), 1500);
             }
         }
         
@@ -352,42 +319,12 @@ async function arrancarSocket(metodo, numeroTelefono, onCodeReady = null) {
         }
 
         if (connection === 'close') {
-            limpiarTimersPairing();
             const razon = lastDisconnect?.error?.output?.statusCode;
             console.error('❌ WhatsApp cerró la conexión. Código:', razon, 'Detalle:', lastDisconnect?.error?.message || lastDisconnect?.error || 'sin detalle');
             if (metodo === '2' && razon === 515) {
                 console.log('🔁 Código 515 detectado: WhatsApp indica que el enlace fue aceptado y requiere reiniciar el socket con las credenciales nuevas.');
             }
             socketActual = null;
-
-            if (metodo === '2' && razon === 401) {
-                console.log('🔁 401 durante vinculación por código. WhatsApp rechazó este intento; se limpiarán las credenciales parciales y se intentará de nuevo automáticamente...');
-                botArrancado = false;
-                try {
-                    await new Promise(resolve => setTimeout(resolve, 1500));
-                    await resetMongoDBAuthState();
-                    authState = await useMongoDBAuthState('sesion');
-                    vinculacionEstado = '<div style="font-family: Arial; text-align: center; color:#b45309;"><h2>🔄 Reiniciando vinculación...</h2><p>WhatsApp rechazó este intento. Se generará automáticamente un nuevo código.</p></div>';
-                } catch (e) {
-                    console.error('❌ No se pudo reiniciar la autenticación:', e.message);
-                }
-                if (!reconexionProgramada) {
-                    reconexionProgramada = true;
-                    setTimeout(async () => {
-                        reconexionProgramada = false;
-                        try {
-                            // Baileys rc14 tiene reportes recientes de fallos de
-                            // vinculación por código con 401 aunque el código se
-                            // genere correctamente. Después de 401 no encadenamos
-                            // nuevos códigos: limpiamos el intento y pasamos a QR.
-                            vinculacionEstado = '<div style="font-family: Arial; text-align: center; color:#b45309;"><h2>📱 Cambiando a QR...</h2><p>WhatsApp rechazó la vinculación por código. Se limpiará el intento y se mostrará un QR nuevo.</p></div>';
-                            await arrancarSocket('1', '', onCodeReady);
-                        }
-                        catch (e) { console.error('❌ Error iniciando el QR de respaldo:', e.message); }
-                    }, 1000);
-                }
-                return;
-            }
 
             if (razon === DisconnectReason.loggedOut) {
                 botArrancado = false;
@@ -433,8 +370,6 @@ async function arrancarSocket(metodo, numeroTelefono, onCodeReady = null) {
             }, razon === 515 ? 500 : 1500);
         } else if (connection === 'open') {
             reconexionProgramada = false;
-            limpiarTimersPairing();
-            pairingSolicitado = false;
             console.log('\n🟢 BOT EN LÍNEA Y LISTO PARA TRABAJAR 🟢\n');
             
             if (onCodeReady) {
