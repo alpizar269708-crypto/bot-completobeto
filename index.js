@@ -81,9 +81,9 @@ app.get('/', async (req, res) => {
 
 app.post('/iniciar', async (req, res) => {
     // Permite volver a intentar una vinculacion que quedo atascada sin sesion.
-    if (botArrancado && socketActual && !authState?.state?.creds?.me) {
-        try { socketActual.ev.removeAllListeners(); } catch (e) {}
-        try { socketActual.ws?.close(); } catch (e) {}
+    if (botArrancado && !authState?.state?.creds?.me) {
+        try { socketActual?.ev?.removeAllListeners(); } catch (e) {}
+        try { socketActual?.ws?.close(); } catch (e) {}
         socketActual = null;
         botArrancado = false;
         reconexionProgramada = false;
