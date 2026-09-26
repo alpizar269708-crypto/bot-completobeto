@@ -23,7 +23,7 @@ let inicializacionBasePromise = null;
 let vinculacionEstado = '<div style="font-family: Arial; text-align: center; margin-top: 50px;"><h2>⏳ Iniciando WhatsApp...</h2><p>Espera unos segundos mientras se genera el método de vinculación.</p></div>';
 
 app.get('/', async (req, res) => {
-    if (botArrancado) {
+    if (false && botArrancado) {
         return res.send(`
             <div style="font-family: Arial; text-align: center; margin-top: 50px; max-width:600px; margin-left:auto; margin-right:auto;">
                 <h2>🤖 Bot de WhatsApp activo</h2>
@@ -48,11 +48,31 @@ app.get('/', async (req, res) => {
             <label><input type="radio" name="metodo" value="1" checked> 📱 Código QR</label><br><br>
             <label><input type="radio" name="metodo" value="2"> 🔢 Código de 8 dígitos</label><br><br>
             
-            <p><b>2. Si elegiste 8 dígitos, ingresa tu número (código país + número, ej. 525512345678):</b></p>
-            <input type="text" name="numero" placeholder="Ej: 525512345678" style="padding: 10px; width: 100%; box-sizing: border-box; border-radius: 5px; border: 1px solid #ccc;"><br><br>
+            <div id="telefonoBox" style="display:none;">
+                <p><b>Número de WhatsApp para el código de 8 dígitos:</b></p>
+                <input id="numero" type="tel" inputmode="numeric" name="numero" placeholder="Ej: 525512345678" style="padding: 10px; width: 100%; box-sizing: border-box; border-radius: 5px; border: 1px solid #ccc;"><br><br>
+            </div>
             
-            <button type="submit" style="padding: 12px 20px; background: #25D366; color: white; border: none; cursor: pointer; font-size: 16px; border-radius: 5px; width: 100%;">Generar Código</button>
+            <button id="iniciarBtn" type="submit" style="padding: 12px 20px; background: #25D366; color: white; border: none; cursor: pointer; font-size: 16px; border-radius: 5px; width: 100%;">📱 Generar QR</button>
         </form>
+        <div style="margin-top:25px;padding-top:20px;border-top:1px solid #ddd;">
+            <form action="/cerrar-sesion" method="POST" onsubmit="return confirm('¿Seguro que quieres cerrar la sesión de WhatsApp?');">
+                <button type="submit" style="padding:12px 20px;background:#dc2626;color:white;border:none;cursor:pointer;font-size:16px;border-radius:7px;width:100%;">🚪 Cerrar sesión de WhatsApp</button>
+            </form>
+            <form action="/limpiar-whatsapp" method="POST" onsubmit="return confirm('¿Seguro que quieres limpiar toda la vinculación de WhatsApp?');" style="margin-top:12px;">
+                <button type="submit" style="padding:12px 20px;background:#111827;color:white;border:none;cursor:pointer;font-size:16px;border-radius:7px;width:100%;">🧹 Limpiar toda la vinculación de WhatsApp</button>
+            </form>
+        </div>
+        <script>
+        const radios=document.querySelectorAll('input[name="metodo"]');
+        const box=document.getElementById('telefonoBox');
+        const btn=document.getElementById('iniciarBtn');
+        radios.forEach(r=>r.addEventListener('change',()=>{
+            const codigo=document.querySelector('input[name="metodo"]:checked').value==='2';
+            box.style.display=codigo?'block':'none';
+            btn.textContent=codigo?'🔢 Generar código de 8 dígitos':'📱 Generar QR';
+        }));
+        </script>
     </body>
     </html>
     `;
@@ -92,7 +112,7 @@ app.post('/iniciar', async (req, res) => {
     }
 
     res.send(`<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Vincular Bot</title></head><body style="font-family:Arial;text-align:center;padding:30px;max-width:700px;margin:auto;"><div id="estado">${vinculacionEstado}</div><script>
-async function actualizar(){try{const r=await fetch('/estado-vinculacion?t='+Date.now(),{cache:'no-store'});document.getElementById('estado').innerHTML=await r.text();setTimeout(actualizar,120000)}catch(e){setTimeout(actualizar,2500)}}setTimeout(actualizar,1000);
+async function actualizar(){try{const r=await fetch('/estado-vinculacion?t='+Date.now(),{cache:'no-store'});document.getElementById('estado').innerHTML=await r.text();setTimeout(actualizar,1500)}catch(e){setTimeout(actualizar,2500)}}setTimeout(actualizar,1000);
 </script></body></html>`);
 });
 
