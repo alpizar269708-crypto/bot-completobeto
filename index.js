@@ -67,7 +67,7 @@ app.post('/iniciar', (req, res) => {
     });
 
     res.send(`<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Vincular Bot</title></head><body style="font-family:Arial;text-align:center;padding:30px;max-width:700px;margin:auto;"><div id="estado">${vinculacionEstado}</div><script>
-async function actualizar(){try{const r=await fetch('/estado-vinculacion?t='+Date.now(),{cache:'no-store'});document.getElementById('estado').innerHTML=await r.text();setTimeout(actualizar,1500)}catch(e){setTimeout(actualizar,2500)}}setTimeout(actualizar,1000);
+async function actualizar(){try{const r=await fetch('/estado-vinculacion?t='+Date.now(),{cache:'no-store'});document.getElementById('estado').innerHTML=await r.text();setTimeout(actualizar,120000)}catch(e){setTimeout(actualizar,2500)}}setTimeout(actualizar,1000);
 </script></body></html>`);
 });
 
