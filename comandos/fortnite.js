@@ -420,7 +420,7 @@ async function enviarAlertaPavosAutomatica(sock, enviarAunqueNoHayaPavos = false
 }
 
 function iniciarCronAlertasDiarias(sock) {
-    cron.schedule('2 18 * * *', async () => {
+    cron.schedule('0 2 18 * * *', async () => {
         // Hora de México: 18:02, 18:03:30, 18:05:00, 18:06:30,
         // 18:08:00, 18:09:30 y 18:11:00.
         const intervaloReintentoMs = 90 * 1000;
