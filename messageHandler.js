@@ -27,7 +27,8 @@ const { comandoPaypal, comandoCalculadoraPaypal } = require('./comandos/paypal')
 const categoriasMap = {
     'fortnite': ['pavos', 'destacadasstw', 'legendariasstw', 'epicasstw', 'alertasstw', 'stw', 'alerta', 'setgrupostw', 'unsetgrupostw', 'setprecio'],
     'economia': ['cartera', 'bal', 'banco', 'pay', 'pagar', 'top', 'topdinero', 'daily', 'weekly', 'farmear', 'work', 'crime', 'mendigar', 'pescar', 'minar', 'cazar', 'explorar', 'ruleta', 'cf', 'slots', 'dados', 'adivina', 'buscaminas', 'rob', 'ppt', 'pelea', 'carrera', 'hackear', 'shop', 'buy', 'inventario', 'mochila', 'vender', 'use', 'regalar'],
-    'utilidades': ['s', 'sticker', 'tiktok', 'traduce', 'skin', 'stats', 'contacto', 'ping', 'paypal', 'paypaln', 'paypali'],
+    'utilidades': ['s', 'sticker', 'tiktok', 'traduce', 'skin', 'stats', 'contacto', 'ping'],
+    'paypal': ['paypal', 'paypaln', 'paypali'],
     'ia': ['ia'],
     'moderacion': ['warn', 'advertir', 'verwarns', 'limpiarwarns', 'ban', 'unban', 'listanegra', 'banlist', 'unbanlist', 'grupo', 'mute', 'unmute', 'inactivos', 'listablanca', 'desactivarbienvenida', 'activarbienvenida', 'personalizarbienvenida', 'restaurarbienvenida'],
     'tienda': ['tienda'],
@@ -51,7 +52,7 @@ const comandosConUsuarioBD = new Set([
 ]);
 
 const comandosValidos = new Set([
-        'activarcomandos', 'setprecio', 'ping', 'pavos', 'destacadasstw', 'legendariasstw', 'epicasstw', 'alertasstw', 'stw', 'alerta', 
+        'desactivarcomandos', 'setprecio', 'ping', 'pavos', 'destacadasstw', 'legendariasstw', 'epicasstw', 'alertasstw', 'stw', 'alerta', 
         'setgrupostw', 'unsetgrupostw', 'grupo', 'mute', 'unmute', 'inactivos', 'tienda', 'ia', 'menu', 'menusecreto',
         's', 'sticker', 'tiktok', 'traduce', 'skin', 'stats', 'contacto',
         'warn', 'advertir', 'verwarns', 'limpiarwarns', 'ban', 'unban', 'listanegra', 'banlist', 'unbanlist', 
@@ -59,7 +60,7 @@ const comandosValidos = new Set([
         'farmear', 'work', 'crime', 'mendigar', 'pescar', 'minar', 'cazar', 'explorar',
         'ruleta', 'cf', 'slots', 'dados', 'adivina', 'buscaminas', 'rob', 'ppt', 'pelea',
         'carrera', 'hackear', 'shop', 'buy', 'inventario', 'mochila', 'vender', 'use', 'regalar',
-        'rifa', 'rifainscripcion', 'cerrarrifa', 'rifajasc13', 'addvarios', 'abrirrifa', 'activarrifaaqui', 'menurifajasc13', 'quitarrifajasc13', 'addcashback', 'delcashback', 'vercash', 'delvcash', 'canjecash', 'activarcash', 'carryleader', 'carryjoin', 'carryleave', 'carryclose', 'blcarry', 'unblcarry', 'listcarrybl',
+        'rifa', 'rifainscripcion', 'cerrarrifa', 'rifajasc13', 'addvarios', 'abrirrifa', 'activarrifaaqui', 'menurifajasc13', 'quitarrifajasc13', 'addcashback', 'delcashback', 'vercash', 'delvcash', 'canjecash', 'carryleader', 'carryjoin', 'carryleave', 'carryclose', 'blcarry', 'unblcarry', 'listcarrybl',
         'vertodoscomandos', 'listablanca', 'paypal', 'paypaln', 'paypali', 'desactivarbienvenida', 'activarbienvenida', 'personalizarbienvenida', 'restaurarbienvenida'
 ]);
 
@@ -159,32 +160,41 @@ Apoya a un creador: JASC13` });
         if (cache && cache.expira > Date.now()) {
             configGrupo = cache.valor;
         } else {
-            configGrupo = await Config.findOne({ clave: `comandos_${chatJid}` });
+            // Esta configuración es una LISTA NEGRA: solo guarda las categorías desactivadas.
+            // Si no existe, el bot queda completamente activo por defecto en todos los grupos.
+            configGrupo = await Config.findOne({ clave: `comandos_desactivados_${chatJid}` });
             cacheConfigComandos.set(chatJid, { valor: configGrupo, expira: Date.now() + CACHE_TTL_MS });
         }
     }
     if (configGrupo && chatJid.endsWith('@g.us')) {
-        let permitidos = [];
+        let desactivados = [];
         try {
-            permitidos = JSON.parse(configGrupo.valor);
-            if (!Array.isArray(permitidos)) permitidos = [];
+            desactivados = JSON.parse(configGrupo.valor);
+            if (!Array.isArray(desactivados)) desactivados = [];
         } catch (e) {
-            permitidos = [];
+            desactivados = [];
         }
 
-        // Sin una configuración explícita, todos los comandos (incluidos cashback y PayPal) quedan activos por defecto.\n        // Si se usa activarcomandos con categorías concretas, esa configuración explícita pasa a mandar.\n        let comandoPermitido = comando === 'menu' || comando === 'activarcomandos' || comando === 'activarcash' || comando === 'vertodoscomandos';
+        let comandoPermitido = comando === 'menu' || comando === 'desactivarcomandos' || comando === 'vertodoscomandos';
 
-        if (permitidos.includes(comando)) comandoPermitido = true;
-
-        for (const categoria of permitidos) {
+        for (const categoria of desactivados) {
             if (categoriasMap[categoria] && categoriasMap[categoria].includes(comando)) {
-                comandoPermitido = true;
+                comandoPermitido = false;
                 break;
             }
         }
 
-        // "menu" y "activarcomandos" siempre funcionan en grupos restringidos.
-        // El resto de comandos solo funciona si está en una categoría activa.
+        if (comandoPermitido === true && desactivados.length > 0) {
+            // Si no pertenece a ninguna categoría desactivada, sigue permitido.
+            const categoriaDesactivada = desactivados.some(categoria =>
+                categoriasMap[categoria] && categoriasMap[categoria].includes(comando)
+            );
+            if (categoriaDesactivada) comandoPermitido = false;
+        }
+
+        if (!comandoPermitido && !desactivados.some(categoria =>
+            categoriasMap[categoria] && categoriasMap[categoria].includes(comando)
+        )) return;
         if (!comandoPermitido) return;
     }
 
@@ -262,63 +272,6 @@ Apoya a un creador: JASC13` });
         return;
     }
 
-    if (comando === 'activarcash') {
-        if (!chatJid.endsWith('@g.us')) {
-            await sock.sendMessage(chatJid, { text: '❌ *activarcash* solo se puede usar dentro de un grupo.' }, { quoted: msg });
-            return;
-        }
-
-        const remitente = msg.key.participant || chatJid;
-        let esAdmin = msg.key.fromMe || tienePrivilegiosTotales;
-
-        if (!esAdmin) {
-            try {
-                const groupMeta = await sock.groupMetadata(chatJid);
-                const part = groupMeta.participants.find(p => p.id === remitente);
-                esAdmin = part && (part.admin === 'admin' || part.admin === 'superadmin');
-            } catch (e) {
-                console.error('Error verificando administrador para activarcash:', e);
-            }
-        }
-
-        if (!esAdmin) {
-            await sock.sendMessage(chatJid, {
-                text: '❌ Solo los administradores del grupo pueden activar los comandos de cashback.'
-            }, { quoted: msg });
-            return;
-        }
-
-        // Agrega la categoría cashback sin borrar las demás categorías
-        // que ya estén activadas en este grupo.
-        let categoriasActuales = [];
-        const configActual = await Config.findOne({ clave: `comandos_${chatJid}` });
-
-        if (configActual?.valor) {
-            try {
-                const parsed = JSON.parse(configActual.valor);
-                if (Array.isArray(parsed)) categoriasActuales = parsed;
-            } catch (e) {
-                categoriasActuales = [];
-            }
-        }
-
-        if (!categoriasActuales.includes('cashback')) {
-            categoriasActuales.push('cashback');
-        }
-
-        await Config.findOneAndUpdate(
-            { clave: `comandos_${chatJid}` },
-            { valor: JSON.stringify(categoriasActuales) },
-            { upsert: true }
-        );
-        cacheConfigComandos.delete(chatJid);
-
-        await sock.sendMessage(chatJid, {
-            text: '✅💰 Cashback activado correctamente.'
-        }, { quoted: msg });
-        return;
-    }
-
     if (comando === 'abrirrifa') {
         await comandoAbrirRifa(sock, chatJid, msg);
         return;
@@ -336,7 +289,7 @@ Apoya a un creador: JASC13` });
 
     if (comando === 'vertodoscomandos') {
         const comandosInfo = [
-            ['activarcomandos', 'Activa todos los comandos o restringe el grupo a categorías concretas.'],
+            ['desactivarcomandos', 'Desactiva una o varias categorías en el grupo; las categorías desactivadas se van acumulando. Usa *desactivarcomandos ninguno* para volver a dejar todo activo.'],
             ['listablanca', 'Administra la lista blanca de links y dominios completos. Ejemplo: *listablanca agregar betomaster.com* permite todas las rutas y subdominios de ese dominio.'],
             ['setprecio', 'Configura el precio de los pavos.'],
             ['ping', 'Comprueba que el bot esté activo.'],
@@ -397,7 +350,7 @@ Apoya a un creador: JASC13` });
             ['cerrarrifa', 'Cierra la rifa general e impide nuevas inscripciones sin borrar a los participantes actuales.'],
             ['rifajasc13', 'Gestiona la rifa especial de JASC13; usa [número]sumar para añadir puntos por número.'],
             ['canjecash', 'Canjea cashback de JASC13 en pavos; solo el creador puede descontarlo.'],
-            ['activarcash', 'Activa todos los comandos de cashback en este grupo; solo los administradores pueden usarlo.'],
+            
             ['addcashback', 'Agrega cashback al usuario indicado.'],
             ['delcashback', 'Descuenta cashback del usuario indicado.'],
             ['vercash', 'Muestra la lista de cashback.'],
@@ -442,7 +395,7 @@ Apoya a un creador: JASC13` });
                 if (!msg.key.fromMe && !tienePrivilegiosTotales) return; 
                 await ejecutarMenu(sock, chatJid, msg, ['secreto']);
                 break;
-            case 'activarcomandos':
+            case 'desactivarcomandos':
                 if (chatJid.endsWith('@g.us')) {
                     const remitente = msg.key.participant || chatJid;
                     let esAdmin = msg.key.fromMe || tienePrivilegiosTotales;
@@ -454,42 +407,65 @@ Apoya a un creador: JASC13` });
                         } catch (e) {}
                     }
                     if (!esAdmin) {
-                        await sock.sendMessage(chatJid, { text: `❌ Solo los administradores del grupo pueden configurar los comandos.` }, { quoted: msg });
+                        await sock.sendMessage(chatJid, { text: '❌ Solo los administradores del grupo pueden desactivar categorías.' }, { quoted: msg });
                         return;
                     }
                 } else if (!msg.key.fromMe && !tienePrivilegiosTotales) {
-                    return; 
+                    return;
                 }
-                
-                if (args.length === 0 || args[0] === 'todos') {
-                    await Config.deleteOne({ clave: `comandos_${chatJid}` });
-                    cacheConfigComandos.delete(chatJid);
-                    await sock.sendMessage(chatJid, { text: '✅ Todos los comandos han sido activados en este grupo.' }, { quoted: msg });
-                } else {
-                    const categoriasDisponibles = Object.keys(categoriasMap).filter(cat => cat !== 'menu');
-                    const categoriasSolicitadas = args
-                        .map(x => x.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, ''))
-                        .filter(x => categoriasDisponibles.includes(x));
-                    const categoriasUnicas = [...new Set(categoriasSolicitadas)];
 
-                    if (categoriasUnicas.length === 0) {
-                        await sock.sendMessage(chatJid, {
-                            text: '❌ No reconocí ninguna categoría. Usa *menu* para ver las categorías disponibles.'
-                        }, { quoted: msg });
-                        return;
-                    }
+                const categoriasDisponibles = Object.keys(categoriasMap).filter(cat => cat !== 'menu');
+                const argumentos = args
+                    .map(x => x.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, ''))
+                    .filter(Boolean);
 
-                    await Config.findOneAndUpdate(
-                        { clave: `comandos_${chatJid}` },
-                        { valor: JSON.stringify(categoriasUnicas) },
-                        { upsert: true }
-                    );
-                    cacheConfigComandos.delete(chatJid);
-
+                if (argumentos.length === 0) {
                     await sock.sendMessage(chatJid, {
-                        text: `✅✨ *Categorías activadas en este grupo:*\n\n📂 ${categoriasUnicas.map(x => '*' + x + '*').join('\n📂 ')}\n\n🎮 Los comandos de estas categorías ya están habilitados.\n\n📋 Usa *menu* para ver las categorías activas.\n\n💚 *Apoya a un creador:* 🎮 *JASC13*`
+                        text: 'ℹ️ Usa *desactivarcomandos [categoría]*.\n\nPuedes indicar varias categorías y se irán acumulando.\nEjemplo: *desactivarcomandos economia paypal*\n\nPara volver a activar todo: *desactivarcomandos ninguno*.'
                     }, { quoted: msg });
+                    return;
                 }
+
+                if (argumentos.includes('ninguno')) {
+                    await Config.deleteOne({ clave: `comandos_desactivados_${chatJid}` });
+                    cacheConfigComandos.delete(chatJid);
+                    await sock.sendMessage(chatJid, { text: '✅ Todos los comandos vuelven a estar activos en este grupo.' }, { quoted: msg });
+                    break;
+                }
+
+                const invalidas = argumentos.filter(x => x !== 'todos' && !categoriasDisponibles.includes(x));
+                if (invalidas.length > 0) {
+                    await sock.sendMessage(chatJid, {
+                        text: `❌ No reconocí estas categorías: ${invalidas.map(x => '*' + x + '*').join(', ')}.\\n\\nUsa *menu* para ver las categorías disponibles.`
+                    }, { quoted: msg });
+                    return;
+                }
+
+                let desactivadasActuales = [];
+                const configActual = await Config.findOne({ clave: `comandos_desactivados_${chatJid}` });
+                if (configActual?.valor) {
+                    try {
+                        const parsed = JSON.parse(configActual.valor);
+                        if (Array.isArray(parsed)) desactivadasActuales = parsed;
+                    } catch (e) {}
+                }
+
+                let nuevas = argumentos.includes('todos')
+                    ? categoriasDisponibles
+                    : argumentos;
+
+                desactivadasActuales = [...new Set([...desactivadasActuales, ...nuevas])];
+
+                await Config.findOneAndUpdate(
+                    { clave: `comandos_desactivados_${chatJid}` },
+                    { valor: JSON.stringify(desactivadasActuales) },
+                    { upsert: true }
+                );
+                cacheConfigComandos.delete(chatJid);
+
+                await sock.sendMessage(chatJid, {
+                    text: `✅ *Categorías desactivadas:*\\n\\n🚫 ${desactivadasActuales.map(x => '*' + x + '*').join('\\n🚫 ')}\\n\\n📌 El resto del bot sigue activo normalmente.\\n📌 Puedes agregar más categorías después con *desactivarcomandos*.`
+                }, { quoted: msg });
                 break;
             case 'ia':
                 await responderConIA(sock, chatJid, msg, args.join(' '));
