@@ -119,7 +119,8 @@ Apoya a un creador: JASC13` });
 
     // Recuperación de registros históricos: si el creador reenvía un mensaje
     // antiguo del bot con el formato de PaVos registrados, se reconstruyen
-    // los puntos y el cashback automáticamente.    if (tienePrivilegiosTotales) {
+    // los puntos y el cashback automáticamente.
+    if (tienePrivilegiosTotales) {
         const recuperado = await comandoRecuperarRegistroJasc13(sock, chatJid, msg, textoOriginal);
         if (recuperado) return;
     }
@@ -363,7 +364,8 @@ Apoya a un creador: JASC13` });
             ['banlist', 'Alias de listanegra.'],
             ['unbanlist', 'Gestiona la lista de usuarios bloqueados.'],
             ['cartera', 'Consulta tu dinero disponible.'],
-            ['bal', 'Alias de cartera.'],            ['banco', 'Consulta o gestiona el dinero guardado en el banco.'],
+            ['bal', 'Alias de cartera.'],
+            ['banco', 'Consulta o gestiona el dinero guardado en el banco.'],
             ['pay', 'Transfiere dinero a otro usuario.'],
             ['pagar', 'Alias de pay.'],
             ['top', 'Muestra la clasificación de usuarios con más dinero.'],
@@ -689,7 +691,8 @@ Apoya a un creador: JASC13` });
             case 'slots':
                 await comandoSlots(sock, chatJid, msg, args, economiaBD);
                 break;
-            case 'dados':                await comandoDados(sock, chatJid, msg, args, economiaBD);
+            case 'dados':
+                await comandoDados(sock, chatJid, msg, args, economiaBD);
                 break;
             case 'adivina':
                 await comandoAdivina(sock, chatJid, msg, args, economiaBD);
