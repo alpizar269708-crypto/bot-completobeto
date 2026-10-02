@@ -40,7 +40,9 @@ const categoriasMap = {
 
 const cacheConfigComandos = new Map();
 const cacheBaneoUsuario = new Map();
+const sesionesCatDesa = new Map();
 const CACHE_TTL_MS = 5000;
+const CATDESA_TTL_MS = 3 * 60 * 1000;
 
 const comandosEconomia = new Set(['cartera','bal','banco','pay','pagar','top','topdinero','daily','weekly','farmear','work','crime','mendigar','pescar','minar','cazar','explorar','ruleta','cf','slots','dados','adivina','buscaminas','rob','ppt','pelea','carrera','hackear','shop','buy','inventario','mochila','vender','use','regalar']);
 
@@ -52,7 +54,7 @@ const comandosConUsuarioBD = new Set([
 ]);
 
 const comandosValidos = new Set([
-        'desactivarcomandos', 'setprecio', 'ping', 'pavos', 'destacadasstw', 'legendariasstw', 'epicasstw', 'alertasstw', 'stw', 'alerta', 
+        'desactivarcomandos', 'catdesa', 'setprecio', 'ping', 'pavos', 'destacadasstw', 'legendariasstw', 'epicasstw', 'alertasstw', 'stw', 'alerta', 
         'setgrupostw', 'unsetgrupostw', 'grupo', 'mute', 'unmute', 'inactivos', 'tienda', 'ia', 'menu', 'menusecreto',
         's', 'sticker', 'tiktok', 'traduce', 'skin', 'stats', 'contacto',
         'warn', 'advertir', 'verwarns', 'limpiarwarns', 'ban', 'unban', 'listanegra', 'banlist', 'unbanlist', 
@@ -117,8 +119,7 @@ Apoya a un creador: JASC13` });
 
     // Recuperación de registros históricos: si el creador reenvía un mensaje
     // antiguo del bot con el formato de PaVos registrados, se reconstruyen
-    // los puntos y el cashback automáticamente.
-    if (tienePrivilegiosTotales) {
+    // los puntos y el cashback automáticamente.    if (tienePrivilegiosTotales) {
         const recuperado = await comandoRecuperarRegistroJasc13(sock, chatJid, msg, textoOriginal);
         if (recuperado) return;
     }
@@ -144,6 +145,50 @@ Apoya a un creador: JASC13` });
     let comandoRaw = args.shift();
     let comando = normalizarComando(comandoRaw);
     const esComandoValido = comandosValidos.has(comando);
+
+    // catdesa abre una selección temporal por grupo y usuario. Solo ese usuario
+    // puede responder con el número elegido y la selección caduca a los 3 minutos.
+    const claveCatDesa = `${chatJid}:${remitenteReal}`;
+    const seleccionCatDesa = sesionesCatDesa.get(claveCatDesa);
+    if (seleccionCatDesa) {
+        if (seleccionCatDesa.expira <= Date.now()) {
+            sesionesCatDesa.delete(claveCatDesa);
+        } else if (chatJid.endsWith('@g.us') && /^\d+$/.test(textoLimpio)) {
+            const numero = Number(textoLimpio);
+            const categoria = seleccionCatDesa.categorias[numero - 1];
+            if (!categoria) {
+                await sock.sendMessage(chatJid, { text: `❌ Ese número no corresponde a una categoría de la lista. Usa *catdesa* para verla de nuevo.` }, { quoted: msg });
+                return;
+            }
+
+            const config = await Config.findOne({ clave: `comandos_desactivados_${chatJid}` });
+            let desactivados = [];
+            if (config?.valor) {
+                try {
+                    const parsed = JSON.parse(config.valor);
+                    if (Array.isArray(parsed)) desactivados = parsed;
+                } catch (e) {}
+            }
+
+            desactivados = desactivados.filter(x => x !== categoria);
+            if (desactivados.length === 0) {
+                await Config.deleteOne({ clave: `comandos_desactivados_${chatJid}` });
+            } else {
+                await Config.findOneAndUpdate(
+                    { clave: `comandos_desactivados_${chatJid}` },
+                    { valor: JSON.stringify(desactivados) },
+                    { upsert: true }
+                );
+            }
+            cacheConfigComandos.delete(chatJid);
+            sesionesCatDesa.delete(claveCatDesa);
+
+            await sock.sendMessage(chatJid, {
+                text: `✅ La categoría *${categoria}* volvió a estar activa en este grupo.\n\n📌 Las demás categorías desactivadas permanecen desactivadas.`
+            }, { quoted: msg });
+            return;
+        }
+    }
 
     // El anti-spam necesita consultar los administradores del grupo en WhatsApp.
     // Esa consulta es costosa y hacía que CADA comando esperara a groupMetadata().
@@ -175,7 +220,7 @@ Apoya a un creador: JASC13` });
             desactivados = [];
         }
 
-        const comandoDeConfiguracion = comando === 'menu' || comando === 'desactivarcomandos' || comando === 'vertodoscomandos';
+        const comandoDeConfiguracion = comando === 'menu' || comando === 'desactivarcomandos' || comando === 'catdesa' || comando === 'vertodoscomandos';
         const estaDesactivado = desactivados.some(categoria =>
             categoriasMap[categoria] && categoriasMap[categoria].includes(comando)
         );
@@ -277,6 +322,7 @@ Apoya a un creador: JASC13` });
     if (comando === 'vertodoscomandos') {
         const comandosInfo = [
             ['desactivarcomandos', 'Desactiva una o varias categorías en el grupo; las categorías desactivadas se van acumulando. Usa *desactivarcomandos ninguno* para volver a dejar todo activo.'],
+            ['catdesa', 'Muestra las categorías desactivadas del grupo y permite volver a activar una seleccionándola por número durante 3 minutos.'],
             ['listablanca', 'Administra la lista blanca de links y dominios completos. Ejemplo: *listablanca agregar betomaster.com* permite todas las rutas y subdominios de ese dominio.'],
             ['setprecio', 'Configura el precio de los pavos.'],
             ['ping', 'Comprueba que el bot esté activo.'],
@@ -317,8 +363,7 @@ Apoya a un creador: JASC13` });
             ['banlist', 'Alias de listanegra.'],
             ['unbanlist', 'Gestiona la lista de usuarios bloqueados.'],
             ['cartera', 'Consulta tu dinero disponible.'],
-            ['bal', 'Alias de cartera.'],
-            ['banco', 'Consulta o gestiona el dinero guardado en el banco.'],
+            ['bal', 'Alias de cartera.'],            ['banco', 'Consulta o gestiona el dinero guardado en el banco.'],
             ['pay', 'Transfiere dinero a otro usuario.'],
             ['pagar', 'Alias de pay.'],
             ['top', 'Muestra la clasificación de usuarios con más dinero.'],
@@ -378,6 +423,53 @@ Apoya a un creador: JASC13` });
 
     if (comandosValidos.has(comando)) {
         switch (comando) {
+            case 'catdesa': {
+                if (!chatJid.endsWith('@g.us')) return;
+
+                const remitente = msg.key.participant || chatJid;
+                let esAdmin = msg.key.fromMe || tienePrivilegiosTotales;
+                if (!esAdmin) {
+                    try {
+                        const groupMeta = await sock.groupMetadata(chatJid);
+                        const part = groupMeta.participants.find(p => p.id === remitente);
+                        esAdmin = part && (part.admin === 'admin' || part.admin === 'superadmin');
+                    } catch (e) {}
+                }
+
+                if (!esAdmin) {
+                    await sock.sendMessage(chatJid, { text: '❌ Solo los administradores del grupo pueden volver a activar categorías.' }, { quoted: msg });
+                    return;
+                }
+
+                const configCatDesa = await Config.findOne({ clave: `comandos_desactivados_${chatJid}` });
+                let desactivadasCatDesa = [];
+                if (configCatDesa?.valor) {
+                    try {
+                        const parsed = JSON.parse(configCatDesa.valor);
+                        if (Array.isArray(parsed)) desactivadasCatDesa = parsed;
+                    } catch (e) {}
+                }
+
+                if (desactivadasCatDesa.length === 0) {
+                    await sock.sendMessage(chatJid, { text: '🟢 No hay categorías desactivadas en este grupo. Todo el bot está activo.' }, { quoted: msg });
+                    return;
+                }
+
+                const claveSeleccion = `${chatJid}:${remitenteReal}`;
+                sesionesCatDesa.set(claveSeleccion, {
+                    categorias: [...desactivadasCatDesa],
+                    expira: Date.now() + CATDESA_TTL_MS
+                });
+
+                const lista = desactivadasCatDesa
+                    .map((cat, i) => `${i + 1}. *${cat}*`)
+                    .join('\\n');
+
+                await sock.sendMessage(chatJid, {
+                    text: `🔓 *CATEGORÍAS DESACTIVADAS EN ESTE GRUPO*\\n\\n${lista}\\n\\n👉 Responde con el número de la categoría que quieres volver a activar.\\n⏱️ Tienes *3 minutos* para elegir.\\n\\nEjemplo: *2*`
+                }, { quoted: msg });
+                return;
+            }
             case 'menusecreto':
                 if (!msg.key.fromMe && !tienePrivilegiosTotales) return; 
                 await ejecutarMenu(sock, chatJid, msg, ['secreto']);
@@ -597,8 +689,7 @@ Apoya a un creador: JASC13` });
             case 'slots':
                 await comandoSlots(sock, chatJid, msg, args, economiaBD);
                 break;
-            case 'dados':
-                await comandoDados(sock, chatJid, msg, args, economiaBD);
+            case 'dados':                await comandoDados(sock, chatJid, msg, args, economiaBD);
                 break;
             case 'adivina':
                 await comandoAdivina(sock, chatJid, msg, args, economiaBD);
