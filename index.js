@@ -193,6 +193,7 @@ async function inicializarBase() {
     if (mongoose.connection.readyState === 0) {
         await mongoose.connect(process.env.MONGO_URI);
     }
+    iniciarVerificacionTarifasPaypal();
     authState = await useMongoDBAuthState('sesion');
     baseLista = true;
     
@@ -385,7 +386,6 @@ async function arrancarSocket(metodo, numeroTelefono, onCodeReady = null) {
             }
             
             iniciarCronAlertasDiarias(sock);
-            iniciarVerificacionTarifasPaypal();
             
             // 🚀 Única fuente automática de alertas Fortnite: STW Planner
             iniciarPuenteDiscord(sock);
