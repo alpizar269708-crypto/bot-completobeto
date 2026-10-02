@@ -64,6 +64,7 @@ async function ejecutarMenu(sock, chatId, msg, args) {
     let menuGeneral = `🤖 *MENÚ PRINCIPAL DEL BOT* 🤖\n\n` +
     `Usa *${prefijo}menu [categoría]* para ver los comandos de cada sección.\n` +
     `Ejemplo: *${prefijo}menu economia*\n\n` +
+    `📋 *${prefijo}vertodoscomandos* - Ver todos los comandos disponibles y su función.\n\n` +
     `📂 *CATEGORÍAS DISPONIBLES:*\n` +
     categoriasActivas.map(cat => descripcionCategorias[cat]).join('\n') + '\n';
 
