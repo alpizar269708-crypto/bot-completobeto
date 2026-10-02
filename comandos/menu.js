@@ -75,7 +75,8 @@ async function ejecutarMenu(sock, chatId, msg, args) {
         menuGeneral += `\n⚙️ *CONFIGURACIÓN DEL GRUPO (Solo Admins):*\n` +
         `*${prefijo}desactivarcomandos [cat1] [cat2]* - Desactiva una o varias categorías; se van acumulando.\n` +
         `*${prefijo}desactivarcomandos todos* - Desactiva todas las categorías.\n` +
-        `*${prefijo}desactivarcomandos ninguno* - Vuelve a activar todo el bot.\n`;
+        `*${prefijo}desactivarcomandos ninguno* - Vuelve a activar todo el bot.\n` +
+        `*${prefijo}catdesa* - Muestra las categorías desactivadas y permite reactivar una por número durante 3 minutos.\n`;
     }
 
     let menuFortnite = `🎮 *MENÚ FORTNITE (STW)* 🎮\n\n` +
@@ -191,7 +192,8 @@ async function ejecutarMenu(sock, chatId, msg, args) {
         'secreto': `🕵️‍♂️ *MENÚ SECRETO (Solo Owner)* 🕵️‍♂️\n\n` +
                    `*cerrarsesionauth* - (Sin prefijo) Cierra la sesión y reinicia el sistema para escanear un nuevo código de vinculación en la web.\n` +
                    `*${prefijo}desactivarcomandos [cat1] [cat2]* - Desactiva categorías del grupo; se van acumulando.\n` +
-                   `*${prefijo}desactivarcomandos ninguno* - Vuelve a activar todo el bot.\n`
+                   `*${prefijo}desactivarcomandos ninguno* - Vuelve a activar todo el bot.\n` +
+                   `*${prefijo}catdesa* - Muestra las categorías desactivadas y permite reactivar una por número durante 3 minutos.\n`
     };
 
     let textoEnviar = menuGeneral;
