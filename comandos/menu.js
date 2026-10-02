@@ -173,9 +173,10 @@ async function ejecutarMenu(sock, chatId, msg, args) {
                       `*${prefijo}skin [nombre] / stats [usuario]* - Info de Fortnite.\n` +
                       `*${prefijo}contacto* - Información del creador.\n` +
                       `*${prefijo}ping* - Revisa la velocidad y estado del bot.\n` +
-                      `*${prefijo}paypal* - Tarifas estándar de PayPal nacional e internacional.\n` +
-                      `*${prefijo}paypaln [cantidad]* - Calcula el neto nacional en USD.\n` +
-                      `*${prefijo}paypali [cantidad]* - Calcula el neto internacional en USD.\n`,
+                      `*${prefijo}vertodoscomandos* - Muestra la lista completa de comandos y para qué sirve cada uno.\n` +
+                      `*${prefijo}paypal* - Muestra las tarifas estándar de PayPal.\n` +
+                      `*${prefijo}paypaln [cantidad MXN]* - Calcula cuánto deben enviarte para recibir esa cantidad neta en pesos.\n` +
+                      `*${prefijo}paypali [cantidad USD]* - Calcula cuánto deben enviarte para recibir esa cantidad neta en dólares.\n`,
 
         'ia': `🤖 *MENÚ INTELIGENCIA ARTIFICIAL* 🤖\n\n` +
               `*${prefijo}ia [pregunta]* - Habla de forma natural con el bot.\n`,
