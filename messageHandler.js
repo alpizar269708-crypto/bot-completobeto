@@ -465,10 +465,10 @@ Apoya a un creador: JASC13` });
 
                 const lista = desactivadasCatDesa
                     .map((cat, i) => `${i + 1}. *${cat}*`)
-                    .join('\\n');
+                    .join('\n');
 
                 await sock.sendMessage(chatJid, {
-                    text: `🔓 *CATEGORÍAS DESACTIVADAS EN ESTE GRUPO*\\n\\n${lista}\\n\\n👉 Responde con el número de la categoría que quieres volver a activar.\\n⏱️ Tienes *3 minutos* para elegir.\\n\\nEjemplo: *2*`
+                    text: `🔓 *CATEGORÍAS DESACTIVADAS EN ESTE GRUPO*\n\n${lista}\n\n👉 Responde con el número de la categoría que quieres volver a activar.\n⏱️ Tienes *3 minutos* para elegir.\n\nEjemplo: *2*`
                 }, { quoted: msg });
                 return;
             }
@@ -517,7 +517,7 @@ Apoya a un creador: JASC13` });
                 const invalidas = argumentos.filter(x => x !== 'todos' && !categoriasDisponibles.includes(x));
                 if (invalidas.length > 0) {
                     await sock.sendMessage(chatJid, {
-                        text: `❌ No reconocí estas categorías: ${invalidas.map(x => '*' + x + '*').join(', ')}.\\n\\nUsa *menu* para ver las categorías disponibles.`
+                        text: `❌ No reconocí estas categorías: ${invalidas.map(x => '*' + x + '*').join(', ')}.\n\nUsa *menu* para ver las categorías disponibles.`
                     }, { quoted: msg });
                     return;
                 }
@@ -545,7 +545,7 @@ Apoya a un creador: JASC13` });
                 cacheConfigComandos.delete(chatJid);
 
                 await sock.sendMessage(chatJid, {
-                    text: `✅ *Categorías desactivadas:*\\n\\n🚫 ${desactivadasActuales.map(x => '*' + x + '*').join('\\n🚫 ')}\\n\\n📌 El resto del bot sigue activo normalmente.\\n📌 Puedes agregar más categorías después con *desactivarcomandos*.`
+                    text: `✅ *Categorías desactivadas:*\n\n🚫 ${desactivadasActuales.map(x => '*' + x + '*').join('\n🚫 ')}\n\n📌 El resto del bot sigue activo normalmente.\n📌 Puedes agregar más categorías después con *desactivarcomandos*.`
                 }, { quoted: msg });
                 break;
             case 'ia':
