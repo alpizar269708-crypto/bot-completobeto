@@ -224,8 +224,7 @@ async function comandoPaypal(sock, chatJid, msg) {
 📌 Las tarifas corresponden a transacciones comerciales recibidas en una cuenta PayPal de México.
 📌 *paypal* solo muestra información; no hace conversiones.
 
-⚠️ Las tarifas de PayPal pueden cambiar.
-🕒 Se verifican automáticamente todos los días a las *03:00 hora de Ciudad de México*.`;
+⚠️ Las tarifas de PayPal pueden cambiar.`;
 
     await sock.sendMessage(chatJid, { text: texto }, { quoted: msg });
 }
