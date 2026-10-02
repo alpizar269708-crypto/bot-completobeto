@@ -8,7 +8,8 @@ const categoriasMap = {
     rifas: ['rifa', 'rifainscripcion', 'cerrarrifa', 'rifajasc13', 'addvarios', 'abrirrifa', 'activarrifaaqui', 'menurifajasc13'],
     cashback: ['addcashback', 'delcashback', 'vercash', 'delvcash', 'canjecash'],
     economia: ['cartera', 'bal', 'banco', 'pay', 'pagar', 'top', 'topdinero', 'daily', 'weekly', 'farmear', 'work', 'crime', 'mendigar', 'pescar', 'minar', 'cazar', 'explorar', 'ruleta', 'cf', 'slots', 'dados', 'adivina', 'buscaminas', 'rob', 'ppt', 'pelea', 'carrera', 'hackear', 'shop', 'buy', 'inventario', 'mochila', 'vender', 'use', 'regalar'],
-    utilidades: ['s', 'sticker', 'tiktok', 'traduce', 'skin', 'stats', 'contacto', 'ping', 'paypal', 'paypaln', 'paypali'],
+    utilidades: ['s', 'sticker', 'tiktok', 'traduce', 'skin', 'stats', 'contacto', 'ping'],
+    paypal: ['paypal', 'paypaln', 'paypali'],
     ia: ['ia'],
     moderacion: ['warn', 'advertir', 'verwarns', 'limpiarwarns', 'ban', 'unban', 'listanegra', 'banlist', 'unbanlist', 'grupo', 'mute', 'unmute', 'inactivos', 'listablanca', 'desactivarbienvenida', 'activarbienvenida', 'personalizarbienvenida', 'restaurarbienvenida']
 };
@@ -17,11 +18,12 @@ const nombresCategorias = ['fortnite', 'tienda', 'carry', 'rifas', 'cashback', '
 
 async function obtenerCategoriasActivas(chatId) {
     if (!chatId.endsWith('@g.us')) return nombresCategorias;
-    const config = await Config.findOne({ clave: `comandos_${chatId}` }).lean();
+    const config = await Config.findOne({ clave: `comandos_desactivados_${chatId}` }).lean();
     if (!config?.valor) return nombresCategorias;
     try {
-        const permitidos = JSON.parse(config.valor);
-        return nombresCategorias.filter(cat => permitidos.includes(cat));
+        const desactivados = JSON.parse(config.valor);
+        if (!Array.isArray(desactivados)) return nombresCategorias;
+        return nombresCategorias.filter(cat => !desactivados.includes(cat));
     } catch (e) {
         return nombresCategorias;
     }
@@ -44,9 +46,9 @@ async function ejecutarMenu(sock, chatId, msg, args) {
     }
     if (msg.key.fromMe || await esPrivilegiadoTotalAsync(sock, sender)) isAdmin = true;
 
-    // La configuración de activarcomandos se aplica a TODOS los miembros,
-    // incluidos administradores y el creador. Solo cambia qué categorías están
-    // disponibles en ese grupo; no elimina comandos dentro de una categoría activa.
+    // La configuración de desactivarcomandos se aplica a TODOS los miembros,
+    // incluidos administradores y el creador. Por defecto todo está activo;
+    // solo se ocultan/deshabilitan las categorías guardadas como desactivadas.
     const categoriasActivas = await obtenerCategoriasActivas(chatId); 
 
     const descripcionCategorias = {
@@ -71,8 +73,9 @@ async function ejecutarMenu(sock, chatId, msg, args) {
 
     if (isAdmin && isGroup) {
         menuGeneral += `\n⚙️ *CONFIGURACIÓN DEL GRUPO (Solo Admins):*\n` +
-        `*${prefijo}activarcomandos [cat1] [cat2]* - Activa solo los módulos que quieras.\n` +
-        `*${prefijo}activarcomandos todos* - Habilita todas las funciones en el grupo.\n`;
+        `*${prefijo}desactivarcomandos [cat1] [cat2]* - Desactiva una o varias categorías; se van acumulando.\n` +
+        `*${prefijo}desactivarcomandos todos* - Desactiva todas las categorías.\n` +
+        `*${prefijo}desactivarcomandos ninguno* - Vuelve a activar todo el bot.\n`;
     }
 
     let menuFortnite = `🎮 *MENÚ FORTNITE (STW)* 🎮\n\n` +
@@ -180,17 +183,15 @@ async function ejecutarMenu(sock, chatId, msg, args) {
                       `*${prefijo}skin [nombre] / stats [usuario]* - Info de Fortnite.\n` +
                       `*${prefijo}contacto* - Información del creador.\n` +
                       `*${prefijo}ping* - Revisa la velocidad y estado del bot.\n` +
-                      `*${prefijo}vertodoscomandos* - Muestra la lista completa de comandos y para qué sirve cada uno.\n` +
-                      `*${prefijo}paypal* - Muestra las tarifas estándar de PayPal.\n` +
-                      `*${prefijo}paypaln [cantidad MXN]* - Calcula cuánto deben enviarte para recibir esa cantidad neta en pesos.\n` +
-                      `*${prefijo}paypali [cantidad USD]* - Calcula cuánto deben enviarte para recibir esa cantidad neta en dólares.\n`,
+                      `*${prefijo}vertodoscomandos* - Muestra la lista completa de comandos y para qué sirve cada uno.\n`,
 
         'ia': `🤖 *MENÚ INTELIGENCIA ARTIFICIAL* 🤖\n\n` +
               `*${prefijo}ia [pregunta]* - Habla de forma natural con el bot.\n`,
               
         'secreto': `🕵️‍♂️ *MENÚ SECRETO (Solo Owner)* 🕵️‍♂️\n\n` +
                    `*cerrarsesionauth* - (Sin prefijo) Cierra la sesión y reinicia el sistema para escanear un nuevo código de vinculación en la web.\n` +
-                   `*${prefijo}activarcomandos [cat]* - Activa o desactiva módulos de comandos en un grupo.\n`
+                   `*${prefijo}desactivarcomandos [cat1] [cat2]* - Desactiva categorías del grupo; se van acumulando.\n` +
+                   `*${prefijo}desactivarcomandos ninguno* - Vuelve a activar todo el bot.\n`
     };
 
     let textoEnviar = menuGeneral;
