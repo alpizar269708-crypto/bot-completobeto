@@ -13,7 +13,7 @@ const categoriasMap = {
     moderacion: ['warn', 'advertir', 'verwarns', 'limpiarwarns', 'ban', 'unban', 'listanegra', 'banlist', 'unbanlist', 'grupo', 'mute', 'unmute', 'inactivos', 'listablanca', 'desactivarbienvenida', 'activarbienvenida', 'personalizarbienvenida', 'restaurarbienvenida']
 };
 
-const nombresCategorias = ['fortnite', 'tienda', 'carry', 'rifas', 'cashback', 'economia', 'utilidades', 'ia', 'moderacion'];
+const nombresCategorias = ['fortnite', 'tienda', 'carry', 'rifas', 'cashback', 'economia', 'utilidades', 'paypal', 'ia', 'moderacion'];
 
 async function obtenerCategoriasActivas(chatId) {
     if (!chatId.endsWith('@g.us')) return nombresCategorias;
@@ -58,6 +58,7 @@ async function ejecutarMenu(sock, chatId, msg, args) {
         economia: '💰 *economia* - Minijuegos, dinero y RPG',
         utilidades: '🛠️ *utilidades* - Stickers, descargas y traductor',
         ia: '🤖 *ia* - Inteligencia artificial',
+        paypal: '💳 *paypal* - Tarifas y calculadoras de PayPal (MXN/USD)',
         moderacion: '🛡️ *moderacion* - Control del grupo (Admins)'
     };
 
@@ -115,6 +116,11 @@ async function ejecutarMenu(sock, chatId, msg, args) {
     }
 
     const menus = {
+        'paypal': `💳 *MENÚ PAYPAL* 💳\n\n` +
+                  `*${prefijo}paypal* - Muestra las tarifas estándar actuales de PayPal para México, nacional e internacional.\n` +
+                  `*${prefijo}paypaln [cantidad MXN]* - Calcula cuánto deben enviarte para recibir esa cantidad neta en pesos.\n` +
+                  `*${prefijo}paypali [cantidad USD]* - Calcula cuánto deben enviarte para recibir esa cantidad neta en dólares.\n`,
+
         'fortnite': menuFortnite,
         'moderacion': menuModeracion,
         'tienda': `🛒 *MENÚ TIENDA BATTLE ROYALE* 🛒\n\n` +
