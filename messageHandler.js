@@ -172,7 +172,7 @@ Apoya a un creador: JASC13` });
             permitidos = [];
         }
 
-        let comandoPermitido = comando === 'menu' || comando === 'activarcomandos' || comando === 'activarcash' || comando === 'vertodoscomandos';
+        // Cashback queda disponible por defecto en todos los grupos.\n        // Si existe una configuración explícita con activarcomandos, esa configuración\n        // sigue mandando y puede dejar solo las categorías seleccionadas.\n        let comandoPermitido = comando === 'menu' || comando === 'activarcomandos' || comando === 'activarcash' || comando === 'vertodoscomandos';\n        if (!configGrupo && categoriasMap.cashback?.includes(comando)) comandoPermitido = true;
 
         if (permitidos.includes(comando)) comandoPermitido = true;
 
