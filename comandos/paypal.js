@@ -19,8 +19,19 @@ let cronIniciado = false;
 
 function normalizarNumero(valor) {
     if (typeof valor !== 'string' && typeof valor !== 'number') return null;
-    const limpio = String(valor).replace(',', '.').replace(/[^0-9.]/g, '');
-    const numero = Number(limpio);
+
+    let texto = String(valor).trim().replace(/\$/g, '').replace(/\s+/g, '');
+    if (!texto) return null;
+
+    // Admite 1000.50, 1,000.50 y 1000,50 sin confundir los separadores.
+    if (texto.includes(',') && texto.includes('.')) {
+        texto = texto.replace(/,/g, '');
+    } else if (texto.includes(',')) {
+        texto = texto.replace(',', '.');
+    }
+
+    texto = texto.replace(/[^0-9.]/g, '');
+    const numero = Number(texto);
     return Number.isFinite(numero) ? numero : null;
 }
 
