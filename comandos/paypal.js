@@ -7,10 +7,14 @@ const PAYPAL_FEES_URL = 'https://www.paypal.com/mx/business/paypal-business-fees
 const CONFIG_KEY = 'paypal_tarifas';
 const TIMEZONE = 'America/Mexico_City';
 
+// Tarifas estándar publicadas por PayPal México.
+// PayPal indica que los importes/porcentajes están sujetos a IVA.
 const TARIFAS_POR_DEFECTO = {
     nacional: 0.0395,
     internacionalAdicional: 0.005,
+    fijaMxn: 4.00,
     fijaUsd: 0.30,
+    iva: 0.16,
     fuente: PAYPAL_FEES_URL,
     verificadaEn: null
 };
@@ -23,7 +27,6 @@ function normalizarNumero(valor) {
     let texto = String(valor).trim().replace(/\$/g, '').replace(/\s+/g, '');
     if (!texto) return null;
 
-    // Admite 1000.50, 1,000.50 y 1000,50 sin confundir los separadores.
     if (texto.includes(',') && texto.includes('.')) {
         texto = texto.replace(/,/g, '');
     } else if (texto.includes(',')) {
@@ -39,10 +42,14 @@ function validarTarifas(tarifas) {
     return !!tarifas &&
         Number.isFinite(tarifas.nacional) &&
         Number.isFinite(tarifas.internacionalAdicional) &&
+        Number.isFinite(tarifas.fijaMxn) &&
         Number.isFinite(tarifas.fijaUsd) &&
+        Number.isFinite(tarifas.iva) &&
         tarifas.nacional >= 0 && tarifas.nacional <= 0.20 &&
         tarifas.internacionalAdicional >= 0 && tarifas.internacionalAdicional <= 0.10 &&
-        tarifas.fijaUsd >= 0 && tarifas.fijaUsd <= 10;
+        tarifas.fijaMxn >= 0 && tarifas.fijaMxn <= 100 &&
+        tarifas.fijaUsd >= 0 && tarifas.fijaUsd <= 10 &&
+        tarifas.iva >= 0 && tarifas.iva <= 0.30;
 }
 
 async function obtenerTarifasPaypal() {
@@ -50,7 +57,8 @@ async function obtenerTarifasPaypal() {
         const config = await Config.findOne({ clave: CONFIG_KEY }).lean();
         if (config?.valor) {
             const guardadas = JSON.parse(config.valor);
-            if (validarTarifas(guardadas)) return { ...TARIFAS_POR_DEFECTO, ...guardadas };
+            const combinadas = { ...TARIFAS_POR_DEFECTO, ...guardadas };
+            if (validarTarifas(combinadas)) return combinadas;
         }
     } catch (error) {
         console.error('⚠️ No se pudieron leer las tarifas guardadas de PayPal:', error.message);
@@ -94,19 +102,26 @@ async function verificarTarifasPaypal() {
             /Additional percentage-based fee for international commercial transactions.*?Outside of Mexico \(MX\)\s*([0-9]+(?:[.,][0-9]+)?)%/i
         ]);
 
+        const fijaMxn = extraerTarifa(texto, [
+            /Peso mexicano\s*([0-9]+(?:[.,][0-9]+)?)\s*MXN/i,
+            /Mexican peso\s*([0-9]+(?:[.,][0-9]+)?)\s*MXN/i
+        ]);
+
         const fijaUsd = extraerTarifa(texto, [
             /Dólar estadounidense\s*([0-9]+(?:[.,][0-9]+)?)\s*USD/i,
             /US dollar\s*([0-9]+(?:[.,][0-9]+)?)\s*USD/i
         ]);
 
-        if (nacional === null || internacionalAdicional === null || fijaUsd === null) {
+        if (nacional === null || internacionalAdicional === null || fijaMxn === null || fijaUsd === null) {
             throw new Error('No se pudieron identificar todas las tarifas estándar esperadas en la página oficial.');
         }
 
         const nuevasTarifas = {
             nacional: nacional / 100,
             internacionalAdicional: internacionalAdicional / 100,
+            fijaMxn,
             fijaUsd,
+            iva: TARIFAS_POR_DEFECTO.iva,
             fuente: PAYPAL_FEES_URL,
             verificadaEn: new Date().toISOString()
         };
@@ -119,6 +134,7 @@ async function verificarTarifasPaypal() {
         const cambiaron =
             anteriores.nacional !== nuevasTarifas.nacional ||
             anteriores.internacionalAdicional !== nuevasTarifas.internacionalAdicional ||
+            anteriores.fijaMxn !== nuevasTarifas.fijaMxn ||
             anteriores.fijaUsd !== nuevasTarifas.fijaUsd;
 
         await Config.findOneAndUpdate(
@@ -129,7 +145,7 @@ async function verificarTarifasPaypal() {
 
         console.log(
             cambiaron
-                ? `🔄 Tarifas de PayPal actualizadas: nacional ${(nuevasTarifas.nacional * 100).toFixed(2)}%, internacional +${(nuevasTarifas.internacionalAdicional * 100).toFixed(2)}%, fija $${nuevasTarifas.fijaUsd.toFixed(2)} USD.`
+                ? `🔄 Tarifas de PayPal actualizadas: nacional ${(nuevasTarifas.nacional * 100).toFixed(2)}% + $${nuevasTarifas.fijaMxn.toFixed(2)} MXN, internacional +${(nuevasTarifas.internacionalAdicional * 100).toFixed(2)}% + $${nuevasTarifas.fijaUsd.toFixed(2)} USD.`
                 : '✅ Tarifas de PayPal verificadas; no hubo cambios.'
         );
 
@@ -154,25 +170,34 @@ function iniciarVerificacionTarifasPaypal() {
     console.log('🕒 Verificación automática de tarifas PayPal programada para las 03:00:00 (hora de Ciudad de México).');
 }
 
-function calcularComision(montoEnviado, porcentaje, fija) {
-    return (montoEnviado * porcentaje) + fija;
+function calcularComision(montoEnviado, porcentaje, fija, iva) {
+    const comisionBase = (montoEnviado * porcentaje) + fija;
+    return comisionBase * (1 + iva);
 }
 
-function calcularParaRecibir(netoDeseado, porcentaje, fija) {
-    const montoSinRedondear = (netoDeseado + fija) / (1 - porcentaje);
+function calcularParaRecibir(netoDeseado, porcentaje, fija, iva) {
+    // La comisión publicada está sujeta a IVA, por lo que se calcula:
+    // comisión real = (monto * porcentaje + fija) * (1 + IVA).
+    const factorComision = porcentaje * (1 + iva);
+    const fijaConIva = fija * (1 + iva);
+
+    const montoSinRedondear = (netoDeseado + fijaConIva) / (1 - factorComision);
     let montoEnviado = Math.ceil((montoSinRedondear - 1e-10) * 100) / 100;
 
-    let comision = calcularComision(montoEnviado, porcentaje, fija);
+    let comision = calcularComision(montoEnviado, porcentaje, fija, iva);
     let neto = montoEnviado - comision;
 
-    // Garantiza que, después de redondear a centavos, no quedemos por debajo del neto solicitado.
     while (neto + 1e-9 < netoDeseado) {
         montoEnviado = Math.round((montoEnviado + 0.01) * 100) / 100;
-        comision = calcularComision(montoEnviado, porcentaje, fija);
+        comision = calcularComision(montoEnviado, porcentaje, fija, iva);
         neto = montoEnviado - comision;
     }
 
     return { montoEnviado, comision, neto };
+}
+
+function formatearMxn(valor) {
+    return `$${Number(valor).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} MXN`;
 }
 
 function formatearUsd(valor) {
@@ -186,17 +211,21 @@ async function comandoPaypal(sock, chatJid, msg) {
 
     const texto = `💳 *CALCULADORA DE COMISIÓN PAYPAL*
 
-🇲🇽 *NACIONAL*
-• Comisión: *${nacionalPct}%*
-• Comisión fija: *$${tarifas.fijaUsd.toFixed(2)} USD*
+🇲🇽 *NACIONAL — PESOS MEXICANOS*
+• Comisión estándar: *${nacionalPct}% + ${formatearMxn(tarifas.fijaMxn)}*
+• Con IVA sobre la comisión
+• Usa: *paypaln [cantidad en MXN]*
 
-🌎 *INTERNACIONAL*
-• Comisión: *${internacionalPct}%*
-• Comisión fija: *$${tarifas.fijaUsd.toFixed(2)} USD*
+🌎 *INTERNACIONAL — DÓLARES*
+• Comisión estándar: *${internacionalPct}% + ${formatearUsd(tarifas.fijaUsd)}*
+• Con IVA sobre la comisión
+• Usa: *paypali [cantidad en USD]*
 
-📌 _Tarifas aplicables a transacciones comerciales recibidas en una cuenta PayPal de México._
+📌 Las tarifas corresponden a transacciones comerciales recibidas en una cuenta PayPal de México.
+📌 *paypal* solo muestra información; no hace conversiones.
 
-⚠️ *Las tarifas de PayPal pueden cambiar*`;
+⚠️ Las tarifas de PayPal pueden cambiar.
+🕒 Se verifican automáticamente todos los días a las *03:00 hora de Ciudad de México*.`;
 
     await sock.sendMessage(chatJid, { text: texto }, { quoted: msg });
 }
@@ -206,15 +235,22 @@ async function comandoCalculadoraPaypal(sock, chatJid, msg, tipo, args) {
     const netoDeseado = normalizarNumero(valorTexto);
 
     if (netoDeseado === null || netoDeseado <= 0) {
+        const ejemplo = tipo === 'paypaln' ? 'paypaln 500' : 'paypali 50';
+        const moneda = tipo === 'paypaln' ? 'MXN' : 'USD';
+
         await sock.sendMessage(chatJid, {
-            text: `❌ Indica una cantidad válida en USD.\n\nEjemplo: *${tipo} 50*`
+            text: `❌ Indica una cantidad válida en *${moneda}*.
+
+Ejemplo: *${ejemplo}*`
         }, { quoted: msg });
         return;
     }
 
     if (netoDeseado > 100000000) {
         await sock.sendMessage(chatJid, {
-            text: '❌ La cantidad máxima permitida es de $100,000,000.00 USD.'
+            text: tipo === 'paypaln'
+                ? '❌ La cantidad máxima permitida es de $100,000,000.00 MXN.'
+                : '❌ La cantidad máxima permitida es de $100,000,000.00 USD.'
         }, { quoted: msg });
         return;
     }
@@ -224,19 +260,25 @@ async function comandoCalculadoraPaypal(sock, chatJid, msg, tipo, args) {
         ? tarifas.nacional
         : tarifas.nacional + tarifas.internacionalAdicional;
 
-    const calculo = calcularParaRecibir(netoDeseado, porcentaje, tarifas.fijaUsd);
-    const comision = Math.max(0, calculo.montoEnviado - calculo.neto);
+    const fija = tipo === 'paypaln'
+        ? tarifas.fijaMxn
+        : tarifas.fijaUsd;
+
+    const calculo = calcularParaRecibir(netoDeseado, porcentaje, fija, tarifas.iva);
 
     const bandera = tipo === 'paypaln' ? '🇲🇽' : '🌎';
     const nombre = tipo === 'paypaln' ? 'NACIONAL' : 'INTERNACIONAL';
+    const formatear = tipo === 'paypaln' ? formatearMxn : formatearUsd;
 
     const texto = `${bandera} *PAYPAL ${nombre}*
 
-🎯 Quieres recibir: *${formatearUsd(netoDeseado)}*
+🎯 Quieres recibir: *${formatear(netoDeseado)}*
 
-📥 Deben enviarte: *${formatearUsd(calculo.montoEnviado)}*
-💸 Comisión PayPal: *${formatearUsd(comision)}*
-✅ Recibes netos: *${formatearUsd(calculo.neto)}*`;
+📥 Deben enviarte: *${formatear(calculo.montoEnviado)}*
+💸 Comisión PayPal: *${formatear(calculo.comision)}*
+✅ Recibes netos: *${formatear(calculo.neto)}*
+
+📌 Comisión calculada con las tarifas estándar vigentes y el IVA aplicable.`;
 
     await sock.sendMessage(chatJid, { text: texto }, { quoted: msg });
 }
