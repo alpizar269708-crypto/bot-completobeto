@@ -22,11 +22,12 @@ const {
 } = require('./comandos/economia');
 const { comandoRifa, comandoRifaInscripcion, comandoRifaJasc13, comandoMenuRifaJasc13, comandoRecuperarRegistroJasc13, comandoAbrirRifa, comandoActivarRifaAqui, comandoCerrarRifa } = require('./comandos/rifas');
 const { comandoCarry } = require('./comandos/carry');
+const { comandoPaypal, comandoCalculadoraPaypal } = require('./comandos/paypal');
 
 const categoriasMap = {
     'fortnite': ['pavos', 'destacadasstw', 'legendariasstw', 'epicasstw', 'alertasstw', 'stw', 'alerta', 'setgrupostw', 'unsetgrupostw', 'setprecio'],
     'economia': ['cartera', 'bal', 'banco', 'pay', 'pagar', 'top', 'topdinero', 'daily', 'weekly', 'farmear', 'work', 'crime', 'mendigar', 'pescar', 'minar', 'cazar', 'explorar', 'ruleta', 'cf', 'slots', 'dados', 'adivina', 'buscaminas', 'rob', 'ppt', 'pelea', 'carrera', 'hackear', 'shop', 'buy', 'inventario', 'mochila', 'vender', 'use', 'regalar'],
-    'utilidades': ['s', 'sticker', 'tiktok', 'traduce', 'skin', 'stats', 'contacto', 'ping'],
+    'utilidades': ['s', 'sticker', 'tiktok', 'traduce', 'skin', 'stats', 'contacto', 'ping', 'paypal', 'paypaln', 'paypali'],
     'ia': ['ia'],
     'moderacion': ['warn', 'advertir', 'verwarns', 'limpiarwarns', 'ban', 'unban', 'listanegra', 'banlist', 'unbanlist', 'grupo', 'mute', 'unmute', 'inactivos', 'listablanca', 'desactivarbienvenida', 'activarbienvenida', 'personalizarbienvenida', 'restaurarbienvenida'],
     'tienda': ['tienda'],
@@ -59,7 +60,7 @@ const comandosValidos = new Set([
         'ruleta', 'cf', 'slots', 'dados', 'adivina', 'buscaminas', 'rob', 'ppt', 'pelea',
         'carrera', 'hackear', 'shop', 'buy', 'inventario', 'mochila', 'vender', 'use', 'regalar',
         'rifa', 'rifainscripcion', 'cerrarrifa', 'rifajasc13', 'addvarios', 'abrirrifa', 'activarrifaaqui', 'menurifajasc13', 'quitarrifajasc13', 'addcashback', 'delcashback', 'vercash', 'delvcash', 'canjecash', 'activarcash', 'carryleader', 'carryjoin', 'carryleave', 'carryclose', 'blcarry', 'unblcarry', 'listcarrybl',
-        'vertodosconandos', 'vertodoscomandos', 'listablanca', 'desactivarbienvenida', 'activarbienvenida', 'personalizarbienvenida', 'restaurarbienvenida'
+        'vertodosconandos', 'vertodoscomandos', 'listablanca', 'paypal', 'paypaln', 'paypali', 'desactivarbienvenida', 'activarbienvenida', 'personalizarbienvenida', 'restaurarbienvenida'
 ]);
 
 async function procesarMensaje(sock, msg) {
@@ -234,6 +235,33 @@ Apoya a un creador: JASC13` });
         return;
     }
 
+    if (comando === 'paypal') {
+        if (args.length > 0) {
+            await comandoPaypal(sock, chatJid, msg);
+        } else {
+            await comandoPaypal(sock, chatJid, msg);
+        }
+        return;
+    }
+
+    if (comando === 'paypaln') {
+        if (args.length > 0) {
+            await comandoCalculadoraPaypal(sock, chatJid, msg, 'paypaln', args);
+        } else {
+            await comandoPaypal(sock, chatJid, msg);
+        }
+        return;
+    }
+
+    if (comando === 'paypali') {
+        if (args.length > 0) {
+            await comandoCalculadoraPaypal(sock, chatJid, msg, 'paypali', args);
+        } else {
+            await comandoPaypal(sock, chatJid, msg);
+        }
+        return;
+    }
+
     if (comando === 'activarcash') {
         if (!chatJid.endsWith('@g.us')) {
             await sock.sendMessage(chatJid, { text: '❌ *activarcash* solo se puede usar dentro de un grupo.' }, { quoted: msg });
@@ -336,6 +364,9 @@ Apoya a un creador: JASC13` });
             ['skin', 'Busca información de una skin de Fortnite.'],
             ['stats', 'Consulta estadísticas de un usuario de Fortnite.'],
             ['contacto', 'Muestra la información de contacto del creador.'],
+            ['paypal', 'Muestra las tarifas estándar actuales de PayPal para México, nacional e internacional.'],
+            ['paypaln', 'Calcula cuánto deben enviarte para recibir un monto neto en USD en una operación nacional.'],
+            ['paypali', 'Calcula cuánto deben enviarte para recibir un monto neto en USD en una operación internacional.'],
             ['warn', 'Advierte a un usuario del grupo.'],
             ['advertir', 'Alias de warn.'],
             ['verwarns', 'Consulta las advertencias de un usuario.'],
