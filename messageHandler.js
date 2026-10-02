@@ -160,12 +160,12 @@ Apoya a un creador: JASC13` });
         if (cache && cache.expira > Date.now()) {
             configGrupo = cache.valor;
         } else {
-            // Esta configuración es una LISTA NEGRA: solo guarda las categorías desactivadas.
-            // Si no existe, el bot queda completamente activo por defecto en todos los grupos.
+            // Lista negra de categorías: si no existe configuración, TODO está activo.
             configGrupo = await Config.findOne({ clave: `comandos_desactivados_${chatJid}` });
             cacheConfigComandos.set(chatJid, { valor: configGrupo, expira: Date.now() + CACHE_TTL_MS });
         }
     }
+
     if (configGrupo && chatJid.endsWith('@g.us')) {
         let desactivados = [];
         try {
@@ -175,27 +175,14 @@ Apoya a un creador: JASC13` });
             desactivados = [];
         }
 
-        let comandoPermitido = comando === 'menu' || comando === 'desactivarcomandos' || comando === 'vertodoscomandos';
-
-        for (const categoria of desactivados) {
-            if (categoriasMap[categoria] && categoriasMap[categoria].includes(comando)) {
-                comandoPermitido = false;
-                break;
-            }
-        }
-
-        if (comandoPermitido === true && desactivados.length > 0) {
-            // Si no pertenece a ninguna categoría desactivada, sigue permitido.
-            const categoriaDesactivada = desactivados.some(categoria =>
-                categoriasMap[categoria] && categoriasMap[categoria].includes(comando)
-            );
-            if (categoriaDesactivada) comandoPermitido = false;
-        }
-
-        if (!comandoPermitido && !desactivados.some(categoria =>
+        const comandoDeConfiguracion = comando === 'menu' || comando === 'desactivarcomandos' || comando === 'vertodoscomandos';
+        const estaDesactivado = desactivados.some(categoria =>
             categoriasMap[categoria] && categoriasMap[categoria].includes(comando)
-        )) return;
-        if (!comandoPermitido) return;
+        );
+
+        // Todo funciona por defecto. Solo se bloquea si la categoría del comando
+        // aparece explícitamente en la lista de categorías desactivadas.
+        if (estaDesactivado && !comandoDeConfiguracion) return;
     }
 
     // Solo los comandos llegan hasta aquí; los mensajes normales ya salieron arriba.
