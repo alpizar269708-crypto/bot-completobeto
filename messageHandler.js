@@ -60,7 +60,7 @@ const comandosValidos = new Set([
         'ruleta', 'cf', 'slots', 'dados', 'adivina', 'buscaminas', 'rob', 'ppt', 'pelea',
         'carrera', 'hackear', 'shop', 'buy', 'inventario', 'mochila', 'vender', 'use', 'regalar',
         'rifa', 'rifainscripcion', 'cerrarrifa', 'rifajasc13', 'addvarios', 'abrirrifa', 'activarrifaaqui', 'menurifajasc13', 'quitarrifajasc13', 'addcashback', 'delcashback', 'vercash', 'delvcash', 'canjecash', 'activarcash', 'carryleader', 'carryjoin', 'carryleave', 'carryclose', 'blcarry', 'unblcarry', 'listcarrybl',
-        'vertodosconandos', 'vertodoscomandos', 'listablanca', 'paypal', 'paypaln', 'paypali', 'desactivarbienvenida', 'activarbienvenida', 'personalizarbienvenida', 'restaurarbienvenida'
+        'vertodoscomandos', 'listablanca', 'paypal', 'paypaln', 'paypali', 'desactivarbienvenida', 'activarbienvenida', 'personalizarbienvenida', 'restaurarbienvenida'
 ]);
 
 async function procesarMensaje(sock, msg) {
@@ -172,7 +172,7 @@ Apoya a un creador: JASC13` });
             permitidos = [];
         }
 
-        let comandoPermitido = comando === 'menu' || comando === 'activarcomandos' || comando === 'activarcash';
+        let comandoPermitido = comando === 'menu' || comando === 'activarcomandos' || comando === 'activarcash' || comando === 'vertodoscomandos';
 
         if (permitidos.includes(comando)) comandoPermitido = true;
 
@@ -334,7 +334,7 @@ Apoya a un creador: JASC13` });
         return;
     }
 
-    if (comando === 'vertodosconandos' || comando === 'vertodoscomandos') {
+    if (comando === 'vertodoscomandos') {
         const comandosInfo = [
             ['activarcomandos', 'Activa todos los comandos o restringe el grupo a categorías concretas.'],
             ['listablanca', 'Administra la lista blanca de links y dominios completos. Ejemplo: *listablanca agregar betomaster.com* permite todas las rutas y subdominios de ese dominio.'],
@@ -365,7 +365,7 @@ Apoya a un creador: JASC13` });
             ['stats', 'Consulta estadísticas de un usuario de Fortnite.'],
             ['contacto', 'Muestra la información de contacto del creador.'],
             ['paypal', 'Muestra las tarifas estándar actuales de PayPal para México, nacional e internacional.'],
-            ['paypaln', 'Calcula cuánto deben enviarte para recibir un monto neto en USD en una operación nacional.'],
+            ['paypaln', 'Calcula cuánto deben enviarte para recibir un monto neto en MXN en una operación nacional.'],
             ['paypali', 'Calcula cuánto deben enviarte para recibir un monto neto en USD en una operación internacional.'],
             ['warn', 'Advierte a un usuario del grupo.'],
             ['advertir', 'Alias de warn.'],
