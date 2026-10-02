@@ -7,6 +7,7 @@ const QRCode = require('qrcode');
 const { procesarMensaje } = require('./messageHandler');
 const { verificarNuevoMiembro } = require('./comandos/moderacion');
 const { iniciarCronAlertasDiarias } = require('./comandos/fortnite');
+const { iniciarVerificacionTarifasPaypal } = require('./comandos/paypal');
 const { limpiarEconomiaAlSalir } = require('./comandos/economia');
 const { iniciarPuenteDiscord, vincularChatWhatsApp } = require('./webBridge');
 const express = require('express');
@@ -384,6 +385,7 @@ async function arrancarSocket(metodo, numeroTelefono, onCodeReady = null) {
             }
             
             iniciarCronAlertasDiarias(sock);
+            iniciarVerificacionTarifasPaypal();
             
             // 🚀 Única fuente automática de alertas Fortnite: STW Planner
             iniciarPuenteDiscord(sock);
