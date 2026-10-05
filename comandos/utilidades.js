@@ -249,7 +249,7 @@ function extraerUrlTikTok(texto) {
     }
 
     // También aceptamos un enlace sin https://.
-    const sinEsquema = fuente.match(/(?:www\.)?(?:tiktok\.com|vt\.tiktok\.com|vm\.tiktok\.com)\/[^^\s<>\]\)]+/i);
+    const sinEsquema = fuente.match(/(?:www\.)?(?:tiktok\.com|vt\.tiktok\.com|vm\.tiktok\.com)\/[^\s<>\]\)]+/i);
     if (sinEsquema?.[0]) {
         try {
             const u = new URL('https://' + sinEsquema[0].replace(/[),.;!?]+$/g, ''));
@@ -870,7 +870,6 @@ async function descargarTikTokConSnapTik(url) {
                 if (response.ok() && (type.includes('video/') || /\.mp4(?:$|[?#])/i.test(u))) mediaResponse = response;
             } catch (_) {}
         });
-        await downloadButton.click();
         await page.waitForFunction(() => Array.from(document.querySelectorAll('a[href]')).some(a => /\.mp4|download|tiktokcdn/i.test(a.href)), { timeout: 45000 }).catch(() => {});
         await new Promise(r => setTimeout(r, 3500));
         if (mediaResponse) {
