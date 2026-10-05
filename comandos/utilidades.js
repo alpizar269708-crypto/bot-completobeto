@@ -241,30 +241,25 @@ async function obtenerTikTokDirecto(url) {
     const pagina = await respuesta.text();
     let data = null;
 
-    const universal = pagina.match(
-        /<script[^>]+id=["']__UNIVERSAL_DATA_FOR_REHYDRATION__["'][^>]*>([\s\S]*?)<\\/script>/i
-    );
-
-    if (universal) {
+    const extraerJsonScript = (id) => {
+        const inicio = pagina.indexOf('<script id="' + id + '"');
+        if (inicio < 0) return null;
+        const inicioContenido = pagina.indexOf('>', inicio);
+        if (inicioContenido < 0) return null;
+        const fin = pagina.indexOf('</script>', inicioContenido);
+        if (fin < 0) return null;
         try {
-            data = JSON.parse(universal[1]);
+            return JSON.parse(pagina.slice(inicioContenido + 1, fin));
         } catch {
-            data = null;
+            return null;
         }
-    }
+    };
+
+    data = extraerJsonScript('__UNIVERSAL_DATA_FOR_REHYDRATION__');
 
     // TikTok también ha usado SIGI_STATE como fuente de datos.
     if (!data) {
-        const sigi = pagina.match(
-            /<script[^>]+id=["']SIGI_STATE["'][^>]*>([\s\S]*?)<\\/script>/i
-        );
-        if (sigi) {
-            try {
-                data = JSON.parse(sigi[1]);
-            } catch {
-                data = null;
-            }
-        }
+        data = extraerJsonScript('SIGI_STATE');
     }
 
     let item = data?.__DEFAULT_SCOPE__?.['webapp.video-detail']?.itemInfo?.itemStruct || null;
@@ -306,7 +301,10 @@ async function obtenerTikTokDirecto(url) {
         }
     }
 
-    const validos = candidatos.filter(x => /^https?:\\/\\//i.test(x.url));
+    const validos = candidatos.filter(x =>
+        typeof x.url === 'string' &&
+        (x.url.startsWith('https://') || x.url.startsWith('http://'))
+    );
     if (!validos.length) {
         throw new Error('TikTok no devolvió una URL MP4');
     }
