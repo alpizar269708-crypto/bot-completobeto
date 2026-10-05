@@ -210,7 +210,7 @@ async function resolverEnlaceTikTok(url) {
             signal: AbortSignal.timeout(15000)
         });
 
-        if (respuesta.url && /tiktok\.com/i.test(respuesta.url)) {
+        if (respuesta.url && /tiktok\.com/i.test(respuesta.url) && /\/(@|video\/|photo\/)/i.test(new URL(respuesta.url).pathname)) {
             return respuesta.url;
         }
     } catch (error) {
@@ -773,6 +773,7 @@ async function descargarTikTokConSnapTik(url) {
         await page.setUserAgent('Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36');
         await page.setExtraHTTPHeaders({ 'Accept-Language': 'es-MX,es;q=0.9,en;q=0.8' });
         await page.goto('https://snaptik.fi/es/download-tiktok-video', { waitUntil: 'domcontentloaded', timeout: 45000 });
+        await new Promise(r => setTimeout(r, 1200));
         const input = await page.$('input');
         if (!input) throw new Error('SnapTik no mostró el campo de enlace');
         await input.click({ clickCount: 3 });
@@ -870,7 +871,8 @@ async function comandoTiktok(sock, chatId, msg, args) {
         // SnapTik: respaldo externo principal cuando TikTok no entrega el MP4.
         if (!datos && !videoBuffer) {
             try {
-                videoBuffer = await descargarTikTokConSnapTik(url);
+                videoBuffer = await descargarTikTokConSnapTik(urlOriginal);
+                if (!videoBuffer?.length && url !== urlOriginal) videoBuffer = await descargarTikTokConSnapTik(url);
             } catch (errorSnapTik) {
                 errores.push('SnapTik: ' + errorSnapTik.message);
             }
