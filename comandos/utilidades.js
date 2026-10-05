@@ -751,6 +751,16 @@ async function comandoTiktok(sock, chatId, msg, args) {
             } catch (errorNavegador) {
                 errores.push('CDN navegador: ' + errorNavegador.message);
             }
+
+            // Si el parser encontró una URL pero el CDN la rechaza, no nos
+            // quedamos atrapados con esa URL: volvemos a un extractor distinto.
+            if (!videoBuffer) {
+                try {
+                    videoBuffer = await descargarTikTokConYtDlp(url);
+                } catch (errorYtDlp) {
+                    errores.push(errorYtDlp.message);
+                }
+            }
         }
         if (!videoBuffer?.length) throw new Error(errores.join(' | ') || 'No se pudo descargar el video');
 
