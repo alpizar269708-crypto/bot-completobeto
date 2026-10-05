@@ -239,7 +239,7 @@ function extraerDatosTikTokDePagina(pagina, cookies = '') {
         url: String(videoUrl).replace(/\\u0026/g, '&').replace(/\\u002F/g, '/'),
         bitrate: Number(video.bitrate || 0), codec: String(video.codecType || 'h264')
     });
-    const validos = candidatos.filter(x => /^https?:\\/\\//.test(x.url));
+    const validos = candidatos.filter(x => typeof x.url === 'string' && (x.url.startsWith('https://') || x.url.startsWith('http://')));
     if (!validos.length) throw new Error('TikTok no devolvió una URL MP4');
     const h264 = validos.filter(x => /h264/i.test(x.codec));
     const lista = h264.length ? h264 : validos;
@@ -386,6 +386,7 @@ async function descargarVideoTikTokConNavegador(videoUrl, cookie = '') {
         });
         const page = await browser.newPage();
         await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36');
+        await page.setExtraHTTPHeaders({ 'Referer': 'https://www.tiktok.com/', ...(cookie ? { 'Cookie': cookie } : {}) });
         if (cookie) {
             const cookies = cookie.split(';').map(x => x.trim()).filter(Boolean).map(x => {
                 const i = x.indexOf('=');
