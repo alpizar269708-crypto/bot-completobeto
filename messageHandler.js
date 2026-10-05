@@ -132,7 +132,9 @@ Apoya a un creador: JASC13` });
         return;
     }
 
-    if (!esComandoPropioPermitido && !tienePrivilegiosTotales && await verificarAntiLinks(sock, msg)) return;
+    // El comando tiktok necesita recibir un enlace por diseño. No debe ser
+    // bloqueado/borrado por el anti-links antes de que llegue al manejador.
+    if (textoComandoPrevio !== 'tiktok' && !esComandoPropioPermitido && !tienePrivilegiosTotales && await verificarAntiLinks(sock, msg)) return;
 
     if (!esComandoPropioPermitido && !tienePrivilegiosTotales && verificarMute(chatJid, remitenteReal)) {
         try { await sock.sendMessage(chatJid, { delete: msg.key }); } catch (e) {}
