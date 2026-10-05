@@ -185,27 +185,80 @@ async function comandoSticker(sock, msg) {
 }
 
 // 🎬 2. TikTok (Descarga sin marca de agua)
+async function obtenerTikTokTikWM(url) {
+    const respuesta = await fetch('https://www.tikwm.com/api/', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+            'Accept': 'application/json'
+        },
+        body: new URLSearchParams({ url }),
+        signal: AbortSignal.timeout(30000)
+    });
+
+    if (!respuesta.ok) {
+        throw new Error('TikWM respondió HTTP ' + respuesta.status);
+    }
+
+    const data = await respuesta.json();
+    if (data?.code !== 0 || !data?.data?.play) {
+        throw new Error(data?.msg || 'TikWM no devolvió un video descargable');
+    }
+
+    return data.data;
+}
+
 async function comandoTiktok(sock, chatId, msg, args) {
     const url = args[0];
-    if (!url || !url.includes('tiktok.com')) {
-        await sock.sendMessage(chatId, { text: '⚠️ Proporciona un enlace válido de TikTok. Ejemplo: `tiktok [link]`' }, { quoted: msg });
+    if (!url || !/^(https?:\/\/)?([a-z0-9-]+\.)?tiktok\.com\//i.test(url)) {
+        await sock.sendMessage(chatId, {
+            text: '⚠️ Proporciona un enlace válido de TikTok. Ejemplo: `tiktok [link]`'
+        }, { quoted: msg });
         return;
     }
+
     try {
-        await sock.sendMessage(chatId, { text: '⏳ Descargando video de TikTok...' }, { quoted: msg });
-        const res = await fetch(`https://www.tikwm.com/api/?url=${encodeURIComponent(url)}`);
-        const data = await res.json();
-        if (data && data.data && data.data.play) {
-            const videoUrl = data.data.play;
-            await sock.sendMessage(chatId, { 
-                video: { url: videoUrl }, 
-                caption: '🎬 *TikTok sin marca de agua*\nApoya al creador con el código: *JASC13*' 
-            }, { quoted: msg });
-        } else {
-            await sock.sendMessage(chatId, { text: '❌ No se pudo obtener el video.' }, { quoted: msg });
+        await sock.sendMessage(chatId, {
+            text: '⏳ Descargando video de TikTok...'
+        }, { quoted: msg });
+
+        let datos;
+        try {
+            datos = await obtenerTikTokTikWM(url);
+        } catch (error) {
+            if (/vm\.tiktok\.com|vt\.tiktok\.com/i.test(url)) {
+                await new Promise(resolve => setTimeout(resolve, 4000));
+                datos = await obtenerTikTokTikWM(url);
+            } else {
+                throw error;
+            }
         }
+
+        const videoRespuesta = await fetch(datos.play, {
+            headers: { 'User-Agent': 'Mozilla/5.0' },
+            signal: AbortSignal.timeout(60000)
+        });
+
+        if (!videoRespuesta.ok) {
+            throw new Error('No se pudo descargar el video de TikWM: HTTP ' + videoRespuesta.status);
+        }
+
+        const videoBuffer = Buffer.from(await videoRespuesta.arrayBuffer());
+        if (!videoBuffer.length) {
+            throw new Error('TikWM devolvió un video vacío');
+        }
+
+        await sock.sendMessage(chatId, {
+            video: videoBuffer,
+            mimetype: 'video/mp4',
+            caption: '🎬 *TikTok sin marca de agua*\nApoya al creador con el código: *JASC13*'
+        }, { quoted: msg });
+
     } catch (e) {
-        await sock.sendMessage(chatId, { text: '❌ Error al procesar el enlace de TikTok.' }, { quoted: msg });
+        console.error('Error al descargar TikTok:', e);
+        await sock.sendMessage(chatId, {
+            text: '❌ Error al procesar el enlace de TikTok. Intenta con otro enlace o vuelve a intentarlo en unos segundos.'
+        }, { quoted: msg });
     }
 }
 
