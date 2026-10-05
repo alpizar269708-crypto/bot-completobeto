@@ -384,20 +384,79 @@ async function descargarVideoTikTokConNavegador(videoUrl, cookie = '') {
             headless: true,
             args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
         });
+
         const page = await browser.newPage();
         await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36');
-        await page.setExtraHTTPHeaders({ 'Referer': 'https://www.tiktok.com/', ...(cookie ? { 'Cookie': cookie } : {}) });
+        await page.setExtraHTTPHeaders({
+            'Referer': 'https://www.tiktok.com/',
+            'Accept': 'video/mp4,video/*;q=0.9,*/*;q=0.8',
+            ...(cookie ? { 'Cookie': cookie } : {})
+        });
+
         if (cookie) {
             const cookies = cookie.split(';').map(x => x.trim()).filter(Boolean).map(x => {
                 const i = x.indexOf('=');
-                return i > 0 ? { name: x.slice(0, i), value: x.slice(i + 1), domain: '.tiktok.com', path: '/' } : null;
+                return i > 0
+                    ? { name: x.slice(0, i), value: x.slice(i + 1), domain: '.tiktok.com', path: '/' }
+                    : null;
             }).filter(Boolean);
             if (cookies.length) await page.setCookie(...cookies);
         }
-        const respuesta = await page.goto(videoUrl, { waitUntil: 'domcontentloaded', timeout: 90000 });
-        if (!respuesta || !respuesta.ok()) throw new Error('CDN TikTok navegador respondió HTTP ' + (respuesta?.status() || 0));
-        const buffer = await respuesta.buffer();
+
+        // Capturamos directamente la respuesta multimedia del CDN.
+        let videoResponse = null;
+        let responseError = null;
+
+        const capturarRespuesta = async response => {
+            try {
+                const tipo = String(response.headers()['content-type'] || '').toLowerCase();
+                const urlRespuesta = response.url();
+                if (
+                    !videoResponse &&
+                    response.ok() &&
+                    (
+                        tipo.includes('video/') ||
+                        /\\.(mp4|m4v)(?:$|[?#])/i.test(urlRespuesta)
+                    )
+                ) {
+                    videoResponse = response;
+                }
+            } catch (e) {
+                responseError = e;
+            }
+        };
+
+        page.on('response', capturarRespuesta);
+
+        try {
+            await page.goto('about:blank', { waitUntil: 'domcontentloaded', timeout: 15000 });
+            await page.evaluate(url => {
+                const video = document.createElement('video');
+                video.muted = true;
+                video.preload = 'auto';
+                video.src = url;
+                document.body.appendChild(video);
+                video.load();
+            }, videoUrl);
+
+            const inicio = Date.now();
+            while (!videoResponse && Date.now() - inicio < 90000) {
+                await new Promise(resolve => setTimeout(resolve, 250));
+            }
+        } catch (e) {
+            responseError = e;
+        }
+
+        if (!videoResponse) {
+            throw new Error(
+                'CDN TikTok navegador no entregó respuesta multimedia' +
+                (responseError?.message ? ': ' + responseError.message : '')
+            );
+        }
+
+        const buffer = await videoResponse.buffer();
         if (!buffer.length) throw new Error('El navegador recibió un video vacío');
+
         return buffer;
     } finally {
         if (browser) await browser.close().catch(() => {});
