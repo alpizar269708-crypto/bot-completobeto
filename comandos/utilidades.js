@@ -1,5 +1,6 @@
 const crypto = require('crypto');
 const puppeteer = require('puppeteer');
+const youtubedl = require('youtube-dl-exec');
 const { downloadMediaMessage } = require('@whiskeysockets/baileys');
 const { Sticker, StickerTypes } = require('wa-sticker-formatter');
 
@@ -382,85 +383,129 @@ async function descargarVideoTikTokConNavegador(videoUrl, cookie = '') {
     try {
         browser = await puppeteer.launch({
             headless: true,
-            args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
+            args: ['--no-sandbox','--disable-setuid-sandbox','--disable-dev-shm-usage','--disable-gpu']
         });
-
         const page = await browser.newPage();
-        await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36');
-        await page.setExtraHTTPHeaders({
-            'Referer': 'https://www.tiktok.com/',
-            'Accept': 'video/mp4,video/*;q=0.9,*/*;q=0.8',
-            ...(cookie ? { 'Cookie': cookie } : {})
-        });
-
+        await page.setUserAgent('Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36');
+        await page.setViewport({ width: 1365, height: 900 });
         if (cookie) {
             const cookies = cookie.split(';').map(x => x.trim()).filter(Boolean).map(x => {
                 const i = x.indexOf('=');
-                return i > 0
-                    ? { name: x.slice(0, i), value: x.slice(i + 1), domain: '.tiktok.com', path: '/' }
-                    : null;
+                return i > 0 ? { name:x.slice(0,i), value:x.slice(i+1), domain:'.tiktok.com', path:'/' } : null;
             }).filter(Boolean);
             if (cookies.length) await page.setCookie(...cookies);
         }
+        await page.setExtraHTTPHeaders({
+            'Referer':'https://www.tiktok.com/',
+            'Accept-Language':'es-MX,es;q=0.9,en;q=0.8'
+        });
 
-        // Capturamos directamente la respuesta multimedia del CDN.
         let videoResponse = null;
-        let responseError = null;
-
-        const capturarRespuesta = async response => {
+        page.on('response', response => {
             try {
-                const tipo = String(response.headers()['content-type'] || '').toLowerCase();
-                const urlRespuesta = response.url();
-                if (
-                    !videoResponse &&
-                    response.ok() &&
-                    (
-                        tipo.includes('video/') ||
-                        /\\.(mp4|m4v)(?:$|[?#])/i.test(urlRespuesta)
-                    )
-                ) {
-                    videoResponse = response;
-                }
-            } catch (e) {
-                responseError = e;
-            }
-        };
+                if (videoResponse || !response.ok()) return;
+                const h = response.headers();
+                const type = String(h['content-type'] || '').toLowerCase();
+                const u = response.url();
+                const len = Number(h['content-length'] || 0);
+                const media = type.includes('video/') ||
+                    /\.(mp4|m4v|mov)(?:$|[?#])/i.test(u) ||
+                    /tiktokcdn\.com/i.test(u) && len > 10000;
+                if (media) videoResponse = response;
+            } catch (_) {}
+        });
 
-        page.on('response', capturarRespuesta);
+        await page.goto('about:blank', {waitUntil:'domcontentloaded', timeout:15000});
+        await page.evaluate(url => {
+            const v=document.createElement('video');
+            v.muted=true; v.preload='auto'; v.src=url; v.load();
+            document.body.appendChild(v);
+        }, videoUrl);
 
+        const inicio=Date.now();
+        while (!videoResponse && Date.now()-inicio<30000)
+            await new Promise(r=>setTimeout(r,200));
+
+        if (videoResponse) {
+            try {
+                const b=await videoResponse.buffer();
+                if (b?.length>10000) return b;
+            } catch (_) {}
+        }
+
+        // Segunda vía: fetch dentro de Chromium.
         try {
-            await page.goto('about:blank', { waitUntil: 'domcontentloaded', timeout: 15000 });
-            await page.evaluate(url => {
-                const video = document.createElement('video');
-                video.muted = true;
-                video.preload = 'auto';
-                video.src = url;
-                document.body.appendChild(video);
-                video.load();
-            }, videoUrl);
+            const b64=await page.evaluate(async url => {
+                const r=await fetch(url,{credentials:'include'});
+                if(!r.ok) throw new Error('HTTP '+r.status);
+                const a=new Uint8Array(await r.arrayBuffer());
+                let s='';
+                for(let i=0;i<a.length;i+=0x8000) s+=String.fromCharCode(...a.subarray(i,i+0x8000));
+                return btoa(s);
+            },videoUrl);
+            const b=Buffer.from(b64,'base64');
+            if(b.length>10000) return b;
+        } catch (_) {}
 
-            const inicio = Date.now();
-            while (!videoResponse && Date.now() - inicio < 90000) {
-                await new Promise(resolve => setTimeout(resolve, 250));
+        // Tercera vía: navegación directa al recurso.
+        try {
+            let rmp4=null;
+            const handler=r=>{
+                try {
+                    const type=String(r.headers()['content-type']||'');
+                    if(!rmp4 && r.ok() && (/video\//i.test(type)||/\.(mp4|m4v|mov)(?:$|[?#])/i.test(r.url())||/tiktokcdn\.com/i.test(r.url()))) rmp4=r;
+                } catch(_){}
+            };
+            page.on('response',handler);
+            await page.goto(videoUrl,{waitUntil:'domcontentloaded',timeout:90000}).catch(()=>{});
+            if(rmp4){
+                const b=await rmp4.buffer();
+                if(b?.length>10000) return b;
             }
-        } catch (e) {
-            responseError = e;
-        }
+        } catch (_) {}
 
-        if (!videoResponse) {
-            throw new Error(
-                'CDN TikTok navegador no entregó respuesta multimedia' +
-                (responseError?.message ? ': ' + responseError.message : '')
-            );
-        }
-
-        const buffer = await videoResponse.buffer();
-        if (!buffer.length) throw new Error('El navegador recibió un video vacío');
-
-        return buffer;
+        throw new Error('Chromium no pudo obtener el cuerpo del MP4 del CDN');
     } finally {
-        if (browser) await browser.close().catch(() => {});
+        if(browser) await browser.close().catch(()=>{});
     }
+}
+
+async function descargarTikTokConYtDlp(url) {
+    let datos;
+    try {
+        datos = await youtubedl(url,{
+            dumpSingleJson:true,
+            noWarnings:true,
+            noPlaylist:true,
+            noCheckCertificates:true,
+            format:'best[ext=mp4]/best',
+            userAgent:'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+            referer:'https://www.tiktok.com/',
+            socketTimeout:30,
+            retries:3
+        },{timeout:90000});
+    } catch(e) {
+        throw new Error('yt-dlp: '+String(e?.message||e).slice(0,500));
+    }
+
+    const formatos=Array.isArray(datos?.formats)?datos.formats:[];
+    const candidatos=[
+        datos?.requested_downloads?.[0]?.url,
+        datos?.url,
+        ...formatos.filter(f=>f?.url&&(!f.ext||f.ext==='mp4'))
+            .sort((a,b)=>Number(b.tbr||0)-Number(a.tbr||0)).map(f=>f.url)
+    ].filter(x=>typeof x==='string'&&/^https?:\/\//i.test(x));
+
+    if(!candidatos.length) throw new Error('yt-dlp no devolvió una URL de video');
+
+    let ultimo=null;
+    for(const u of candidatos.slice(0,3)){
+        try {
+            const b=await descargarVideoTikTok(u);
+            if(b?.length>10000) return b;
+        } catch(e){ ultimo=e; }
+    }
+    throw new Error('yt-dlp encontró el video pero no pudo descargarlo'+(ultimo?.message?': '+ultimo.message:''));
 }
 
 function extraerVideoTikWM(data) {
@@ -644,8 +689,18 @@ async function comandoTiktok(sock, chatId, msg, args) {
             }
         }
 
-        // Si TikTok no entregó el MP4 directamente, usamos los proveedores externos.
+        // Respaldo independiente: yt-dlp usa su propio extractor de TikTok.
         if (!datos) {
+            try {
+                const videoYtDlp = await descargarTikTokConYtDlp(url);
+                videoBuffer = videoYtDlp;
+            } catch (errorYtDlp) {
+                errores.push(errorYtDlp.message);
+            }
+        }
+
+        // Si TikTok no entregó el MP4 directamente, usamos los proveedores externos.
+        if (!datos && !videoBuffer) {
                     for (const metodo of ['POST', 'GET']) {
                         try {
                             datos = await obtenerTikTokTikWM(url, metodo);
