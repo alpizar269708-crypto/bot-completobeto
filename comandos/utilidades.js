@@ -211,6 +211,118 @@ async function resolverEnlaceTikTok(url) {
     return url;
 }
 
+async function obtenerTikTokDirecto(url) {
+    const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
+
+    const headersBase = {
+        'User-Agent': UA,
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+        'Accept-Language': 'es-MX,es;q=0.9,en;q=0.8',
+        'Cache-Control': 'no-cache',
+        'Pragma': 'no-cache',
+        'Upgrade-Insecure-Requests': '1'
+    };
+
+    let respuesta = await fetch(url, {
+        method: 'GET',
+        redirect: 'follow',
+        headers: headersBase,
+        signal: AbortSignal.timeout(30000)
+    });
+
+    if (!respuesta.ok) {
+        throw new Error('TikTok página respondió HTTP ' + respuesta.status);
+    }
+
+    const cookies = typeof respuesta.headers.getSetCookie === 'function'
+        ? respuesta.headers.getSetCookie().map(x => x.split(';')[0]).join('; ')
+        : '';
+
+    const pagina = await respuesta.text();
+    let data = null;
+
+    const universal = pagina.match(
+        /<script[^>]+id=["']__UNIVERSAL_DATA_FOR_REHYDRATION__["'][^>]*>([\s\S]*?)<\\/script>/i
+    );
+
+    if (universal) {
+        try {
+            data = JSON.parse(universal[1]);
+        } catch {
+            data = null;
+        }
+    }
+
+    // TikTok también ha usado SIGI_STATE como fuente de datos.
+    if (!data) {
+        const sigi = pagina.match(
+            /<script[^>]+id=["']SIGI_STATE["'][^>]*>([\s\S]*?)<\\/script>/i
+        );
+        if (sigi) {
+            try {
+                data = JSON.parse(sigi[1]);
+            } catch {
+                data = null;
+            }
+        }
+    }
+
+    let item = data?.__DEFAULT_SCOPE__?.['webapp.video-detail']?.itemInfo?.itemStruct || null;
+
+    if (!item && data?.ItemModule) {
+        const valores = Object.values(data.ItemModule);
+        item = valores.find(x => x?.video?.playAddr || x?.video?.downloadAddr) || null;
+    }
+
+    const video = item?.video;
+    if (!video) {
+        throw new Error('TikTok no entregó los datos del video en la página');
+    }
+
+    const candidatos = [];
+
+    if (Array.isArray(video.bitrateInfo)) {
+        for (const calidad of video.bitrateInfo) {
+            const urls = calidad?.PlayAddr?.UrlList || [];
+            for (const videoUrl of urls) {
+                if (videoUrl) {
+                    candidatos.push({
+                        url: videoUrl.replace(/\\u0026/g, '&').replace(/\\u002F/g, '/'),
+                        bitrate: Number(calidad?.Bitrate || 0),
+                        codec: String(calidad?.CodecType || '')
+                    });
+                }
+            }
+        }
+    }
+
+    for (const videoUrl of [video.downloadAddr, video.playAddr]) {
+        if (videoUrl) {
+            candidatos.push({
+                url: String(videoUrl).replace(/\\u0026/g, '&').replace(/\\u002F/g, '/'),
+                bitrate: Number(video.bitrate || 0),
+                codec: String(video.codecType || 'h264')
+            });
+        }
+    }
+
+    const validos = candidatos.filter(x => /^https?:\\/\\//i.test(x.url));
+    if (!validos.length) {
+        throw new Error('TikTok no devolvió una URL MP4');
+    }
+
+    // Preferimos H.264 porque WhatsApp maneja mejor ese MP4 que HEVC/ByteVC1.
+    const h264 = validos.filter(x => /h264/i.test(x.codec));
+    const lista = h264.length ? h264 : validos;
+    lista.sort((a, b) => b.bitrate - a.bitrate);
+
+    return {
+        videoUrl: lista[0].url,
+        cookie: cookies,
+        titulo: item?.desc || 'TikTok'
+    };
+}
+
 function extraerVideoTikWM(data) {
     const datos = data?.data;
 
@@ -244,7 +356,8 @@ async function obtenerTikTokTikWM(url, metodo = 'POST') {
         headers: {
             'Accept': 'application/json',
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-            'Referer': 'https://www.tikwm.com/'
+            'Referer': 'https://www.tiktok.com/',
+            ...(cookie ? { 'Cookie': cookie } : {})
         },
         signal: AbortSignal.timeout(30000)
     };
@@ -329,7 +442,7 @@ async function obtenerTikTokTDown(url) {
     };
 }
 
-async function descargarVideoTikTok(videoUrl) {
+async function descargarVideoTikTok(videoUrl, cookie = '') {
     const respuesta = await fetch(videoUrl, {
         headers: {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
@@ -375,7 +488,15 @@ async function comandoTiktok(sock, chatId, msg, args) {
         // reciban, cuando sea posible, el enlace canónico del video.
         url = await resolverEnlaceTikTok(url);
 
-        // Probamos las dos variantes actuales de TikWM.
+        // Primero intentamos extraer el MP4 directamente de la página de TikTok.
+        // Esto evita depender de TikWM/TDown, que desde Render pueden devolver 403/500.
+        try {
+            datos = await obtenerTikTokDirecto(url);
+        } catch (errorDirecto) {
+            errores.push('TikTok directo: ' + errorDirecto.message);
+        }
+
+        // Si TikTok no entregó el MP4 directamente, usamos los proveedores externos.
         for (const metodo of ['POST', 'GET']) {
             try {
                 datos = await obtenerTikTokTikWM(url, metodo);
@@ -413,7 +534,7 @@ async function comandoTiktok(sock, chatId, msg, args) {
             throw new Error(errores.join(' | ') || 'Ningún servicio devolvió el video');
         }
 
-        const videoBuffer = await descargarVideoTikTok(datos.videoUrl);
+        const videoBuffer = await descargarVideoTikTok(datos.videoUrl, datos.cookie || '');
 
         await sock.sendMessage(chatId, {
             video: videoBuffer,
