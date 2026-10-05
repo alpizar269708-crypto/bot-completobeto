@@ -3,7 +3,11 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const puppeteer = require('puppeteer');
-const youtubedl = require('youtube-dl-exec');
+const youtubeDlExec = require('youtube-dl-exec');
+const ytDlpPersonalizado = path.join(process.cwd(), '.venv', 'bin', 'yt-dlp');
+const youtubedl = fs.existsSync(ytDlpPersonalizado)
+    ? youtubeDlExec.create(ytDlpPersonalizado)
+    : youtubeDlExec;
 const { downloadMediaMessage } = require('@whiskeysockets/baileys');
 const { Sticker, StickerTypes } = require('wa-sticker-formatter');
 
@@ -524,6 +528,7 @@ async function ejecutarYtDlpDescarga(url, cookieFile = null) {
             noWarnings: true,
             noPlaylist: true,
             noCheckCertificates: true,
+            impersonate: 'chrome',
             userAgent: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
             referer: 'https://www.tiktok.com/',
             socketTimeout: 30,
@@ -586,6 +591,7 @@ async function descargarTikTokConYtDlp(url) {
             noPlaylist:true,
             noCheckCertificates:true,
             format:'best[ext=mp4]/best',
+            impersonate:'chrome',
             userAgent:'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
             referer:'https://www.tiktok.com/',
             socketTimeout:30,
