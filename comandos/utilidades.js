@@ -495,37 +495,41 @@ async function comandoTiktok(sock, chatId, msg, args) {
         }
 
         // Si TikTok no entregó el MP4 directamente, usamos los proveedores externos.
-        for (const metodo of ['POST', 'GET']) {
-            try {
-                datos = await obtenerTikTokTikWM(url, metodo);
-                if (datos?.videoUrl) break;
-            } catch (errorTikWM) {
-                errores.push('TikWM ' + metodo + ': ' + errorTikWM.message);
-            }
-        }
-
-        // Si era un enlace corto y la resolución falló, damos una segunda
-        // oportunidad al enlace original después de unos segundos.
-        if (!datos && url !== urlOriginal) {
-            await new Promise(resolve => setTimeout(resolve, 4000));
-
-            for (const metodo of ['POST', 'GET']) {
-                try {
-                    datos = await obtenerTikTokTikWM(urlOriginal, metodo);
-                    if (datos?.videoUrl) break;
-                } catch (errorTikWM) {
-                    errores.push('TikWM corto ' + metodo + ': ' + errorTikWM.message);
-                }
-            }
-        }
-
-        // Segundo servicio independiente.
         if (!datos) {
-            try {
-                datos = await obtenerTikTokTDown(url);
-            } catch (errorTDown) {
-                errores.push('TDown: ' + errorTDown.message);
-            }
+                    for (const metodo of ['POST', 'GET']) {
+                        try {
+                            datos = await obtenerTikTokTikWM(url, metodo);
+                            if (datos?.videoUrl) break;
+                        } catch (errorTikWM) {
+                            errores.push('TikWM ' + metodo + ': ' + errorTikWM.message);
+                        }
+                    }
+            
+                    // Si era un enlace corto y la resolución falló, damos una segunda
+                    // oportunidad al enlace original después de unos segundos.
+                    if (!datos && url !== urlOriginal) {
+                        await new Promise(resolve => setTimeout(resolve, 4000));
+            
+                        for (const metodo of ['POST', 'GET']) {
+                            try {
+                                datos = await obtenerTikTokTikWM(urlOriginal, metodo);
+                                if (datos?.videoUrl) break;
+                            } catch (errorTikWM) {
+                                errores.push('TikWM corto ' + metodo + ': ' + errorTikWM.message);
+                            }
+                        }
+                    }
+            
+                    // Segundo servicio independiente.
+                    if (!datos) {
+                        try {
+                            datos = await obtenerTikTokTDown(url);
+                        } catch (errorTDown) {
+                            errores.push('TDown: ' + errorTDown.message);
+                        }
+                    }
+            
+            
         }
 
         if (!datos?.videoUrl) {
