@@ -1,4 +1,7 @@
 const crypto = require('crypto');
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
 const puppeteer = require('puppeteer');
 const youtubedl = require('youtube-dl-exec');
 const { downloadMediaMessage } = require('@whiskeysockets/baileys');
@@ -470,10 +473,114 @@ async function descargarVideoTikTokConNavegador(videoUrl, cookie = '') {
     }
 }
 
-async function descargarTikTokConYtDlp(url) {
-    let datos;
+async function obtenerCookiesTikTokParaYtDlp(url) {
+    let browser;
     try {
-        datos = await youtubedl(url,{
+        browser = await puppeteer.launch({
+            headless: true,
+            args: ['--no-sandbox','--disable-setuid-sandbox','--disable-dev-shm-usage','--disable-gpu']
+        });
+        const page = await browser.newPage();
+        await page.setUserAgent('Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36');
+        await page.setExtraHTTPHeaders({
+            'Accept-Language':'es-MX,es;q=0.9,en;q=0.8',
+            'Upgrade-Insecure-Requests':'1'
+        });
+        await page.goto(url, { waitUntil:'domcontentloaded', timeout:45000 }).catch(()=>{});
+        await new Promise(resolve => setTimeout(resolve, 4000));
+        const cookies = await page.cookies();
+        if (!cookies.length) return null;
+
+        const lineas = ['# Netscape HTTP Cookie File', '# Generated automatically for yt-dlp'];
+        for (const c of cookies) {
+            lineas.push([
+                c.domain || '.tiktok.com',
+                c.domain?.startsWith('.') ? 'TRUE' : 'FALSE',
+                c.path || '/',
+                c.secure ? 'TRUE' : 'FALSE',
+                Math.round(c.expires > 0 ? c.expires : 0),
+                c.name,
+                c.value || ''
+            ].join('\t'));
+        }
+
+        const archivo = path.join(os.tmpdir(), 'tiktok-cookies-' + crypto.randomBytes(8).toString('hex') + '.txt');
+        fs.writeFileSync(archivo, lineas.join('\n') + '\n', 'utf8');
+        return archivo;
+    } catch (e) {
+        console.warn('⚠️ No se pudieron obtener cookies de TikTok para yt-dlp:', e?.message || e);
+        return null;
+    } finally {
+        if (browser) await browser.close().catch(()=>{});
+    }
+}
+
+async function ejecutarYtDlpDescarga(url, cookieFile = null) {
+    const salida = path.join(os.tmpdir(), 'tiktok-' + crypto.randomBytes(8).toString('hex') + '.mp4');
+    try {
+        const opciones = {
+            output: salida,
+            format: 'best[ext=mp4]/best',
+            noWarnings: true,
+            noPlaylist: true,
+            noCheckCertificates: true,
+            userAgent: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+            referer: 'https://www.tiktok.com/',
+            socketTimeout: 30,
+            retries: 5,
+            fragmentRetries: 5,
+            extractorRetries: 3,
+            noPart: true,
+            geoBypass: true
+        };
+        if (cookieFile) opciones.cookies = cookieFile;
+
+        await youtubedl(url, opciones, { timeout: 120000 });
+
+        if (!fs.existsSync(salida)) throw new Error('yt-dlp terminó pero no creó el archivo MP4');
+        const buffer = fs.readFileSync(salida);
+        if (!buffer.length || buffer.length < 10000) throw new Error('yt-dlp creó un archivo de video vacío o inválido');
+        return buffer;
+    } catch (e) {
+        throw new Error(String(e?.message || e).replace(/\s+/g, ' ').slice(0, 700));
+    } finally {
+        try { if (fs.existsSync(salida)) fs.unlinkSync(salida); } catch (_) {}
+    }
+}
+
+async function descargarTikTokConYtDlp(url) {
+    let ultimo = null;
+
+    // Deja que yt-dlp haga la descarga completa. Esto evita perder cookies,
+    // headers, redirects y lógica específica del extractor al pasar la URL a fetch.
+    try {
+        return await ejecutarYtDlpDescarga(url);
+    } catch (e) {
+        ultimo = e;
+        console.warn('⚠️ yt-dlp directo falló:', e.message);
+    }
+
+    // Segundo intento con cookies reales obtenidas desde Chromium.
+    let cookieFile = null;
+    try {
+        cookieFile = await obtenerCookiesTikTokParaYtDlp(url);
+        if (cookieFile) {
+            try {
+                return await ejecutarYtDlpDescarga(url, cookieFile);
+            } catch (e) {
+                ultimo = e;
+                console.warn('⚠️ yt-dlp con cookies falló:', e.message);
+            }
+        }
+    } finally {
+        if (cookieFile) {
+            try { if (fs.existsSync(cookieFile)) fs.unlinkSync(cookieFile); } catch (_) {}
+        }
+    }
+
+    // Último intento: extracción JSON + descarga manual de la URL devuelta.
+    try {
+        const datos = await youtubedl(url,{
             dumpSingleJson:true,
             noWarnings:true,
             noPlaylist:true,
@@ -484,28 +591,26 @@ async function descargarTikTokConYtDlp(url) {
             socketTimeout:30,
             retries:3
         },{timeout:90000});
+
+        const formatos=Array.isArray(datos?.formats)?datos.formats:[];
+        const candidatos=[
+            datos?.requested_downloads?.[0]?.url,
+            datos?.url,
+            ...formatos.filter(f=>f?.url&&(!f.ext||f.ext==='mp4'))
+                .sort((a,b)=>Number(b.tbr||0)-Number(a.tbr||0)).map(f=>f.url)
+        ].filter(x=>typeof x==='string'&&/^https?:\/\/.*/i.test(x));
+
+        for(const u of candidatos.slice(0,3)){
+            try {
+                const b=await descargarVideoTikTok(u);
+                if(b?.length>10000) return b;
+            } catch(e){ ultimo=e; }
+        }
     } catch(e) {
-        throw new Error('yt-dlp: '+String(e?.message||e).slice(0,500));
+        ultimo = e;
     }
 
-    const formatos=Array.isArray(datos?.formats)?datos.formats:[];
-    const candidatos=[
-        datos?.requested_downloads?.[0]?.url,
-        datos?.url,
-        ...formatos.filter(f=>f?.url&&(!f.ext||f.ext==='mp4'))
-            .sort((a,b)=>Number(b.tbr||0)-Number(a.tbr||0)).map(f=>f.url)
-    ].filter(x=>typeof x==='string'&&/^https?:\/\//i.test(x));
-
-    if(!candidatos.length) throw new Error('yt-dlp no devolvió una URL de video');
-
-    let ultimo=null;
-    for(const u of candidatos.slice(0,3)){
-        try {
-            const b=await descargarVideoTikTok(u);
-            if(b?.length>10000) return b;
-        } catch(e){ ultimo=e; }
-    }
-    throw new Error('yt-dlp encontró el video pero no pudo descargarlo'+(ultimo?.message?': '+ultimo.message:''));
+    throw new Error('yt-dlp no pudo descargar el TikTok' + (ultimo?.message ? ': ' + ultimo.message : ''));
 }
 
 function extraerVideoTikWM(data) {
