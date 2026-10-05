@@ -190,9 +190,17 @@ async function obtenerTikTokTikWM(url) {
         method: 'POST',
         headers: {
             'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
-            'Accept': 'application/json'
+            'Accept': 'application/json',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+            'Cookie': 'current_language=en'
         },
-        body: new URLSearchParams({ url }),
+        body: new URLSearchParams({
+            url,
+            hd: '1',
+            web: '1',
+            count: '12',
+            cursor: '0'
+        }),
         signal: AbortSignal.timeout(30000)
     });
 
@@ -201,11 +209,66 @@ async function obtenerTikTokTikWM(url) {
     }
 
     const data = await respuesta.json();
-    if (data?.code !== 0 || !data?.data?.play) {
+    const datos = data?.data;
+    const videoUrl = datos?.hdplay || datos?.play;
+
+    if (data?.code !== 0 || !videoUrl) {
         throw new Error(data?.msg || 'TikWM no devolvió un video descargable');
     }
 
-    return data.data;
+    return {
+        videoUrl,
+        titulo: datos?.title || 'TikTok'
+    };
+}
+
+async function obtenerTikTokTDown(url) {
+    const endpoint = 'https://tdownv4.sl-bjs.workers.dev/?down=' + encodeURIComponent(url);
+    const respuesta = await fetch(endpoint, {
+        headers: {
+            'Accept': 'application/json',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
+        },
+        signal: AbortSignal.timeout(30000)
+    });
+
+    if (!respuesta.ok) {
+        throw new Error('TDown respondió HTTP ' + respuesta.status);
+    }
+
+    const data = await respuesta.json();
+    const videoUrl = data?.download_url;
+
+    if (!videoUrl) {
+        throw new Error(data?.message || 'TDown no devolvió un video descargable');
+    }
+
+    return {
+        videoUrl,
+        titulo: data?.title || 'TikTok'
+    };
+}
+
+async function descargarVideoTikTok(videoUrl) {
+    const respuesta = await fetch(videoUrl, {
+        headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+            'Accept': 'video/mp4,video/*;q=0.9,*/*;q=0.8'
+        },
+        redirect: 'follow',
+        signal: AbortSignal.timeout(90000)
+    });
+
+    if (!respuesta.ok) {
+        throw new Error('No se pudo descargar el MP4: HTTP ' + respuesta.status);
+    }
+
+    const videoBuffer = Buffer.from(await respuesta.arrayBuffer());
+    if (!videoBuffer.length) {
+        throw new Error('El servidor devolvió un video vacío');
+    }
+
+    return videoBuffer;
 }
 
 async function comandoTiktok(sock, chatId, msg, args) {
@@ -223,30 +286,41 @@ async function comandoTiktok(sock, chatId, msg, args) {
         }, { quoted: msg });
 
         let datos;
+        let ultimoError;
+
+        // TikWM sigue siendo el primer intento: es el servicio principal
+        // y permite solicitar la versión HD sin marca de agua.
         try {
             datos = await obtenerTikTokTikWM(url);
-        } catch (error) {
+        } catch (errorTikWM) {
+            ultimoError = errorTikWM;
+
+            // Los enlaces vm/vt recién creados pueden tardar unos segundos.
             if (/vm\.tiktok\.com|vt\.tiktok\.com/i.test(url)) {
-                await new Promise(resolve => setTimeout(resolve, 4000));
-                datos = await obtenerTikTokTikWM(url);
-            } else {
-                throw error;
+                await new Promise(resolve => setTimeout(resolve, 5000));
+                try {
+                    datos = await obtenerTikTokTikWM(url);
+                } catch (errorReintento) {
+                    ultimoError = errorReintento;
+                }
             }
         }
 
-        const videoRespuesta = await fetch(datos.play, {
-            headers: { 'User-Agent': 'Mozilla/5.0' },
-            signal: AbortSignal.timeout(60000)
-        });
-
-        if (!videoRespuesta.ok) {
-            throw new Error('No se pudo descargar el video de TikWM: HTTP ' + videoRespuesta.status);
+        // Segundo resolvedor independiente para que TikTok no deje inutilizado
+        // el comando cuando TikWM tenga una caída o bloqueo temporal.
+        if (!datos) {
+            try {
+                datos = await obtenerTikTokTDown(url);
+            } catch (errorTDown) {
+                ultimoError = errorTDown;
+            }
         }
 
-        const videoBuffer = Buffer.from(await videoRespuesta.arrayBuffer());
-        if (!videoBuffer.length) {
-            throw new Error('TikWM devolvió un video vacío');
+        if (!datos?.videoUrl) {
+            throw ultimoError || new Error('Ningún servicio devolvió el video');
         }
+
+        const videoBuffer = await descargarVideoTikTok(datos.videoUrl);
 
         await sock.sendMessage(chatId, {
             video: videoBuffer,
@@ -255,9 +329,9 @@ async function comandoTiktok(sock, chatId, msg, args) {
         }, { quoted: msg });
 
     } catch (e) {
-        console.error('Error al descargar TikTok:', e);
+        console.error('Error al descargar TikTok:', e?.stack || e);
         await sock.sendMessage(chatId, {
-            text: '❌ Error al procesar el enlace de TikTok. Intenta con otro enlace o vuelve a intentarlo en unos segundos.'
+            text: '❌ No pude descargar ese TikTok. Intenta nuevamente con el enlace de *Compartir → Copiar enlace*.'
         }, { quoted: msg });
     }
 }
