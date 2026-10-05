@@ -795,15 +795,15 @@ async function descargarTikTokConSnapTik(url) {
         const page = await browser.newPage();
         await page.setUserAgent('Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36');
         await page.setExtraHTTPHeaders({ 'Accept-Language': 'es-MX,es;q=0.9,en;q=0.8' });
-        await page.goto('https://snaptik.fi/es/download-tiktok-video', { waitUntil: 'domcontentloaded', timeout: 45000 });
+        await page.goto('https://snaptik.fi/es', { waitUntil: 'domcontentloaded', timeout: 45000 });
         await new Promise(r => setTimeout(r, 1200));
-        const input = await page.$('input');
+        const input = await page.$('input[type="url"], input[name="url"], input[placeholder*="URL" i], input');
         if (!input) throw new Error('SnapTik no mostró el campo de enlace');
         await input.click({ clickCount: 3 });
         await input.type(url, { delay: 3 });
-        const buttons = await page.$('button');
+        const botones = await page.$('button, input[type="submit"], input[type="button"], a');
         let downloadButton = null;
-        for (const button of buttons) {
+        for (const button of botones) {
             const text = await button.evaluate(el => (el.innerText || el.textContent || '').trim());
             if (/descargar/i.test(text)) { downloadButton = button; break; }
         }
