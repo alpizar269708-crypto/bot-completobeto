@@ -226,32 +226,94 @@ async function comandoSticker(sock, msg) {
 }
 
 // 🎬 2. TikTok (Descarga sin marca de agua)
+function extraerUrlTikTok(texto) {
+    const fuente = String(texto || '').trim();
+    if (!fuente) return null;
+
+    // WhatsApp/web puede entregar el enlace con formato Markdown:
+    // [https://vt.tiktok.com/...](https://vt.tiktok.com/...)
+    const markdown = [...fuente.matchAll(/\]\((https?:\/\/(?:www\.)?(?:tiktok\.com|vt\.tiktok\.com|vm\.tiktok\.com)\/[^)\s]+)\)/gi)]
+        .map(m => m[1]);
+
+    const urls = [
+        ...markdown,
+        ...(fuente.match(/https?:\/\/(?:www\.)?(?:tiktok\.com|vt\.tiktok\.com|vm\.tiktok\.com)\/[^\s<>\]\)]+/gi) || [])
+    ];
+
+    for (let url of urls) {
+        url = url.replace(/[),.;!?]+$/g, '');
+        try {
+            const u = new URL(url);
+            if (/(^|\.)tiktok\.com$/i.test(u.hostname)) return u.toString();
+        } catch (_) {}
+    }
+
+    // También aceptamos un enlace sin https://.
+    const sinEsquema = fuente.match(/(?:www\.)?(?:tiktok\.com|vt\.tiktok\.com|vm\.tiktok\.com)\/[^^\s<>\]\)]+/i);
+    if (sinEsquema?.[0]) {
+        try {
+            const u = new URL('https://' + sinEsquema[0].replace(/[),.;!?]+$/g, ''));
+            if (/(^|\.)tiktok\.com$/i.test(u.hostname)) return u.toString();
+        } catch (_) {}
+    }
+
+    return null;
+}
+
 async function resolverEnlaceTikTok(url) {
-    // Los enlaces vm/vt.tiktok.com son redirecciones. Resolverlos primero
-    // evita que los servicios externos reciban un enlace corto que todavía
-    // no hayan podido interpretar.
-    if (!/vm\.tiktok\.com|vt\.tiktok\.com/i.test(url)) return url;
+    let original;
+    try { original = new URL(url); } catch { return url; }
+
+    const esCanonico = /\/(?:@[^/]+\/video\/|video\/|photo\/)/i.test(original.pathname);
+    if (esCanonico) return url;
+
+    const headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+        'Accept-Language': 'es-MX,es;q=0.9,en;q=0.8'
+    };
 
     try {
         const respuesta = await fetch(url, {
             method: 'GET',
             redirect: 'follow',
-            headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
-            },
+            headers,
             signal: AbortSignal.timeout(15000)
         });
-
-        if (respuesta.url && /tiktok\.com/i.test(respuesta.url) && /\/(@|video\/|photo\/)/i.test(new URL(respuesta.url).pathname)) {
-            return respuesta.url;
+        if (respuesta.url && /tiktok\.com/i.test(respuesta.url)) {
+            const finalUrl = new URL(respuesta.url);
+            if (/\/(?:@[^/]+\/video\/|video\/|photo\/)/i.test(finalUrl.pathname)) {
+                return finalUrl.toString();
+            }
         }
     } catch (error) {
-        console.warn('⚠️ No se pudo resolver el enlace corto de TikTok:', error.message);
+        console.warn('⚠️ No se pudo resolver TikTok por HTTP:', error.message);
+    }
+
+    // Algunos enlaces vt/vm son enviados por TikTok a una URL intermedia
+    // (por ejemplo /?_r=1). Chromium sigue la navegación real y nos da la URL final.
+    if (/^(?:vt|vm)\.tiktok\.com$/i.test(original.hostname) || /\/t\//i.test(original.pathname)) {
+        let browser;
+        try {
+            browser = await puppeteer.launch(opcionesPuppeteer());
+            const page = await browser.newPage();
+            await page.setUserAgent(headers['User-Agent']);
+            await page.setExtraHTTPHeaders({ 'Accept-Language': headers['Accept-Language'] });
+            await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 }).catch(() => {});
+            await new Promise(r => setTimeout(r, 2000));
+            const finalUrl = page.url();
+            if (finalUrl && /tiktok\.com/i.test(finalUrl)) {
+                const u = new URL(finalUrl);
+                if (/\/(?:@[^/]+\/video\/|video\/|photo\/)/i.test(u.pathname)) return u.toString();
+            }
+        } catch (error) {
+            console.warn('⚠️ No se pudo resolver TikTok con navegador:', error.message);
+        } finally {
+            if (browser) await browser.close().catch(() => {});
+        }
     }
 
     return url;
 }
-
 
 function extraerDatosTikTokDePagina(pagina, cookies = '') {
     let data = null;
@@ -845,10 +907,12 @@ async function descargarTikTokConSnapTik(url) {
 
 
 async function comandoTiktok(sock, chatId, msg, args) {
-    const urlOriginal = args[0];
-    console.log('🎵 TIKTOK: comando recibido:', urlOriginal);
+    const textoArgumentos = Array.isArray(args) ? args.join(' ') : String(args || '');
+    const urlOriginal = extraerUrlTikTok(textoArgumentos);
+    console.log('🎵 TIKTOK: comando recibido. Texto:', textoArgumentos);
+    console.log('🎵 TIKTOK: URL extraída:', urlOriginal || 'NO ENCONTRADA');
 
-    if (!urlOriginal || !/^(https?:\/\/)?([a-z0-9-]+\.)?tiktok\.com\//i.test(urlOriginal)) {
+    if (!urlOriginal) {
         await sock.sendMessage(chatId, {
             text: '⚠️ Proporciona un enlace válido de TikTok. Ejemplo: `tiktok [link]`'
         }, { quoted: msg });
@@ -865,37 +929,39 @@ async function comandoTiktok(sock, chatId, msg, args) {
         const errores = [];
         let videoBuffer = null;
 
-        // Primero resolvemos enlaces cortos para que todos los proveedores
-        // reciban, cuando sea posible, el enlace canónico del video.
+        // Resolvemos enlaces vt/vm/t para entregar a cada proveedor el URL
+        // canónico siempre que TikTok permita obtenerlo.
         url = await resolverEnlaceTikTok(url);
         console.log('🎵 TIKTOK: URL a procesar:', url);
 
-        // Primero intentamos extraer el MP4 directamente de la página de TikTok.
-        // Esto evita depender de TikWM/TDown, que desde Render pueden devolver 403/500.
+        // SnapTik es el método principal: acepta los enlaces copiados desde
+        // Compartir y ofrece descarga HD 1080p/720p sin marca de agua.
         try {
-            datos = await obtenerTikTokDirecto(url);
-        } catch (errorDirecto) {
-            errores.push('TikTok directo: ' + errorDirecto.message);
+            console.log('🎵 TIKTOK: intentando SnapTik...');
+            videoBuffer = await descargarTikTokConSnapTik(url);
+            if (!videoBuffer?.length && url !== urlOriginal) {
+                videoBuffer = await descargarTikTokConSnapTik(urlOriginal);
+            }
+            console.log('🎵 TIKTOK: SnapTik respondió con', videoBuffer?.length || 0, 'bytes');
+        } catch (errorSnapTik) {
+            console.warn('⚠️ SnapTik falló:', errorSnapTik.message);
+            errores.push('SnapTik: ' + errorSnapTik.message);
         }
 
-        if (!datos) {
+        // Si SnapTik no pudo, pasamos al extractor directo de TikTok.
+        if (!videoBuffer) {
+            try {
+                datos = await obtenerTikTokDirecto(url);
+            } catch (errorDirecto) {
+                errores.push('TikTok directo: ' + errorDirecto.message);
+            }
+        }
+
+        if (!datos && !videoBuffer) {
             try {
                 datos = await obtenerTikTokConNavegador(url);
             } catch (errorNavegador) {
                 errores.push('TikTok navegador: ' + errorNavegador.message);
-            }
-        }
-
-        // SnapTik: respaldo externo principal cuando TikTok no entrega el MP4.
-        if (!datos && !videoBuffer) {
-            try {
-                console.log('🎵 TIKTOK: intentando SnapTik...');
-                videoBuffer = await descargarTikTokConSnapTik(urlOriginal);
-                if (!videoBuffer?.length && url !== urlOriginal) videoBuffer = await descargarTikTokConSnapTik(url);
-                console.log('🎵 TIKTOK: SnapTik respondió con', videoBuffer?.length || 0, 'bytes');
-            } catch (errorSnapTik) {
-                console.warn('⚠️ SnapTik falló:', errorSnapTik.message);
-                errores.push('SnapTik: ' + errorSnapTik.message);
             }
         }
 
