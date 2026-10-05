@@ -765,6 +765,68 @@ async function descargarVideoTikTok(videoUrl, cookie = '') {
     return videoBuffer;
 }
 
+async function descargarTikTokConSnapTik(url) {
+    let browser;
+    try {
+        browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox','--disable-setuid-sandbox','--disable-dev-shm-usage'] });
+        const page = await browser.newPage();
+        await page.setUserAgent('Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36');
+        await page.setExtraHTTPHeaders({ 'Accept-Language': 'es-MX,es;q=0.9,en;q=0.8' });
+        await page.goto('https://snaptik.fi/es/download-tiktok-video', { waitUntil: 'domcontentloaded', timeout: 45000 });
+        const input = await page.$('input');
+        if (!input) throw new Error('SnapTik no mostró el campo de enlace');
+        await input.click({ clickCount: 3 });
+        await input.type(url, { delay: 3 });
+        const buttons = await page.$('button');
+        let downloadButton = null;
+        for (const button of buttons) {
+            const text = await button.evaluate(el => (el.innerText || el.textContent || '').trim());
+            if (/descargar/i.test(text)) { downloadButton = button; break; }
+        }
+        if (!downloadButton) throw new Error('SnapTik no mostró el botón Descargar');
+        let mediaResponse = null;
+        page.on('response', response => {
+            try {
+                const type = String(response.headers()['content-type'] || '').toLowerCase();
+                const u = response.url();
+                if (response.ok() && (type.includes('video/') || /\.mp4(?:$|[?#])/i.test(u))) mediaResponse = response;
+            } catch (_) {}
+        });
+        await downloadButton.click();
+        await page.waitForFunction(() => Array.from(document.querySelectorAll('a[href]')).some(a => /\.mp4|download|tiktokcdn/i.test(a.href)), { timeout: 30000 }).catch(() => {});
+        await new Promise(r => setTimeout(r, 2500));
+        if (mediaResponse) {
+            const buffer = await mediaResponse.buffer().catch(() => null);
+            if (buffer?.length > 10000) return buffer;
+        }
+        const links = await page.$eval('a[href]', as => as.map(a => ({ href: a.href, text: (a.innerText || a.textContent || '').trim() })).filter(x => /^https?:/i.test(x.href)));
+        links.sort((a,b) => {
+            const score = x => (/\.mp4/i.test(x.href) ? 100 : 0) + (/hd|1080|720/i.test(x.text + x.href) ? 30 : 0) + (/download/i.test(x.href) ? 10 : 0);
+            return score(b) - score(a);
+        });
+        for (const link of links.slice(0, 10)) {
+            try {
+                const result = await page.evaluate(async href => {
+                    const r = await fetch(href, { credentials: 'include', redirect: 'follow' });
+                    if (!r.ok) throw new Error('HTTP ' + r.status);
+                    const type = String(r.headers.get('content-type') || '').toLowerCase();
+                    if (type.includes('text/html')) throw new Error('HTML');
+                    const data = new Uint8Array(await r.arrayBuffer());
+                    let binary = '';
+                    for (let i=0; i<data.length; i+=0x8000) binary += String.fromCharCode(...data.subarray(i,i+0x8000));
+                    return btoa(binary);
+                }, link.href);
+                const buffer = Buffer.from(result, 'base64');
+                if (buffer.length > 10000) return buffer;
+            } catch (_) {}
+        }
+        throw new Error('SnapTik no devolvió un MP4 descargable');
+    } finally {
+        if (browser) await browser.close().catch(() => {});
+    }
+}
+
+
 async function comandoTiktok(sock, chatId, msg, args) {
     const urlOriginal = args[0];
 
@@ -802,6 +864,15 @@ async function comandoTiktok(sock, chatId, msg, args) {
                 datos = await obtenerTikTokConNavegador(url);
             } catch (errorNavegador) {
                 errores.push('TikTok navegador: ' + errorNavegador.message);
+            }
+        }
+
+        // SnapTik: respaldo externo principal cuando TikTok no entrega el MP4.
+        if (!datos && !videoBuffer) {
+            try {
+                videoBuffer = await descargarTikTokConSnapTik(url);
+            } catch (errorSnapTik) {
+                errores.push('SnapTik: ' + errorSnapTik.message);
             }
         }
 
