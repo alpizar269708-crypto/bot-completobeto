@@ -1043,7 +1043,7 @@ async function comandoTiktok(sock, chatId, msg, args) {
         await sock.sendMessage(chatId, {
             video: videoBuffer,
             mimetype: 'video/mp4',
-            caption: '🎵 *TikTok sin marca de agua*\n\nTu video está listo.\n\nApoya a un creador, código: *JASC13*'
+            caption: '📹Tu video está listo\n\nApoya a un creador: *JASC13*'
         }, { quoted: msg });
 
     } catch (e) {
