@@ -9,6 +9,8 @@ const youtubedl = fs.existsSync(ytDlpPersonalizado)
     ? youtubeDlExec.create(ytDlpPersonalizado)
     : youtubeDlExec;
 
+console.log('✅ Módulo TikTok: parser de enlaces + SnapTik activo');
+
 function obtenerEjecutableChrome() {
     const candidatos = [
         process.env.PUPPETEER_EXECUTABLE_PATH,
@@ -232,12 +234,12 @@ function extraerUrlTikTok(texto) {
 
     // WhatsApp/web puede entregar el enlace con formato Markdown:
     // [https://vt.tiktok.com/...](https://vt.tiktok.com/...)
-    const markdown = [...fuente.matchAll(/\]\((https?:\/\/(?:www\.)?(?:tiktok\.com|vt\.tiktok\.com|vm\.tiktok\.com)\/[^)\s]+)\)/gi)]
+    const markdown = [...fuente.matchAll(/\]\((https?:\/\/(?:www\.)?(?:(?:tiktok\.com|m\.tiktok\.com|vt\.tiktok\.com|vm\.tiktok\.com))\/[^)\s]+)\)/gi)]
         .map(m => m[1]);
 
     const urls = [
         ...markdown,
-        ...(fuente.match(/https?:\/\/(?:www\.)?(?:tiktok\.com|vt\.tiktok\.com|vm\.tiktok\.com)\/[^\s<>\]\)]+/gi) || [])
+        ...(fuente.match(/https?:\/\/(?:www\.)?(?:(?:tiktok\.com|m\.tiktok\.com|vt\.tiktok\.com|vm\.tiktok\.com))\/[^\s<>\]\)]+/gi) || [])
     ];
 
     for (let url of urls) {
@@ -249,7 +251,7 @@ function extraerUrlTikTok(texto) {
     }
 
     // También aceptamos un enlace sin https://.
-    const sinEsquema = fuente.match(/(?:www\.)?(?:tiktok\.com|vt\.tiktok\.com|vm\.tiktok\.com)\/[^\s<>\]\)]+/i);
+    const sinEsquema = fuente.match(/(?:www\.)?(?:(?:tiktok\.com|m\.tiktok\.com|vt\.tiktok\.com|vm\.tiktok\.com))\/[^\s<>\]\)]+/i);
     if (sinEsquema?.[0]) {
         try {
             const u = new URL('https://' + sinEsquema[0].replace(/[),.;!?]+$/g, ''));
