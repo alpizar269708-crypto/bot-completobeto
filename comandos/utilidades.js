@@ -189,7 +189,7 @@ async function resolverEnlaceTikTok(url) {
     // Los enlaces vm/vt.tiktok.com son redirecciones. Resolverlos primero
     // evita que los servicios externos reciban un enlace corto que todavía
     // no hayan podido interpretar.
-    if (!/vm\\.tiktok\\.com|vt\\.tiktok\\.com/i.test(url)) return url;
+    if (!/vm\.tiktok\.com|vt\.tiktok\.com/i.test(url)) return url;
 
     try {
         const respuesta = await fetch(url, {
@@ -201,7 +201,7 @@ async function resolverEnlaceTikTok(url) {
             signal: AbortSignal.timeout(15000)
         });
 
-        if (respuesta.url && /tiktok\\.com/i.test(respuesta.url)) {
+        if (respuesta.url && /tiktok\.com/i.test(respuesta.url)) {
             return respuesta.url;
         }
     } catch (error) {
@@ -355,7 +355,7 @@ async function descargarVideoTikTok(videoUrl) {
 async function comandoTiktok(sock, chatId, msg, args) {
     const urlOriginal = args[0];
 
-    if (!urlOriginal || !/^(https?:\\/\\/)?([a-z0-9-]+\\.)?tiktok\\.com\\//i.test(urlOriginal)) {
+    if (!urlOriginal || !/^(https?:\/\/)?([a-z0-9-]+\.)?tiktok\.com\//i.test(urlOriginal)) {
         await sock.sendMessage(chatId, {
             text: '⚠️ Proporciona un enlace válido de TikTok. Ejemplo: `tiktok [link]`'
         }, { quoted: msg });
@@ -418,7 +418,7 @@ async function comandoTiktok(sock, chatId, msg, args) {
         await sock.sendMessage(chatId, {
             video: videoBuffer,
             mimetype: 'video/mp4',
-            caption: '🎬 *TikTok sin marca de agua*\\nApoya al creador con el código: *JASC13*'
+            caption: '🎬 *TikTok sin marca de agua*\nApoya al creador con el código: *JASC13*'
         }, { quoted: msg });
 
     } catch (e) {
