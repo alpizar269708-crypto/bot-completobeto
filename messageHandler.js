@@ -144,8 +144,12 @@ Apoya a un creador: JASC13` });
     const textoMinusculas = textoOriginal.toLowerCase();
     const textoLimpio = textoMinusculas.normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
 
+    // Conservamos también los argumentos originales para comandos cuyo contenido
+    // pueda ser sensible a mayúsculas o al formato del enlace (como TikTok).
+    const argsOriginales = textoOriginal.trim().split(/\s+/);
     let args = textoLimpio.split(/ +/);
     let comandoRaw = args.shift();
+    argsOriginales.shift();
     let comando = normalizarComando(comandoRaw);
     const esComandoValido = comandosValidos.has(comando);
 
@@ -598,7 +602,7 @@ Apoya a un creador: JASC13` });
                 await comandoSticker(sock, msg);
                 break;
             case 'tiktok':
-                await comandoTiktok(sock, chatJid, msg, args);
+                await comandoTiktok(sock, chatJid, msg, argsOriginales);
                 break;
             case 'traduce':
                 await comandoTraduce(sock, chatJid, msg, args);
