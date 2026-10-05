@@ -8,6 +8,38 @@ const ytDlpPersonalizado = path.join(process.cwd(), '.venv', 'bin', 'yt-dlp');
 const youtubedl = fs.existsSync(ytDlpPersonalizado)
     ? youtubeDlExec.create(ytDlpPersonalizado)
     : youtubeDlExec;
+
+function obtenerEjecutableChrome() {
+    const candidatos = [
+        process.env.PUPPETEER_EXECUTABLE_PATH,
+        '/opt/render/.cache/puppeteer/chrome/linux-153.0.8010.36/chrome-linux64/chrome',
+        path.join(os.homedir(), '.cache', 'puppeteer', 'chrome', 'linux-153.0.8010.36', 'chrome-linux64', 'chrome')
+    ].filter(Boolean);
+    for (const candidato of candidatos) {
+        try { if (fs.existsSync(candidato)) return candidato; } catch (_) {}
+    }
+    try {
+        const raiz = process.env.PUPPETEER_CACHE_DIR || path.join(os.homedir(), '.cache', 'puppeteer');
+        const base = path.join(raiz, 'chrome');
+        if (fs.existsSync(base)) {
+            const versiones = fs.readdirSync(base).filter(x => /^linux-/.test(x)).sort().reverse();
+            for (const version of versiones) {
+                const candidato = path.join(base, version, 'chrome-linux64', 'chrome');
+                if (fs.existsSync(candidato)) return candidato;
+            }
+        }
+    } catch (_) {}
+    return null;
+}
+
+function opcionesPuppeteer() {
+    const executablePath = obtenerEjecutableChrome();
+    return {
+        ...(executablePath ? { executablePath } : {}),
+        headless: true,
+        args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu']
+    };
+}
 const { downloadMediaMessage } = require('@whiskeysockets/baileys');
 const { Sticker, StickerTypes } = require('wa-sticker-formatter');
 
@@ -367,10 +399,7 @@ async function obtenerTikTokDirecto(url) {
 async function obtenerTikTokConNavegador(url) {
     let browser;
     try {
-        browser = await puppeteer.launch({
-            headless: true,
-            args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
-        });
+        browser = await puppeteer.launch(opcionesPuppeteer());
         const page = await browser.newPage();
         await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36');
         await page.setExtraHTTPHeaders({ 'Accept-Language': 'es-MX,es;q=0.9,en;q=0.8' });
@@ -388,10 +417,7 @@ async function obtenerTikTokConNavegador(url) {
 async function descargarVideoTikTokConNavegador(videoUrl, cookie = '') {
     let browser;
     try {
-        browser = await puppeteer.launch({
-            headless: true,
-            args: ['--no-sandbox','--disable-setuid-sandbox','--disable-dev-shm-usage','--disable-gpu']
-        });
+        browser = await puppeteer.launch(opcionesPuppeteer());
         const page = await browser.newPage();
         await page.setUserAgent('Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36');
         await page.setViewport({ width: 1365, height: 900 });
@@ -480,10 +506,7 @@ async function descargarVideoTikTokConNavegador(videoUrl, cookie = '') {
 async function obtenerCookiesTikTokParaYtDlp(url) {
     let browser;
     try {
-        browser = await puppeteer.launch({
-            headless: true,
-            args: ['--no-sandbox','--disable-setuid-sandbox','--disable-dev-shm-usage','--disable-gpu']
-        });
+        browser = await puppeteer.launch(opcionesPuppeteer());
         const page = await browser.newPage();
         await page.setUserAgent('Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36');
         await page.setExtraHTTPHeaders({
@@ -768,7 +791,7 @@ async function descargarVideoTikTok(videoUrl, cookie = '') {
 async function descargarTikTokConSnapTik(url) {
     let browser;
     try {
-        browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox','--disable-setuid-sandbox','--disable-dev-shm-usage'] });
+        browser = await puppeteer.launch(opcionesPuppeteer());
         const page = await browser.newPage();
         await page.setUserAgent('Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36');
         await page.setExtraHTTPHeaders({ 'Accept-Language': 'es-MX,es;q=0.9,en;q=0.8' });
