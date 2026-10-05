@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "postinstall": "python3 -m venv .venv && .venv/bin/pip install -U \"yt-dlp[default,curl-cffi]\""
+    "postinstall": "python3 -m venv .venv && .venv/bin/pip install -U \"yt-dlp[default,curl-cffi]\" && npx puppeteer browsers install chrome"
   },
   "keywords": [],
   "author": "",
