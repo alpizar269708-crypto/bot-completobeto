@@ -590,23 +590,8 @@ async function descargarTikTokConYtDlp(url) {
         console.warn('⚠️ yt-dlp directo falló:', e.message);
     }
 
-    // Segundo intento con cookies reales obtenidas desde Chromium.
-    let cookieFile = null;
-    try {
-        cookieFile = await obtenerCookiesTikTokParaYtDlp(url);
-        if (cookieFile) {
-            try {
-                return await ejecutarYtDlpDescarga(url, cookieFile);
-            } catch (e) {
-                ultimo = e;
-                console.warn('⚠️ yt-dlp con cookies falló:', e.message);
-            }
-        }
-    } finally {
-        if (cookieFile) {
-            try { if (fs.existsSync(cookieFile)) fs.unlinkSync(cookieFile); } catch (_) {}
-        }
-    }
+    // Se omite la extracción de cookies desde el perfil de Chrome en Render.
+    // SnapTik y los extractores con navegador cubren esta vía.
 
     // Último intento: extracción JSON + descarga manual de la URL devuelta.
     try {
