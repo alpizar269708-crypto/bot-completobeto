@@ -668,6 +668,7 @@ async function comandoTiktok(sock, chatId, msg, args) {
         let url = urlOriginal;
         let datos;
         const errores = [];
+        let videoBuffer = null;
 
         // Primero resolvemos enlaces cortos para que todos los proveedores
         // reciban, cuando sea posible, el enlace canónico del video.
@@ -737,12 +738,11 @@ async function comandoTiktok(sock, chatId, msg, args) {
             
         }
 
-        if (!datos?.videoUrl) {
+        if (!datos?.videoUrl && !videoBuffer) {
             throw new Error(errores.join(' | ') || 'Ningún servicio devolvió el video');
         }
 
-        let videoBuffer;
-        try {
+        if (!videoBuffer) try {
             videoBuffer = await descargarVideoTikTok(datos.videoUrl, datos.cookie || '');
         } catch (errorDescarga) {
             errores.push('CDN directo: ' + errorDescarga.message);
