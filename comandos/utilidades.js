@@ -1,4 +1,5 @@
 const crypto = require('crypto');
+const puppeteer = require('puppeteer');
 const { downloadMediaMessage } = require('@whiskeysockets/baileys');
 const { Sticker, StickerTypes } = require('wa-sticker-formatter');
 
@@ -211,6 +212,40 @@ async function resolverEnlaceTikTok(url) {
     return url;
 }
 
+
+function extraerDatosTikTokDePagina(pagina, cookies = '') {
+    let data = null;
+    const extraerJsonScript = (id) => {
+        const inicio = pagina.indexOf('<script id="' + id + '"');
+        if (inicio < 0) return null;
+        const contenido = pagina.indexOf('>', inicio);
+        const fin = pagina.indexOf('</script>', contenido);
+        if (contenido < 0 || fin < 0) return null;
+        try { return JSON.parse(pagina.slice(contenido + 1, fin)); } catch { return null; }
+    };
+    data = extraerJsonScript('__UNIVERSAL_DATA_FOR_REHYDRATION__') || extraerJsonScript('SIGI_STATE');
+    let item = data?.__DEFAULT_SCOPE__?.['webapp.video-detail']?.itemInfo?.itemStruct || null;
+    if (!item && data?.ItemModule) item = Object.values(data.ItemModule).find(x => x?.video?.playAddr || x?.video?.downloadAddr) || null;
+    const video = item?.video;
+    if (!video) throw new Error('TikTok no entregó los datos del video en la página');
+    const candidatos = [];
+    if (Array.isArray(video.bitrateInfo)) for (const calidad of video.bitrateInfo) {
+        for (const videoUrl of (calidad?.PlayAddr?.UrlList || [])) if (videoUrl) candidatos.push({
+            url: String(videoUrl).replace(/\\u0026/g, '&').replace(/\\u002F/g, '/'),
+            bitrate: Number(calidad?.Bitrate || 0), codec: String(calidad?.CodecType || '')
+        });
+    }
+    for (const videoUrl of [video.downloadAddr, video.playAddr]) if (videoUrl) candidatos.push({
+        url: String(videoUrl).replace(/\\u0026/g, '&').replace(/\\u002F/g, '/'),
+        bitrate: Number(video.bitrate || 0), codec: String(video.codecType || 'h264')
+    });
+    const validos = candidatos.filter(x => /^https?:\\/\\//.test(x.url));
+    if (!validos.length) throw new Error('TikTok no devolvió una URL MP4');
+    const h264 = validos.filter(x => /h264/i.test(x.codec));
+    const lista = h264.length ? h264 : validos;
+    lista.sort((a,b) => b.bitrate - a.bitrate);
+    return { videoUrl: lista[0].url, cookie: cookies, titulo: item?.desc || 'TikTok' };
+}
 async function obtenerTikTokDirecto(url) {
     const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
 
@@ -319,6 +354,53 @@ async function obtenerTikTokDirecto(url) {
         cookie: cookies,
         titulo: item?.desc || 'TikTok'
     };
+}
+
+async function obtenerTikTokConNavegador(url) {
+    let browser;
+    try {
+        browser = await puppeteer.launch({
+            headless: true,
+            args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
+        });
+        const page = await browser.newPage();
+        await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36');
+        await page.setExtraHTTPHeaders({ 'Accept-Language': 'es-MX,es;q=0.9,en;q=0.8' });
+        await page.setViewport({ width: 1365, height: 900 });
+        await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 45000 });
+        await new Promise(resolve => setTimeout(resolve, 2500));
+        const pagina = await page.content();
+        const cookies = (await page.cookies()).map(c => c.name + '=' + c.value).join('; ');
+        return extraerDatosTikTokDePagina(pagina, cookies);
+    } finally {
+        if (browser) await browser.close().catch(() => {});
+    }
+}
+
+async function descargarVideoTikTokConNavegador(videoUrl, cookie = '') {
+    let browser;
+    try {
+        browser = await puppeteer.launch({
+            headless: true,
+            args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
+        });
+        const page = await browser.newPage();
+        await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36');
+        if (cookie) {
+            const cookies = cookie.split(';').map(x => x.trim()).filter(Boolean).map(x => {
+                const i = x.indexOf('=');
+                return i > 0 ? { name: x.slice(0, i), value: x.slice(i + 1), domain: '.tiktok.com', path: '/' } : null;
+            }).filter(Boolean);
+            if (cookies.length) await page.setCookie(...cookies);
+        }
+        const respuesta = await page.goto(videoUrl, { waitUntil: 'domcontentloaded', timeout: 90000 });
+        if (!respuesta || !respuesta.ok()) throw new Error('CDN TikTok navegador respondió HTTP ' + (respuesta?.status() || 0));
+        const buffer = await respuesta.buffer();
+        if (!buffer.length) throw new Error('El navegador recibió un video vacío');
+        return buffer;
+    } finally {
+        if (browser) await browser.close().catch(() => {});
+    }
 }
 
 function extraerVideoTikWM(data) {
@@ -494,6 +576,14 @@ async function comandoTiktok(sock, chatId, msg, args) {
             errores.push('TikTok directo: ' + errorDirecto.message);
         }
 
+        if (!datos) {
+            try {
+                datos = await obtenerTikTokConNavegador(url);
+            } catch (errorNavegador) {
+                errores.push('TikTok navegador: ' + errorNavegador.message);
+            }
+        }
+
         // Si TikTok no entregó el MP4 directamente, usamos los proveedores externos.
         if (!datos) {
                     for (const metodo of ['POST', 'GET']) {
@@ -536,7 +626,18 @@ async function comandoTiktok(sock, chatId, msg, args) {
             throw new Error(errores.join(' | ') || 'Ningún servicio devolvió el video');
         }
 
-        const videoBuffer = await descargarVideoTikTok(datos.videoUrl, datos.cookie || '');
+        let videoBuffer;
+        try {
+            videoBuffer = await descargarVideoTikTok(datos.videoUrl, datos.cookie || '');
+        } catch (errorDescarga) {
+            errores.push('CDN directo: ' + errorDescarga.message);
+            try {
+                videoBuffer = await descargarVideoTikTokConNavegador(datos.videoUrl, datos.cookie || '');
+            } catch (errorNavegador) {
+                errores.push('CDN navegador: ' + errorNavegador.message);
+            }
+        }
+        if (!videoBuffer?.length) throw new Error(errores.join(' | ') || 'No se pudo descargar el video');
 
         await sock.sendMessage(chatId, {
             video: videoBuffer,
