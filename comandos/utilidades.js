@@ -804,10 +804,17 @@ async function descargarTikTokConSnapTik(url) {
         const botones = await page.$('button, input[type="submit"], input[type="button"], a');
         let downloadButton = null;
         for (const button of botones) {
-            const text = await button.evaluate(el => (el.innerText || el.textContent || '').trim());
-            if (/descargar/i.test(text)) { downloadButton = button; break; }
+            const text = await button.evaluate(el => (el.innerText || el.textContent || el.value || '').trim());
+            if (/descargar|download/i.test(text)) { downloadButton = button; break; }
         }
-        if (!downloadButton) throw new Error('SnapTik no mostró el botón Descargar');
+        if (!downloadButton) {
+            console.warn('⚠️ SnapTik: no encontré botón Descargar. Intentando Enter en el campo.');
+            await input.press('Enter').catch(() => {});
+        } else {
+            await downloadButton.click().catch(async () => {
+                await input.press('Enter').catch(() => {});
+            });
+        }
         let mediaResponse = null;
         page.on('response', response => {
             try {
@@ -817,13 +824,14 @@ async function descargarTikTokConSnapTik(url) {
             } catch (_) {}
         });
         await downloadButton.click();
-        await page.waitForFunction(() => Array.from(document.querySelectorAll('a[href]')).some(a => /\.mp4|download|tiktokcdn/i.test(a.href)), { timeout: 30000 }).catch(() => {});
-        await new Promise(r => setTimeout(r, 2500));
+        await page.waitForFunction(() => Array.from(document.querySelectorAll('a[href]')).some(a => /\.mp4|download|tiktokcdn/i.test(a.href)), { timeout: 45000 }).catch(() => {});
+        await new Promise(r => setTimeout(r, 3500));
         if (mediaResponse) {
             const buffer = await mediaResponse.buffer().catch(() => null);
             if (buffer?.length > 10000) return buffer;
         }
         const links = await page.$eval('a[href]', as => as.map(a => ({ href: a.href, text: (a.innerText || a.textContent || '').trim() })).filter(x => /^https?:/i.test(x.href)));
+        console.log('🎵 SnapTik: enlaces encontrados:', links.length);
         links.sort((a,b) => {
             const score = x => (/\.mp4/i.test(x.href) ? 100 : 0) + (/hd|1080|720/i.test(x.text + x.href) ? 30 : 0) + (/download/i.test(x.href) ? 10 : 0);
             return score(b) - score(a);
@@ -853,6 +861,7 @@ async function descargarTikTokConSnapTik(url) {
 
 async function comandoTiktok(sock, chatId, msg, args) {
     const urlOriginal = args[0];
+    console.log('🎵 TIKTOK: comando recibido:', urlOriginal);
 
     if (!urlOriginal || !/^(https?:\/\/)?([a-z0-9-]+\.)?tiktok\.com\//i.test(urlOriginal)) {
         await sock.sendMessage(chatId, {
@@ -874,6 +883,7 @@ async function comandoTiktok(sock, chatId, msg, args) {
         // Primero resolvemos enlaces cortos para que todos los proveedores
         // reciban, cuando sea posible, el enlace canónico del video.
         url = await resolverEnlaceTikTok(url);
+        console.log('🎵 TIKTOK: URL a procesar:', url);
 
         // Primero intentamos extraer el MP4 directamente de la página de TikTok.
         // Esto evita depender de TikWM/TDown, que desde Render pueden devolver 403/500.
@@ -894,9 +904,12 @@ async function comandoTiktok(sock, chatId, msg, args) {
         // SnapTik: respaldo externo principal cuando TikTok no entrega el MP4.
         if (!datos && !videoBuffer) {
             try {
+                console.log('🎵 TIKTOK: intentando SnapTik...');
                 videoBuffer = await descargarTikTokConSnapTik(urlOriginal);
                 if (!videoBuffer?.length && url !== urlOriginal) videoBuffer = await descargarTikTokConSnapTik(url);
+                console.log('🎵 TIKTOK: SnapTik respondió con', videoBuffer?.length || 0, 'bytes');
             } catch (errorSnapTik) {
+                console.warn('⚠️ SnapTik falló:', errorSnapTik.message);
                 errores.push('SnapTik: ' + errorSnapTik.message);
             }
         }
