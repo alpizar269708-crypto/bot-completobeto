@@ -236,22 +236,23 @@ async function buscarCosmeticosEnPagina(page, termino, reportar = async () => {}
 }
 
 async function obtenerHtmlConNavegador(page, url, selector = null) {
-    try {
-        await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 12000 });
-    } catch (error) {
-        console.warn('⚠️ Fortnite.GG: navegación agotó tiempo: ' + error.message);
-    }
+    const respuesta = await page.goto(url, {
+        waitUntil: 'domcontentloaded',
+        timeout: 12000
+    });
 
     if (selector) {
-        try {
-            await page.waitForSelector(selector, { timeout: 3000 });
-        } catch (_) {
-            console.warn('⚠️ Fortnite.GG: no apareció el selector esperado: ' + selector);
-        }
+        await page.waitForSelector(selector, {
+            timeout: 5000
+        });
     }
 
-    await new Promise(resolve => setTimeout(resolve, 400));
-    return page.content();
+    await new Promise(resolve => setTimeout(resolve, 500));
+    return {
+        html: await page.content(),
+        status: respuesta?.status?.() ?? null,
+        finalUrl: page.url()
+    };
 }
 
 function limpiarTexto(texto) { return String(texto || '').replace(/\s+/g, ' ').trim(); }
@@ -380,7 +381,7 @@ function formatearItem(item, indice) {
     return lineas.join('\n');
 }
 
-async function enriquecerItems(items, page, reportar) {
+async function enriquecerItems(items, browser, reportar) {
     const resultado = [];
 
     await reportar('Preparando lectura detallada de ' + items.length + ' coincidencia(s)...');
@@ -389,13 +390,37 @@ async function enriquecerItems(items, page, reportar) {
         const item = items[i];
         await reportar('Leyendo detalle ' + (i + 1) + '/' + items.length + ': ' + item.nombre);
 
+        let detailPage = null;
         try {
-            const html = await obtenerHtmlConNavegador(page, item.url, '.fn-detail-name');
-            resultado.push(extraerDetalle(html, item));
+            // Cada ficha usa una pestaña limpia. No reutilizamos la pestaña que
+            // acaba de ejecutar la búsqueda para evitar que el estado dinámico
+            // del catálogo interfiera con la ficha del cosmético.
+            detailPage = await browser.newPage();
+            await prepararPagina(detailPage);
+
+            const respuesta = await obtenerHtmlConNavegador(
+                detailPage,
+                item.url,
+                '.fn-detail-name'
+            );
+
+            const detalle = extraerDetalle(respuesta.html, item);
+            detalle.estadoHttp = respuesta.status;
+            resultado.push(detalle);
         } catch (error) {
-            console.warn('⚠️ Fortnite.GG: no se pudo leer el detalle de ' + item.nombre + ': ' + error.message);
-            await reportar('No se pudo leer "' + item.nombre + '". Continuando con el siguiente...');
+            console.warn(
+                '⚠️ Fortnite.GG: fallo leyendo ' + item.nombre +
+                ' [' + item.url + ']: ' + error.message
+            );
+            await reportar(
+                'No se pudo leer "' + item.nombre +
+                '". Continuando con el siguiente...'
+            );
             resultado.push(item);
+        } finally {
+            if (detailPage) {
+                await detailPage.close().catch(() => {});
+            }
         }
     }
 
@@ -497,7 +522,7 @@ async function comandoTiendaGG(sock, chatId, msg, args) {
         let items = itemsBase;
         if (itemsBase.length <= 10) {
             await fase('Preparando lectura detallada de ' + itemsBase.length + ' coincidencia(s)...');
-            items = await enriquecerItems(itemsBase, page, fase);
+            items = await enriquecerItems(itemsBase, browser, fase);
         } else {
             await fase('Hay más de 10 coincidencias; mostrando datos del catálogo para evitar sobrecargar Render.');
         }
