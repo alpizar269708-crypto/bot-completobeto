@@ -191,6 +191,20 @@ async function buscarCosmeticosEnPagina(page, termino) {
     await buscador.type(termino, { delay: 20 });
     await new Promise(resolve => setTimeout(resolve, 1200));
 
+    // Fortnite.GG filtra visualmente el catálogo; eliminamos del DOM
+    // las tarjetas ocultas para no devolver los miles de cosméticos restantes.
+    await page.evaluate(() => {
+        document.querySelectorAll('#items a.item-icon').forEach(el => {
+            const style = window.getComputedStyle(el);
+            const rect = el.getBoundingClientRect();
+            const visible = style.display !== 'none' &&
+                style.visibility !== 'hidden' &&
+                rect.width > 0 &&
+                rect.height > 0;
+            if (!visible) el.remove();
+        });
+    });
+
     return page.content();
 }
 
