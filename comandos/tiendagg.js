@@ -637,26 +637,34 @@ async function comandoTiendaGG(sock, chatId, msg, args) {
 
         console.log('🛒 TIENDAGG: ' + itemsBase.length + ' artículos detectados');
 
+        // Protegemos WhatsApp/Node de filtros gigantes (por ejemplo TODOS).
+        // Una búsqueda concreta como "Freddy Krueger" conserva todas sus coincidencias.
+        const MAX_OPCIONES = 50;
+        const opciones = itemsBase.slice(0, MAX_OPCIONES);
+        const hayMasOpciones = itemsBase.length > MAX_OPCIONES;
+
         let textoLista = (filtro
             ? '🛍️ *JASC STORE — ' + filtro.label + '*\n'
             : '🔎 *RESULTADOS PARA: ' + args.join(' ') + '*\n') +
-            '📦 ' + itemsBase.length + ' coincidencia(s)\n\n';
+            '📦 ' + itemsBase.length + ' coincidencia(s)\n' +
+            (hayMasOpciones ? '👀 Mostrando las primeras ' + MAX_OPCIONES + '. Refina la búsqueda para ver menos resultados.\n' : '') +
+            '\n';
 
-        for (let i = 0; i < itemsBase.length; i++) {
-            textoLista += (i + 1) + '. 🎮 ' + (itemsBase[i].nombre || 'Sin nombre') + '\n\n';
+        for (let i = 0; i < opciones.length; i++) {
+            textoLista += (i + 1) + '. 🎮 ' + (opciones[i].nombre || 'Sin nombre') + '\n\n';
         }
 
         textoLista += '❓ *¿Cuál quieres ver?*\nResponde a este mensaje con el número o envía solo el número.\n\nApoya a un creador: *JASC13*';
 
-        // Guardamos solamente texto + URLs + IDs. El navegador se cierra al terminar
-        // la búsqueda y NO se conserva ninguna página abierta mientras el usuario elige.
+        // Guardamos solamente las opciones visibles + URLs + IDs. El navegador se
+        // cierra al terminar la búsqueda y NO se conserva ninguna página abierta.
         const sent = await sock.sendMessage(chatJid, { text: textoLista }, { quoted: msg });
         const remitenteSesion = msg.key.participant || msg.key.participantAlt || chatJid;
 
         sesionesTiendaGG.set(
             String(chatJid) + ':' + String(remitenteSesion),
             {
-                items: itemsBase,
+                items: opciones,
                 resultMessageId: sent?.key?.id || null,
                 expira: Date.now() + TIENDAGG_SESION_TTL_MS
             }
