@@ -126,18 +126,97 @@ async function buscarCosmeticosEnPagina(page, termino, reportar = async () => {}
     }
 
     await reportar('Catálogo abierto. Buscando el campo de búsqueda...');
-    const buscador = await page.$('input[type="search"], input[placeholder*="Search" i], input[aria-label*="Search" i]');
-    if (!buscador) throw new Error('No encontré el buscador del catálogo de Fortnite.GG');
 
-    await reportar('Campo encontrado. Aplicando la búsqueda...');
-    await buscador.evaluate((input, valor) => {
-        const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
-        if (setter) setter.call(input, valor);
-        else input.value = valor;
-        input.dispatchEvent(new Event('input', { bubbles: true }));
-        input.dispatchEvent(new Event('change', { bubbles: true }));
-        input.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true, key: 'Enter', code: 'Enter' }));
-    }, termino);
+    // Evitamos page.$/ElementHandle aquí. La búsqueda es una operación puramente
+    // DOM y podemos localizar + modificar el input dentro de una sola evaluación.
+    let datosBusqueda;
+    try {
+        datosBusqueda = await Promise.race([
+            page.evaluate((valor) => {
+                const selectores = [
+                    'input[type="search"]',
+                    'input[placeholder*="Search" i]',
+                    'input[aria-label*="Search" i]'
+                ];
+
+                let input = null;
+                for (const selector of selectores) {
+                    input = document.querySelector(selector);
+                    if (input) break;
+                }
+
+                if (!input) {
+                    const candidatos = Array.from(document.querySelectorAll('input'));
+                    input = candidatos.find(el => {
+                        const texto = [
+                            el.getAttribute('placeholder'),
+                            el.getAttribute('aria-label'),
+                            el.getAttribute('name')
+                        ].filter(Boolean).join(' ');
+                        return /search|buscar|cosmetic/i.test(texto);
+                    }) || null;
+                }
+
+                if (!input) {
+                    return {
+                        encontrado: false,
+                        inputs: document.querySelectorAll('input').length
+                    };
+                }
+
+                const setter = Object.getOwnPropertyDescriptor(
+                    HTMLInputElement.prototype,
+                    'value'
+                )?.set;
+
+                if (setter) setter.call(input, valor);
+                else input.value = valor;
+
+                for (const tipo of ['focus', 'input', 'change']) {
+                    input.dispatchEvent(new Event(tipo, { bubbles: true }));
+                }
+
+                input.dispatchEvent(new KeyboardEvent('keydown', {
+                    bubbles: true,
+                    key: 'Enter',
+                    code: 'Enter',
+                    keyCode: 13,
+                    which: 13
+                }));
+                input.dispatchEvent(new KeyboardEvent('keyup', {
+                    bubbles: true,
+                    key: 'Enter',
+                    code: 'Enter',
+                    keyCode: 13,
+                    which: 13
+                }));
+
+                return {
+                    encontrado: true,
+                    valor: input.value,
+                    placeholder: input.getAttribute('placeholder') || '',
+                    ariaLabel: input.getAttribute('aria-label') || ''
+                };
+            }, termino),
+            new Promise((_, reject) =>
+                setTimeout(() => reject(new Error('La página no respondió al inspeccionar el buscador en 5 segundos')), 5000)
+            )
+        ]);
+    } catch (error) {
+        throw new Error('No pude inspeccionar/aplicar el buscador de Fortnite.GG: ' + error.message);
+    }
+
+    if (!datosBusqueda?.encontrado) {
+        throw new Error(
+            'No encontré el buscador del catálogo de Fortnite.GG (inputs detectados: ' +
+            String(datosBusqueda?.inputs ?? 0) + ')'
+        );
+    }
+
+    await reportar(
+        'Campo encontrado y búsqueda aplicada: ' +
+        String(datosBusqueda.valor || termino)
+    );
 
     await reportar('Búsqueda aplicada. Esperando resultados...');
     await new Promise(resolve => setTimeout(resolve, 1800));
