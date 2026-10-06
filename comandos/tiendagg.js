@@ -270,7 +270,7 @@ function traducirRareza(valor) { return RAREZAS[normalizar(valor)] || valor; }
 function traducirTipo(valor) { return TIPOS[normalizar(valor)] || valor; }
 
 function extraerValorEntreEtiquetas(texto, etiqueta, siguiente) {
-    const hasta = siguiente ? '(?=\\s+' + siguiente + '\\s*:)' : '(?=$)';
+    const hasta = siguiente ? '(?=' + siguiente + '\\s*:)' : '(?=$)';
     const regex = new RegExp(etiqueta + '\\s*:\\s*(?:\\|\\s*)?(.+?)' + hasta, 'i');
     const match = String(texto || '').match(regex);
     return match ? limpiarTexto(match[1]).replace(/^\\|\\s*/, '').replace(/\\s*\\|$/, '').trim() : null;
@@ -351,7 +351,7 @@ function extraerDetalle(html, itemBase) {
     const lanzamiento = extraerValorEntreEtiquetas(textoVisible, 'Release date', 'Last seen');
     const ultimaVez = extraerValorEntreEtiquetas(textoVisible, 'Last seen', 'Occurrences');
 
-    const ocurrencias = textoVisible.match(/Occurrences\\s*:\\s*(?:\\|\\s*)?(\\d+)(?=\\s+Date\\s+Days\\s+ago)/i);
+    const ocurrencias = textoVisible.match(/Occurrences\\s*:\\s*(?:\\|\\s*)?(\\d+)(?=\\s*Date\\s*Days\\s*ago)/i);
     const apariciones = ocurrencias ? ocurrencias[1] : null;
 
     const conjuntoMatch = textoVisible.match(/Part of the\\s+(.+?)\\s+set/i);
