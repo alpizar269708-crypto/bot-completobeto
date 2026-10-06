@@ -401,28 +401,33 @@ function formatearItem(item, indice) {
 
 async function enriquecerItems(items, browser, reportar) {
     const resultado = [];
-    const concurrencia = 3;
+    let page = null;
 
-    for (let inicio = 0; inicio < items.length; inicio += concurrencia) {
-        const lote = items.slice(inicio, inicio + concurrencia);
-        const enriquecidos = await Promise.all(lote.map(async (item, indice) => {
-            const page = await browser.newPage();
+    try {
+        await reportar('Preparando lectura detallada de ' + items.length + ' coincidencia(s)...');
+        page = await browser.newPage();
+        await prepararPagina(page);
+
+        for (let i = 0; i < items.length; i++) {
+            const item = items[i];
+            await reportar('Leyendo detalle ' + (i + 1) + '/' + items.length + ': ' + item.nombre);
+
             try {
-                await reportar('Leyendo detalle ' + (inicio + indice + 1) + '/' + items.length + ': ' + item.nombre);
-                await prepararPagina(page);
                 const html = await obtenerHtmlConNavegador(page, item.url, '.fn-detail-name');
-                return extraerDetalle(html, item);
+                resultado.push(extraerDetalle(html, item));
             } catch (error) {
                 console.warn('⚠️ Fortnite.GG: no se pudo leer el detalle de ' + item.nombre + ': ' + error.message);
-                return item;
-            } finally {
-                await page.close().catch(() => {});
+                await reportar('No se pudo leer "' + item.nombre + '". Continuando con el siguiente...');
+                resultado.push(item);
             }
-        }));
-        resultado.push(...enriquecidos);
+        }
+    } finally {
+        if (page) await page.close().catch(() => {});
     }
+
     return resultado;
 }
+
 async function enviarPorPartes(sock, chatId, msg, partes) {
     for (const parte of partes) {
         await sock.sendMessage(chatId, { text: parte }, { quoted: msg });
