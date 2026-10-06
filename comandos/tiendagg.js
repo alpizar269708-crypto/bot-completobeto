@@ -222,22 +222,21 @@ async function buscarCosmeticosEnPagina(page, termino) {
 }
 
 async function obtenerHtmlConNavegador(page, url, selector = null) {
-    let respuesta;
     try {
-        respuesta = await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 20000 });
+        await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 12000 });
     } catch (error) {
-        console.warn('⚠️ Fortnite.GG: navegación inicial agotó tiempo: ' + error.message);
+        console.warn('⚠️ Fortnite.GG: navegación agotó tiempo: ' + error.message);
     }
 
     if (selector) {
         try {
-            await page.waitForSelector(selector, { timeout: 10000 });
+            await page.waitForSelector(selector, { timeout: 3000 });
         } catch (_) {
             console.warn('⚠️ Fortnite.GG: no apareció el selector esperado: ' + selector);
         }
     }
 
-    await new Promise(resolve => setTimeout(resolve, 700));
+    await new Promise(resolve => setTimeout(resolve, 400));
     return page.content();
 }
 function limpiarTexto(texto) {
@@ -400,18 +399,16 @@ function formatearItem(item, indice) {
     return lineas.join('\n');
 }
 
-async function enriquecerItems(items, browser) {
+async function enriquecerItems(items, browser, reportar) {
     const resultado = [];
-    const concurrencia = 8;
+    const concurrencia = 3;
 
     for (let inicio = 0; inicio < items.length; inicio += concurrencia) {
         const lote = items.slice(inicio, inicio + concurrencia);
-        const enriquecidos = await Promise.all(lote.map(async (item) => {
+        const enriquecidos = await Promise.all(lote.map(async (item, indice) => {
             const page = await browser.newPage();
-            await reportarFase(sock, chatId, msg, filtro
-                ? 'Página creada. Cargando el filtro de Fortnite.GG...'
-                : 'Página creada. Cargando el catálogo para realizar la búsqueda...');
             try {
+                await reportar('Leyendo detalle ' + (inicio + indice + 1) + '/' + items.length + ': ' + item.nombre);
                 await prepararPagina(page);
                 const html = await obtenerHtmlConNavegador(page, item.url, '.fn-detail-name');
                 return extraerDetalle(html, item);
@@ -464,11 +461,18 @@ async function comandoTiendaGG(sock, chatId, msg, args) {
 
     tiendaGGEnCurso = true;
     tiendaGGFase = 'iniciando consulta';
+    let browser = null;
+    let tiendaGGAbortada = false;
     tiendaGGTimer = setTimeout(async () => {
+        tiendaGGAbortada = true;
+        tiendaGGEnCurso = false;
         console.error('❌ TIENDAGG TIMEOUT. Fase:', tiendaGGFase);
+        if (browser) {
+            await browser.close().catch(() => {});
+        }
         try {
             await sock.sendMessage(chatId, {
-                text: `❌ *JASC STORE — TIMEOUT*\\n\\nLa consulta lleva demasiado tiempo.\\n\\n📍 Se quedó en: *${tiendaGGFase}*\\n⏱️ El proceso fue detenido para liberar la consulta.`
+                text: `❌ *JASC STORE — TIMEOUT*\\n\\nLa consulta lleva demasiado tiempo.\\n\\n📍 Se quedó en: *${tiendaGGFase}*\\n⏱️ Se cerró el navegador y se liberó la consulta.`
             }, { quoted: msg });
         } catch (error) {
             console.error('❌ Error enviando timeout de tiendagg:', error.message);
@@ -483,7 +487,7 @@ async function comandoTiendaGG(sock, chatId, msg, args) {
         }, { quoted: msg });
 
         await reportarFase(sock, chatId, msg, 'Abriendo navegador Puppeteer...');
-        const browser = await abrirNavegador();
+        browser = await abrirNavegador();
         await reportarFase(sock, chatId, msg, 'Navegador abierto correctamente. Creando página...');
 
         try {
@@ -515,7 +519,7 @@ async function comandoTiendaGG(sock, chatId, msg, args) {
             await reportarFase(sock, chatId, msg, itemsBase.length <= 10
                 ? 'Leyendo detalles individuales de las coincidencias...'
                 : 'Hay más de 10 coincidencias; mostrando datos del catálogo para evitar sobrecargar Render.');
-            const items = itemsBase.length <= 10 ? await enriquecerItems(itemsBase, browser) : itemsBase;
+            const items = itemsBase.length <= 10 ? await enriquecerItems(itemsBase, browser, fase => reportarFase(sock, chatId, msg, fase)) : itemsBase;
 
         const cabecera =
             filtro
@@ -543,10 +547,11 @@ async function comandoTiendaGG(sock, chatId, msg, args) {
         await reportarFase(sock, chatId, msg, 'Consulta terminada. Enviando resultados...');
         await enviarPorPartes(sock, chatId, msg, bloques);
         } finally {
-            await browser.close().catch(() => {});
+            if (browser) await browser.close().catch(() => {});
         }
     } catch (error) {
         console.error('❌ Error en tiendagg:', error);
+        if (tiendaGGAbortada) return;
         try {
             await sock.sendMessage(chatId, {
                 text: `❌ *JASC STORE — ERROR*\\n\\n📍 Se trabó en: *${tiendaGGFase}*\\n\\n💥 Error: ${String(error?.message || error).replace(/\\s+/g, ' ').slice(0, 700)}`
