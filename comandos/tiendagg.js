@@ -2,6 +2,7 @@ const cheerio = require('cheerio');
 const puppeteer = require('puppeteer');
 
 const BASE_URL = 'https://fortnite.gg';
+let tiendaGGEnCurso = false;
 
 const FILTROS = [
     { claves: ['todos', 'todo', 'all'], label: 'TODOS', path: '/cosmetics' },
@@ -290,7 +291,7 @@ function extraerItemsTienda(html) {
     const items = [];
     const vistos = new Set();
 
-    $('a[href*="/cosmetics?id="]').each((_, el) => {
+    $('#items a.item-icon[href*="/cosmetics?id="]').each((_, el) => {
         let href = String($(el).attr('href') || '').trim();
         const idMatch = href.match(/[?&]id=([^&]+)/i) || href.match(/^\/cosmetics\/([^?#]+)/i);
         const id = idMatch ? decodeURIComponent(idMatch[1]) : href;
@@ -403,6 +404,15 @@ async function comandoTiendaGG(sock, chatId, msg, args) {
         return;
     }
 
+    if (tiendaGGEnCurso) {
+        await sock.sendMessage(chatId, {
+            text: '⏳ 🛍️ *JASC STORE* ya está consultando la tienda. Espera a que termine la consulta actual.'
+        }, { quoted: msg });
+        return;
+    }
+
+    tiendaGGEnCurso = true;
+
     try {
         await sock.sendMessage(chatId, {
             text: `⏳ *TIENDA FORTNITE.GG*\n\nLeyendo filtro: *${filtro.label}*...\nPuede tardar unos segundos mientras consulto los detalles.`
@@ -454,6 +464,8 @@ async function comandoTiendaGG(sock, chatId, msg, args) {
         await sock.sendMessage(chatId, {
             text: `❌ No pude leer la tienda en este momento.\n\nDetalle: ${String(error?.message || error).replace(/\s+/g, ' ').slice(0, 300)}`
         }, { quoted: msg });
+    } finally {
+        tiendaGGEnCurso = false;
     }
 }
 
