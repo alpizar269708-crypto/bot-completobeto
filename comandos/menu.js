@@ -3,12 +3,12 @@ const { Config } = require('../database/modelos');
 
 const categoriasMap = {
     fortnite: ['pavos', 'destacadasstw', 'legendariasstw', 'epicasstw', 'alertasstw', 'stw', 'alerta', 'setgrupostw', 'unsetgrupostw', 'setprecio'],
-    tienda: ['tienda'],
+    tienda: ['tienda', 'tiendavb'],
     carry: ['carryleader', 'carryjoin', 'carryleave', 'carryclose', 'blcarry', 'unblcarry', 'listcarrybl'],
     rifas: ['rifa', 'rifainscripcion', 'cerrarrifa', 'rifajasc13', 'addvarios', 'abrirrifa', 'activarrifaaqui', 'menurifajasc13'],
     cashback: ['addcashback', 'delcashback', 'vercash', 'delvcash', 'canjecash'],
     economia: ['cartera', 'bal', 'banco', 'pay', 'pagar', 'top', 'topdinero', 'daily', 'weekly', 'farmear', 'work', 'crime', 'mendigar', 'pescar', 'minar', 'cazar', 'explorar', 'ruleta', 'cf', 'slots', 'dados', 'adivina', 'buscaminas', 'rob', 'ppt', 'pelea', 'carrera', 'hackear', 'shop', 'buy', 'inventario', 'mochila', 'vender', 'use', 'regalar'],
-    utilidades: ['s', 'sticker', 'tiktok', 'instagram', 'traduce', 'skin', 'stats', 'tiendastats', 'contacto', 'ping'],
+    utilidades: ['s', 'sticker', 'tiktok', 'instagram', 'traduce', 'skin', 'stats', 'tiendastats', 'tiendavb', 'contacto', 'ping'],
     paypal: ['paypal', 'paypaln', 'paypali'],
     ia: ['ia'],
     moderacion: ['warn', 'advertir', 'verwarns', 'limpiarwarns', 'ban', 'unban', 'listanegra', 'banlist', 'unbanlist', 'grupo', 'mute', 'unmute', 'inactivos', 'listablanca', 'desactivarbienvenida', 'activarbienvenida', 'personalizarbienvenida', 'restaurarbienvenida']
@@ -129,7 +129,7 @@ async function ejecutarMenu(sock, chatId, msg, args) {
         'moderacion': menuModeracion,
         'tienda': `🛒 *MENÚ TIENDA BATTLE ROYALE* 🛒\n\n` +
                   `*${prefijo}tienda* - Muestra las categorías disponibles hoy.\n` +
-                  `*${prefijo}tienda [categoría]* - Muestra la imagen de esa categoría.\n`,
+                  `*${prefijo}tienda [categoría]* - Muestra la imagen de esa categoría.\n` + `*${prefijo}tiendaVb [paVos]* - Convierte paVos a MXN y USD.\n`,
                   
         'carry': `🚀 *MENÚ CARRY (ESCUADRONES)* 🚀\n\n` +
                  `*${prefijo}carryleader [espacios] [motivo]* - Abre un nuevo escuadrón (Notifica a todos).\n` +
@@ -183,7 +183,7 @@ async function ejecutarMenu(sock, chatId, msg, args) {
                       `*${prefijo}instagram [url]* - Descarga video de Instagram.\n` +
                       `*${prefijo}traduce [texto]* - Traduce texto al español.\n` +
                       `*${prefijo}stats [usuario]* - Consulta estadísticas de Fortnite.\n` +
-                      `*${prefijo}tiendastats [nombre]* - Consulta estadísticas del cosmético.\n` +
+                      `*${prefijo}tiendastats [nombre]* - Consulta estadísticas del cosmético.\n` + `*${prefijo}tiendaVb [paVos]* - Convierte paVos a MXN y USD.\n` +
                       `*${prefijo}contacto* - Información del creador.\n` +
                       `*${prefijo}ping* - Revisa la velocidad y estado del bot.\n` +
                       `*${prefijo}vertodoscomandos* - Muestra la lista completa de comandos y para qué sirve cada uno.\n`,
