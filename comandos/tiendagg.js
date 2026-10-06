@@ -310,11 +310,14 @@ function formatearItem(item, indice) {
 
     if (item.precio) {
         const precio = String(item.precio).trim();
-        const sufijo = precio.startsWith('
+        lineas.push(`   💰 ${precio}`);
+    }
+
     if (item.tipo || item.rareza) {
         const partes = [item.rareza, item.tipo].filter(Boolean);
         if (partes.length) lineas.push(`   🏷️ ${partes.join(' • ')}`);
     }
+
     if (item.descripcion) lineas.push(`   📝 ${item.descripcion}`);
     if (item.lanzamiento) lineas.push(`   📅 Salió: ${item.lanzamiento}`);
     if (item.ultimaVez) lineas.push(`   👀 Última vez: ${item.ultimaVez}`);
@@ -324,9 +327,8 @@ function formatearItem(item, indice) {
     if (item.fuente) lineas.push(`   📌 Fuente: ${item.fuente === 'Shop' ? 'Tienda' : item.fuente}`);
     if (item.conjunto) lineas.push(`   🧩 Conjunto: ${item.conjunto}`);
     if (item.etiquetas?.length) lineas.push(`   ⚡ ${item.etiquetas.join(' • ')}`);
-    lineas.push(`   🔗 ${item.url}`);
 
-    return lineas.join('\n');
+    return lineas.join('\\n');
 }
 
 async function enriquecerItems(items) {
