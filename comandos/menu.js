@@ -8,7 +8,7 @@ const categoriasMap = {
     rifas: ['rifa', 'rifainscripcion', 'cerrarrifa', 'rifajasc13', 'addvarios', 'abrirrifa', 'activarrifaaqui', 'menurifajasc13'],
     cashback: ['addcashback', 'delcashback', 'vercash', 'delvcash', 'canjecash'],
     economia: ['cartera', 'bal', 'banco', 'pay', 'pagar', 'top', 'topdinero', 'daily', 'weekly', 'farmear', 'work', 'crime', 'mendigar', 'pescar', 'minar', 'cazar', 'explorar', 'ruleta', 'cf', 'slots', 'dados', 'adivina', 'buscaminas', 'rob', 'ppt', 'pelea', 'carrera', 'hackear', 'shop', 'buy', 'inventario', 'mochila', 'vender', 'use', 'regalar'],
-    utilidades: ['s', 'sticker', 'tiktok', 'traduce', 'skin', 'stats', 'contacto', 'ping'],
+    utilidades: ['s', 'sticker', 'tiktok', 'instagram', 'traduce', 'skin', 'stats', 'tiendastats', 'contacto', 'ping'],
     paypal: ['paypal', 'paypaln', 'paypali'],
     ia: ['ia'],
     moderacion: ['warn', 'advertir', 'verwarns', 'limpiarwarns', 'ban', 'unban', 'listanegra', 'banlist', 'unbanlist', 'grupo', 'mute', 'unmute', 'inactivos', 'listablanca', 'desactivarbienvenida', 'activarbienvenida', 'personalizarbienvenida', 'restaurarbienvenida']
@@ -183,6 +183,7 @@ async function ejecutarMenu(sock, chatId, msg, args) {
                       `*${prefijo}instagram [url]* - Descarga video de Instagram.\n` +
                       `*${prefijo}traduce [texto]* - Traduce texto al español.\n` +
                       `*${prefijo}skin [nombre] / stats [usuario]* - Info de Fortnite.\n` +
+                      `*${prefijo}tiendastats [nombre]* - Consulta estadísticas del cosmético.\n` +
                       `*${prefijo}contacto* - Información del creador.\n` +
                       `*${prefijo}ping* - Revisa la velocidad y estado del bot.\n` +
                       `*${prefijo}vertodoscomandos* - Muestra la lista completa de comandos y para qué sirve cada uno.\n`,
