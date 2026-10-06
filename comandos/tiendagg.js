@@ -269,12 +269,41 @@ function extraerCampo($, nombre) {
 function traducirRareza(valor) { return RAREZAS[normalizar(valor)] || valor; }
 function traducirTipo(valor) { return TIPOS[normalizar(valor)] || valor; }
 
+function escaparRegex(texto) {
+    return String(texto || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function extraerCampoTexto(cuerpo, nombre, siguientes = []) {
+    const fin = siguientes.length
+        ? '(?=\\s+(?:' + siguientes.map(escaparRegex).join('|') + ')\\s*:?)'
+        : '(?=$)';
+    const regex = new RegExp(
+        escaparRegex(nombre) + '\\s*:?\\s*(?:\\|\\s*)?(.+?)' + fin,
+        'i'
+    );
+    const match = cuerpo.match(regex);
+    return match ? limpiarTexto(match[1]).replace(/^\\|\\s*/, '').replace(/\\s*\\|$/, '').trim() : null;
+}
+
 function extraerDetalle(html, itemBase) {
     const $ = cheerio.load(html);
-    const nombre = limpiarTexto($('.fn-detail-name').first().text()) || itemBase.nombre;
-    const tipoEl = $('.fn-detail-type').first();
+
+    const lineas = (($('main').length ? $('main') : $('body')).text() || '')
+        .split(/\\r?\\n/)
+        .map(limpiarTexto)
+        .filter(Boolean);
+
+    const cuerpo = lineas.join(' ');
+
+    const nombre = limpiarTexto($('.fn-detail-name').first().text()) ||
+        limpiarTexto($('main h1').first().text()) ||
+        limpiarTexto($('h1').first().text()) ||
+        itemBase.nombre;
+
     let rareza = '';
     let tipo = '';
+
+    const tipoEl = $('.fn-detail-type').first();
     if (tipoEl.length) {
         rareza = limpiarTexto(tipoEl.find('span').first().text());
         const clon = tipoEl.clone();
@@ -282,42 +311,85 @@ function extraerDetalle(html, itemBase) {
         tipo = limpiarTexto(clon.text());
     }
 
-    const precio = limpiarTexto($('.fn-item-price').first().text()) || itemBase.precio || 'No disponible';
-    const timeEl = $('time.shop-out').first();
-    const salidaTexto = limpiarTexto(timeEl.text());
-    const salidaIso = timeEl.attr('datetime') || null;
-    const descripcion = [];
-    const etiquetas = [];
+    if (!tipo || !rareza) {
+        const indiceNombre = lineas.findIndex(l => l === nombre);
+        const siguientesLineas = indiceNombre >= 0
+            ? lineas.slice(indiceNombre + 1, indiceNombre + 8)
+            : lineas.slice(0, 8);
 
-    $('.fn-detail-desc.grey').each((_, el) => {
+        const meta = siguientesLineas.find(l =>
+            /^(legendary|epic|rare|uncommon|common|mythic|icon|gaming)\\b/i.test(l)
+        );
+
+        if (meta) {
+            const match = meta.match(/^(legendary|epic|rare|uncommon|common|mythic|icon|gaming)\\s+(.+)$/i);
+            if (match) {
+                rareza = rareza || match[1];
+                tipo = tipo || match[2];
+            }
+        }
+    }
+
+    let precio = limpiarTexto($('.fn-item-price').first().text());
+    if (!precio) {
+        const precioMatch = cuerpo.match(/(?:V[- ]?Bucks|V‑Bucks)\\s+([\\d,.]+)/i);
+        if (precioMatch) precio = precioMatch[1];
+    }
+    precio = precio || itemBase.precio || 'No disponible';
+
+    const timeEl = $('time.shop-out').first();
+    let salida = limpiarTexto(timeEl.text());
+    if (!salida) {
+        const salidaMatch = cuerpo.match(/Leaving Shop on\\s+(.+?)(?=\\s+(?:Shop on Fortnite\\.com|#EpicPartner|Source\\s*:)|$)/i);
+        if (salidaMatch) salida = limpiarTexto(salidaMatch[1]);
+    }
+
+    const etiquetas = [];
+    const descripcion = [];
+
+    $('.fn-detail-desc.grey, .fn-detail-desc').each((_, el) => {
         const texto = limpiarTexto($(el).text());
         if (!texto) return;
-        if (/^\[.*\]$/.test(texto)) etiquetas.push(texto.replace(/^\[|\]$/g, ''));
+        if (/^\\[.*\\]$/.test(texto)) etiquetas.push(texto.replace(/^\\[|\\]$/g, ''));
         else if (!descripcion.includes(texto)) descripcion.push(texto);
     });
 
-    let conjunto = null;
-    $('span.grey').each((_, el) => {
-        if (conjunto) return;
-        const inicio = limpiarTexto($(el).text());
-        if (!/^Part of the$/i.test(inicio)) return;
-        const texto = limpiarTexto($(el).parent().text());
-        const match = texto.match(/^Part of the\s+(.+?)\s+set$/i);
-        if (match) conjunto = match[1].trim();
-    });
+    if (!descripcion.length) {
+        const indiceNombre = lineas.findIndex(l => l === nombre);
+        const candidatos = indiceNombre >= 0 ? lineas.slice(indiceNombre + 1) : lineas;
+        const descartables = /^(legendary|epic|rare|uncommon|common|mythic|icon|gaming)\\b|^Image:|^V[- ]?Bucks$|^\\d[\\d,.]*$|^🕑|^Leaving Shop on$|^Shop on Fortnite\\.com$|^#EpicPartner$|^Source:?$|^Introduced in:?$|^Release date:?$|^Last seen:?$|^Occurrences:?$|^Date Days ago$|^Wishlist|^Locker|^Includes$|^ID:/i;
+        const candidata = candidatos.find(l =>
+            !descartables.test(l) &&
+            !/^Part of the .+ set$/i.test(l) &&
+            !/^Available in bundle$/i.test(l) &&
+            l.length >= 8
+        );
+        if (candidata) descripcion.push(candidata);
+    }
+
+    const conjuntoMatch = cuerpo.match(/Part of the\\s+(.+?)\\s+set/i);
+    const conjunto = conjuntoMatch ? limpiarTexto(conjuntoMatch[1]) : null;
+
+    const resultadosTexto = {
+        fuente: extraerCampoTexto(cuerpo, 'Source', ['Introduced in', 'Release date']),
+        temporada: extraerCampoTexto(cuerpo, 'Introduced in', ['Release date', 'Last seen']),
+        lanzamiento: extraerCampoTexto(cuerpo, 'Release date', ['Last seen', 'Occurrences']),
+        ultimaVez: extraerCampoTexto(cuerpo, 'Last seen', ['Occurrences', 'Date Days ago']),
+        apariciones: extraerCampoTexto(cuerpo, 'Occurrences', ['Date Days ago', 'Wishlist', 'Locker', 'Includes', 'ID'])
+    };
 
     return {
         nombre,
         tipo: traducirTipo(tipo || itemBase.tipo || ''),
         rareza: traducirRareza(rareza),
         precio,
-        salida: salidaTexto || limpiarTexto($('.fn-shop-text').first().text()).replace(/^🕑\s*Leaving Shop on\s*/i, ''),
-        salidaIso,
-        fuente: extraerCampo($, 'Source'),
-        temporada: extraerCampo($, 'Introduced in'),
-        lanzamiento: extraerCampo($, 'Release date'),
-        ultimaVez: extraerCampo($, 'Last seen'),
-        apariciones: extraerCampo($, 'Occurrences'),
+        salida,
+        salidaIso: timeEl.attr('datetime') || null,
+        fuente: resultadosTexto.fuente || extraerCampo($, 'Source'),
+        temporada: resultadosTexto.temporada || extraerCampo($, 'Introduced in'),
+        lanzamiento: resultadosTexto.lanzamiento || extraerCampo($, 'Release date'),
+        ultimaVez: resultadosTexto.ultimaVez || extraerCampo($, 'Last seen'),
+        apariciones: resultadosTexto.apariciones || extraerCampo($, 'Occurrences'),
         descripcion: descripcion[0] || null,
         etiquetas,
         conjunto,
@@ -325,7 +397,6 @@ function extraerDetalle(html, itemBase) {
         id: itemBase.id
     };
 }
-
 function extraerItemsTienda(html) {
     const $ = cheerio.load(html);
     const items = [];
