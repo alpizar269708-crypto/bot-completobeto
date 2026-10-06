@@ -144,16 +144,52 @@ function encontrarFiltro(argumentos) {
 async function abrirNavegador() {
     return puppeteer.launch({
         headless: true,
-        args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu', '--no-first-run', '--no-zygote']
+        args: [
+            '--no-sandbox',
+            '--disable-setuid-sandbox',
+            '--disable-dev-shm-usage',
+            '--disable-gpu',
+            '--no-first-run',
+            '--no-zygote',
+            '--disable-blink-features=AutomationControlled'
+        ]
+    });
+}
+
+async function prepararPagina(page) {
+    page.setDefaultNavigationTimeout(15000);
+    await page.setUserAgent('Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Safari/537.36');
+    await page.setExtraHTTPHeaders({ 'Accept-Language': 'es-MX,es;q=0.9,en;q=0.8' });
+
+    await page.setRequestInterception(true);
+    page.on('request', request => {
+        const tipo = request.resourceType();
+        if (['image', 'media', 'font'].includes(tipo)) request.abort().catch(() => {});
+        else request.continue().catch(() => {});
+    });
+
+    await page.evaluateOnNewDocument(() => {
+        Object.defineProperty(navigator, 'webdriver', { get: () => false });
     });
 }
 
 async function obtenerHtmlConNavegador(page, url, selector = null) {
-    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
-    if (selector) {
-        try { await page.waitForSelector(selector, { timeout: 15000 }); } catch (_) {}
+    let respuesta;
+    try {
+        respuesta = await page.goto(url, { waitUntil: 'commit', timeout: 15000 });
+    } catch (error) {
+        console.warn('⚠️ Fortnite.GG: navegación inicial agotó tiempo: ' + error.message);
     }
-    await new Promise(resolve => setTimeout(resolve, 1200));
+
+    if (selector) {
+        try {
+            await page.waitForSelector(selector, { timeout: 8000 });
+        } catch (_) {
+            console.warn('⚠️ Fortnite.GG: no apareció el selector esperado: ' + selector);
+        }
+    }
+
+    await new Promise(resolve => setTimeout(resolve, 700));
     return page.content();
 }
 function limpiarTexto(texto) {
@@ -325,8 +361,7 @@ async function enriquecerItems(items, browser) {
         const enriquecidos = await Promise.all(lote.map(async (item) => {
             const page = await browser.newPage();
             try {
-                await page.setUserAgent('Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Safari/537.36');
-                await page.setExtraHTTPHeaders({ 'Accept-Language': 'es-MX,es;q=0.9,en;q=0.8' });
+                await prepararPagina(page);
                 const html = await obtenerHtmlConNavegador(page, item.url, '.fn-detail-name');
                 return extraerDetalle(html, item);
             } catch (error) {
@@ -379,8 +414,7 @@ async function comandoTiendaGG(sock, chatId, msg, args) {
 
         try {
             const page = await browser.newPage();
-            await page.setUserAgent('Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Safari/537.36');
-            await page.setExtraHTTPHeaders({ 'Accept-Language': 'es-MX,es;q=0.9,en;q=0.8' });
+            await prepararPagina(page);
             const html = await obtenerHtmlConNavegador(page, url, 'a[href*="/cosmetics?id="]');
             const itemsBase = extraerItemsTienda(html);
             await page.close().catch(() => {});
