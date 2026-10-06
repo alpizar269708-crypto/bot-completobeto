@@ -290,7 +290,7 @@ function extraerItemsTienda(html) {
     const items = [];
     const vistos = new Set();
 
-    $('a[href^="/cosmetics/"]').each((_, el) => {
+    $('a[href*="/cosmetics?id="]').each((_, el) => {
         let href = String($(el).attr('href') || '').trim();
         const idMatch = href.match(/[?&]id=([^&]+)/i) || href.match(/^\/cosmetics\/([^?#]+)/i);
         const id = idMatch ? decodeURIComponent(idMatch[1]) : href;
@@ -415,7 +415,7 @@ async function comandoTiendaGG(sock, chatId, msg, args) {
         try {
             const page = await browser.newPage();
             await prepararPagina(page);
-            const html = await obtenerHtmlConNavegador(page, url, 'a[href^="/cosmetics/"]');
+            const html = await obtenerHtmlConNavegador(page, url, 'a[href*="/cosmetics?id="]');
             const itemsBase = extraerItemsTienda(html);
             await page.close().catch(() => {});
 
