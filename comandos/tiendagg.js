@@ -176,14 +176,14 @@ async function prepararPagina(page) {
 async function obtenerHtmlConNavegador(page, url, selector = null) {
     let respuesta;
     try {
-        respuesta = await page.goto(url, { waitUntil: 'commit', timeout: 15000 });
+        respuesta = await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 20000 });
     } catch (error) {
         console.warn('⚠️ Fortnite.GG: navegación inicial agotó tiempo: ' + error.message);
     }
 
     if (selector) {
         try {
-            await page.waitForSelector(selector, { timeout: 8000 });
+            await page.waitForSelector(selector, { timeout: 10000 });
         } catch (_) {
             console.warn('⚠️ Fortnite.GG: no apareció el selector esperado: ' + selector);
         }
@@ -354,7 +354,7 @@ function formatearItem(item, indice) {
 
 async function enriquecerItems(items, browser) {
     const resultado = [];
-    const concurrencia = 4;
+    const concurrencia = 8;
 
     for (let inicio = 0; inicio < items.length; inicio += concurrencia) {
         const lote = items.slice(inicio, inicio + concurrencia);
