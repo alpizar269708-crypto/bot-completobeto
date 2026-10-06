@@ -39,7 +39,7 @@ function comandoTiendaVb(sock, chatId, msg, argsOriginales = []) {
         `🇺🇸 *$${formatearDinero(usd, 'USD')} USD*`,
         '',
         'Apoya a un creador: *JASC13*'
-    ].join('\\n');
+    ].join('\n');
 
     return sock.sendMessage(chatId, { text: respuesta }, { quoted: msg });
 }
