@@ -415,7 +415,7 @@ async function comandoTiendaGG(sock, chatId, msg, args) {
 
     try {
         await sock.sendMessage(chatId, {
-            text: `⏳ *TIENDA FORTNITE.GG*\n\nLeyendo filtro: *${filtro.label}*...\nPuede tardar unos segundos mientras consulto los detalles.`
+            text: `⏳ 🛍️ *JASC STORE*\n\nLeyendo filtro: *${filtro.label}*...\nConsultando el catálogo...`
         }, { quoted: msg });
 
         const url = BASE_URL + filtro.path;
@@ -425,7 +425,7 @@ async function comandoTiendaGG(sock, chatId, msg, args) {
         try {
             const page = await browser.newPage();
             await prepararPagina(page);
-            const html = await obtenerHtmlConNavegador(page, url, 'a[href*="/cosmetics?id="]');
+            const html = await obtenerHtmlConNavegador(page, url, '#items a.item-icon[href*="/cosmetics?id="]');
             const itemsBase = extraerItemsTienda(html);
             await page.close().catch(() => {});
 
