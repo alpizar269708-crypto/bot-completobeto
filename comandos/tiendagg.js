@@ -658,11 +658,11 @@ async function comandoTiendaGG(sock, chatId, msg, args) {
 
         // Guardamos solamente las opciones visibles + URLs + IDs. El navegador se
         // cierra al terminar la búsqueda y NO se conserva ninguna página abierta.
-        const sent = await sock.sendMessage(chatJid, { text: textoLista }, { quoted: msg });
-        const remitenteSesion = msg.key.participant || msg.key.participantAlt || chatJid;
+        const sent = await sock.sendMessage(chatId, { text: textoLista }, { quoted: msg });
+        const remitenteSesion = msg.key.participant || msg.key.participantAlt || chatId;
 
         sesionesTiendaGG.set(
-            String(chatJid) + ':' + String(remitenteSesion),
+            String(chatId) + ':' + String(remitenteSesion),
             {
                 items: opciones,
                 resultMessageId: sent?.key?.id || null,
