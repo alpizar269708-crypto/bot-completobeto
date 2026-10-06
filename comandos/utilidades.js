@@ -911,25 +911,21 @@ function extraerUrlInstagram(texto) {
     const fuente = String(texto || '').trim();
     if (!fuente) return null;
 
-    const urls = [
-        ...(fuente.match(/https?:\\/\\/(?:www\\.)?instagram\\.com\\/[^\\s<>\\]\)]+/gi) || [])
-    ];
+    const patron = /https?:\/\/(?:www\.)?instagram\.com\/[^\s<>\]\)]+/gi;
+    const urls = fuente.match(patron) || [];
 
     for (let url of urls) {
         url = url.replace(/[),.;!?]+$/g, '');
         try {
             const u = new URL(url);
-            if (/instagram\\.com$/i.test(u.hostname) || /(^|\\.)instagram\\.com$/i.test(u.hostname)) {
-                return u.toString();
-            }
+            if (/(^|\.)instagram\.com$/i.test(u.hostname)) return u.toString();
         } catch (_) {}
     }
 
-    const sinEsquema = fuente.match(/(?:www\\.)?instagram\\.com\\/[^\\s<>\\]\)]+/i);
+    const sinEsquema = fuente.match(/(?:www\.)?instagram\.com\/[^\s<>\]\)]+/i);
     if (sinEsquema?.[0]) {
         try {
-            const u = new URL('https://' + sinEsquema[0].replace(/[),.;!?]+$/g, ''));
-            return u.toString();
+            return new URL('https://' + sinEsquema[0].replace(/[),.;!?]+$/g, '')).toString();
         } catch (_) {}
     }
 
@@ -939,7 +935,7 @@ function extraerUrlInstagram(texto) {
 async function resolverEnlaceInstagram(url) {
     try {
         const u = new URL(url);
-        if (/\\/(?:reel|reels|p|tv)\\//i.test(u.pathname)) return url;
+        if (/(?:\/reel\/|\/reels\/|\/p\/|\/tv\/)/i.test(u.pathname)) return url;
     } catch (_) {
         return url;
     }
@@ -954,8 +950,9 @@ async function resolverEnlaceInstagram(url) {
             },
             signal: AbortSignal.timeout(20000)
         });
-        if (respuesta.url && /(^|\\.)instagram\\.com$/i.test(new URL(respuesta.url).hostname)) {
-            return respuesta.url;
+        if (respuesta.url) {
+            const final = new URL(respuesta.url);
+            if (/(^|\.)instagram\.com$/i.test(final.hostname)) return final.toString();
         }
     } catch (error) {
         console.warn('⚠️ No se pudo resolver Instagram:', error.message);
@@ -965,8 +962,8 @@ async function resolverEnlaceInstagram(url) {
 }
 
 async function descargarInstagramConYtDlp(url) {
-    const salida = path.join(os.tmpdir(), 'instagram-' + crypto.randomBytes(8).toString('hex') + '.%(ext)s');
-    let ultimoError = null;
+    const prefijo = 'instagram-' + crypto.randomBytes(8).toString('hex');
+    const salida = path.join(os.tmpdir(), prefijo + '.%(ext)s');
 
     try {
         const opciones = {
@@ -992,22 +989,22 @@ async function descargarInstagramConYtDlp(url) {
         await youtubedl(url, opciones, { timeout: 120000 });
 
         const archivos = fs.readdirSync(os.tmpdir())
-            .filter(nombre => nombre.startsWith(path.basename(salida).split('.')[0]))
+            .filter(nombre => nombre.startsWith(prefijo))
             .map(nombre => path.join(os.tmpdir(), nombre))
             .filter(ruta => fs.existsSync(ruta));
 
-        const mp4 = archivos.find(ruta => /\\.mp4$/i.test(ruta));
+        const mp4 = archivos.find(ruta => /\.mp4$/i.test(ruta));
         if (!mp4) throw new Error('yt-dlp no creó el MP4 de Instagram');
 
         const buffer = fs.readFileSync(mp4);
-        if (!buffer.length || buffer.length < 10000) throw new Error('Instagram devolvió un video vacío o inválido');
+        if (!buffer.length || buffer.length < 10000) {
+            throw new Error('Instagram devolvió un video vacío o inválido');
+        }
         return buffer;
     } catch (e) {
-        ultimoError = e;
-        throw new Error(String(e?.message || e).replace(/\\s+/g, ' ').slice(0, 700));
+        throw new Error(String(e?.message || e).replace(/\s+/g, ' ').slice(0, 700));
     } finally {
         try {
-            const prefijo = path.basename(salida).split('.')[0];
             for (const nombre of fs.readdirSync(os.tmpdir())) {
                 if (nombre.startsWith(prefijo)) {
                     try { fs.unlinkSync(path.join(os.tmpdir(), nombre)); } catch (_) {}
@@ -1025,7 +1022,7 @@ async function comandoInstagram(sock, chatId, msg, args) {
 
     if (!urlOriginal) {
         await sock.sendMessage(chatId, {
-            text: '⚠️ Proporciona un enlace válido de Instagram. Ejemplo: `instagram https://www.instagram.com/reel/...`'
+            text: '⚠️ Proporciona un enlace válido de Instagram. Ejemplo: *instagram https://www.instagram.com/reel/...*'
         }, { quoted: msg });
         return;
     }
@@ -1064,7 +1061,7 @@ async function comandoInstagram(sock, chatId, msg, args) {
         await sock.sendMessage(chatId, {
             video: videoBuffer,
             mimetype: 'video/mp4',
-            caption: '📹Tu video está listo\\n\\nApoya a un creador: *JASC13*'
+            caption: '📹Tu video está listo\n\nApoya a un creador: *JASC13*'
         }, { quoted: msg });
     } catch (e) {
         console.error('Error al descargar Instagram:', e?.stack || e);
@@ -1073,7 +1070,6 @@ async function comandoInstagram(sock, chatId, msg, args) {
         }, { quoted: msg });
     }
 }
-
 
 async function comandoTiktok(sock, chatId, msg, args) {
     const textoArgumentos = Array.isArray(args) ? args.join(' ') : String(args || '');
