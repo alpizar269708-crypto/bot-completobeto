@@ -907,6 +907,174 @@ async function descargarTikTokConSnapTik(url) {
 }
 
 
+function extraerUrlInstagram(texto) {
+    const fuente = String(texto || '').trim();
+    if (!fuente) return null;
+
+    const urls = [
+        ...(fuente.match(/https?:\\/\\/(?:www\\.)?instagram\\.com\\/[^\\s<>\\]\)]+/gi) || [])
+    ];
+
+    for (let url of urls) {
+        url = url.replace(/[),.;!?]+$/g, '');
+        try {
+            const u = new URL(url);
+            if (/instagram\\.com$/i.test(u.hostname) || /(^|\\.)instagram\\.com$/i.test(u.hostname)) {
+                return u.toString();
+            }
+        } catch (_) {}
+    }
+
+    const sinEsquema = fuente.match(/(?:www\\.)?instagram\\.com\\/[^\\s<>\\]\)]+/i);
+    if (sinEsquema?.[0]) {
+        try {
+            const u = new URL('https://' + sinEsquema[0].replace(/[),.;!?]+$/g, ''));
+            return u.toString();
+        } catch (_) {}
+    }
+
+    return null;
+}
+
+async function resolverEnlaceInstagram(url) {
+    try {
+        const u = new URL(url);
+        if (/\\/(?:reel|reels|p|tv)\\//i.test(u.pathname)) return url;
+    } catch (_) {
+        return url;
+    }
+
+    try {
+        const respuesta = await fetch(url, {
+            method: 'GET',
+            redirect: 'follow',
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/131.0.0.0 Safari/537.36',
+                'Accept-Language': 'es-MX,es;q=0.9,en;q=0.8'
+            },
+            signal: AbortSignal.timeout(20000)
+        });
+        if (respuesta.url && /(^|\\.)instagram\\.com$/i.test(new URL(respuesta.url).hostname)) {
+            return respuesta.url;
+        }
+    } catch (error) {
+        console.warn('⚠️ No se pudo resolver Instagram:', error.message);
+    }
+
+    return url;
+}
+
+async function descargarInstagramConYtDlp(url) {
+    const salida = path.join(os.tmpdir(), 'instagram-' + crypto.randomBytes(8).toString('hex') + '.%(ext)s');
+    let ultimoError = null;
+
+    try {
+        const opciones = {
+            output: salida,
+            format: 'best[ext=mp4]/bestvideo[ext=mp4]+bestaudio/best',
+            mergeOutputFormat: 'mp4',
+            noWarnings: true,
+            noPlaylist: true,
+            noCheckCertificates: true,
+            impersonate: 'chrome',
+            jsRuntimes: 'node',
+            remoteComponents: 'ejs:github',
+            userAgent: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/131.0.0.0 Safari/537.36',
+            referer: 'https://www.instagram.com/',
+            socketTimeout: 30,
+            retries: 4,
+            fragmentRetries: 4,
+            extractorRetries: 3,
+            noPart: true,
+            geoBypass: true
+        };
+
+        await youtubedl(url, opciones, { timeout: 120000 });
+
+        const archivos = fs.readdirSync(os.tmpdir())
+            .filter(nombre => nombre.startsWith(path.basename(salida).split('.')[0]))
+            .map(nombre => path.join(os.tmpdir(), nombre))
+            .filter(ruta => fs.existsSync(ruta));
+
+        const mp4 = archivos.find(ruta => /\\.mp4$/i.test(ruta));
+        if (!mp4) throw new Error('yt-dlp no creó el MP4 de Instagram');
+
+        const buffer = fs.readFileSync(mp4);
+        if (!buffer.length || buffer.length < 10000) throw new Error('Instagram devolvió un video vacío o inválido');
+        return buffer;
+    } catch (e) {
+        ultimoError = e;
+        throw new Error(String(e?.message || e).replace(/\\s+/g, ' ').slice(0, 700));
+    } finally {
+        try {
+            const prefijo = path.basename(salida).split('.')[0];
+            for (const nombre of fs.readdirSync(os.tmpdir())) {
+                if (nombre.startsWith(prefijo)) {
+                    try { fs.unlinkSync(path.join(os.tmpdir(), nombre)); } catch (_) {}
+                }
+            }
+        } catch (_) {}
+    }
+}
+
+async function comandoInstagram(sock, chatId, msg, args) {
+    const textoArgumentos = Array.isArray(args) ? args.join(' ') : String(args || '');
+    const urlOriginal = extraerUrlInstagram(textoArgumentos);
+    console.log('📸 INSTAGRAM: comando recibido. Texto:', textoArgumentos);
+    console.log('📸 INSTAGRAM: URL extraída:', urlOriginal || 'NO ENCONTRADA');
+
+    if (!urlOriginal) {
+        await sock.sendMessage(chatId, {
+            text: '⚠️ Proporciona un enlace válido de Instagram. Ejemplo: `instagram https://www.instagram.com/reel/...`'
+        }, { quoted: msg });
+        return;
+    }
+
+    try {
+        await sock.sendMessage(chatId, {
+            text: '⏳ Descargando video de Instagram...'
+        }, { quoted: msg });
+
+        const url = await resolverEnlaceInstagram(urlOriginal);
+        console.log('📸 INSTAGRAM: URL a procesar:', url);
+
+        let videoBuffer = null;
+        let ultimoError = null;
+
+        try {
+            videoBuffer = await descargarInstagramConYtDlp(url);
+        } catch (error) {
+            ultimoError = error;
+            console.warn('⚠️ Instagram yt-dlp falló:', error.message);
+        }
+
+        if (!videoBuffer && url !== urlOriginal) {
+            try {
+                videoBuffer = await descargarInstagramConYtDlp(urlOriginal);
+            } catch (error) {
+                ultimoError = error;
+                console.warn('⚠️ Instagram con enlace original falló:', error.message);
+            }
+        }
+
+        if (!videoBuffer?.length) {
+            throw new Error(ultimoError?.message || 'Instagram no devolvió un video descargable');
+        }
+
+        await sock.sendMessage(chatId, {
+            video: videoBuffer,
+            mimetype: 'video/mp4',
+            caption: '📹Tu video está listo\\n\\nApoya a un creador: *JASC13*'
+        }, { quoted: msg });
+    } catch (e) {
+        console.error('Error al descargar Instagram:', e?.stack || e);
+        await sock.sendMessage(chatId, {
+            text: '❌ No pude descargar ese Instagram. Intenta nuevamente con el enlace de *Compartir → Copiar enlace*.'
+        }, { quoted: msg });
+    }
+}
+
+
 async function comandoTiktok(sock, chatId, msg, args) {
     const textoArgumentos = Array.isArray(args) ? args.join(' ') : String(args || '');
     const urlOriginal = extraerUrlTikTok(textoArgumentos);
@@ -1156,6 +1324,7 @@ async function comandoContacto(sock, chatId, msg) {
 module.exports = {
     comandoSticker,
     comandoTiktok,
+    comandoInstagram,
     comandoTraduce,
     comandoSkin,
     comandoStats,
