@@ -108,33 +108,41 @@ async function prepararPagina(page) {
     page.setDefaultNavigationTimeout(15000);
     await page.setUserAgent('Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Safari/537.36');
     await page.setExtraHTTPHeaders({ 'Accept-Language': 'es-MX,es;q=0.9,en;q=0.8' });
-    await page.setRequestInterception(true);
-    page.on('request', request => {
-        const tipo = request.resourceType();
-        if (['image', 'media', 'font'].includes(tipo)) request.abort().catch(() => {});
-        else request.continue().catch(() => {});
-    });
+    // No interceptamos solicitudes: Fortnite.GG usa contenido dinámico y una
+    // solicitud interceptada sin resolución puede dejar la página esperando.
     await page.evaluateOnNewDocument(() => {
         Object.defineProperty(navigator, 'webdriver', { get: () => false });
     });
 }
 
-async function buscarCosmeticosEnPagina(page, termino) {
+async function buscarCosmeticosEnPagina(page, termino, reportar = async () => {}) {
     const url = BASE_URL + '/cosmetics';
     console.log('🔎 TIENDAGG: buscando "' + termino + '" en ' + url);
+    await reportar('Abriendo catálogo de cosméticos...');
     try {
         await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 20000 });
     } catch (error) {
         console.warn('⚠️ Fortnite.GG: la carga del catálogo agotó tiempo: ' + error.message);
     }
 
+    await reportar('Catálogo abierto. Buscando el campo de búsqueda...');
     const buscador = await page.$('input[type="search"], input[placeholder*="Search" i], input[aria-label*="Search" i]');
     if (!buscador) throw new Error('No encontré el buscador del catálogo de Fortnite.GG');
 
-    await buscador.click({ clickCount: 3 });
-    await buscador.type(termino, { delay: 20 });
-    await new Promise(resolve => setTimeout(resolve, 1200));
+    await reportar('Campo encontrado. Aplicando la búsqueda...');
+    await buscador.evaluate((input, valor) => {
+        const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+        if (setter) setter.call(input, valor);
+        else input.value = valor;
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+        input.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true, key: 'Enter', code: 'Enter' }));
+    }, termino);
 
+    await reportar('Búsqueda aplicada. Esperando resultados...');
+    await new Promise(resolve => setTimeout(resolve, 1800));
+
+    await reportar('Filtrando coincidencias visibles...');
     await page.evaluate(() => {
         document.querySelectorAll('#items a.item-icon').forEach(el => {
             const style = window.getComputedStyle(el);
@@ -144,6 +152,7 @@ async function buscarCosmeticosEnPagina(page, termino) {
         });
     });
 
+    await reportar('Resultados listos. Leyendo coincidencias...');
     return page.content();
 }
 
@@ -391,7 +400,7 @@ async function comandoTiendaGG(sock, chatId, msg, args) {
             html = await obtenerHtmlConNavegador(page, url, '#items a.item-icon[href*="/cosmetics?id="]');
         } else {
             await fase('Escribiendo la búsqueda: ' + args.join(' '));
-            html = await buscarCosmeticosEnPagina(page, args.join(' '));
+            html = await buscarCosmeticosEnPagina(page, args.join(' '), fase);
         }
 
         await fase('Página cargada. Extrayendo coincidencias...');
