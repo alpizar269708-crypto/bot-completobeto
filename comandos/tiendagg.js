@@ -3,6 +3,8 @@ const puppeteer = require('puppeteer');
 
 const BASE_URL = 'https://fortnite.gg';
 let tiendaGGEnCurso = false;
+let tiendaGGFase = 'iniciando';
+let tiendaGGTimer = null;
 
 const FILTROS = [
     { claves: ['todos', 'todo', 'all'], label: 'TODOS', path: '/cosmetics' },
@@ -140,6 +142,17 @@ function encontrarFiltro(argumentos) {
     }
 
     return mejor?.filtro || null;
+}
+
+async function reportarFase(sock, chatId, msg, fase) {
+    tiendaGGFase = fase;
+    try {
+        await sock.sendMessage(chatId, {
+            text: `🛠️ *JASC STORE — DIAGNÓSTICO*\\n\\n📍 ${fase}`
+        }, { quoted: msg });
+    } catch (error) {
+        console.error('❌ No pude enviar diagnóstico de tiendagg:', error.message);
+    }
 }
 
 async function abrirNavegador() {
@@ -395,6 +408,9 @@ async function enriquecerItems(items, browser) {
         const lote = items.slice(inicio, inicio + concurrencia);
         const enriquecidos = await Promise.all(lote.map(async (item) => {
             const page = await browser.newPage();
+            await reportarFase(sock, chatId, msg, filtro
+                ? 'Página creada. Cargando el filtro de Fortnite.GG...'
+                : 'Página creada. Cargando el catálogo para realizar la búsqueda...');
             try {
                 await prepararPagina(page);
                 const html = await obtenerHtmlConNavegador(page, item.url, '.fn-detail-name');
@@ -447,6 +463,17 @@ async function comandoTiendaGG(sock, chatId, msg, args) {
     }
 
     tiendaGGEnCurso = true;
+    tiendaGGFase = 'iniciando consulta';
+    tiendaGGTimer = setTimeout(async () => {
+        console.error('❌ TIENDAGG TIMEOUT. Fase:', tiendaGGFase);
+        try {
+            await sock.sendMessage(chatId, {
+                text: `❌ *JASC STORE — TIMEOUT*\\n\\nLa consulta lleva demasiado tiempo.\\n\\n📍 Se quedó en: *${tiendaGGFase}*\\n⏱️ El proceso fue detenido para liberar la consulta.`
+            }, { quoted: msg });
+        } catch (error) {
+            console.error('❌ Error enviando timeout de tiendagg:', error.message);
+        }
+    }, 60000);
 
     try {
         await sock.sendMessage(chatId, {
@@ -455,7 +482,9 @@ async function comandoTiendaGG(sock, chatId, msg, args) {
                 : `🔎 🛍️ *JASC STORE*\n\nBuscando: *${args.join(' ')}*...`
         }, { quoted: msg });
 
+        await reportarFase(sock, chatId, msg, 'Abriendo navegador Puppeteer...');
         const browser = await abrirNavegador();
+        await reportarFase(sock, chatId, msg, 'Navegador abierto correctamente. Creando página...');
 
         try {
             const page = await browser.newPage();
@@ -463,13 +492,16 @@ async function comandoTiendaGG(sock, chatId, msg, args) {
 
             let html;
             if (filtro) {
+                await reportarFase(sock, chatId, msg, 'Navegando a: ' + filtro.path);
                 const url = BASE_URL + filtro.path;
                 console.log('🛒 TIENDAGG: abriendo navegador para ' + url);
                 html = await obtenerHtmlConNavegador(page, url, '#items a.item-icon[href*="/cosmetics?id="]');
             } else {
+                await reportarFase(sock, chatId, msg, 'Escribiendo la búsqueda: ' + args.join(' '));
                 html = await buscarCosmeticosEnPagina(page, args.join(' '));
             }
 
+            await reportarFase(sock, chatId, msg, 'Página cargada. Extrayendo coincidencias...');
             const itemsBase = extraerItemsTienda(html);
             await page.close().catch(() => {});
 
@@ -479,6 +511,10 @@ async function comandoTiendaGG(sock, chatId, msg, args) {
                     : 'No encontré coincidencias para "' + args.join(' ') + '"');
             }
             console.log('🛒 TIENDAGG: ' + itemsBase.length + ' artículos detectados');
+            await reportarFase(sock, chatId, msg, itemsBase.length + ' coincidencia(s) detectada(s).');
+            await reportarFase(sock, chatId, msg, itemsBase.length <= 10
+                ? 'Leyendo detalles individuales de las coincidencias...'
+                : 'Hay más de 10 coincidencias; mostrando datos del catálogo para evitar sobrecargar Render.');
             const items = itemsBase.length <= 10 ? await enriquecerItems(itemsBase, browser) : itemsBase;
 
         const cabecera =
@@ -504,18 +540,29 @@ async function comandoTiendaGG(sock, chatId, msg, args) {
         actual += `Apoya a un creador: *JASC13*`;
         if (actual.trim()) bloques.push(actual.trim());
 
+        await reportarFase(sock, chatId, msg, 'Consulta terminada. Enviando resultados...');
         await enviarPorPartes(sock, chatId, msg, bloques);
         } finally {
             await browser.close().catch(() => {});
         }
     } catch (error) {
         console.error('❌ Error en tiendagg:', error);
+        try {
+            await sock.sendMessage(chatId, {
+                text: `❌ *JASC STORE — ERROR*\\n\\n📍 Se trabó en: *${tiendaGGFase}*\\n\\n💥 Error: ${String(error?.message || error).replace(/\\s+/g, ' ').slice(0, 700)}`
+            }, { quoted: msg });
+        } catch (sendError) {
+            console.error('❌ No pude enviar el error por WhatsApp:', sendError.message);
+        }
 
         await sock.sendMessage(chatId, {
             text: `❌ No pude leer la tienda en este momento.\n\nDetalle: ${String(error?.message || error).replace(/\s+/g, ' ').slice(0, 300)}`
         }, { quoted: msg });
     } finally {
+        if (tiendaGGTimer) clearTimeout(tiendaGGTimer);
+        tiendaGGTimer = null;
         tiendaGGEnCurso = false;
+        tiendaGGFase = 'iniciando';
     }
 }
 
