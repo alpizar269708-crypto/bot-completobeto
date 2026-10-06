@@ -452,7 +452,7 @@ async function comandoTiendaGG(sock, chatId, msg, args) {
         console.error('❌ Error en tiendagg:', error);
 
         await sock.sendMessage(chatId, {
-            text: `❌ No pude leer la tienda de Fortnite.GG.\n\nDetalle: ${String(error?.message || error).replace(/\s+/g, ' ').slice(0, 300)}`
+            text: `❌ No pude leer la tienda en este momento.\n\nDetalle: ${String(error?.message || error).replace(/\s+/g, ' ').slice(0, 300)}`
         }, { quoted: msg });
     }
 }
