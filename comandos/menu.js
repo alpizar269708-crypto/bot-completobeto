@@ -182,7 +182,7 @@ async function ejecutarMenu(sock, chatId, msg, args) {
                       `*${prefijo}tiktok [url]* - Descarga video sin marca de agua.\n` +
                       `*${prefijo}instagram [url]* - Descarga video de Instagram.\n` +
                       `*${prefijo}traduce [texto]* - Traduce texto al español.\n` +
-                      `*${prefijo}skin [nombre] / stats [usuario]* - Info de Fortnite.\n` +
+                      `*${prefijo}stats [usuario]* - Consulta estadísticas de Fortnite.\n` +
                       `*${prefijo}tiendastats [nombre]* - Consulta estadísticas del cosmético.\n` +
                       `*${prefijo}contacto* - Información del creador.\n` +
                       `*${prefijo}ping* - Revisa la velocidad y estado del bot.\n` +
