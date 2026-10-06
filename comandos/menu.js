@@ -186,7 +186,6 @@ async function ejecutarMenu(sock, chatId, msg, args) {
                       `*${prefijo}tiendastats [nombre]* - Consulta estadísticas del cosmético.\n` + `*${prefijo}tiendaVb [paVos]* - Convierte paVos a MXN y USD.\n` +
                       `*${prefijo}contacto* - Información del creador.\n` +
                       `*${prefijo}ping* - Revisa la velocidad y estado del bot.\n` +
-                      `*${prefijo}vertodoscomandos* - Muestra la lista completa de comandos y para qué sirve cada uno.\n`,
 
         'ia': `🤖 *MENÚ INTELIGENCIA ARTIFICIAL* 🤖\n\n` +
               `*${prefijo}ia [pregunta]* - Habla de forma natural con el bot.\n`,
