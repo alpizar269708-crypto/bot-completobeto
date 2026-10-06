@@ -180,6 +180,7 @@ async function ejecutarMenu(sock, chatId, msg, args) {
         'utilidades': `🛠️ *MENÚ UTILIDADES* 🛠️\n\n` +
                       `*${prefijo}s / sticker* - Convierte imagen/video a sticker animado.\n` +
                       `*${prefijo}tiktok [url]* - Descarga video sin marca de agua.\n` +
+                      `*${prefijo}instagram [url]* - Descarga video de Instagram.\n` +
                       `*${prefijo}traduce [texto]* - Traduce texto al español.\n` +
                       `*${prefijo}skin [nombre] / stats [usuario]* - Info de Fortnite.\n` +
                       `*${prefijo}contacto* - Información del creador.\n` +
