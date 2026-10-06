@@ -1310,10 +1310,11 @@ async function comandoStats(sock, chatId, msg, args) {
 
 // 🛒 7. Contacto (Menú de atención y compras)
 async function comandoContacto(sock, chatId, msg) {
-    let texto = `🛒 *CENTRO DE ATENCIÓN Y COMPRAS* 🛒\n\n`;
-    texto += `¿Deseas adquirir paVos, skins, pases de batalla o servicios técnicos?\n\n`;
-    texto += `💬 Escribe directamente al administrador para gestionar tu pedido.\n\n`;
-    texto += `Support-a-Creator: *JASC13* ❤️`;
+    const texto = `🛒 *CENTRO DE ATENCIÓN Y COMPRAS* 🛒\n\n` +
+        `¿Deseas adquirir paVos, skins, pases de batalla y mas...\n\n` +
+        `💬 Escribe a administrador +52 81 8010 3140 para gestionar tu pedido\n\n` +
+        `O visita https://jasc-store.com/tienda\n\n` +
+        `Support-a-Creator: *JASC13* ❤️`;
     await sock.sendMessage(chatId, { text: texto }, { quoted: msg });
 }
 
