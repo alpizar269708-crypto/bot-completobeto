@@ -235,9 +235,12 @@ function extraerDetalle(html, itemBase) {
     });
 
     let conjunto = null;
-    $('div').each((_, el) => {
+    $('span.grey').each((_, el) => {
         if (conjunto) return;
-        const texto = limpiarTexto($(el).clone().children().remove().end().text());
+        const inicio = limpiarTexto($(el).text());
+        if (!/^Part of the$/i.test(inicio)) return;
+        const contenedor = $(el).parent();
+        const texto = limpiarTexto(contenedor.text());
         const match = texto.match(/^Part of the\s+(.+?)\s+set$/i);
         if (match) conjunto = match[1].trim();
     });
@@ -305,7 +308,134 @@ function formatearItem(item, indice) {
     const lineas = [];
     lineas.push(`${indice}. 🎮 *${item.nombre}*`);
 
-    if (item.precio) lineas.push(`   💰 ${item.precio}${/v-?bucks/i.test(item.precio) ? '' : ' V-Bucks'}`);
+    if (item.precio) {
+        const precio = String(item.precio).trim();
+        const sufijo = precio.startsWith('
+    if (item.tipo || item.rareza) {
+        const partes = [item.rareza, item.tipo].filter(Boolean);
+        if (partes.length) lineas.push(`   🏷️ ${partes.join(' • ')}`);
+    }
+    if (item.descripcion) lineas.push(`   📝 ${item.descripcion}`);
+    if (item.lanzamiento) lineas.push(`   📅 Salió: ${item.lanzamiento}`);
+    if (item.ultimaVez) lineas.push(`   👀 Última vez: ${item.ultimaVez}`);
+    if (item.salida) lineas.push(`   🕑 Se va de la tienda: ${item.salida}`);
+    if (item.apariciones) lineas.push(`   🔁 Apariciones: ${item.apariciones}`);
+    if (item.temporada) lineas.push(`   📚 Introducido en: ${item.temporada}`);
+    if (item.fuente) lineas.push(`   📌 Fuente: ${item.fuente === 'Shop' ? 'Tienda' : item.fuente}`);
+    if (item.conjunto) lineas.push(`   🧩 Conjunto: ${item.conjunto}`);
+    if (item.etiquetas?.length) lineas.push(`   ⚡ ${item.etiquetas.join(' • ')}`);
+    lineas.push(`   🔗 ${item.url}`);
+
+    return lineas.join('\n');
+}
+
+async function enriquecerItems(items) {
+    const resultado = [];
+    const concurrencia = 6;
+
+    for (let inicio = 0; inicio < items.length; inicio += concurrencia) {
+        const lote = items.slice(inicio, inicio + concurrencia);
+
+        const enriquecidos = await Promise.all(lote.map(async (item) => {
+            try {
+                const html = await fetchTexto(item.url, { timeout: 12000 });
+                return extraerDetalle(html, item);
+            } catch (error) {
+                console.warn(`⚠️ Fortnite.GG: no se pudo leer ${item.url}: ${error.message}`);
+                return item;
+            }
+        }));
+
+        resultado.push(...enriquecidos);
+    }
+
+    return resultado;
+}
+
+async function enviarPorPartes(sock, chatId, msg, partes) {
+    for (const parte of partes) {
+        await sock.sendMessage(chatId, { text: parte }, { quoted: msg });
+    }
+}
+
+async function comandoTiendaGG(sock, chatId, msg, args) {
+    const filtro = encontrarFiltro(args);
+
+    if (!filtro) {
+        const texto = `🛒 *TIENDA FORTNITE.GG*\n\n` +
+            `Usa un filtro, por ejemplo:\n\n` +
+            `🔷 tiendagg nuevos\n` +
+            `🔷 tiendagg se van\n` +
+            `🔷 tiendagg skins\n` +
+            `🔷 tiendagg bailes\n` +
+            `🔷 tiendagg picos\n` +
+            `🔷 tiendagg mochilas\n` +
+            `🔷 tiendagg planeadores\n` +
+            `🔷 tiendagg envolturas\n` +
+            `🔷 tiendagg lotes\n\n` +
+            `La fuente es Fortnite.GG; el comando actual *tienda* no se modifica.\n\n` +
+            `Apoya a un creador: *JASC13*`;
+
+        await sock.sendMessage(chatId, { text: texto }, { quoted: msg });
+        return;
+    }
+
+    try {
+        await sock.sendMessage(chatId, {
+            text: `⏳ *TIENDA FORTNITE.GG*\n\nLeyendo filtro: *${filtro.label}*...\nPuede tardar unos segundos mientras consulto los detalles.`
+        }, { quoted: msg });
+
+        const url = BASE_URL + filtro.path;
+        console.log(`🛒 TIENDAGG: consultando ${url}`);
+
+        const html = await fetchTexto(url, { timeout: 20000 });
+        const itemsBase = extraerItemsTienda(html);
+
+        if (!itemsBase.length) {
+            throw new Error('No se encontraron artículos en el HTML de Fortnite.GG');
+        }
+
+        console.log(`🛒 TIENDAGG: ${itemsBase.length} artículos detectados`);
+
+        const items = await enriquecerItems(itemsBase);
+
+        const cabecera =
+            `🛒 *TIENDA FORTNITE.GG — ${filtro.label}*\n` +
+            `📦 ${items.length} artículo(s)\n\n`;
+
+        const bloques = [];
+        let actual = cabecera;
+
+        for (let i = 0; i < items.length; i++) {
+            const bloque = formatearItem(items[i], i + 1) + '\n\n';
+
+            if ((actual + bloque).length > 60000) {
+                bloques.push(actual.trim());
+                actual = '';
+            }
+
+            actual += bloque;
+        }
+
+        actual += `Apoya a un creador: *JASC13*`;
+        if (actual.trim()) bloques.push(actual.trim());
+
+        await enviarPorPartes(sock, chatId, msg, bloques);
+    } catch (error) {
+        console.error('❌ Error en tiendagg:', error);
+
+        await sock.sendMessage(chatId, {
+            text: `❌ No pude leer la tienda de Fortnite.GG.\n\nDetalle: ${String(error?.message || error).replace(/\s+/g, ' ').slice(0, 300)}`
+        }, { quoted: msg });
+    }
+}
+
+module.exports = {
+    comandoTiendaGG
+};
+) || /v-?bucks/i.test(precio) ? '' : ' V-Bucks';
+        lineas.push(`   💰 ${precio}${sufijo}`);
+    }
     if (item.tipo || item.rareza) {
         const partes = [item.rareza, item.tipo].filter(Boolean);
         if (partes.length) lineas.push(`   🏷️ ${partes.join(' • ')}`);
