@@ -6,7 +6,7 @@ let tiendaGGEnCurso = false;
 let tiendaGGFase = 'iniciando';
 let tiendaGGTimer = null;
 const sesionesTiendaGG = new Map();
-const TIENDAGG_SESION_TTL_MS = 5 * 60 * 1000;
+const TIENDAGG_SESION_TTL_MS = 3 * 60 * 1000;
 
 const FILTROS = [
     { claves: ['todos', 'todo', 'all'], label: 'TODOS', path: '/cosmetics' },
@@ -87,12 +87,8 @@ function encontrarFiltro(argumentos) {
 }
 
 async function reportarFase(sock, chatId, msg, fase) {
+    // El rastreo detallado queda desactivado para el uso normal.
     tiendaGGFase = fase;
-    try {
-        await sock.sendMessage(chatId, { text: `🛠️ *JASC STORE — DIAGNÓSTICO*\n\n📍 ${fase}` }, { quoted: msg });
-    } catch (error) {
-        console.error('❌ No pude enviar diagnóstico de tiendagg:', error.message);
-    }
 }
 
 async function abrirNavegador() {
@@ -409,23 +405,50 @@ function extraerItemsTienda(html) {
     return items;
 }
 
+function traducirTextoFicha(texto) {
+    if (!texto) return texto;
+    let t = String(texto);
+    t = t.replace(/Gaming Legends Series Bundle/gi, 'Lote de la Serie Gaming');
+    t = t.replace(/Gaming Legends Series/gi, 'Serie Gaming');
+    t = t.replace(/Icon Series/gi, 'Serie de Íconos');
+    t = t.replace(/Marvel Series/gi, 'Serie Marvel');
+    t = t.replace(/DC Series/gi, 'Serie DC');
+    t = t.replace(/Star Wars Series/gi, 'Serie Star Wars');
+    t = t.replace(/Chapter (\\d+)/gi, 'Capítulo $1');
+    t = t.replace(/Season X/gi, 'Temporada X');
+    t = t.replace(/Season (\\d+)/gi, 'Temporada $1');
+    t = t.replace(/introduced in/gi, 'introducido en');
+    t = t.replace(/Bundle/gi, 'Lote');
+    t = t.replace(/Shop/gi, 'Tienda');
+    return t;
+}
+
+function traducirFecha(texto) {
+    if (!texto) return texto;
+    const meses = {
+        Jan:'ene', Feb:'feb', Mar:'mar', Apr:'abr', May:'may', Jun:'jun',
+        Jul:'jul', Aug:'ago', Sep:'sep', Oct:'oct', Nov:'nov', Dec:'dic'
+    };
+    return String(texto).replace(/\\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\\b/g, m => meses[m] || m);
+}
+
 function formatearItem(item, indice) {
-    const lineas = [`${indice}. 🎮 *${item.nombre}*`];
+    const lineas = [`${indice}. 🎮 *${traducirTextoFicha(item.nombre)}*`];
     if (item.precio) lineas.push(`   💰 ${String(item.precio).trim()} pavos`);
     if (item.tipo || item.rareza) {
-        const partes = [item.rareza, item.tipo].filter(Boolean);
+        const partes = [traducirTextoFicha(item.rareza), traducirTextoFicha(item.tipo)].filter(Boolean);
         if (partes.length) lineas.push(`   🏷️ ${partes.join(' • ')}`);
     }
-    if (item.descripcion) lineas.push(`   📝 ${item.descripcion}`);
-    if (item.lanzamiento) lineas.push(`   📅 Salió: ${item.lanzamiento}`);
-    if (item.ultimaVez) lineas.push(`   👀 Última vez: ${item.ultimaVez}`);
-    if (item.salida) lineas.push(`   🕑 Se va de la tienda: ${item.salida}`);
-    if (item.apariciones) lineas.push(`   🔁 Apariciones: ${item.apariciones}`);
-    if (item.temporada) lineas.push(`   📚 Introducido en: ${item.temporada}`);
-    if (item.fuente) lineas.push(`   📌 Fuente: ${item.fuente === 'Shop' ? 'Tienda' : item.fuente}`);
-    if (item.conjunto) lineas.push(`   🧩 Conjunto: ${item.conjunto}`);
-    if (item.etiquetas?.length) lineas.push(`   ⚡ ${item.etiquetas.join(' • ')}`);
-    return lineas.join('\n');
+    if (item.descripcion) lineas.push(`   📝 ${traducirTextoFicha(item.descripcion)}`);
+    if (item.lanzamiento) lineas.push(`   📅 Salió: ${traducirFecha(item.lanzamiento)}`);
+    if (item.ultimaVez) lineas.push(`   👀 Última vez: ${traducirFecha(item.ultimaVez)}`);
+    if (item.salida) lineas.push(`   🕑 Se va de la tienda: ${traducirFecha(item.salida)}`);
+    if (item.apariciones) lineas.push(`   📅 Días totales en tienda: ${item.apariciones}`);
+    if (item.temporada) lineas.push(`   📚 Introducido en: ${traducirTextoFicha(item.temporada)}`);
+    if (item.fuente) lineas.push(`   📌 Fuente: ${item.fuente === 'Shop' ? 'Tienda' : traducirTextoFicha(item.fuente)}`);
+    if (item.conjunto) lineas.push(`   🧩 Conjunto: ${traducirTextoFicha(item.conjunto)}`);
+    if (item.etiquetas?.length) lineas.push(`   ⚡ ${item.etiquetas.map(traducirTextoFicha).join(' • ')}`);
+    return lineas.join('\\n');
 }
 
 async function leerFichaTiendaGG(browser, item) {
@@ -498,15 +521,11 @@ async function manejarSeleccionTiendaGG(sock, chatId, msg, texto, remitente) {
     let browser = null;
 
     try {
-        await sock.sendMessage(chatId, {
-            text: '📖 🛍️ *JASC STORE*\n\nLeyendo ficha: *' + item.nombre + '*...'
-        }, { quoted: msg });
-
         browser = await abrirNavegador();
         const detalle = await leerFichaTiendaGG(browser, item);
 
         await sock.sendMessage(chatId, {
-            text: '🛍️ *JASC STORE*\n\n' +
+            text: '🎮 Información del cosmético\n\n' +
                 formatearItem(detalle, 1) +
                 '\n\nApoya a un creador: *JASC13*'
         }, { quoted: msg });
@@ -574,14 +593,11 @@ async function comandoTiendaGG(sock, chatId, msg, args) {
 
     try {
         await sock.sendMessage(chatId, {
-            text: filtro
-                ? `⏳ 🛍️ *JASC STORE*\n\nLeyendo filtro: *${filtro.label}*...\nConsultando el catálogo...`
-                : `🔎 🛍️ *JASC STORE*\n\nBuscando: *${args.join(' ')}*...`
+            text: `🔎 *Búsqueda de cosméticos*\n\nBuscando: *${args.join(' ')}...*\nEspere un momento por favor 🖤\n\nApoya a un creador: *JASC13*`
         }, { quoted: msg });
 
         const fase = async texto => {
             actualizarFase(texto);
-            await reportarFase(sock, chatId, msg, texto);
         };
 
         await fase('Abriendo navegador Puppeteer...');
@@ -633,7 +649,7 @@ async function comandoTiendaGG(sock, chatId, msg, args) {
             textoLista += (i + 1) + '. 🎮 ' + (opciones[i].nombre || 'Sin nombre') + '\n\n';
         }
 
-        textoLista += '❓ *¿Cuál quieres ver?*\nResponde a este mensaje con el número o envía solo el número.\n\nApoya a un creador: *JASC13*';
+        textoLista += '❓ *¿Cuál quieres ver?*\nResponde a este mensaje con el número o envía solo el número, tienes 3 minutos\n\nApoya a un creador: *JASC13*';
 
         // Guardamos solamente las opciones visibles + URLs + IDs. El navegador se
         // cierra al terminar la búsqueda y NO se conserva ninguna página abierta.
