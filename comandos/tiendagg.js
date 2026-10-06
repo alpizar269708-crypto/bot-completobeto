@@ -385,7 +385,7 @@ async function comandoTiendaGG(sock, chatId, msg, args) {
     const filtro = encontrarFiltro(args);
 
     if (!filtro) {
-        const texto = `🛒 *TIENDA FORTNITE.GG*\n\n` +
+        const texto = `🛍️ *JASC STORE*\n\n` +
             `Usa un filtro, por ejemplo:\n\n` +
             `🔷 tiendagg nuevos\n` +
             `🔷 tiendagg se van\n` +
@@ -396,7 +396,7 @@ async function comandoTiendaGG(sock, chatId, msg, args) {
             `🔷 tiendagg planeadores\n` +
             `🔷 tiendagg envolturas\n` +
             `🔷 tiendagg lotes\n\n` +
-            `La fuente es Fortnite.GG; el comando actual *tienda* no se modifica.\n\n` +
+            `El comando actual *tienda* no se modifica.\n\n` +
             `Apoya a un creador: *JASC13*`;
 
         await sock.sendMessage(chatId, { text: texto }, { quoted: msg });
@@ -421,10 +421,10 @@ async function comandoTiendaGG(sock, chatId, msg, args) {
 
             if (!itemsBase.length) throw new Error('No se encontraron artículos en el HTML renderizado de Fortnite.GG');
             console.log('🛒 TIENDAGG: ' + itemsBase.length + ' artículos detectados');
-            const items = await enriquecerItems(itemsBase, browser);
+            const items = itemsBase.length <= 25 ? await enriquecerItems(itemsBase, browser) : itemsBase;
 
         const cabecera =
-            `🛒 *TIENDA FORTNITE.GG — ${filtro.label}*\n` +
+            `🛍️ *JASC STORE — ${filtro.label}*\n` +
             `📦 ${items.length} artículo(s)\n\n`;
 
         const bloques = [];
