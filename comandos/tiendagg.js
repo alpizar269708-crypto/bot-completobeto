@@ -174,6 +174,26 @@ async function prepararPagina(page) {
     });
 }
 
+async function buscarCosmeticosEnPagina(page, termino) {
+    const url = BASE_URL + '/cosmetics';
+    console.log('🔎 TIENDAGG: buscando "' + termino + '" en ' + url);
+
+    try {
+        await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 20000 });
+    } catch (error) {
+        console.warn('⚠️ Fortnite.GG: la carga del catálogo agotó tiempo: ' + error.message);
+    }
+
+    const buscador = await page.$('input[type="search"], input[placeholder*="Search" i], input[aria-label*="Search" i]');
+    if (!buscador) throw new Error('No encontré el buscador del catálogo de Fortnite.GG');
+
+    await buscador.click({ clickCount: 3 });
+    await buscador.type(termino, { delay: 20 });
+    await new Promise(resolve => setTimeout(resolve, 1200));
+
+    return page.content();
+}
+
 async function obtenerHtmlConNavegador(page, url, selector = null) {
     let respuesta;
     try {
@@ -384,8 +404,9 @@ async function enviarPorPartes(sock, chatId, msg, partes) {
 
 async function comandoTiendaGG(sock, chatId, msg, args) {
     const filtro = encontrarFiltro(args);
+    const textoBusqueda = normalizar(Array.isArray(args) ? args.join(' ') : args);
 
-    if (!filtro) {
+    if (!filtro && !textoBusqueda) {
         const texto = `🛍️ *JASC STORE*\n\n` +
             `Usa un filtro, por ejemplo:\n\n` +
             `🔷 tiendagg nuevos\n` +
@@ -415,27 +436,42 @@ async function comandoTiendaGG(sock, chatId, msg, args) {
 
     try {
         await sock.sendMessage(chatId, {
-            text: `⏳ 🛍️ *JASC STORE*\n\nLeyendo filtro: *${filtro.label}*...\nConsultando el catálogo...`
+            text: filtro
+                ? `⏳ 🛍️ *JASC STORE*\n\nLeyendo filtro: *${filtro.label}*...\nConsultando el catálogo...`
+                : `🔎 🛍️ *JASC STORE*\n\nBuscando: *${args.join(' ')}*...`
         }, { quoted: msg });
 
-        const url = BASE_URL + filtro.path;
-        console.log('🛒 TIENDAGG: abriendo navegador para ' + url);
         const browser = await abrirNavegador();
 
         try {
             const page = await browser.newPage();
             await prepararPagina(page);
-            const html = await obtenerHtmlConNavegador(page, url, '#items a.item-icon[href*="/cosmetics?id="]');
+
+            let html;
+            if (filtro) {
+                const url = BASE_URL + filtro.path;
+                console.log('🛒 TIENDAGG: abriendo navegador para ' + url);
+                html = await obtenerHtmlConNavegador(page, url, '#items a.item-icon[href*="/cosmetics?id="]');
+            } else {
+                html = await buscarCosmeticosEnPagina(page, args.join(' '));
+            }
+
             const itemsBase = extraerItemsTienda(html);
             await page.close().catch(() => {});
 
-            if (!itemsBase.length) throw new Error('No se encontraron artículos en el HTML renderizado de Fortnite.GG');
+            if (!itemsBase.length) {
+                throw new Error(filtro
+                    ? 'No se encontraron artículos en el catálogo de Fortnite.GG'
+                    : 'No encontré coincidencias para "' + args.join(' ') + '"');
+            }
             console.log('🛒 TIENDAGG: ' + itemsBase.length + ' artículos detectados');
-            const items = itemsBase.length <= 25 ? await enriquecerItems(itemsBase, browser) : itemsBase;
+            const items = itemsBase.length <= 10 ? await enriquecerItems(itemsBase, browser) : itemsBase;
 
         const cabecera =
-            `🛍️ *JASC STORE — ${filtro.label}*\n` +
-            `📦 ${items.length} artículo(s)\n\n`;
+            filtro
+                ? `🛍️ *JASC STORE — ${filtro.label}*\n`
+                : `🔎 *RESULTADOS PARA: ${args.join(' ')}*\n`
+            + `📦 ${items.length} coincidencia(s)\n\n`;
 
         const bloques = [];
         let actual = cabecera;
