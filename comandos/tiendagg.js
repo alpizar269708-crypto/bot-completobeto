@@ -429,7 +429,11 @@ function traducirFecha(texto) {
         Jan:'ene', Feb:'feb', Mar:'mar', Apr:'abr', May:'may', Jun:'jun',
         Jul:'jul', Aug:'ago', Sep:'sep', Oct:'oct', Nov:'nov', Dec:'dic'
     };
-    return String(texto).replace(/\\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\\b/g, m => meses[m] || m);
+    return String(texto)
+        .replace(/\\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\\b/g, m => meses[m] || m)
+        .replace(/\\btoday\\b/gi, 'hoy')
+        .replace(/\\byesterday\\b/gi, 'ayer')
+        .replace(/\\bdays ago\\b/gi, 'días atrás');
 }
 
 function formatearItem(item, indice) {
@@ -445,10 +449,9 @@ function formatearItem(item, indice) {
     if (item.salida) lineas.push(`   🕑 Se va de la tienda: ${traducirFecha(item.salida)}`);
     if (item.apariciones) lineas.push(`   📅 Días totales en tienda: ${item.apariciones}`);
     if (item.temporada) lineas.push(`   📚 Introducido en: ${traducirTextoFicha(item.temporada)}`);
-    if (item.fuente) lineas.push(`   📌 Fuente: ${item.fuente === 'Shop' ? 'Tienda' : traducirTextoFicha(item.fuente)}`);
     if (item.conjunto) lineas.push(`   🧩 Conjunto: ${traducirTextoFicha(item.conjunto)}`);
     if (item.etiquetas?.length) lineas.push(`   ⚡ ${item.etiquetas.map(traducirTextoFicha).join(' • ')}`);
-    return lineas.join('\\n');
+    return lineas.join('\n');
 }
 
 async function leerFichaTiendaGG(browser, item) {
