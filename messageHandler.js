@@ -2,7 +2,7 @@ const mongoose = require('mongoose');
 const { ejecutarMenu } = require('./comandos/menu');
 const { alertasSTW, comandoDestacadasSTW, comandoPreguntarAlerta, activarAlertasDiarias, desactivarAlertasDiarias } = require('./comandos/fortnite');
 const { comandoTiendaMenu, comandoTiendaCategoria } = require('./comandos/tienda');
-const { comandoTiendaGG } = require('./comandos/tiendagg'); 
+const { comandoTiendaGG, manejarSeleccionTiendaGG } = require('./comandos/tiendagg'); 
 const { 
     comandoSticker, comandoTiktok, comandoInstagram, comandoTraduce, comandoSkin, comandoStats, comandoContacto 
 } = require('./comandos/utilidades');
@@ -197,6 +197,11 @@ Apoya a un creador: JASC13` });
             return;
         }
     }
+
+    // TiendaGG puede dejar una selección pendiente. En ese caso, un mensaje
+    // que contenga solo un número se interpreta como la elección del cosmético.
+    // Se procesa antes de validar comandos para que "1" pueda funcionar sin prefijo.
+    if (await manejarSeleccionTiendaGG(sock, chatJid, msg, textoOriginal, remitenteReal)) return;
 
     // El anti-spam necesita consultar los administradores del grupo en WhatsApp.
     // Esa consulta es costosa y hacía que CADA comando esperara a groupMetadata().
