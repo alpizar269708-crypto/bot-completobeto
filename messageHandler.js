@@ -1,7 +1,8 @@
 const mongoose = require('mongoose'); 
 const { ejecutarMenu } = require('./comandos/menu');
 const { alertasSTW, comandoDestacadasSTW, comandoPreguntarAlerta, activarAlertasDiarias, desactivarAlertasDiarias } = require('./comandos/fortnite');
-const { comandoTiendaMenu, comandoTiendaCategoria } = require('./comandos/tienda'); 
+const { comandoTiendaMenu, comandoTiendaCategoria } = require('./comandos/tienda');
+const { comandoTiendaGG } = require('./comandos/tiendagg'); 
 const { 
     comandoSticker, comandoTiktok, comandoInstagram, comandoTraduce, comandoSkin, comandoStats, comandoContacto 
 } = require('./comandos/utilidades');
@@ -31,7 +32,7 @@ const categoriasMap = {
     'paypal': ['paypal', 'paypaln', 'paypali'],
     'ia': ['ia'],
     'moderacion': ['warn', 'advertir', 'verwarns', 'limpiarwarns', 'ban', 'unban', 'listanegra', 'banlist', 'unbanlist', 'grupo', 'mute', 'unmute', 'inactivos', 'listablanca', 'desactivarbienvenida', 'activarbienvenida', 'personalizarbienvenida', 'restaurarbienvenida'],
-    'tienda': ['tienda'],
+    'tienda': ['tienda', 'tiendagg'],
     'carry': ['carryleader', 'carryjoin', 'carryleave', 'carryclose', 'blcarry', 'unblcarry', 'listcarrybl'],
     'rifas': ['rifa', 'rifainscripcion', 'cerrarrifa', 'rifajasc13', 'addvarios', 'abrirrifa', 'activarrifaaqui', 'menurifajasc13'],
     'cashback': ['addcashback', 'delcashback', 'vercash', 'delvcash', 'canjecash'],
@@ -55,7 +56,7 @@ const comandosConUsuarioBD = new Set([
 
 const comandosValidos = new Set([
         'desactivarcomandos', 'catdesa', 'setprecio', 'ping', 'pavos', 'destacadasstw', 'legendariasstw', 'epicasstw', 'alertasstw', 'stw', 'alerta', 
-        'setgrupostw', 'unsetgrupostw', 'grupo', 'mute', 'unmute', 'inactivos', 'tienda', 'ia', 'menu', 'menusecreto',
+        'setgrupostw', 'unsetgrupostw', 'grupo', 'mute', 'unmute', 'inactivos', 'tienda', 'tiendagg', 'ia', 'menu', 'menusecreto',
         's', 'sticker', 'tiktok', 'instagram', 'traduce', 'skin', 'stats', 'contacto',
         'warn', 'advertir', 'verwarns', 'limpiarwarns', 'ban', 'unban', 'listanegra', 'banlist', 'unbanlist', 
         'cartera', 'bal', 'banco', 'pay', 'pagar', 'top', 'topdinero', 'daily', 'weekly',
@@ -596,6 +597,9 @@ Apoya a un creador: JASC13` });
             case 'tienda':
                 if (args.length === 0) await comandoTiendaMenu(sock, chatJid, msg);
                 else await comandoTiendaCategoria(sock, chatJid, msg, args.join(' '));
+                break;
+            case 'tiendagg':
+                await comandoTiendaGG(sock, chatJid, msg, argsOriginales);
                 break;
             case 's':
             case 'sticker':
