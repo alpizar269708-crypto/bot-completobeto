@@ -1,5 +1,6 @@
 const cheerio = require('cheerio');
 const puppeteer = require('puppeteer');
+const https = require('https');
 
 const BASE_URL = 'https://fortnite.gg';
 let tiendaGGEnCurso = false;
@@ -405,6 +406,73 @@ function extraerItemsTienda(html) {
     return items;
 }
 
+const cacheTraduccionesDescripcion = new Map();
+
+async function traducirDescripcion(texto) {
+    const original = limpiarTexto(texto);
+    if (!original) return texto;
+
+    const clave = original.toLowerCase();
+    if (cacheTraduccionesDescripcion.has(clave)) {
+        return cacheTraduccionesDescripcion.get(clave);
+    }
+
+    const traducida = await new Promise(resolve => {
+        let terminado = false;
+
+        const finalizar = valor => {
+            if (terminado) return;
+            terminado = true;
+            resolve(valor || original);
+        };
+
+        const endpoint =
+            'https://translate.googleapis.com/translate_a/single' +
+            '?client=gtx&sl=auto&tl=es&dt=t&q=' +
+            encodeURIComponent(original);
+
+        const req = https.get(endpoint, {
+            headers: {
+                'User-Agent': 'Mozilla/5.0',
+                'Accept': 'application/json,text/plain,*/*'
+            }
+        }, res => {
+            let data = '';
+
+            res.setEncoding('utf8');
+            res.on('data', chunk => { data += chunk; });
+            res.on('end', () => {
+                try {
+                    if (res.statusCode && res.statusCode >= 400) {
+                        return finalizar(original);
+                    }
+
+                    const json = JSON.parse(data);
+                    const partes = Array.isArray(json?.[0])
+                        ? json[0]
+                            .map(parte => Array.isArray(parte) ? parte[0] : '')
+                            .filter(Boolean)
+                        : [];
+
+                    finalizar(limpiarTexto(partes.join(' ')) || original);
+                } catch (_) {
+                    finalizar(original);
+                }
+            });
+        });
+
+        req.setTimeout(7000, () => {
+            req.destroy();
+            finalizar(original);
+        });
+
+        req.on('error', () => finalizar(original));
+    });
+
+    cacheTraduccionesDescripcion.set(clave, traducida);
+    return traducida;
+}
+
 function traducirTextoFicha(texto) {
     if (!texto) return texto;
     let t = String(texto);
@@ -436,14 +504,14 @@ function traducirFecha(texto) {
         .replace(/\\bdays ago\\b/gi, 'días atrás');
 }
 
-function formatearItem(item, indice) {
+async function formatearItem(item, indice) {
     const lineas = [`${indice}. 🎮 *${traducirTextoFicha(item.nombre)}*`];
     if (item.precio) lineas.push(`   💰 ${String(item.precio).trim()} pavos`);
     if (item.tipo || item.rareza) {
         const partes = [traducirTextoFicha(item.rareza), traducirTextoFicha(item.tipo)].filter(Boolean);
         if (partes.length) lineas.push(`   🏷️ ${partes.join(' • ')}`);
     }
-    if (item.descripcion) lineas.push(`   📝 ${traducirTextoFicha(item.descripcion)}`);
+    if (item.descripcion) lineas.push(`   📝 ${await traducirDescripcion(item.descripcion)}`);
     if (item.lanzamiento) lineas.push(`   📅 Salió: ${traducirFecha(item.lanzamiento)}`);
     if (item.ultimaVez) lineas.push(`   👀 Última vez: ${traducirFecha(item.ultimaVez)}`);
     if (item.salida) lineas.push(`   🕑 Se va de la tienda: ${traducirFecha(item.salida)}`);
@@ -529,7 +597,7 @@ async function manejarSeleccionTiendaGG(sock, chatId, msg, texto, remitente) {
 
         await sock.sendMessage(chatId, {
             text: '🎮 Información del cosmético\n\n' +
-                formatearItem(detalle, 1) +
+                await formatearItem(detalle, 1) +
                 '\n\nApoya a un creador: *JASC13*'
         }, { quoted: msg });
     } catch (error) {
