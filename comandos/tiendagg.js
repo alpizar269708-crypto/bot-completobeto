@@ -148,7 +148,7 @@ async function reportarFase(sock, chatId, msg, fase) {
     tiendaGGFase = fase;
     try {
         await sock.sendMessage(chatId, {
-            text: `🛠️ *JASC STORE — DIAGNÓSTICO*\\n\\n📍 ${fase}`
+            text: `🛠️ *JASC STORE — DIAGNÓSTICO*\n\n📍 ${fase}`
         }, { quoted: msg });
     } catch (error) {
         console.error('❌ No pude enviar diagnóstico de tiendagg:', error.message);
@@ -477,7 +477,7 @@ async function comandoTiendaGG(sock, chatId, msg, args) {
         }
         try {
             await sock.sendMessage(chatId, {
-                text: `❌ *JASC STORE — TIMEOUT*\\n\\nLa consulta lleva demasiado tiempo.\\n\\n📍 Se quedó en: *${tiendaGGFase}*\\n⏱️ Se cerró el navegador y se liberó la consulta.`
+                text: `❌ *JASC STORE — TIMEOUT*\n\nLa consulta lleva demasiado tiempo.\n\n📍 Se quedó en: *${tiendaGGFase}*\n⏱️ Se cerró el navegador y se liberó la consulta.`
             }, { quoted: msg });
         } catch (error) {
             console.error('❌ Error enviando timeout de tiendagg:', error.message);
@@ -492,11 +492,14 @@ async function comandoTiendaGG(sock, chatId, msg, args) {
         }, { quoted: msg });
 
         await reportarFase(sock, chatId, msg, 'Abriendo navegador Puppeteer...');
+        await reportarFase(sock, chatId, msg, 'Iniciando Puppeteer...');
         browser = await abrirNavegador();
-        await reportarFase(sock, chatId, msg, 'Navegador abierto correctamente. Creando página...');
+        await reportarFase(sock, chatId, msg, 'Puppeteer abierto. Creando página principal...');
 
         try {
+            await reportarFase(sock, chatId, msg, 'Creando página principal...');
             const page = await browser.newPage();
+            await reportarFase(sock, chatId, msg, 'Página principal creada. Preparando conexión...');
             await prepararPagina(page);
 
             let html;
@@ -559,7 +562,7 @@ async function comandoTiendaGG(sock, chatId, msg, args) {
         if (tiendaGGAbortada) return;
         try {
             await sock.sendMessage(chatId, {
-                text: `❌ *JASC STORE — ERROR*\\n\\n📍 Se trabó en: *${tiendaGGFase}*\\n\\n💥 Error: ${String(error?.message || error).replace(/\\s+/g, ' ').slice(0, 700)}`
+                text: `❌ *JASC STORE — ERROR*\n\n📍 Se trabó en: *${tiendaGGFase}*\n\n💥 Error: ${String(error?.message || error).replace(/\\s+/g, ' ').slice(0, 700)}`
             }, { quoted: msg });
         } catch (sendError) {
             console.error('❌ No pude enviar el error por WhatsApp:', sendError.message);
