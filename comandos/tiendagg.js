@@ -1,4 +1,5 @@
 const cheerio = require('cheerio');
+const puppeteer = require('puppeteer');
 
 const BASE_URL = 'https://fortnite.gg';
 
@@ -140,40 +141,21 @@ function encontrarFiltro(argumentos) {
     return mejor?.filtro || null;
 }
 
-async function fetchTexto(url, opciones = {}) {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), opciones.timeout || 20000);
-
-    try {
-        const respuesta = await fetch(url, {
-            method: 'GET',
-            redirect: 'follow',
-            signal: controller.signal,
-            headers: {
-                'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
-                'Accept-Language': 'es-MX,es;q=0.9,en;q=0.8',
-                'Cache-Control': 'no-cache',
-                'Pragma': 'no-cache',
-                'Referer': 'https://fortnite.gg/shop'
-            }
-        });
-
-        if (!respuesta.ok) {
-            throw new Error('HTTP ' + respuesta.status);
-        }
-
-        const html = await respuesta.text();
-        if (!html || html.length < 1000) {
-            throw new Error('Fortnite.GG devolvió una respuesta vacía');
-        }
-
-        return html;
-    } finally {
-        clearTimeout(timeout);
-    }
+async function abrirNavegador() {
+    return puppeteer.launch({
+        headless: true,
+        args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu', '--no-first-run', '--no-zygote']
+    });
 }
 
+async function obtenerHtmlConNavegador(page, url, selector = null) {
+    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
+    if (selector) {
+        try { await page.waitForSelector(selector, { timeout: 15000 }); } catch (_) {}
+    }
+    await new Promise(resolve => setTimeout(resolve, 1200));
+    return page.content();
+}
 function limpiarTexto(texto) {
     return String(texto || '').replace(/\s+/g, ' ').trim();
 }
@@ -331,29 +313,30 @@ function formatearItem(item, indice) {
     return lineas.join('\n');
 }
 
-async function enriquecerItems(items) {
+async function enriquecerItems(items, browser) {
     const resultado = [];
-    const concurrencia = 6;
+    const concurrencia = 4;
 
     for (let inicio = 0; inicio < items.length; inicio += concurrencia) {
         const lote = items.slice(inicio, inicio + concurrencia);
-
         const enriquecidos = await Promise.all(lote.map(async (item) => {
+            const page = await browser.newPage();
             try {
-                const html = await fetchTexto(item.url, { timeout: 12000 });
+                await page.setUserAgent('Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Safari/537.36');
+                await page.setExtraHTTPHeaders({ 'Accept-Language': 'es-MX,es;q=0.9,en;q=0.8' });
+                const html = await obtenerHtmlConNavegador(page, item.url, '.fn-detail-name');
                 return extraerDetalle(html, item);
             } catch (error) {
-                console.warn(`⚠️ Fortnite.GG: no se pudo leer ${item.url}: ${error.message}`);
+                console.warn('⚠️ Fortnite.GG: no se pudo leer el detalle de ' + item.nombre + ': ' + error.message);
                 return item;
+            } finally {
+                await page.close().catch(() => {});
             }
         }));
-
         resultado.push(...enriquecidos);
     }
-
     return resultado;
 }
-
 async function enviarPorPartes(sock, chatId, msg, partes) {
     for (const parte of partes) {
         await sock.sendMessage(chatId, { text: parte }, { quoted: msg });
@@ -388,18 +371,20 @@ async function comandoTiendaGG(sock, chatId, msg, args) {
         }, { quoted: msg });
 
         const url = BASE_URL + filtro.path;
-        console.log(`🛒 TIENDAGG: consultando ${url}`);
+        console.log('🛒 TIENDAGG: abriendo navegador para ' + url);
+        const browser = await abrirNavegador();
 
-        const html = await fetchTexto(url, { timeout: 20000 });
-        const itemsBase = extraerItemsTienda(html);
+        try {
+            const page = await browser.newPage();
+            await page.setUserAgent('Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Safari/537.36');
+            await page.setExtraHTTPHeaders({ 'Accept-Language': 'es-MX,es;q=0.9,en;q=0.8' });
+            const html = await obtenerHtmlConNavegador(page, url, 'a.item-icon[data-id]');
+            const itemsBase = extraerItemsTienda(html);
+            await page.close().catch(() => {});
 
-        if (!itemsBase.length) {
-            throw new Error('No se encontraron artículos en el HTML de Fortnite.GG');
-        }
-
-        console.log(`🛒 TIENDAGG: ${itemsBase.length} artículos detectados`);
-
-        const items = await enriquecerItems(itemsBase);
+            if (!itemsBase.length) throw new Error('No se encontraron artículos en el HTML renderizado de Fortnite.GG');
+            console.log('🛒 TIENDAGG: ' + itemsBase.length + ' artículos detectados');
+            const items = await enriquecerItems(itemsBase, browser);
 
         const cabecera =
             `🛒 *TIENDA FORTNITE.GG — ${filtro.label}*\n` +
@@ -423,6 +408,9 @@ async function comandoTiendaGG(sock, chatId, msg, args) {
         if (actual.trim()) bloques.push(actual.trim());
 
         await enviarPorPartes(sock, chatId, msg, bloques);
+        } finally {
+            await browser.close().catch(() => {});
+        }
     } catch (error) {
         console.error('❌ Error en tiendagg:', error);
 
