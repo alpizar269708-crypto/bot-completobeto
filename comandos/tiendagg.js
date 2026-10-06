@@ -310,7 +310,7 @@ function formatearItem(item, indice) {
 
     if (item.precio) {
         const precio = String(item.precio).trim();
-        lineas.push(`   💰 ${precio}`);
+        lineas.push(`   💰 ${precio} pavos`);
     }
 
     if (item.tipo || item.rareza) {
