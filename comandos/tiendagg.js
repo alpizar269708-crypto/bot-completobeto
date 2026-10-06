@@ -269,40 +269,43 @@ function extraerCampo($, nombre) {
 function traducirRareza(valor) { return RAREZAS[normalizar(valor)] || valor; }
 function traducirTipo(valor) { return TIPOS[normalizar(valor)] || valor; }
 
-function escaparRegex(texto) {
-    return String(texto || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
-
-function extraerCampoTexto(cuerpo, nombre, siguientes = []) {
-    const fin = siguientes.length
-        ? '(?=\\s+(?:' + siguientes.map(escaparRegex).join('|') + ')\\s*:?)'
-        : '(?=$)';
-    const regex = new RegExp(
-        escaparRegex(nombre) + '\\s*:?\\s*(?:\\|\\s*)?(.+?)' + fin,
-        'i'
-    );
-    const match = cuerpo.match(regex);
+function extraerValorEntreEtiquetas(texto, etiqueta, siguiente) {
+    const hasta = siguiente ? '(?=\\s+' + siguiente + '\\s*:)' : '(?=$)';
+    const regex = new RegExp(etiqueta + '\\s*:\\s*(?:\\|\\s*)?(.+?)' + hasta, 'i');
+    const match = String(texto || '').match(regex);
     return match ? limpiarTexto(match[1]).replace(/^\\|\\s*/, '').replace(/\\s*\\|$/, '').trim() : null;
 }
 
 function extraerDetalle(html, itemBase) {
     const $ = cheerio.load(html);
 
-    const lineas = (($('main').length ? $('main') : $('body')).text() || '')
-        .split(/\\r?\\n/)
-        .map(limpiarTexto)
-        .filter(Boolean);
+    let descripcionJsonLd = null;
+    $('script[type="application/ld+json"]').each((_, el) => {
+        if (descripcionJsonLd) return;
+        try {
+            const raw = $(el).contents().text().trim();
+            if (!raw) return;
+            const data = JSON.parse(raw);
+            const candidatos = Array.isArray(data) ? data : [data];
+            const producto = candidatos.find(x => x && typeof x === 'object' && x['@type'] === 'Product');
+            if (typeof producto?.description === 'string' && producto.description.trim()) {
+                descripcionJsonLd = limpiarTexto(producto.description);
+            }
+        } catch (_) {}
+    });
 
-    const cuerpo = lineas.join(' ');
+    $('script, style, noscript, template, iframe').remove();
+
+    const root = $('main').first().length ? $('main').first() : $('body');
+    const textoVisible = limpiarTexto(root.text());
 
     const nombre = limpiarTexto($('.fn-detail-name').first().text()) ||
-        limpiarTexto($('main h1').first().text()) ||
+        limpiarTexto(root.find('h1').first().text()) ||
         limpiarTexto($('h1').first().text()) ||
         itemBase.nombre;
 
     let rareza = '';
     let tipo = '';
-
     const tipoEl = $('.fn-detail-type').first();
     if (tipoEl.length) {
         rareza = limpiarTexto(tipoEl.find('span').first().text());
@@ -312,27 +315,16 @@ function extraerDetalle(html, itemBase) {
     }
 
     if (!tipo || !rareza) {
-        const indiceNombre = lineas.findIndex(l => l === nombre);
-        const siguientesLineas = indiceNombre >= 0
-            ? lineas.slice(indiceNombre + 1, indiceNombre + 8)
-            : lineas.slice(0, 8);
-
-        const meta = siguientesLineas.find(l =>
-            /^(legendary|epic|rare|uncommon|common|mythic|icon|gaming)\\b/i.test(l)
-        );
-
-        if (meta) {
-            const match = meta.match(/^(legendary|epic|rare|uncommon|common|mythic|icon|gaming)\\s+(.+)$/i);
-            if (match) {
-                rareza = rareza || match[1];
-                tipo = tipo || match[2];
-            }
+        const tituloTipo = textoVisible.match(/(?:^|\\s)(legendary|epic|rare|uncommon|common|mythic|icon|gaming)\\s+([a-z ]+?)(?=\\s+Image:|\\s+V-Bucks|\\s+Source:)/i);
+        if (tituloTipo) {
+            rareza = rareza || tituloTipo[1];
+            tipo = tipo || tituloTipo[2].trim();
         }
     }
 
     let precio = limpiarTexto($('.fn-item-price').first().text());
     if (!precio) {
-        const precioMatch = cuerpo.match(/(?:V[- ]?Bucks|V‑Bucks)\\s+([\\d,.]+)/i);
+        const precioMatch = textoVisible.match(/V-Bucks\\s+([\\d,.]+)/i);
         if (precioMatch) precio = precioMatch[1];
     }
     precio = precio || itemBase.precio || 'No disponible';
@@ -340,43 +332,30 @@ function extraerDetalle(html, itemBase) {
     const timeEl = $('time.shop-out').first();
     let salida = limpiarTexto(timeEl.text());
     if (!salida) {
-        const salidaMatch = cuerpo.match(/Leaving Shop on\\s+(.+?)(?=\\s+(?:Shop on Fortnite\\.com|#EpicPartner|Source\\s*:)|$)/i);
+        const salidaMatch = textoVisible.match(/Leaving Shop on\\s+(.+?)(?=\\s+(?:Shop on Fortnite\\.com|#EpicPartner|Source\\s*:)|$)/i);
         if (salidaMatch) salida = limpiarTexto(salidaMatch[1]);
     }
 
-    const etiquetas = [];
     const descripcion = [];
-
+    const etiquetas = [];
     $('.fn-detail-desc.grey, .fn-detail-desc').each((_, el) => {
         const texto = limpiarTexto($(el).text());
         if (!texto) return;
         if (/^\\[.*\\]$/.test(texto)) etiquetas.push(texto.replace(/^\\[|\\]$/g, ''));
-        else if (!descripcion.includes(texto)) descripcion.push(texto);
+        else if (!descripcion.includes(texto) && texto.length < 500) descripcion.push(texto);
     });
+    if (!descripcion.length && descripcionJsonLd) descripcion.push(descripcionJsonLd);
 
-    if (!descripcion.length) {
-        const indiceNombre = lineas.findIndex(l => l === nombre);
-        const candidatos = indiceNombre >= 0 ? lineas.slice(indiceNombre + 1) : lineas;
-        const descartables = /^(legendary|epic|rare|uncommon|common|mythic|icon|gaming)\\b|^Image:|^V[- ]?Bucks$|^\\d[\\d,.]*$|^🕑|^Leaving Shop on$|^Shop on Fortnite\\.com$|^#EpicPartner$|^Source:?$|^Introduced in:?$|^Release date:?$|^Last seen:?$|^Occurrences:?$|^Date Days ago$|^Wishlist|^Locker|^Includes$|^ID:/i;
-        const candidata = candidatos.find(l =>
-            !descartables.test(l) &&
-            !/^Part of the .+ set$/i.test(l) &&
-            !/^Available in bundle$/i.test(l) &&
-            l.length >= 8
-        );
-        if (candidata) descripcion.push(candidata);
-    }
+    const fuente = extraerValorEntreEtiquetas(textoVisible, 'Source', 'Introduced in');
+    const temporada = extraerValorEntreEtiquetas(textoVisible, 'Introduced in', 'Release date');
+    const lanzamiento = extraerValorEntreEtiquetas(textoVisible, 'Release date', 'Last seen');
+    const ultimaVez = extraerValorEntreEtiquetas(textoVisible, 'Last seen', 'Occurrences');
 
-    const conjuntoMatch = cuerpo.match(/Part of the\\s+(.+?)\\s+set/i);
+    const ocurrencias = textoVisible.match(/Occurrences\\s*:\\s*(?:\\|\\s*)?(\\d+)(?=\\s+Date\\s+Days\\s+ago)/i);
+    const apariciones = ocurrencias ? ocurrencias[1] : null;
+
+    const conjuntoMatch = textoVisible.match(/Part of the\\s+(.+?)\\s+set/i);
     const conjunto = conjuntoMatch ? limpiarTexto(conjuntoMatch[1]) : null;
-
-    const resultadosTexto = {
-        fuente: extraerCampoTexto(cuerpo, 'Source', ['Introduced in', 'Release date']),
-        temporada: extraerCampoTexto(cuerpo, 'Introduced in', ['Release date', 'Last seen']),
-        lanzamiento: extraerCampoTexto(cuerpo, 'Release date', ['Last seen', 'Occurrences']),
-        ultimaVez: extraerCampoTexto(cuerpo, 'Last seen', ['Occurrences', 'Date Days ago']),
-        apariciones: extraerCampoTexto(cuerpo, 'Occurrences', ['Date Days ago', 'Wishlist', 'Locker', 'Includes', 'ID'])
-    };
 
     return {
         nombre,
@@ -385,11 +364,11 @@ function extraerDetalle(html, itemBase) {
         precio,
         salida,
         salidaIso: timeEl.attr('datetime') || null,
-        fuente: resultadosTexto.fuente || extraerCampo($, 'Source'),
-        temporada: resultadosTexto.temporada || extraerCampo($, 'Introduced in'),
-        lanzamiento: resultadosTexto.lanzamiento || extraerCampo($, 'Release date'),
-        ultimaVez: resultadosTexto.ultimaVez || extraerCampo($, 'Last seen'),
-        apariciones: resultadosTexto.apariciones || extraerCampo($, 'Occurrences'),
+        fuente: fuente || extraerCampo($, 'Source'),
+        temporada: temporada || extraerCampo($, 'Introduced in'),
+        lanzamiento: lanzamiento || extraerCampo($, 'Release date'),
+        ultimaVez: ultimaVez || extraerCampo($, 'Last seen'),
+        apariciones: apariciones || extraerCampo($, 'Occurrences'),
         descripcion: descripcion[0] || null,
         etiquetas,
         conjunto,
