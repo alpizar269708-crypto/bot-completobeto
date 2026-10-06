@@ -8,41 +8,41 @@ const FILTROS = [
     { claves: ['nuevos', 'nuevo', 'new'], label: 'NUEVOS', path: '/cosmetics?type=new' },
     { claves: ['se van', 'sevan', 'salen', 'hoy', 'leaving'], label: 'SE VAN', path: '/cosmetics?type=leaving' },
 
-    { claves: ['skins', 'skin', 'trajes', 'outfits', 'outfit'], label: 'SKINS', path: '/cosmetics?filter=outfits' },
-    { claves: ['bailes', 'baile', 'emotes', 'emote', 'gestos'], label: 'BAILES', path: '/cosmetics?filter=emotes' },
-    { claves: ['picos', 'pico', 'hachas', 'pickaxes', 'pickaxe'], label: 'PICOS', path: '/cosmetics?filter=pickaxes' },
-    { claves: ['mochilas', 'mochila', 'backpack', 'backpacks', 'backblings'], label: 'MOCHILAS', path: '/cosmetics?filter=backblings' },
-    { claves: ['planeadores', 'planeador', 'gliders', 'glider'], label: 'PLANEADORES', path: '/cosmetics?filter=gliders' },
-    { claves: ['sidekicks', 'sidekick', 'compañeros', 'companeros'], label: 'COMPAÑEROS', path: '/cosmetics?filter=sidekicks' },
-    { claves: ['kicks', 'zapatillas'], label: 'KICKS', path: '/cosmetics?filter=kicks' },
-    { claves: ['envolturas', 'envoltura', 'wraps', 'wrap'], label: 'ENVOLTURAS', path: '/cosmetics?filter=wraps' },
-    { claves: ['pantallas', 'pantalla', 'loadings', 'loading', 'loadingscreens'], label: 'PANTALLAS DE CARGA', path: '/cosmetics?filter=loadingscreens' },
-    { claves: ['musica', 'música', 'music'], label: 'MÚSICA', path: '/cosmetics?filter=music' },
-    { claves: ['estelas', 'estela', 'contrails', 'contrail'], label: 'ESTELAS', path: '/cosmetics?filter=contrails' },
-    { claves: ['sprays', 'spray', 'aerosoles', 'aerosol'], label: 'SPRAYS', path: '/cosmetics?filter=sprays' },
-    { claves: ['emojis', 'emoji'], label: 'EMOJIS', path: '/cosmetics?filter=emojis' },
-    { claves: ['banners', 'banner'], label: 'BANNERS', path: '/cosmetics?filter=banners' },
-    { claves: ['lotes', 'lote', 'bundles', 'bundle'], label: 'LOTES', path: '/cosmetics?filter=bundles' },
+    { claves: ['skins', 'skin', 'trajes', 'outfits', 'outfit'], label: 'SKINS', path: ' /cosmetics?type=outfit' },
+    { claves: ['bailes', 'baile', 'emotes', 'emote', 'gestos'], label: 'BAILES', path: ' /cosmetics?type=emote' },
+    { claves: ['picos', 'pico', 'hachas', 'pickaxes', 'pickaxe'], label: 'PICOS', path: ' /cosmetics?type=pickaxe' },
+    { claves: ['mochilas', 'mochila', 'backpack', 'backpacks', 'backblings'], label: 'MOCHILAS', path: ' /cosmetics?type=backbling' },
+    { claves: ['planeadores', 'planeador', 'gliders', 'glider'], label: 'PLANEADORES', path: ' /cosmetics?type=glider' },
+    { claves: ['sidekicks', 'sidekick', 'compañeros', 'companeros'], label: 'COMPAÑEROS', path: ' /cosmetics?type=sidekick' },
+    { claves: ['kicks', 'zapatillas'], label: 'KICKS', path: ' /cosmetics?type=kick' },
+    { claves: ['envolturas', 'envoltura', 'wraps', 'wrap'], label: 'ENVOLTURAS', path: ' /cosmetics?type=wrap' },
+    { claves: ['pantallas', 'pantalla', 'loadings', 'loading', 'loadingscreens'], label: 'PANTALLAS DE CARGA', path: ' /cosmetics?type=loadingscreen' },
+    { claves: ['musica', 'música', 'music'], label: 'MÚSICA', path: ' /cosmetics?type=music' },
+    { claves: ['estelas', 'estela', 'contrails', 'contrail'], label: 'ESTELAS', path: ' /cosmetics?type=contrail' },
+    { claves: ['sprays', 'spray', 'aerosoles', 'aerosol'], label: 'SPRAYS', path: ' /cosmetics?type=spray' },
+    { claves: ['emojis', 'emoji'], label: 'EMOJIS', path: ' /cosmetics?type=emoji' },
+    { claves: ['banners', 'banner'], label: 'BANNERS', path: ' /cosmetics?type=banner' },
+    { claves: ['lotes', 'lote', 'bundles', 'bundle'], label: 'LOTES', path: ' /cosmetics?type=bundle' },
 
-    { claves: ['autos', 'auto', 'cars', 'car'], label: 'AUTOS', path: '/cosmetics?filter=cars' },
-    { claves: ['calcomanias', 'calcomanías', 'decal', 'decals'], label: 'CALCOMANÍAS', path: '/cosmetics?filter=decals' },
-    { claves: ['ruedas', 'rueda', 'wheels', 'wheel'], label: 'RUEDAS', path: '/cosmetics?filter=wheels' },
-    { claves: ['trails', 'trail', 'estelas racing'], label: 'TRAILS', path: '/cosmetics?filter=trails' },
-    { claves: ['impulsos', 'impulso', 'boost', 'boosts'], label: 'IMPULSOS', path: '/cosmetics?filter=boosts' },
+    { claves: ['autos', 'auto', 'cars', 'car'], label: 'AUTOS', path: ' /cosmetics?type=car' },
+    { claves: ['calcomanias', 'calcomanías', 'decal', 'decals'], label: 'CALCOMANÍAS', path: ' /cosmetics?type=decal' },
+    { claves: ['ruedas', 'rueda', 'wheels', 'wheel'], label: 'RUEDAS', path: ' /cosmetics?type=wheel' },
+    { claves: ['trails', 'trail', 'estelas racing'], label: 'TRAILS', path: ' /cosmetics?type=trail' },
+    { claves: ['impulsos', 'impulso', 'boost', 'boosts'], label: 'IMPULSOS', path: ' /cosmetics?type=boost' },
 
-    { claves: ['canciones', 'cancion', 'canción', 'jamtracks', 'jamtrack'], label: 'CANCIONES', path: '/cosmetics?filter=jamtracks' },
-    { claves: ['instrumentos', 'instrumento'], label: 'INSTRUMENTOS', path: '/cosmetics?filter=instruments' },
-    { claves: ['guitarras', 'guitarra', 'guitars', 'guitar'], label: 'GUITARRAS', path: '/cosmetics?filter=guitars' },
-    { claves: ['bajos', 'bajo', 'basses', 'bass'], label: 'BAJOS', path: '/cosmetics?filter=basses' },
-    { claves: ['baterias', 'batería', 'baterias', 'drums'], label: 'BATERÍAS', path: '/cosmetics?filter=drums' },
-    { claves: ['keytars', 'keytar'], label: 'KEYTARS', path: '/cosmetics?filter=keytars' },
-    { claves: ['microfonos', 'micrófonos', 'microfono', 'mic', 'microphone'], label: 'MICRÓFONOS', path: '/cosmetics?filter=microphones' },
-    { claves: ['auras', 'aura'], label: 'AURAS', path: '/cosmetics?filter=auras' },
+    { claves: ['canciones', 'cancion', 'canción', 'jamtracks', 'jamtrack'], label: 'CANCIONES', path: ' /cosmetics?type=jamtrack' },
+    { claves: ['instrumentos', 'instrumento'], label: 'INSTRUMENTOS', path: ' /cosmetics?type=instrument' },
+    { claves: ['guitarras', 'guitarra', 'guitars', 'guitar'], label: 'GUITARRAS', path: ' /cosmetics?type=guitar' },
+    { claves: ['bajos', 'bajo', 'basses', 'bass'], label: 'BAJOS', path: ' /cosmetics?type=bass' },
+    { claves: ['baterias', 'batería', 'baterias', 'drums'], label: 'BATERÍAS', path: ' /cosmetics?type=drum' },
+    { claves: ['keytars', 'keytar'], label: 'KEYTARS', path: ' /cosmetics?type=keytar' },
+    { claves: ['microfonos', 'micrófonos', 'microfono', 'mic', 'microphone'], label: 'MICRÓFONOS', path: ' /cosmetics?type=microphone' },
+    { claves: ['auras', 'aura'], label: 'AURAS', path: ' /cosmetics?type=aura' },
 
-    { claves: ['lego skins', 'lego skin', 'lego outfits', 'lego-outfit'], label: 'LEGO OUTFITS', path: '/cosmetics?filter=lego-outfits' },
-    { claves: ['lego bailes', 'lego emotes', 'lego-emote'], label: 'LEGO EMOTES', path: '/cosmetics?filter=lego-emotes' },
-    { claves: ['construcciones', 'builds', 'build'], label: 'CONSTRUCCIONES', path: '/cosmetics?filter=builds' },
-    { claves: ['decoraciones', 'decoracion', 'decoración', 'decors', 'decor'], label: 'DECORACIONES', path: '/cosmetics?filter=decors' }
+    { claves: ['lego skins', 'lego skin', 'lego outfits', 'lego-outfit'], label: 'LEGO OUTFITS', path: ' /cosmetics?type=lego-outfit' },
+    { claves: ['lego bailes', 'lego emotes', 'lego-emote'], label: 'LEGO EMOTES', path: ' /cosmetics?type=lego-emote' },
+    { claves: ['construcciones', 'builds', 'build'], label: 'CONSTRUCCIONES', path: ' /cosmetics?type=build' },
+    { claves: ['decoraciones', 'decoracion', 'decoración', 'decors', 'decor'], label: 'DECORACIONES', path: ' /cosmetics?type=decor' }
 ];
 
 const RAREZAS = {
@@ -290,9 +290,9 @@ function extraerItemsTienda(html) {
     const items = [];
     const vistos = new Set();
 
-    $('a[href*="/cosmetics?id="]').each((_, el) => {
+    $('a[href^="/cosmetics/"]').each((_, el) => {
         let href = String($(el).attr('href') || '').trim();
-        const idMatch = href.match(/[?&]id=([^&]+)/i);
+        const idMatch = href.match(/[?&]id=([^&]+)/i) || href.match(/^\/cosmetics\/([^?#]+)/i);
         const id = idMatch ? decodeURIComponent(idMatch[1]) : href;
         const nombre = limpiarTexto($(el).find('.item-icon-name').first().text()) ||
             limpiarTexto($(el).find('[class*="name"]').first().text()) ||
@@ -415,7 +415,7 @@ async function comandoTiendaGG(sock, chatId, msg, args) {
         try {
             const page = await browser.newPage();
             await prepararPagina(page);
-            const html = await obtenerHtmlConNavegador(page, url, 'a[href*="/cosmetics?id="]');
+            const html = await obtenerHtmlConNavegador(page, url, 'a[href^="/cosmetics/"]');
             const itemsBase = extraerItemsTienda(html);
             await page.close().catch(() => {});
 
