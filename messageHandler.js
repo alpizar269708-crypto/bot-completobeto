@@ -3,7 +3,7 @@ const { ejecutarMenu } = require('./comandos/menu');
 const { alertasSTW, comandoDestacadasSTW, comandoPreguntarAlerta, activarAlertasDiarias, desactivarAlertasDiarias } = require('./comandos/fortnite');
 const { comandoTiendaMenu, comandoTiendaCategoria } = require('./comandos/tienda'); 
 const { 
-    comandoSticker, comandoTiktok, comandoTraduce, comandoSkin, comandoStats, comandoContacto 
+    comandoSticker, comandoTiktok, comandoInstagram, comandoTraduce, comandoSkin, comandoStats, comandoContacto 
 } = require('./comandos/utilidades');
 const { responderConIA } = require('./comandos/ia');
 const { 
@@ -27,7 +27,7 @@ const { comandoPaypal, comandoCalculadoraPaypal } = require('./comandos/paypal')
 const categoriasMap = {
     'fortnite': ['pavos', 'destacadasstw', 'legendariasstw', 'epicasstw', 'alertasstw', 'stw', 'alerta', 'setgrupostw', 'unsetgrupostw', 'setprecio'],
     'economia': ['cartera', 'bal', 'banco', 'pay', 'pagar', 'top', 'topdinero', 'daily', 'weekly', 'farmear', 'work', 'crime', 'mendigar', 'pescar', 'minar', 'cazar', 'explorar', 'ruleta', 'cf', 'slots', 'dados', 'adivina', 'buscaminas', 'rob', 'ppt', 'pelea', 'carrera', 'hackear', 'shop', 'buy', 'inventario', 'mochila', 'vender', 'use', 'regalar'],
-    'utilidades': ['s', 'sticker', 'tiktok', 'traduce', 'skin', 'stats', 'contacto', 'ping'],
+    'utilidades': ['s', 'sticker', 'tiktok', 'instagram', 'traduce', 'skin', 'stats', 'contacto', 'ping'],
     'paypal': ['paypal', 'paypaln', 'paypali'],
     'ia': ['ia'],
     'moderacion': ['warn', 'advertir', 'verwarns', 'limpiarwarns', 'ban', 'unban', 'listanegra', 'banlist', 'unbanlist', 'grupo', 'mute', 'unmute', 'inactivos', 'listablanca', 'desactivarbienvenida', 'activarbienvenida', 'personalizarbienvenida', 'restaurarbienvenida'],
@@ -56,7 +56,7 @@ const comandosConUsuarioBD = new Set([
 const comandosValidos = new Set([
         'desactivarcomandos', 'catdesa', 'setprecio', 'ping', 'pavos', 'destacadasstw', 'legendariasstw', 'epicasstw', 'alertasstw', 'stw', 'alerta', 
         'setgrupostw', 'unsetgrupostw', 'grupo', 'mute', 'unmute', 'inactivos', 'tienda', 'ia', 'menu', 'menusecreto',
-        's', 'sticker', 'tiktok', 'traduce', 'skin', 'stats', 'contacto',
+        's', 'sticker', 'tiktok', 'instagram', 'traduce', 'skin', 'stats', 'contacto',
         'warn', 'advertir', 'verwarns', 'limpiarwarns', 'ban', 'unban', 'listanegra', 'banlist', 'unbanlist', 
         'cartera', 'bal', 'banco', 'pay', 'pagar', 'top', 'topdinero', 'daily', 'weekly',
         'farmear', 'work', 'crime', 'mendigar', 'pescar', 'minar', 'cazar', 'explorar',
@@ -134,7 +134,7 @@ Apoya a un creador: JASC13` });
 
     // El comando tiktok necesita recibir un enlace por diseño. No debe ser
     // bloqueado/borrado por el anti-links antes de que llegue al manejador.
-    if (textoComandoPrevio !== 'tiktok' && !esComandoPropioPermitido && !tienePrivilegiosTotales && await verificarAntiLinks(sock, msg)) return;
+    if (textoComandoPrevio !== 'tiktok' && textoComandoPrevio !== 'instagram' && !esComandoPropioPermitido && !tienePrivilegiosTotales && await verificarAntiLinks(sock, msg)) return;
 
     if (!esComandoPropioPermitido && !tienePrivilegiosTotales && verificarMute(chatJid, remitenteReal)) {
         try { await sock.sendMessage(chatJid, { delete: msg.key }); } catch (e) {}
@@ -603,6 +603,9 @@ Apoya a un creador: JASC13` });
                 break;
             case 'tiktok':
                 await comandoTiktok(sock, chatJid, msg, argsOriginales);
+                break;
+            case 'instagram':
+                await comandoInstagram(sock, chatJid, msg, argsOriginales);
                 break;
             case 'traduce':
                 await comandoTraduce(sock, chatJid, msg, args);
