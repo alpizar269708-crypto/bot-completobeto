@@ -254,13 +254,16 @@ function extraerItemsTienda(html) {
     const items = [];
     const vistos = new Set();
 
-    $('a.item-icon[data-id]').each((_, el) => {
-        const id = String($(el).attr('data-id') || '').trim();
+    $('a[href*="/cosmetics?id="]').each((_, el) => {
         let href = String($(el).attr('href') || '').trim();
+        const idMatch = href.match(/[?&]id=([^&]+)/i);
+        const id = idMatch ? decodeURIComponent(idMatch[1]) : href;
         const nombre = limpiarTexto($(el).find('.item-icon-name').first().text()) ||
-            limpiarTexto($(el).find('img').first().attr('alt') || '').replace(/^Fortnite\s+/i, '');
+            limpiarTexto($(el).find('[class*="name"]').first().text()) ||
+            limpiarTexto($(el).find('img').first().attr('alt') || '').replace(/^Fortnite\s+/i, '') ||
+            limpiarTexto($(el).text()).replace(/\b\d+(?:\.\d+)?\b/g, '').trim();
 
-        if (!href || !id) return;
+        if (!href) return;
 
         try {
             href = new URL(href, BASE_URL).toString();
@@ -378,7 +381,7 @@ async function comandoTiendaGG(sock, chatId, msg, args) {
             const page = await browser.newPage();
             await page.setUserAgent('Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Safari/537.36');
             await page.setExtraHTTPHeaders({ 'Accept-Language': 'es-MX,es;q=0.9,en;q=0.8' });
-            const html = await obtenerHtmlConNavegador(page, url, 'a.item-icon[data-id]');
+            const html = await obtenerHtmlConNavegador(page, url, 'a[href*="/cosmetics?id="]');
             const itemsBase = extraerItemsTienda(html);
             await page.close().catch(() => {});
 
