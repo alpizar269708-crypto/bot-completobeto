@@ -105,19 +105,21 @@ async function comandoCarry(sock, chatId, msg, comando, args = []) {
     if (comando === 'carryleader') {
         if (escuadron) return await sock.sendMessage(chatId, { text: `❌ Ya hay un escuadrón activo liderado por ${escuadron.liderNombre}. Usa *carryclose* para cerrarlo primero.` }, { quoted: msg });
         
-        let maxEspacios = 3;
-        let motivo = "Salvar el Mundo";
-
-        if (args.length > 0) {
-            let ultimoArg = parseInt(args[args.length - 1]);
-            if (!isNaN(ultimoArg)) {
-                maxEspacios = ultimoArg;
-                args.pop();
-            }
-            if (args.length > 0) {
-                motivo = args.join(' ');
-            }
+        if (args.length < 1 || !/^[1-3]$/.test(String(args[0]).trim())) {
+            return await sock.sendMessage(chatId, {
+                text: '❌ *Formato incorrecto*\\n\\nUsa: *carryleader [1-3] [motivo]*\\n\\nEl número indica cuántos jugadores faltan para completar el escuadrón.\\n• *1* = falta 1 jugador\\n• *2* = faltan 2 jugadores\\n• *3* = faltan 3 jugadores'
+            }, { quoted: msg });
         }
+
+        const maxEspacios = Number(args[0]);
+        args = args.slice(1);
+        if (args.length === 0) {
+            return await sock.sendMessage(chatId, {
+                text: '❌ Debes indicar el motivo del carry.\\n\\nUsa: *carryleader [1-3] [motivo]*'
+            }, { quoted: msg });
+        }
+
+        const motivo = args.join(' ');
         
         escuadronesActivos.set(chatId, {
             liderId: sender,
