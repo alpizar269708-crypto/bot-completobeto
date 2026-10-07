@@ -122,7 +122,7 @@ async function descargarStickerCloudinary(buffer, hash) {
     if (!config) return null;
 
     const publicId = 'wa_sticker_jasc13_v2_' + hash;
-    const transformacion = 'c_fill,w_512,h_512,fl_animated.fl_awebp,vs_10,q_auto:good';
+    const transformacion = 'c_pad,w_512,h_512,b_transparent,fl_animated.fl_awebp,vs_10,q_auto:good';
     const urlBase = 'https://res.cloudinary.com/' + encodeURIComponent(config.cloudName) +
         '/video/upload/' + transformacion + '/';
 
@@ -149,7 +149,7 @@ async function agregarMetadatosSticker(buffer, esVideo) {
     const sticker = new Sticker(buffer, {
         pack: STICKER_PACK,
         author: STICKER_AUTHOR,
-        type: StickerTypes.CROPPED,
+        type: StickerTypes.FULL,
         quality: esVideo ? 10 : 50
     });
     return sticker.toBuffer();
@@ -198,14 +198,17 @@ async function convertirVideoASticker(buffer, hash) {
 async function comandoSticker(sock, msg) {
     const chatJid = msg.key.remoteJid;
     try {
-        const msgTipo = msg.message?.imageMessage || msg.message?.videoMessage;
+        const msgTipo = msg.message?.imageMessage || msg.message?.videoMessage || msg.message?.documentMessage;
         const msjCitado = msg.message?.extendedTextMessage?.contextInfo?.quotedMessage;
-        const citadoTipo = msjCitado?.imageMessage || msjCitado?.videoMessage;
+        const citadoTipo = msjCitado?.imageMessage || msjCitado?.videoMessage || msjCitado?.documentMessage;
         if (!msgTipo && !citadoTipo) {
             return await sock.sendMessage(chatJid, { text: '⚠️ Por favor, responde a una imagen o video, o envíalo adjunto a la imagen.' }, { quoted: msg });
         }
 
-        const esVideo = !!(msg.message?.videoMessage || msjCitado?.videoMessage);
+        const tipoDocumento = msg.message?.documentMessage || msjCitado?.documentMessage;
+        const mimeDocumento = String(tipoDocumento?.mimetype || '').toLowerCase();
+        const esGif = mimeDocumento === 'image/gif' || mimeDocumento === 'image/webp';
+        const esVideo = !!(msg.message?.videoMessage || msjCitado?.videoMessage || esGif);
         if (esVideo) {
             const duracion = msg.message?.videoMessage?.seconds || msjCitado?.videoMessage?.seconds || 0;
             if (duracion > 10) {
