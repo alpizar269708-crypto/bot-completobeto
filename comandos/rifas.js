@@ -1,6 +1,24 @@
 const { Config } = require('../database/modelos');
 const { esPrivilegiadoTotalAsync, normalizarNumeroTelefono, resolverLidAPn } = require('../utils/whatsapp');
 
+async function obtenerMencionRifa(sock, chatId, participante) {
+    const id = participante?.id;
+    if (String(id || '').endsWith('@lid')) return id;
+
+    if (chatId.endsWith('@g.us')) {
+        try {
+            const metadata = await sock.groupMetadata(chatId);
+            const objetivo = normalizarNumeroTelefono(id);
+            const encontrado = metadata.participants?.find(p =>
+                normalizarNumeroTelefono(p.phoneNumber || p.pn || p.id) === objetivo
+            );
+            if (encontrado?.id) return encontrado.id;
+        } catch (e) {}
+    }
+
+    return id;
+}
+
 const rifasActivas = new Map();
 const rifasAbiertas = new Set();
 
@@ -188,12 +206,12 @@ async function comandoRifaInscripcion(sock, chatId, msg) {
         }, { quoted: msg });
     }
 
-    participantes.push({ id: sender, nombre: pushName });
+    participantes.push({ id: senderOriginal, nombre: pushName });
     await guardarParticipantesRifa(chatId, participantes);
 
     await sock.sendMessage(chatId, {
-        text: `✅ ¡Listo, @${String(sender).split('@')[0]}! Te has inscrito a la rifa correctamente. (Participante #${participantes.length})`,
-        mentions: [sender]
+        text: `✅ ¡Listo, @${String(senderOriginal).split('@')[0]}! Te has inscrito a la rifa correctamente. (Participante #${participantes.length})`,
+        mentions: [senderOriginal]
     }, { quoted: msg });
 }
 
@@ -232,7 +250,7 @@ async function comandoRifa(sock, chatId, msg, args) {
         const mentions = [];
         for (let i = 0; i < participantes.length; i++) {
             const p = participantes[i];
-            const idMencion = await resolverLidAPn(sock, p.id);
+            const idMencion = await obtenerMencionRifa(sock, chatId, p);
             texto += `${i + 1}. @${String(idMencion).split('@')[0]}\\n`;
             mentions.push(idMencion);
         }
