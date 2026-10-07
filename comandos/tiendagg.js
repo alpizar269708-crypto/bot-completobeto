@@ -424,7 +424,7 @@ async function traducirDescripcionConGemini(texto) {
         if (!traductorGemini) {
             traductorGemini = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY)
                 .getGenerativeModel({
-                    model: 'gemini-3.6-flash',
+                    model: 'gemini-3.8-flash',
                     systemInstruction:
                         'Traduce únicamente el texto recibido del inglés al español de México. ' +
                         'No expliques, no agregues contexto, no cambies nombres propios y devuelve solamente la traducción.'
@@ -432,9 +432,14 @@ async function traducirDescripcionConGemini(texto) {
         }
 
         const result = await Promise.race([
-            traductorGemini.generateContent(texto),
+            traductorGemini.generateContent(texto, {
+                generationConfig: {
+                    temperature: 0,
+                    maxOutputTokens: 64
+                }
+            }),
             new Promise((_, reject) =>
-                setTimeout(() => reject(new Error('timeout traductor Gemini')), 4500)
+                setTimeout(() => reject(new Error('timeout traductor Gemini')), 10000)
             )
         ]);
 
