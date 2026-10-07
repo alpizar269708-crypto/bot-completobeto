@@ -87,6 +87,15 @@ async function ejecutarMenu(sock, chatId, msg, args) {
     `*${prefijo}alertasstw* - Resumen general de alertas.\n` +
     `*${prefijo}alerta [nombre]* - Busca una recompensa específica.\n`;
 
+    menuFortnite += `\n🚀 *CARRY / ESCUADRONES:*\n` +
+        `*\${prefijo}carryleader [1-3] [motivo]* - Crea un escuadrón indicando cuántos jugadores faltan.\n` +
+        `*\${prefijo}carryjoin* - Únete al escuadrón activo.\n` +
+        `*\${prefijo}carryleave* - Sal del escuadrón actual.\n` +
+        `*\${prefijo}carryclose* - Cierra tu escuadrón.\n` +
+        `*\${prefijo}blcarry [@user / número / cita]* - Bloquea a alguien del carry (Admins).\n` +
+        `*\${prefijo}unblcarry [@user / número / cita]* - Quita a alguien de la lista negra (Admins).\n` +
+        `*\${prefijo}listcarrybl* - Muestra la lista negra de carry (Admins).\n`;
+
     menuFortnite += `\n⚙️ *Gestión del Grupo:*\n` +
         `*${prefijo}setprecio* - Configura precio de venta de pavos.\n` +
         `*${prefijo}setgrupostw* - Activa reportes diarios a las 6:05 PM aquí.\n` +
