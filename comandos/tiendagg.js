@@ -406,100 +406,154 @@ function extraerItemsTienda(html) {
     return items;
 }
 
+const { GoogleGenerativeAI } = require('@google/generative-ai');
 const cacheTraduccionesDescripcion = new Map();
+let traductorGemini = null;
+
+function limpiarTraduccionGemini(texto) {
+    return limpiarTexto(String(texto || ''))
+        .replace(/^["'“”]+|["'“”]+$/g, '')
+        .replace(/^Traducción:\s*/i, '')
+        .trim();
+}
+
+async function traducirDescripcionConGemini(texto) {
+    if (!process.env.GOOGLE_API_KEY) return null;
+
+    try {
+        if (!traductorGemini) {
+            traductorGemini = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY)
+                .getGenerativeModel({
+                    model: 'gemini-3.6-flash',
+                    systemInstruction:
+                        'Traduce únicamente el texto recibido del inglés al español de México. ' +
+                        'No expliques, no agregues contexto, no cambies nombres propios y devuelve solamente la traducción.'
+                });
+        }
+
+        const result = await Promise.race([
+            traductorGemini.generateContent(texto),
+            new Promise((_, reject) =>
+                setTimeout(() => reject(new Error('timeout traductor Gemini')), 4500)
+            )
+        ]);
+
+        const traducida = limpiarTraduccionGemini(result?.response?.text?.() || '');
+        if (!traducida) return null;
+        if (traducida.toLowerCase() === limpiarTexto(texto).toLowerCase()) return null;
+
+        return traducida;
+    } catch (error) {
+        console.warn('⚠️ No se pudo traducir la descripción con Gemini:', error.message);
+        return null;
+    }
+}
+
+async function traducirDescripcionConGoogle(texto) {
+    const endpoints = [
+        'https://translate.googleapis.com/translate_a/single' +
+        '?client=gtx&sl=en&tl=es&hl=es&dt=t&ie=UTF-8&oe=UTF-8&q=' +
+        encodeURIComponent(texto),
+        'https://translate.google.com/translate_a/single' +
+        '?client=t&sl=en&tl=es&hl=es&dt=t&ie=UTF-8&oe=UTF-8&q=' +
+        encodeURIComponent(texto)
+    ];
+
+    for (const endpoint of endpoints) {
+        const traducida = await new Promise(resolve => {
+            let terminado = false;
+
+            const finalizar = valor => {
+                if (terminado) return;
+                terminado = true;
+                resolve(valor || null);
+            };
+
+            const req = https.get(endpoint, {
+                headers: {
+                    'User-Agent': 'Mozilla/5.0',
+                    'Accept': 'application/json,text/plain,*/*',
+                    'Accept-Language': 'es-MX,es;q=0.9,en;q=0.8'
+                }
+            }, res => {
+                let data = '';
+
+                res.setEncoding('utf8');
+                res.on('data', chunk => { data += chunk; });
+                res.on('end', () => {
+                    try {
+                        if (res.statusCode && res.statusCode >= 400) return finalizar(null);
+
+                        const json = JSON.parse(data);
+                        const partes = Array.isArray(json?.[0])
+                            ? json[0]
+                                .map(parte => Array.isArray(parte) ? parte[0] : '')
+                                .filter(Boolean)
+                            : [];
+
+                        const resultado = limpiarTexto(partes.join(' '));
+                        finalizar(
+                            resultado &&
+                            resultado.toLowerCase() !== limpiarTexto(texto).toLowerCase()
+                                ? resultado
+                                : null
+                        );
+                    } catch (_) {
+                        finalizar(null);
+                    }
+                });
+            });
+
+            req.setTimeout(5000, () => {
+                req.destroy();
+                finalizar(null);
+            });
+
+            req.on('error', () => finalizar(null));
+        });
+
+        if (traducida) return traducida;
+    }
+
+    return null;
+}
 
 async function traducirDescripcion(texto) {
     const original = limpiarTexto(texto);
     if (!original) return texto;
 
-    const clave = original.toLowerCase();
+    const clave = original
+        .toLowerCase()
+        .replace(/[’‘`´]/g, "'")
+        .replace(/\s+/g, ' ')
+        .trim();
+
     if (cacheTraduccionesDescripcion.has(clave)) {
         return cacheTraduccionesDescripcion.get(clave);
     }
 
-    // Respaldo para frases conocidas que queremos mostrar siempre en español.
     const manuales = new Map([
         ["hey it's me, goku!", '¡Hola, soy Goku!'],
         ["all that's fractured is yours.", 'Todo lo que está fracturado es tuyo.']
     ]);
 
-    if (manuales.has(clave)) {
-        const manual = manuales.get(clave);
+    const manual = manuales.get(clave);
+    if (manual) {
         cacheTraduccionesDescripcion.set(clave, manual);
         return manual;
     }
 
-    const pareceIngles = /\b(the|that's|that|this|is|are|your|yours|you|with|for|from|of|and|in|on|series|set|bundle)\b/i.test(original);
+    const pareceIngles = /\b(the|that's|that|this|is|are|your|yours|you|with|for|from|of|and|in|on|it's|its|a|an|to|my|me|all)\b/i.test(original);
+
     if (!pareceIngles) {
         cacheTraduccionesDescripcion.set(clave, original);
         return original;
     }
 
-    const traducirConGoogle = endpoint => new Promise(resolve => {
-        let terminado = false;
+    let resultadoFinal = await traducirDescripcionConGemini(original);
+    if (!resultadoFinal) resultadoFinal = await traducirDescripcionConGoogle(original);
 
-        const finalizar = valor => {
-            if (terminado) return;
-            terminado = true;
-            resolve(valor || null);
-        };
-
-        const req = https.get(endpoint, {
-            headers: {
-                'User-Agent': 'Mozilla/5.0',
-                'Accept': 'application/json,text/plain,*/*',
-                'Accept-Language': 'es-MX,es;q=0.9,en;q=0.8'
-            }
-        }, res => {
-            let data = '';
-
-            res.setEncoding('utf8');
-            res.on('data', chunk => { data += chunk; });
-            res.on('end', () => {
-                try {
-                    if (res.statusCode && res.statusCode >= 400) {
-                        return finalizar(null);
-                    }
-
-                    const json = JSON.parse(data);
-                    const partes = Array.isArray(json?.[0])
-                        ? json[0]
-                            .map(parte => Array.isArray(parte) ? parte[0] : '')
-                            .filter(Boolean)
-                        : [];
-
-                    const resultado = limpiarTexto(partes.join(' '));
-                    finalizar(resultado && resultado.toLowerCase() !== clave ? resultado : null);
-                } catch (_) {
-                    finalizar(null);
-                }
-            });
-        });
-
-        req.setTimeout(5000, () => {
-            req.destroy();
-            finalizar(null);
-        });
-
-        req.on('error', () => finalizar(null));
-    });
-
-    const endpoints = [
-        'https://translate.googleapis.com/translate_a/single' +
-        '?client=gtx&sl=en&tl=es&hl=es&dt=t&ie=UTF-8&oe=UTF-8&q=' +
-        encodeURIComponent(original),
-        'https://translate.google.com/translate_a/single' +
-        '?client=t&sl=en&tl=es&hl=es&dt=t&ie=UTF-8&oe=UTF-8&q=' +
-        encodeURIComponent(original)
-    ];
-
-    let traducida = null;
-    for (const endpoint of endpoints) {
-        traducida = await traducirConGoogle(endpoint);
-        if (traducida) break;
-    }
-
-    const resultadoFinal = traducida || original;
+    resultadoFinal = resultadoFinal || original;
     cacheTraduccionesDescripcion.set(clave, resultadoFinal);
     return resultadoFinal;
 }
