@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "postinstall": "python3 -m venv .venv && .venv/bin/pip install -U \"yt-dlp[default,curl-ffi]\" && npx puppeteer browsers install chrome"
+    "postinstall": "python3 -m venv .venv && .venv/bin/pip install -U \"yt-dlp[default,curl-ffi]\" && (test -x \"$HOME/.cache/puppeteer/chrome/linux-153.0.8010.36/chrome-linux64/chrome\" || npx puppeteer browsers install chrome)"
   },
   "keywords": [],
   "author": "",
@@ -27,8 +27,6 @@
     "qrcode-terminal": "^0.12.0",
     "wa-sticker-formatter": "^4.4.4",
     "qrcode": "^1.5.4",
-    "youtube-dl-exec": "^3.1.15",
-    "sharp": "^0.34.4",
-    "ffmpeg-static": "^5.2.0"
+    "youtube-dl-exec": "^3.1.15"
   }
 }
