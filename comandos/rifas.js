@@ -246,12 +246,12 @@ async function comandoRifa(sock, chatId, msg, args) {
 
     if (accion === 'ver') {
         if (participantes.length === 0) return await sock.sendMessage(chatId, { text: `📭 La rifa está vacía.` }, { quoted: msg });
-        let texto = `🎟️ *PARTICIPANTES DE LA RIFA (${participantes.length}):*\\n\\n`;
+        let texto = `🎟️ *PARTICIPANTES DE LA RIFA (${participantes.length}):*\n\n`;
         const mentions = [];
         for (let i = 0; i < participantes.length; i++) {
             const p = participantes[i];
             const idMencion = await obtenerMencionRifa(sock, chatId, p);
-            texto += `${i + 1}. @${String(idMencion).split('@')[0]}\\n`;
+            texto += `${i + 1}. @${String(idMencion).split('@')[0]}\n`;
             mentions.push(idMencion);
         }
         await sock.sendMessage(chatId, { text: texto, mentions }, { quoted: msg });
