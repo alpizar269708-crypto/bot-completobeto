@@ -221,7 +221,7 @@ async function comandoSticker(sock, msg) {
         const hash = crypto.createHash('sha256').update(buffer).digest('hex');
         let stickerBuffer;
 
-        if (esVideo) {
+        if (esVideo && !esGif) {
             stickerBuffer = await convertirVideoASticker(buffer, hash);
         } else {
             const clave = 'img:' + hash;
