@@ -499,11 +499,24 @@ function traducirTextoFicha(texto) {
 function traducirFecha(texto) {
     if (!texto) return texto;
     const meses = {
-        Jan:'ene', Feb:'feb', Mar:'mar', Apr:'abr', May:'may', Jun:'jun',
-        Jul:'jul', Aug:'ago', Sep:'sep', Oct:'oct', Nov:'nov', Dec:'dic'
+        jan: 'enero', feb: 'febrero', mar: 'marzo', apr: 'abril',
+        may: 'mayo', jun: 'junio', jul: 'julio', aug: 'agosto',
+        sep: 'septiembre', oct: 'octubre', nov: 'noviembre', dec: 'diciembre'
     };
-    return String(texto)
-        .replace(/\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\b/g, m => meses[m] || m)
+
+    let resultado = String(texto).trim();
+
+    resultado = resultado.replace(
+        /\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+(\d{1,2}),\s+(\d{4})\b/gi,
+        (_, mes, dia, anio) => `${dia} de ${meses[mes.toLowerCase()] || mes} de ${anio}`
+    );
+
+    resultado = resultado.replace(
+        /\b(\d{1,2})\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+(\d{4})\b/gi,
+        (_, dia, mes, anio) => `${dia} de ${meses[mes.toLowerCase()] || mes} de ${anio}`
+    );
+
+    return resultado
         .replace(/\btoday\b/gi, 'hoy')
         .replace(/\byesterday\b/gi, 'ayer')
         .replace(/\b(\d+)\s+days?\s+ago\b/gi, 'hace $1 días')
