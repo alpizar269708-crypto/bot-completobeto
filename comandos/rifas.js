@@ -165,20 +165,30 @@ async function guardarParticipantesRifa(chatId, participantes) {
 async function comandoRifaInscripcion(sock, chatId, msg) {
     if (!(await rifaEstaAbierta(chatId))) return;
 
-    const sender = msg.key.participant || msg.key.remoteJid;
+    const senderOriginal = msg.key.participant || msg.key.remoteJid;
+    const sender = await resolverLidAPn(sock, senderOriginal);
     const pushName = msg.pushName || 'Usuario';
 
     const participantes = await cargarParticipantesRifa(chatId);
 
-    const yaInscrito = participantes.find(p => p.id === sender);
+    const yaInscrito = participantes.find(p =>
+        normalizarNumeroTelefono(p.id) === normalizarNumeroTelefono(sender)
+    );
     if (yaInscrito) {
-        return await sock.sendMessage(chatId, { text: `❌ Ya estás inscrito en la rifa actual, *${pushName}*. Solo se permite una inscripción por número.` }, { quoted: msg });
+        const idMencion = await resolverLidAPn(sock, yaInscrito.id);
+        return await sock.sendMessage(chatId, {
+            text: `❌ Ya estás inscrito en la rifa actual, @${String(idMencion).split('@')[0]}. Solo se permite una inscripción por número.`,
+            mentions: [idMencion]
+        }, { quoted: msg });
     }
 
     participantes.push({ id: sender, nombre: pushName });
     await guardarParticipantesRifa(chatId, participantes);
 
-    await sock.sendMessage(chatId, { text: `✅ ¡Listo, *${pushName}*! Te has inscrito a la rifa correctamente. (Participante #${participantes.length})` }, { quoted: msg });
+    await sock.sendMessage(chatId, {
+        text: `✅ ¡Listo, @${String(sender).split('@')[0]}! Te has inscrito a la rifa correctamente. (Participante #${participantes.length})`,
+        mentions: [sender]
+    }, { quoted: msg });
 }
 
 // === COMANDO EXCLUSIVO PARA ADMINISTRADORES ===
@@ -212,9 +222,15 @@ async function comandoRifa(sock, chatId, msg, args) {
 
     if (accion === 'ver') {
         if (participantes.length === 0) return await sock.sendMessage(chatId, { text: `📭 La rifa está vacía.` }, { quoted: msg });
-        let texto = `🎟️ *PARTICIPANTES DE LA RIFA (${participantes.length}):*\n\n`;
-        participantes.forEach((p, i) => texto += `${i + 1}. ${p.nombre}\n`);
-        await sock.sendMessage(chatId, { text: texto }, { quoted: msg });
+        let texto = `🎟️ *PARTICIPANTES DE LA RIFA (${participantes.length}):*\\n\\n`;
+        const mentions = [];
+        for (let i = 0; i < participantes.length; i++) {
+            const p = participantes[i];
+            const idMencion = await resolverLidAPn(sock, p.id);
+            texto += `${i + 1}. @${String(idMencion).split('@')[0]}\\n`;
+            mentions.push(idMencion);
+        }
+        await sock.sendMessage(chatId, { text: texto, mentions }, { quoted: msg });
 
     } else if (accion === 'quitar') {
         if (!parametro) return await sock.sendMessage(chatId, { text: `❌ Dime el número en la lista para quitar (ej. rifa quitar 1).` }, { quoted: msg });
