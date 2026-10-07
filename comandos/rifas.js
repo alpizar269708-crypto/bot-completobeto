@@ -182,6 +182,12 @@ async function comandoRifaInscripcion(sock, chatId, msg) {
         }, { quoted: msg });
     }
 
+    if (participantes.length >= 200) {
+        return await sock.sendMessage(chatId, {
+            text: '❌ La inscripción ya está cerrada para esta rifa.'
+        }, { quoted: msg });
+    }
+
     participantes.push({ id: sender, nombre: pushName });
     await guardarParticipantesRifa(chatId, participantes);
 
