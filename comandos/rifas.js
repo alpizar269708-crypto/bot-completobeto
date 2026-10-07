@@ -179,6 +179,67 @@ async function guardarParticipantesRifa(chatId, participantes) {
     rifasActivas.set(chatId, participantes);
 }
 
+async function obtenerClaveUnicaRifa(sock, chatId, participante) {
+    const idOriginal = typeof participante === 'string'
+        ? participante
+        : participante?.id;
+
+    const numeroGuardado = typeof participante === 'object'
+        ? participante?.numero
+        : null;
+
+    if (numeroGuardado) {
+        return 'pn:' + normalizarNumeroTelefono(numeroGuardado);
+    }
+
+    if (!idOriginal) return null;
+
+    const idTexto = String(idOriginal);
+    const resuelto = await resolverLidAPn(sock, idTexto);
+
+    // Si ya tenemos un JID telefónico, esta es la identidad estable que
+    // guardaremos/compararemos a partir de ahora.
+    if (String(resuelto || '').endsWith('@s.whatsapp.net')) {
+        const numero = normalizarNumeroTelefono(resuelto);
+        if (numero) return 'pn:' + numero;
+    }
+
+    // Fallback para participantes antiguos o LIDs que WhatsApp no permita
+    // resolver directamente. En grupos intentamos obtener su número desde
+    // la metadata antes de considerar único el LID.
+    if (chatId.endsWith('@g.us')) {
+        try {
+            const metadata = await sock.groupMetadata(chatId);
+            const encontrado = metadata.participants?.find(p =>
+                String(p.id || '') === idTexto ||
+                String(p.lid || '') === idTexto ||
+                String(p.jid || '') === idTexto
+            );
+
+            if (encontrado) {
+                const posiblesNumeros = [
+                    encontrado.phoneNumber,
+                    encontrado.pn,
+                    encontrado.jid,
+                    encontrado.id
+                ];
+
+                for (const candidato of posiblesNumeros) {
+                    const candidatoResuelto = await resolverLidAPn(sock, candidato);
+                    if (String(candidatoResuelto || '').endsWith('@s.whatsapp.net')) {
+                        const numero = normalizarNumeroTelefono(candidatoResuelto);
+                        if (numero) return 'pn:' + numero;
+                    }
+                }
+            }
+        } catch (e) {}
+    }
+
+    // Último recurso: la propia identidad de WhatsApp. Esto evita que dos
+    // registros con el mismo LID exacto se vuelvan a considerar distintos.
+    return 'jid:' + idTexto;
+}
+
 // === COMANDO PARA USUARIOS NORMALES ===
 async function comandoRifaInscripcion(sock, chatId, msg) {
     if (!(await rifaEstaAbierta(chatId))) return;
@@ -188,12 +249,17 @@ async function comandoRifaInscripcion(sock, chatId, msg) {
     const pushName = msg.pushName || 'Usuario';
 
     const participantes = await cargarParticipantesRifa(chatId);
+    const numeroRegistro = await obtenerClaveUnicaRifa(sock, chatId, { id: senderOriginal });
 
-    const yaInscrito = participantes.find(p =>
-        normalizarNumeroTelefono(p.id) === normalizarNumeroTelefono(sender)
+    const identidadesExistentes = await Promise.all(
+        participantes.map(p => obtenerClaveUnicaRifa(sock, chatId, p))
     );
+
+    const yaInscritoIndex = identidadesExistentes.findIndex(clave => clave && clave === numeroRegistro);
+    const yaInscrito = yaInscritoIndex >= 0 ? participantes[yaInscritoIndex] : null;
+
     if (yaInscrito) {
-        const idMencion = await resolverLidAPn(sock, yaInscrito.id);
+        const idMencion = await obtenerMencionRifa(sock, chatId, yaInscrito);
         return await sock.sendMessage(chatId, {
             text: `❌ Ya estás inscrito en la rifa actual, @${String(idMencion).split('@')[0]}. Solo se permite una inscripción por número.`,
             mentions: [idMencion]
@@ -206,12 +272,86 @@ async function comandoRifaInscripcion(sock, chatId, msg) {
         }, { quoted: msg });
     }
 
-    participantes.push({ id: senderOriginal, nombre: pushName });
+    participantes.push({
+        id: senderOriginal,
+        numero: numeroRegistro?.startsWith('pn:') ? numeroRegistro.slice(3) : null,
+        nombre: pushName
+    });
     await guardarParticipantesRifa(chatId, participantes);
 
     await sock.sendMessage(chatId, {
         text: `✅ ¡Listo, @${String(senderOriginal).split('@')[0]}! Te has inscrito a la rifa correctamente. (Participante #${participantes.length})`,
         mentions: [senderOriginal]
+    }, { quoted: msg });
+}
+
+// === LIMPIEZA DE DUPLICADOS ===
+async function comandoRifaQuitarDuplicados(sock, chatId, msg) {
+    const sender = msg.key.participant || msg.key.remoteJid;
+
+    if (chatId.endsWith('@g.us')) {
+        try {
+            const groupMetadata = await sock.groupMetadata(chatId);
+            const participant = groupMetadata.participants.find(p =>
+                p.id === sender ||
+                p.lid === sender ||
+                p.jid === sender
+            );
+            const isAdmin =
+                participant?.admin === 'admin' ||
+                participant?.admin === 'superadmin';
+            const tienePrivilegiosTotales = await esPrivilegiadoTotalAsync(sock, sender);
+
+            if (!isAdmin && !tienePrivilegiosTotales) {
+                return await sock.sendMessage(chatId, {
+                    text: '❌ Permiso denegado. Solo los administradores del grupo pueden limpiar duplicados de la rifa.'
+                }, { quoted: msg });
+            }
+        } catch (e) {
+            console.error('Error al verificar admin en rifaquitarduplicados:', e);
+            return;
+        }
+    } else if (!(await esPrivilegiadoTotalAsync(sock, sender))) {
+        return;
+    }
+
+    const participantes = await cargarParticipantesRifa(chatId);
+
+    if (participantes.length === 0) {
+        return await sock.sendMessage(chatId, {
+            text: '📭 La rifa está vacía.'
+        }, { quoted: msg });
+    }
+
+    const vistos = new Set();
+    const unicos = [];
+    let eliminados = 0;
+
+    for (const participante of participantes) {
+        const clave = await obtenerClaveUnicaRifa(sock, chatId, participante);
+
+        if (clave && vistos.has(clave)) {
+            eliminados++;
+            continue;
+        }
+
+        if (clave) vistos.add(clave);
+        unicos.push(participante);
+    }
+
+    if (eliminados === 0) {
+        return await sock.sendMessage(chatId, {
+            text: `✅ No encontré participantes duplicados. La lista conserva *${participantes.length}* participante(s).`
+        }, { quoted: msg });
+    }
+
+    await guardarParticipantesRifa(chatId, unicos);
+
+    await sock.sendMessage(chatId, {
+        text:
+            '🧹 *DUPLICADOS ELIMINADOS DE LA RIFA*\n\n' +
+            '🗑️ Registros eliminados: *' + eliminados + '*\n' +
+            '🎟️ Participantes restantes: *' + unicos.length + '*'
     }, { quoted: msg });
 }
 
@@ -1101,4 +1241,4 @@ async function comandoRifaJasc13(sock, chatId, msg, args) {
     }
 }
 
-module.exports = { comandoRifa, comandoRifaInscripcion, comandoRifaJasc13, comandoMenuRifaJasc13, comandoRecuperarRegistroJasc13, comandoAbrirRifa, comandoActivarRifaAqui, comandoCerrarRifa };
+module.exports = { comandoRifa, comandoRifaInscripcion, comandoRifaQuitarDuplicados, comandoRifaJasc13, comandoMenuRifaJasc13, comandoRecuperarRegistroJasc13, comandoAbrirRifa, comandoActivarRifaAqui, comandoCerrarRifa };
