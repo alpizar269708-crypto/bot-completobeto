@@ -469,8 +469,13 @@ async function traducirDescripcion(texto) {
         req.on('error', () => finalizar(original));
     });
 
-    cacheTraduccionesDescripcion.set(clave, traducida);
-    return traducida;
+    const manuales = new Map([
+        ["hey it's me, goku!", '¡Hola, soy Goku!']
+    ]);
+    const resultadoFinal = manuales.get(clave) || traducida;
+
+    cacheTraduccionesDescripcion.set(clave, resultadoFinal);
+    return resultadoFinal;
 }
 
 function traducirTextoFicha(texto) {
@@ -482,9 +487,9 @@ function traducirTextoFicha(texto) {
     t = t.replace(/Marvel Series/gi, 'Serie Marvel');
     t = t.replace(/DC Series/gi, 'Serie DC');
     t = t.replace(/Star Wars Series/gi, 'Serie Star Wars');
-    t = t.replace(/Chapter (\\d+)/gi, 'Capítulo $1');
+    t = t.replace(/Chapter (\d+)/gi, 'Capítulo $1');
     t = t.replace(/Season X/gi, 'Temporada X');
-    t = t.replace(/Season (\\d+)/gi, 'Temporada $1');
+    t = t.replace(/Season (\d+)/gi, 'Temporada $1');
     t = t.replace(/introduced in/gi, 'introducido en');
     t = t.replace(/Bundle/gi, 'Lote');
     t = t.replace(/Shop/gi, 'Tienda');
@@ -498,10 +503,11 @@ function traducirFecha(texto) {
         Jul:'jul', Aug:'ago', Sep:'sep', Oct:'oct', Nov:'nov', Dec:'dic'
     };
     return String(texto)
-        .replace(/\\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\\b/g, m => meses[m] || m)
-        .replace(/\\btoday\\b/gi, 'hoy')
-        .replace(/\\byesterday\\b/gi, 'ayer')
-        .replace(/\\bdays ago\\b/gi, 'días atrás');
+        .replace(/\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\b/g, m => meses[m] || m)
+        .replace(/\btoday\b/gi, 'hoy')
+        .replace(/\byesterday\b/gi, 'ayer')
+        .replace(/\b(\d+)\s+days?\s+ago\b/gi, 'hace $1 días')
+        .replace(/\bdays ago\b/gi, 'días atrás');
 }
 
 async function formatearItem(item, indice) {
@@ -590,6 +596,10 @@ async function manejarSeleccionTiendaGG(sock, chatId, msg, texto, remitente) {
     tiendaGGEnCurso = true;
     tiendaGGFase = 'leyendo una sola ficha';
     let browser = null;
+
+    await sock.sendMessage(chatId, {
+        text: '🔎 *JASC STORE*\n\nConsultando *' + (item.nombre || 'el cosmético') + '*...\n⏳ Espera un momento, estoy buscando la información.'
+    }, { quoted: msg });
 
     try {
         browser = await abrirNavegador();
