@@ -204,6 +204,16 @@ async function aplicarMarcaAguaVideo(buffer) {
     }
 }
 
+async function agregarMetadatosSticker(buffer, esVideo) {
+    const sticker = new Sticker(buffer, {
+        pack: STICKER_PACK,
+        author: STICKER_AUTHOR,
+        type: StickerTypes.CROPPED,
+        quality: esVideo ? 10 : 50
+    });
+    return sticker.toBuffer();
+}
+
 async function convertirStickerLocal(buffer, esVideo) {
     const fuenteConMarca = esVideo
         ? await aplicarMarcaAguaVideo(buffer)
@@ -233,6 +243,7 @@ async function convertirVideoASticker(buffer, hash) {
                 // rápida tampoco pueda generar un sticker sin JASC13.
                 const videoConMarca = await aplicarMarcaAguaVideo(buffer);
                 resultado = await descargarStickerCloudinary(videoConMarca, hash);
+                if (resultado) resultado = await agregarMetadatosSticker(resultado, true);
             } catch (error) {
                 console.warn('⚠️ Cloudinary no pudo convertir el sticker marcado; usando fallback local:', error.message);
             }
