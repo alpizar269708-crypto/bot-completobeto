@@ -3,6 +3,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const puppeteer = require('puppeteer');
+const sharp = require('sharp');
 const youtubeDlExec = require('youtube-dl-exec');
 const ytDlpPersonalizado = path.join(process.cwd(), '.venv', 'bin', 'yt-dlp');
 const youtubedl = fs.existsSync(ytDlpPersonalizado)
@@ -155,12 +156,25 @@ async function agregarMetadatosSticker(buffer, esVideo) {
     return sticker.toBuffer();
 }
 
+async function prepararImagenSinRecorte(buffer) {
+    return sharp(buffer, { animated: false })
+        .resize(480, 480, {
+            fit: 'contain',
+            position: 'center',
+            background: { r: 0, g: 0, b: 0, alpha: 0 }
+        })
+        .png()
+        .toBuffer();
+}
+
 async function convertirStickerLocal(buffer, esVideo) {
-    const sticker = new Sticker(buffer, {
+    const entrada = esVideo ? buffer : await prepararImagenSinRecorte(buffer);
+    const sticker = new Sticker(entrada, {
         pack: STICKER_PACK,
         author: STICKER_AUTHOR,
-        type: StickerTypes.CROPPED,
-        quality: esVideo ? 10 : 50
+        type: StickerTypes.FULL,
+        quality: esVideo ? 10 : 90,
+        background: { r: 0, g: 0, b: 0, alpha: 0 }
     });
     return sticker.toBuffer();
 }
