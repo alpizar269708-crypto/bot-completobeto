@@ -417,24 +417,38 @@ async function traducirDescripcion(texto) {
         return cacheTraduccionesDescripcion.get(clave);
     }
 
-    const traducida = await new Promise(resolve => {
+    // Respaldo para frases conocidas que queremos mostrar siempre en español.
+    const manuales = new Map([
+        ["hey it's me, goku!", '¡Hola, soy Goku!'],
+        ["all that's fractured is yours.", 'Todo lo que está fracturado es tuyo.']
+    ]);
+
+    if (manuales.has(clave)) {
+        const manual = manuales.get(clave);
+        cacheTraduccionesDescripcion.set(clave, manual);
+        return manual;
+    }
+
+    const pareceIngles = /\b(the|that's|that|this|is|are|your|yours|you|with|for|from|of|and|in|on|series|set|bundle)\b/i.test(original);
+    if (!pareceIngles) {
+        cacheTraduccionesDescripcion.set(clave, original);
+        return original;
+    }
+
+    const traducirConGoogle = endpoint => new Promise(resolve => {
         let terminado = false;
 
         const finalizar = valor => {
             if (terminado) return;
             terminado = true;
-            resolve(valor || original);
+            resolve(valor || null);
         };
-
-        const endpoint =
-            'https://translate.googleapis.com/translate_a/single' +
-            '?client=gtx&sl=auto&tl=es&dt=t&q=' +
-            encodeURIComponent(original);
 
         const req = https.get(endpoint, {
             headers: {
                 'User-Agent': 'Mozilla/5.0',
-                'Accept': 'application/json,text/plain,*/*'
+                'Accept': 'application/json,text/plain,*/*',
+                'Accept-Language': 'es-MX,es;q=0.9,en;q=0.8'
             }
         }, res => {
             let data = '';
@@ -444,7 +458,7 @@ async function traducirDescripcion(texto) {
             res.on('end', () => {
                 try {
                     if (res.statusCode && res.statusCode >= 400) {
-                        return finalizar(original);
+                        return finalizar(null);
                     }
 
                     const json = JSON.parse(data);
@@ -454,26 +468,38 @@ async function traducirDescripcion(texto) {
                             .filter(Boolean)
                         : [];
 
-                    finalizar(limpiarTexto(partes.join(' ')) || original);
+                    const resultado = limpiarTexto(partes.join(' '));
+                    finalizar(resultado && resultado.toLowerCase() !== clave ? resultado : null);
                 } catch (_) {
-                    finalizar(original);
+                    finalizar(null);
                 }
             });
         });
 
-        req.setTimeout(7000, () => {
+        req.setTimeout(5000, () => {
             req.destroy();
-            finalizar(original);
+            finalizar(null);
         });
 
-        req.on('error', () => finalizar(original));
+        req.on('error', () => finalizar(null));
     });
 
-    const manuales = new Map([
-        ["hey it's me, goku!", '¡Hola, soy Goku!']
-    ]);
-    const resultadoFinal = manuales.get(clave) || traducida;
+    const endpoints = [
+        'https://translate.googleapis.com/translate_a/single' +
+        '?client=gtx&sl=en&tl=es&hl=es&dt=t&ie=UTF-8&oe=UTF-8&q=' +
+        encodeURIComponent(original),
+        'https://translate.google.com/translate_a/single' +
+        '?client=t&sl=en&tl=es&hl=es&dt=t&ie=UTF-8&oe=UTF-8&q=' +
+        encodeURIComponent(original)
+    ];
 
+    let traducida = null;
+    for (const endpoint of endpoints) {
+        traducida = await traducirConGoogle(endpoint);
+        if (traducida) break;
+    }
+
+    const resultadoFinal = traducida || original;
     cacheTraduccionesDescripcion.set(clave, resultadoFinal);
     return resultadoFinal;
 }
