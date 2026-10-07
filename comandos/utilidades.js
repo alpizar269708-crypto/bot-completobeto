@@ -2,11 +2,6 @@ const crypto = require('crypto');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const sharp = require('sharp');
-const ffmpegPath = require('ffmpeg-static');
-const { execFile } = require('child_process');
-const { promisify } = require('util');
-const execFileAsync = promisify(execFile);
 const puppeteer = require('puppeteer');
 const youtubeDlExec = require('youtube-dl-exec');
 const ytDlpPersonalizado = path.join(process.cwd(), '.venv', 'bin', 'yt-dlp');
@@ -52,7 +47,6 @@ const { Sticker, StickerTypes } = require('wa-sticker-formatter');
 
 const STICKER_PACK = 'JASC13';
 const STICKER_AUTHOR = 'JASC13 - BOT';
-const STICKER_WATERMARK = 'JASC13';
 const STICKER_SUPPORT_TEXT = 'Apoya a un creador: JASC13';
 
 // 🚀 Caché para no repetir conversiones idénticas y deduplicar trabajos simultáneos.
@@ -151,59 +145,6 @@ async function descargarStickerCloudinary(buffer, hash) {
     return resultado;
 }
 
-function crearMarcaAguaSvg() {
-    return Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="512" height="64">
-        <text x="496" y="42" text-anchor="end"
-            font-family="Arial, Helvetica, sans-serif"
-            font-size="28" font-weight="700"
-            fill="white" stroke="black" stroke-width="6" paint-order="stroke"
-            opacity="0.82">JASC13</text>
-    </svg>`);
-}
-
-async function aplicarMarcaAguaImagen(buffer) {
-    return sharp(buffer)
-        .resize(512, 512, { fit: 'cover', position: 'centre' })
-        .composite([{ input: crearMarcaAguaSvg(), gravity: 'southeast' }])
-        .png()
-        .toBuffer();
-}
-
-async function aplicarMarcaAguaVideo(buffer) {
-    if (!ffmpegPath) throw new Error('FFmpeg no está disponible en el servidor.');
-    const base = path.join(os.tmpdir(), 'sticker-watermark-' + crypto.randomBytes(8).toString('hex'));
-    const entrada = base + '.mp4';
-    const salida = base + '-wm.mp4';
-    fs.writeFileSync(entrada, buffer);
-
-    try {
-        const filtro = [
-            "scale=512:512:force_original_aspect_ratio=increase",
-            "crop=512:512",
-            "drawtext=text='JASC13':fontcolor=white:fontsize=28:borderw=4:bordercolor=black@0.85:x=w-text_w-16:y=h-text_h-16"
-        ].join(',');
-        await execFileAsync(ffmpegPath, [
-            '-y', '-i', entrada,
-            '-vf', filtro,
-            '-an',
-            '-c:v', 'libx264',
-            '-preset', 'veryfast',
-            '-crf', '24',
-            '-pix_fmt', 'yuv420p',
-            '-movflags', '+faststart',
-            salida
-        ], { timeout: 90000, maxBuffer: 1024 * 1024 });
-
-        const resultado = fs.readFileSync(salida);
-        if (!resultado.length) throw new Error('FFmpeg devolvió un video vacío.');
-        return resultado;
-    } finally {
-        for (const archivo of [entrada, salida]) {
-            try { fs.unlinkSync(archivo); } catch (_) {}
-        }
-    }
-}
-
 async function agregarMetadatosSticker(buffer, esVideo) {
     const sticker = new Sticker(buffer, {
         pack: STICKER_PACK,
@@ -215,11 +156,7 @@ async function agregarMetadatosSticker(buffer, esVideo) {
 }
 
 async function convertirStickerLocal(buffer, esVideo) {
-    const fuenteConMarca = esVideo
-        ? await aplicarMarcaAguaVideo(buffer)
-        : await aplicarMarcaAguaImagen(buffer);
-
-    const sticker = new Sticker(fuenteConMarca, {
+    const sticker = new Sticker(buffer, {
         pack: STICKER_PACK,
         author: STICKER_AUTHOR,
         type: StickerTypes.CROPPED,
@@ -239,10 +176,7 @@ async function convertirVideoASticker(buffer, hash) {
         let resultado = null;
         if (obtenerConfiguracionCloudinary()) {
             try {
-                // La marca se aplica ANTES de subir a Cloudinary para que la ruta
-                // rápida tampoco pueda generar un sticker sin JASC13.
-                const videoConMarca = await aplicarMarcaAguaVideo(buffer);
-                resultado = await descargarStickerCloudinary(videoConMarca, hash);
+                resultado = await descargarStickerCloudinary(buffer, hash);
                 if (resultado) resultado = await agregarMetadatosSticker(resultado, true);
             } catch (error) {
                 console.warn('⚠️ Cloudinary no pudo convertir el sticker marcado; usando fallback local:', error.message);
