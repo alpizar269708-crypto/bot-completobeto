@@ -98,7 +98,7 @@ async function subirVideoCloudinary(buffer, hash) {
     const config = obtenerConfiguracionCloudinary();
     if (!config) return null;
     const timestamp = Math.floor(Date.now() / 1000);
-    const publicId = 'wa_sticker_' + hash;
+    const publicId = 'wa_sticker_jasc13_v2_' + hash;
     const form = new FormData();
     form.append('file', new Blob([buffer], { type: 'video/mp4' }), 'sticker.mp4');
 
@@ -127,7 +127,7 @@ async function descargarStickerCloudinary(buffer, hash) {
     const config = obtenerConfiguracionCloudinary();
     if (!config) return null;
 
-    const publicId = 'wa_sticker_' + hash;
+    const publicId = 'wa_sticker_jasc13_v2_' + hash;
     const transformacion = 'c_fill,w_512,h_512,fl_animated.fl_awebp,vs_10,q_auto:good';
     const urlBase = 'https://res.cloudinary.com/' + encodeURIComponent(config.cloudName) +
         '/video/upload/' + transformacion + '/';
