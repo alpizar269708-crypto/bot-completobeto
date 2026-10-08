@@ -168,7 +168,7 @@ async function comandoPersonalizarBienvenida(sock, chatId, msg, texto) {
         return;
     }
 
-    if (!(await esAdmin(sock, chatId, msg.key.participant))) {
+    if (!msg.key.fromMe && !(await esAdmin(sock, chatId, msg.key.participant || chatId))) {
         await sock.sendMessage(chatId, { text: '❌ Solo los administradores del grupo pueden personalizar la bienvenida.' }, { quoted: msg });
         return;
     }
