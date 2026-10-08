@@ -1249,7 +1249,7 @@ async function descargarInstagramConNavegador(url) {
             const patrones = [
                 /"video_url"\s*:\s*"([^"]+)/ig,
                 /"playback_url"\s*:\s*"([^"]+)/ig,
-                /\"url\"\s*:\s*\"(https?:\\/\\/[^"]*(?:cdninstagram|fbcdn)[^"]*)\"/ig,
+                /"url"\s*:\s*"(https?:\\/\\/[^"]*(?:cdninstagram|fbcdn)[^"]*)"/ig,
                 /"src"\s*:\s*"(https?:\\/\\/[^"]*(?:cdninstagram|fbcdn)[^"]*)"/ig
             ];
 
