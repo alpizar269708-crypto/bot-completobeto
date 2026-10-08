@@ -5,7 +5,7 @@ const { comandoTiendaMenu, comandoTiendaCategoria } = require('./comandos/tienda
 const { comandoTiendaGG, manejarSeleccionTiendaGG } = require('./comandos/tiendagg');
 const { comandoTiendaVb } = require('./comandos/tiendaVb'); 
 const { 
-    comandoSticker, comandoTiktok, comandoInstagram, comandoTraduce, comandoSkin, comandoStats, comandoContacto 
+    comandoSticker, comandoRecup1Vez, comandoTiktok, comandoInstagram, comandoTraduce, comandoSkin, comandoStats, comandoContacto 
 } = require('./comandos/utilidades');
 const { responderConIA } = require('./comandos/ia');
 const { 
@@ -29,7 +29,7 @@ const { comandoPaypal, comandoCalculadoraPaypal } = require('./comandos/paypal')
 const categoriasMap = {
     'fortnite': ['pavos', 'destacadasstw', 'legendariasstw', 'epicasstw', 'alertasstw', 'stw', 'alerta', 'setgrupostw', 'unsetgrupostw', 'setprecio'],
     'economia': ['cartera', 'bal', 'banco', 'pay', 'pagar', 'top', 'topdinero', 'daily', 'weekly', 'farmear', 'work', 'crime', 'mendigar', 'pescar', 'minar', 'cazar', 'explorar', 'ruleta', 'cf', 'slots', 'dados', 'adivina', 'buscaminas', 'rob', 'ppt', 'pelea', 'carrera', 'hackear', 'shop', 'buy', 'inventario', 'mochila', 'vender', 'use', 'regalar'],
-    'utilidades': ['s', 'sticker', 'tiktok', 'instagram', 'traduce', 'skin', 'stats', 'tiendastats', 'tiendavb', 'contacto', 'ping'],
+    'utilidades': ['s', 'sticker', 'recup1vez', 'tiktok', 'instagram', 'traduce', 'skin', 'stats', 'tiendastats', 'tiendavb', 'contacto', 'ping'],
     'paypal': ['paypal', 'paypaln', 'paypali'],
     'ia': ['ia'],
     'moderacion': ['warn', 'advertir', 'verwarns', 'limpiarwarns', 'ban', 'unban', 'listanegra', 'banlist', 'unbanlist', 'grupo', 'mute', 'unmute', 'inactivos', 'listablanca', 'desactivarbienvenida', 'activarbienvenida', 'personalizarbienvenida', 'restaurarbienvenida'],
@@ -58,7 +58,7 @@ const comandosConUsuarioBD = new Set([
 const comandosValidos = new Set([
         'desactivarcomandos', 'catdesa', 'setprecio', 'ping', 'pavos', 'destacadasstw', 'legendariasstw', 'epicasstw', 'alertasstw', 'stw', 'alerta', 
         'setgrupostw', 'unsetgrupostw', 'grupo', 'mute', 'unmute', 'inactivos', 'tienda', 'tiendastats', 'tiendavb', 'ia', 'menu', 'menusecreto',
-        's', 'sticker', 'tiktok', 'instagram', 'traduce', 'skin', 'stats', 'contacto',
+        's', 'sticker', 'recup1vez', 'tiktok', 'instagram', 'traduce', 'skin', 'stats', 'contacto',
         'warn', 'advertir', 'verwarns', 'limpiarwarns', 'ban', 'unban', 'listanegra', 'banlist', 'unbanlist', 
         'cartera', 'bal', 'banco', 'pay', 'pagar', 'top', 'topdinero', 'daily', 'weekly',
         'farmear', 'work', 'crime', 'mendigar', 'pescar', 'minar', 'cazar', 'explorar',
@@ -619,6 +619,9 @@ Apoya a un creador: JASC13` });
             case 's':
             case 'sticker':
                 await comandoSticker(sock, msg);
+                break;
+            case 'recup1vez':
+                await comandoRecup1Vez(sock, chatJid, msg);
                 break;
             case 'tiktok':
                 await comandoTiktok(sock, chatJid, msg, argsOriginales);
