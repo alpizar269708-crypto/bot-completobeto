@@ -357,7 +357,7 @@ async function comandoRecup1Vez(sock, chatId, msg) {
         await sock.sendMessage(chatId, {
             image: buffer,
             mimetype,
-            caption: '♻️ Foto recuperada\\n\\nApoya a un creador: *JASC13*'
+            caption: '♻️ Foto recuperada\n\nApoya a un creador: *JASC13*'
         }, { quoted: msg });
 
         console.log('✅ recup1vez: foto recuperada correctamente. Capas:', encontrada.ruta.join(' > '));
