@@ -251,7 +251,6 @@ async function comandoSticker(sock, msg) {
         }
 
         await sock.sendMessage(chatJid, { sticker: stickerBuffer }, { quoted: msg });
-        await sock.sendMessage(chatJid, { text: STICKER_SUPPORT_TEXT }, { quoted: msg });
     } catch (e) {
         console.error('Error al crear el sticker:', e);
         await sock.sendMessage(chatJid, { text: '❌ Error al crear el sticker. Asegúrate de que el formato sea soportado.' }, { quoted: msg });
