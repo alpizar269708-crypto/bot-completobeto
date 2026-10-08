@@ -1181,7 +1181,7 @@ async function descargarInstagramConNavegador(url) {
                 if (
                     type.includes('video/mp4') ||
                     type.includes('video/quicktime') ||
-                    /\.(mp4|m4v|mov)(?:$|[?#])//i.test(responseUrl)
+                    /\.(mp4|m4v|mov)(?:$|[?#])/i.test(responseUrl)
                 ) {
                     videoResponse = response;
                 }
@@ -1229,7 +1229,7 @@ async function descargarInstagramConNavegador(url) {
                 if (match?.[1]) agregar(match[1]);
             }
 
-            return candidatos.find(u => /\.(mp4|m4v|mov)(?:$|[?#])//i.test(u) || /fbcdn|cdninstagram/i.test(u)) || candidatos[0] || null;
+            return candidatos.find(u => /\.(mp4|m4v|mov)(?:$|[?#])/i.test(u) || /fbcdn|cdninstagram/i.test(u)) || candidatos[0] || null;
         });
 
         if (!videoUrl) {
