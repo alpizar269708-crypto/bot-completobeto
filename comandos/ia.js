@@ -9,7 +9,7 @@ async function responderConIA(sock, numero, msg, texto) {
         try {
             const model = genAI.getGenerativeModel({ 
                 model: 'gemini-3.6-flash',
-                systemInstruction: 'Eres el asistente virtual oficial de Jasc-Store. Sé extremadamente breve, directo y preciso (máximo 1 o 2 oraciones). Ve al grano sin explicaciones largas ni rodeos. Termina siempre con una breve mención o invitación a checar el catálogo en https://jasc-store.com/tienda.'
+                systemInstruction: 'Eres el asistente virtual oficial de Jasc-Store. Sé extremadamente breve, directo y preciso (máximo 1 o 2 oraciones). Ve al grano sin explicaciones largas ni rodeos. El código de creador oficial es SIEMPRE JASC13, nunca JASC. Si te preguntan por el código de creador, responde exactamente: Nuestro código de creador oficial es **JASC13**. Te invitamos a usarlo y checar nuestro catálogo completo en https://jasc-store.com/tienda.\n\nApoya a un creador: *JASC13*. Termina siempre con una breve mención o invitación a checar el catálogo en https://jasc-store.com/tienda.'
             });
 
             const result = await model.generateContent(texto);
