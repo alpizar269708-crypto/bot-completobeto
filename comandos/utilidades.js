@@ -258,6 +258,59 @@ async function comandoSticker(sock, msg) {
     }
 }
 
+// ♻️ Recuperar foto de una sola visualización como foto normal
+async function comandoRecup1Vez(sock, chatId, msg) {
+    try {
+        const contexto = msg.message?.extendedTextMessage?.contextInfo;
+        const citado = contexto?.quotedMessage;
+        if (!citado) {
+            return await sock.sendMessage(chatId, {
+                text: '⚠️ Responde a una foto de *ver una vez* con el comando *recup1vez*.'
+            }, { quoted: msg });
+        }
+
+        // WhatsApp puede envolver el contenido de ver-una-vez en varias capas.
+        const extraerImagen = (mensaje) => {
+            if (!mensaje || typeof mensaje !== 'object') return null;
+            if (mensaje.imageMessage) return mensaje.imageMessage;
+            for (const clave of ['viewOnceMessage', 'viewOnceMessageV2', 'viewOnceMessageV2Extension', 'ephemeralMessage']) {
+                if (mensaje[clave]?.message) {
+                    const encontrada = extraerImagen(mensaje[clave].message);
+                    if (encontrada) return encontrada;
+                }
+            }
+            return null;
+        };
+
+        const imagen = extraerImagen(citado);
+        if (!imagen) {
+            return await sock.sendMessage(chatId, {
+                text: '❌ El mensaje al que respondiste no contiene una foto de ver una vez.'
+            }, { quoted: msg });
+        }
+
+        const buffer = await downloadMediaMessage(
+            { message: citado },
+            'buffer',
+            {},
+            { reuploadRequest: sock.updateMediaMessage }
+        );
+
+        if (!buffer?.length) throw new Error('No se pudo descargar la foto de ver una vez.');
+
+        await sock.sendMessage(chatId, {
+            image: buffer,
+            mimetype: imagen.mimetype || 'image/jpeg',
+            caption: '♻️ Foto recuperada\n\nApoya a un creador: *JASC13*'
+        }, { quoted: msg });
+    } catch (e) {
+        console.error('Error al recuperar foto de una vez:', e?.stack || e);
+        await sock.sendMessage(chatId, {
+            text: '❌ No pude recuperar esa foto de ver una vez. Asegúrate de responder directamente al mensaje.'
+        }, { quoted: msg });
+    }
+}
+
 // 🎬 2. TikTok (Descarga sin marca de agua)
 function extraerUrlTikTok(texto) {
     const fuente = String(texto || '').trim();
