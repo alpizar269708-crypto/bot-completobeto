@@ -22,15 +22,18 @@ async function obtenerMencionRifa(sock, chatId, participante) {
 const rifasActivas = new Map();
 const rifasAbiertas = new Set();
 
-async function obtenerPropietarioRifas() {
-    const config = await Config.findOne({ clave: 'rifa_propietario' });
+async function obtenerPropietarioRifaGrupo(chatId) {
+    if (!chatId || !chatId.endsWith('@g.us')) return null;
+    const config = await Config.findOne({ clave: `rifa_propietario_${chatId}` });
     return config?.valor || null;
 }
 
 async function comandoAbrirRifa(sock, chatId, msg) {
+    if (!chatId.endsWith('@g.us')) return;
+
     const sender = msg.key.participant || msg.key.remoteJid;
 
-    if (chatId.endsWith('@g.us')) {
+    {
         try {
             const groupMetadata = await sock.groupMetadata(chatId);
             const participant = groupMetadata.participants.find(p => p.id === sender);
@@ -64,23 +67,6 @@ async function comandoAbrirRifa(sock, chatId, msg) {
             return;
         }
     }
-
-    let propietario = await obtenerPropietarioRifas();
-
-    if (!propietario) {
-        await Config.findOneAndUpdate(
-            { clave: 'rifa_propietario' },
-            { valor: sender },
-            { upsert: true }
-        );
-        propietario = sender;
-    }
-
-    if (sender !== propietario && !(await esPrivilegiadoTotalAsync(sock, sender))) return;
-
-    await sock.sendMessage(chatId, {
-        text: '🔓 *Rifa habilitada.*\n\nAhora usa *activarrifaaqui* dentro del grupo donde quieras abrir la inscripción.'
-    }, { quoted: msg });
 }
 async function comandoCerrarRifa(sock, chatId, msg) {
     const sender = msg.key.participant || msg.key.remoteJid;
@@ -102,8 +88,7 @@ async function comandoCerrarRifa(sock, chatId, msg) {
             return;
         }
     } else {
-        const propietario = await obtenerPropietarioRifas();
-        if (!propietario || (sender !== propietario && !(await esPrivilegiadoTotalAsync(sock, sender)))) return;
+        return;
     }
 
     rifasAbiertas.delete(chatId);
@@ -122,9 +107,26 @@ async function comandoActivarRifaAqui(sock, chatId, msg) {
     if (!chatId.endsWith('@g.us')) return;
 
     const sender = msg.key.participant || msg.key.remoteJid;
-    const propietario = await obtenerPropietarioRifas();
 
-    if (!propietario || (sender !== propietario && !(await esPrivilegiadoTotalAsync(sock, sender)))) return;
+    try {
+        const groupMetadata = await sock.groupMetadata(chatId);
+        const participant = groupMetadata.participants.find(p =>
+            p.id === sender || p.lid === sender || p.jid === sender
+        );
+        const isAdmin = participant?.admin === 'admin' || participant?.admin === 'superadmin';
+        const tienePrivilegiosTotales = await esPrivilegiadoTotalAsync(sock, sender);
+
+        if (!isAdmin && !tienePrivilegiosTotales) return;
+    } catch (e) {
+        console.error("Error al verificar admin al activar rifa:", e);
+        return;
+    }
+
+    await Config.findOneAndUpdate(
+        { clave: `rifa_propietario_${chatId}` },
+        { valor: sender },
+        { upsert: true }
+    );
 
     rifasAbiertas.add(chatId);
     await Config.findOneAndUpdate(
@@ -431,7 +433,9 @@ async function comandoRifa(sock, chatId, msg, args) {
                 return;
             }
         } else {
-            const propietario = await obtenerPropietarioRifas();
+            if (!chatId.endsWith('@g.us')) return;
+
+            const propietario = await obtenerPropietarioRifaGrupo(chatId);
             if (!propietario || (sender !== propietario && !(await esPrivilegiadoTotalAsync(sock, sender)))) {
                 return await sock.sendMessage(chatId, { text: `❌ Permiso denegado. Solo la persona que abrió la rifa puede realizar el sorteo.` }, { quoted: msg });
             }
