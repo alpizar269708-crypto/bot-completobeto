@@ -90,9 +90,9 @@ function deduplicarPlAltasVbucks(lista) {
 }
 
 async function obtenerAlertasSTW(actualizarEnVivo = false) {
-    // Los comandos de consulta pueden pedir datos frescos de STW Planner.
-    // El raspado periódico y las alertas automáticas pueden usar los datos
-    // guardados para no generar peticiones innecesarias.
+    // Solo el comando pavos y los tres horarios automáticos deben hacer raspado.
+    // El resto de comandos de consulta usa los datos guardados para evitar
+    // solicitudes adicionales a STW Planner.
     if (actualizarEnVivo) {
         try {
             const { extraerAlertasAPI } = require('../webBridge');
@@ -193,7 +193,7 @@ function formatearAlertaSTW(item, encabezado = '') {
 }
 
 async function alertasSTW(sock, chatId, msg, categoria = 'todas') {
-    const datos = await obtenerAlertasSTW(true);
+    const datos = await obtenerAlertasSTW(categoria === 'pavos');
     const fechaHoy = obtenerFechaActual();
     const lineasPavos = [`📅 _${fechaHoy}_`, '', '🎮 *ALERTAS DE PAVOS*', ''];
 
@@ -252,7 +252,7 @@ async function comandoDestacadasSTW(sock, chatId, msg) {
     let texto = `📅 _${fechaHoy}_\n\n🔥 *ALERTAS DESTACADAS — RECOMPENSAS BUENAS*\n\n`;
 
     try {
-        const datos = await obtenerAlertasSTW(true);
+        const datos = await obtenerAlertasSTW(false);
         const listaPlAltas = datos.plAltas || [];
 
         if (listaPlAltas.length === 0) {
@@ -271,7 +271,7 @@ async function comandoDestacadasSTW(sock, chatId, msg) {
 }
 
 async function comandoPreguntarAlerta(sock, chatId, msg, palabrasClave = []) {
-    const datos = await obtenerAlertasSTW(true);
+    const datos = await obtenerAlertasSTW(false);
     const termino = Array.isArray(palabrasClave)
         ? palabrasClave.join(' ').trim()
         : String(palabrasClave || '').trim();
@@ -364,8 +364,7 @@ async function enviarAlertaPavosAutomatica(sock, enviarAunqueNoHayaPavos = false
         grupos = [...new Set(grupos.filter(id => typeof id === 'string' && id.endsWith('@g.us')))];
         if (grupos.length === 0) return false;
 
-        // Solo el intento inicial de las 18:02 hace el raspado diario.
-        // Los reintentos usan los datos ya guardados para no volver a consultar STW Planner.
+        // En los horarios automáticos definidos se actualiza STW Planner antes de leer los datos.
         if (actualizarEnVivo) {
             try {
                 const { extraerAlertasAPI } = require('../webBridge');
@@ -377,8 +376,8 @@ async function enviarAlertaPavosAutomatica(sock, enviarAunqueNoHayaPavos = false
 
         const datos = await obtenerAlertasSTW(false);
 
-        // La primera alerta de las 6:02 PM siempre se envía, haya o no PaVos.
-        // En los reintentos solo se envía cuando aparecen PaVos.
+        // La alerta de las 6:01:30 PM siempre se envía, haya o no PaVos.
+        // A las 6:02 PM y 6:04 PM solo se envía si el raspado encuentra PaVos.
         if (datos.pavos.length === 0) {
             if (enviarAunqueNoHayaPavos) {
                 const mensajeSinPavos = `🎮 *ALERTAS DE PAVOS — ${horaAlerta}*\n\n_No hay alertas de pavos registradas._\n\nSupport-a-Creator: *JASC13* ❤️`;
