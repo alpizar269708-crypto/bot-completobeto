@@ -756,7 +756,6 @@ async function ejecutarYtDlpDescarga(url, cookieFile = null) {
             noWarnings: true,
             noPlaylist: true,
             noCheckCertificates: true,
-            impersonate: 'chrome',
             jsRuntimes: 'node',
             remoteComponents: 'ejs:github',
             userAgent: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
@@ -1161,7 +1160,7 @@ async function descargarInstagramConNavegador(url) {
         browser = await puppeteer.launch(opcionesPuppeteer());
         const page = await browser.newPage();
 
-        await page.setUserAgent('Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/131.0.0.0 Safari/537.36');
+        await page.setUserAgent('Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36');
         await page.setViewport({ width: 1365, height: 900 });
         await page.setExtraHTTPHeaders({
             'Accept-Language': 'es-MX,es;q=0.9,en;q=0.8',
@@ -1181,7 +1180,8 @@ async function descargarInstagramConNavegador(url) {
                 if (
                     type.includes('video/mp4') ||
                     type.includes('video/quicktime') ||
-                    /\.(mp4|m4v|mov)(?:$|[?#])/i.test(responseUrl)
+                    /(?:cdninstagram|fbcdn).*\.(?:mp4|m4v|mov)/i.test(responseUrl) ||
+                    /\.(?:mp4|m4v|mov)(?:$|[?#])/i.test(responseUrl)
                 ) {
                     videoResponse = response;
                 }
@@ -1193,7 +1193,7 @@ async function descargarInstagramConNavegador(url) {
             timeout: 45000
         }).catch(() => {});
 
-        await new Promise(resolve => setTimeout(resolve, 5000));
+        await new Promise(resolve => setTimeout(resolve, 7000));
 
         if (videoResponse) {
             try {
@@ -1202,44 +1202,95 @@ async function descargarInstagramConNavegador(url) {
             } catch (_) {}
         }
 
-        const videoUrl = await page.evaluate(() => {
+        const datos = await page.evaluate(() => {
             const candidatos = [];
-
             const agregar = valor => {
-                if (typeof valor === 'string' && /^https?:\/\//i.test(valor)) {
-                    candidatos.push(valor.replace(/\\u0026/g, '&').replace(/\\\//g, '/'));
-                }
+                if (typeof valor !== 'string') return;
+
+                let u = valor
+                    .replace(/\\u0026/g, '&')
+                    .replace(/\\u003D/g, '=')
+                    .replace(/\\u002F/gi, '/')
+                    .replace(/\\\//g, '/')
+                    .replace(/&amp;/g, '&')
+                    .trim();
+
+                // Algunas respuestas vienen entre comillas o con caracteres escapados.
+                u = u.replace(/^["']|["']$/g, '');
+
+                if (/^https?:\/\//i.test(u)) candidatos.push(u);
             };
 
-            document.querySelectorAll('meta[property="og:video"], meta[property="og:video:secure_url"]')
+            document.querySelectorAll('meta[property="og:video"], meta[property="og:video:secure_url"], meta[name="twitter:player:stream"]')
                 .forEach(el => agregar(el.getAttribute('content')));
 
             document.querySelectorAll('video[src], video source[src]')
                 .forEach(el => agregar(el.getAttribute('src')));
 
+            const scripts = Array.from(document.scripts || []).map(s => s.textContent || '').join('\n');
             const html = document.documentElement?.outerHTML || '';
+
+            // Busca URLs de CDN aunque Instagram haya cambiado la estructura JSON.
+            const todo = html + '\n' + scripts;
+            const urls = todo.match(/https?:\\?\\?\/?\\?\\?[^"'<>\\s]+/g) || [];
+
+            for (const raw of urls) {
+                const limpia = raw
+                    .replace(/\\\//g, '/')
+                    .replace(/\\u0026/g, '&')
+                    .replace(/\\u003D/g, '=')
+                    .replace(/&amp;/g, '&');
+
+                if (/cdninstagram|fbcdn/i.test(limpia) && /(?:mp4|m4v|mov|video)/i.test(limpia)) {
+                    agregar(limpia);
+                }
+            }
+
             const patrones = [
-                /"video_url":"(https?:\/\/[^"]+)/i,
-                /"video_versions":\[\{[^}]*?"url":"(https?:\/\/[^"]+)/i,
-                /"playback_url":"(https?:\/\/[^"]+)/i
+                /"video_url"\s*:\s*"([^"]+)/ig,
+                /"playback_url"\s*:\s*"([^"]+)/ig,
+                /"url"\s*:\s*"(https?:\\/\\/[^"]*(?:cdninstagram|fbcdn)[^"]*)"/ig,
+                /"src"\s*:\s*"(https?:\\/\\/[^"]*(?:cdninstagram|fbcdn)[^"]*)"/ig
             ];
 
             for (const patron of patrones) {
-                const match = html.match(patron);
-                if (match?.[1]) agregar(match[1]);
+                let match;
+                while ((match = patron.exec(todo)) !== null) {
+                    agregar(match[1]);
+                }
             }
 
-            return candidatos.find(u => /\.(mp4|m4v|mov)(?:$|[?#])/i.test(u) || /fbcdn|cdninstagram/i.test(u)) || candidatos[0] || null;
+            const ordenados = [...new Set(candidatos)];
+
+            return {
+                titulo: document.title || '',
+                urlActual: location.href,
+                cantidad: ordenados.length,
+                candidatos: ordenados.slice(0, 20)
+            };
         });
 
+        console.log('📸 INSTAGRAM Chromium:', JSON.stringify(datos));
+
+        const videoUrl = datos.candidatos.find(u =>
+            /(?:cdninstagram|fbcdn)/i.test(u) &&
+            /(?:mp4|m4v|mov|video)/i.test(u)
+        ) || datos.candidatos.find(u => /\.(?:mp4|m4v|mov)(?:$|[?#])/i.test(u));
+
         if (!videoUrl) {
-            throw new Error('Instagram no expuso una URL directa de video en Chromium');
+            throw new Error(
+                'Instagram no expuso video en Chromium. Título: ' +
+                String(datos.titulo || 'sin título').slice(0, 180) +
+                ' | URL actual: ' +
+                String(datos.urlActual || '').slice(0, 250) +
+                ' | URLs candidatas: ' +
+                datos.cantidad
+            );
         }
 
-        console.log('📸 INSTAGRAM: MP4 encontrado por navegador');
+        console.log('📸 INSTAGRAM: URL de video encontrada por navegador:', videoUrl.slice(0, 300));
 
-        // Instagram sirve algunos MP4 con URLs firmadas que solo funcionan
-        // dentro del mismo contexto/cookies del navegador.
+        // Intento 1: obtener la respuesta dentro del mismo contexto.
         let recurso = null;
         const handler = response => {
             try {
@@ -1259,7 +1310,7 @@ async function descargarInstagramConNavegador(url) {
             if (buffer?.length > 10000) return buffer;
         }
 
-        // Último intento: descargar el recurso desde Chromium con sus cookies.
+        // Intento 2: fetch con las cookies/sesión del navegador.
         try {
             const base64 = await page.evaluate(async recursoUrl => {
                 const respuesta = await fetch(recursoUrl, {
@@ -1283,13 +1334,14 @@ async function descargarInstagramConNavegador(url) {
             console.warn('⚠️ Instagram Chromium fetch falló:', error.message);
         }
 
-        throw new Error('Chromium encontró el video pero no pudo descargar el MP4');
+        throw new Error('Chromium encontró una URL de video pero no pudo descargar el MP4');
     } catch (e) {
-        throw new Error(String(e?.message || e).replace(/\\s+/g, ' ').slice(0, 700));
+        throw new Error(String(e?.message || e).replace(/\\s+/g, ' ').slice(0, 900));
     } finally {
         if (browser) await browser.close().catch(() => {});
     }
 }
+
 
 async function comandoInstagram(sock, chatId, msg, args) {
     const textoArgumentos = Array.isArray(args) ? args.join(' ') : String(args || '');
