@@ -1462,6 +1462,7 @@ async function comandoContacto(sock, chatId, msg) {
 
 module.exports = {
     comandoSticker,
+    comandoRecup1Vez,
     comandoTiktok,
     comandoInstagram,
     comandoTraduce,
