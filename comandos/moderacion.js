@@ -6,6 +6,8 @@ const mutesActivos = new Map();
 // Memoria temporal para el anti-spam (Key: chatId_remitente -> Array de timestamps)
 const spamRegistro = new Map();
 const cacheListaBlanca = { valor: null, expira: 0 };
+// Respaldo en memoria para que la preferencia se aplique inmediatamente en el grupo actual.
+const bienvenidasDesactivadas = new Set();
 
 async function esAdmin(sock, chatId, userId) {
     if (await esPrivilegiadoTotalAsync(sock, userId)) return true;
@@ -77,8 +79,16 @@ async function verificarNuevoMiembro(sock, update) {
         if (metadata?.isCommunityAnnounce === true) return;
     } catch (error) {}
 
-    const bienvenidaDesactivada = await Config.findOne({ clave: `bienvenida_desactivada_${chatId}` });
-    const bienvenidaPersonalizada = await Config.findOne({ clave: `bienvenida_personalizada_${chatId}` });
+    let bienvenidaDesactivada = null;
+    try {
+        bienvenidaDesactivada = await Config.findOne({ clave: `bienvenida_desactivada_${chatId}` }).lean();
+        if (bienvenidaDesactivada?.valor === 'true') bienvenidasDesactivadas.add(chatId);
+        else bienvenidasDesactivadas.delete(chatId);
+    } catch (error) {
+        console.error('Error consultando configuración de bienvenida:', error.message);
+    }
+    const bienvenidaPersonalizada = await Config.findOne({ clave: `bienvenida_personalizada_${chatId}` }).lean().catch(() => null);
+    const bienvenidaApagada = bienvenidasDesactivadas.has(chatId) || bienvenidaDesactivada?.valor === 'true';
 
     for (const participante of nuevosParticipantes) {
         const jid = typeof participante === 'string' ? participante : (participante.id || participante.phoneNumber);
@@ -95,7 +105,7 @@ async function verificarNuevoMiembro(sock, update) {
             } catch (error) {
                 console.log('No se pudo expulsar al usuario renegado.');
             }
-        } else if (!bienvenidaDesactivada || bienvenidaDesactivada.valor !== 'true') {
+        } else if (!bienvenidaApagada) {
             try {
                 const textoBienvenida = bienvenidaPersonalizada?.valor
                     ? bienvenidaPersonalizada.valor.replace(/\\{usuario\\}/gi, `@${jid.split('@')[0]}`)
@@ -123,19 +133,26 @@ async function comandoDesactivarBienvenida(sock, chatId, msg) {
         return;
     }
 
+    // Aplicar de inmediato y guardar la preferencia para que sobreviva reinicios.
+    bienvenidasDesactivadas.add(chatId);
     await Config.findOneAndUpdate(
         { clave: `bienvenida_desactivada_${chatId}` },
-        { valor: 'true' },
-        { upsert: true }
+        { $set: { valor: 'true' } },
+        { upsert: true, setDefaultsOnInsert: true }
     );
+    const verificacion = await Config.findOne({ clave: `bienvenida_desactivada_${chatId}` }).lean();
+    if (verificacion?.valor !== 'true') {
+        console.error(`No se pudo verificar la desactivación de bienvenida para ${chatId}`);
+    }
 
-    await sock.sendMessage(chatId, { text: '🔕 Bienvenida desactivada en este grupo.\n\nPara volver a activarla, usa *activarbienvenida*.' }, { quoted: msg });
+    await sock.sendMessage(chatId, { text: '🔕 Bienvenida desactivada en este grupo. No se enviarán mensajes automáticos a nuevos integrantes.\n\nPara volver a activarla, usa *activarbienvenida*.' }, { quoted: msg });
 }
 
 async function comandoActivarBienvenida(sock, chatId, msg) {
     if (!chatId.endsWith('@g.us')) return;
     if (!(await esAdmin(sock, chatId, msg.key.participant))) return;
 
+    bienvenidasDesactivadas.delete(chatId);
     await Config.deleteOne({ clave: `bienvenida_desactivada_${chatId}` });
     await sock.sendMessage(chatId, { text: '🔔 Bienvenida activada. Se usará el mensaje personalizado si existe; de lo contrario, el mensaje por defecto.' }, { quoted: msg });
 }
