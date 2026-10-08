@@ -604,7 +604,9 @@ async function cargarEstadoRifaJasc13() {
                 for (const item of lista) {
                     if (!item?.id) continue;
                     const puntos = Number(item.puntos);
-                    if (Number.isFinite(puntos)) participantes.set(item.id, { puntos });
+                    // En JASC13 solo existen como participantes activos quienes tienen puntos > 0.
+                    // Los registros con 0 se ignoran al cargar para que nunca vuelvan a aparecer en la lista.
+                    if (Number.isFinite(puntos) && puntos > 0) participantes.set(item.id, { puntos });
                 }
             }
         } catch (e) {
@@ -631,10 +633,13 @@ async function cargarEstadoRifaJasc13() {
 }
 
 async function guardarParticipantesJasc13(participantes) {
-    const lista = Array.from(participantes.entries()).map(([id, data]) => ({
-        id,
-        puntos: Number(data.puntos) || 0
-    }));
+    // Nunca persistir participantes sin puntos: quedan fuera de la rifa activa.
+    const lista = Array.from(participantes.entries())
+        .map(([id, data]) => ({
+            id,
+            puntos: Number(data.puntos)
+        }))
+        .filter(item => Number.isFinite(item.puntos) && item.puntos > 0);
 
     await Config.findOneAndUpdate(
         { clave: CLAVE_PARTICIPANTES_JASC13 },
@@ -994,7 +999,13 @@ async function comandoRifaJasc13(sock, chatId, msg, args) {
         }
 
         datosUsuario.puntos = puntosAnteriores - puntosRestar;
-        participantes.set(targetId, datosUsuario);
+
+        // Si llega a 0, deja de ser participante y desaparece de la lista activa.
+        if (datosUsuario.puntos > 0) {
+            participantes.set(targetId, datosUsuario);
+        } else {
+            participantes.delete(targetId);
+        }
 
         await guardarParticipantesJasc13(participantes);
 
@@ -1224,10 +1235,9 @@ async function comandoRifaJasc13(sock, chatId, msg, args) {
             }
         }
 
-        // El sorteo elimina puntos no canjeados y todos los boletos, pero conserva el cashback.
-        for (const data of participantes.values()) {
-            data.puntos = 0;
-        }
+        // El sorteo reinicia la rifa: todos los participantes quedan fuera por tener 0 puntos.
+        // El cashback es independiente y se conserva completo.
+        participantes.clear();
 
         await guardarParticipantesJasc13(participantes);
         await guardarCashbackJasc13(cashback);
