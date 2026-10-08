@@ -1,5 +1,5 @@
 const { User, Config } = require('../database/modelos');
-const { esPrivilegiadoTotal, esPrivilegiadoTotalAsync } = require('../utils/whatsapp');
+const { esPrivilegiadoTotal, esPrivilegiadoTotalAsync, resolverLidAPn } = require('../utils/whatsapp');
 
 // Memoria temporal para los mutes activos
 const mutesActivos = new Map();
@@ -13,10 +13,20 @@ async function esAdmin(sock, chatId, userId) {
     if (await esPrivilegiadoTotalAsync(sock, userId)) return true;
 
     try {
+        // En Baileys reciente, el remitente puede llegar como @lid mientras
+        // que groupMetadata() identifica al participante con su JID telefónico.
+        const remitenteResuelto = await resolverLidAPn(sock, userId);
+        const candidatos = new Set([userId, remitenteResuelto].filter(Boolean).map(String));
         const groupMetadata = await sock.groupMetadata(chatId);
-        const participante = groupMetadata.participants.find(p => p.id === userId);
-        return participante && (participante.admin === 'admin' || participante.admin === 'superadmin');
+        const participante = groupMetadata.participants.find(p =>
+            candidatos.has(String(p.id)) ||
+            candidatos.has(String(p.jid)) ||
+            candidatos.has(String(p.lid)) ||
+            (p.phoneNumber && candidatos.has(String(p.phoneNumber)))
+        );
+        return !!participante && (participante.admin === 'admin' || participante.admin === 'superadmin');
     } catch (error) {
+        console.error('Error verificando administrador para bienvenida:', error.message);
         return false;
     }
 }
