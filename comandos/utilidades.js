@@ -1155,6 +1155,142 @@ async function descargarInstagramConYtDlp(url) {
     }
 }
 
+async function descargarInstagramConNavegador(url) {
+    let browser;
+    try {
+        browser = await puppeteer.launch(opcionesPuppeteer());
+        const page = await browser.newPage();
+
+        await page.setUserAgent('Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/131.0.0.0 Safari/537.36');
+        await page.setViewport({ width: 1365, height: 900 });
+        await page.setExtraHTTPHeaders({
+            'Accept-Language': 'es-MX,es;q=0.9,en;q=0.8',
+            'Upgrade-Insecure-Requests': '1'
+        });
+
+        let videoResponse = null;
+
+        page.on('response', response => {
+            try {
+                if (videoResponse || !response.ok()) return;
+
+                const headers = response.headers();
+                const type = String(headers['content-type'] || '').toLowerCase();
+                const responseUrl = response.url();
+
+                if (
+                    type.includes('video/mp4') ||
+                    type.includes('video/quicktime') ||
+                    /\\.(mp4|m4v|mov)(?:$|[?#])/i.test(responseUrl)
+                ) {
+                    videoResponse = response;
+                }
+            } catch (_) {}
+        });
+
+        await page.goto(url, {
+            waitUntil: 'domcontentloaded',
+            timeout: 45000
+        }).catch(() => {});
+
+        await new Promise(resolve => setTimeout(resolve, 5000));
+
+        if (videoResponse) {
+            try {
+                const buffer = await videoResponse.buffer();
+                if (buffer?.length > 10000) return buffer;
+            } catch (_) {}
+        }
+
+        const videoUrl = await page.evaluate(() => {
+            const candidatos = [];
+
+            const agregar = valor => {
+                if (typeof valor === 'string' && /^https?:\\/\\//i.test(valor)) {
+                    candidatos.push(valor.replace(/\\u0026/g, '&').replace(/\\\\\\//g, '/'));
+                }
+            };
+
+            document.querySelectorAll('meta[property="og:video"], meta[property="og:video:secure_url"]')
+                .forEach(el => agregar(el.getAttribute('content')));
+
+            document.querySelectorAll('video[src], video source[src]')
+                .forEach(el => agregar(el.getAttribute('src')));
+
+            const html = document.documentElement?.outerHTML || '';
+            const patrones = [
+                /"video_url":"(https?:\\/\\/[^"]+)/i,
+                /"video_versions":\\[\\{[^}]*?"url":"(https?:\\/\\/[^"]+)/i,
+                /"playback_url":"(https?:\\/\\/[^"]+)/i
+            ];
+
+            for (const patron of patrones) {
+                const match = html.match(patron);
+                if (match?.[1]) agregar(match[1]);
+            }
+
+            return candidatos.find(u => /\\.(mp4|m4v|mov)(?:$|[?#])/i.test(u) || /fbcdn|cdninstagram/i.test(u)) || candidatos[0] || null;
+        });
+
+        if (!videoUrl) {
+            throw new Error('Instagram no expuso una URL directa de video en Chromium');
+        }
+
+        console.log('📸 INSTAGRAM: MP4 encontrado por navegador');
+
+        // Instagram sirve algunos MP4 con URLs firmadas que solo funcionan
+        // dentro del mismo contexto/cookies del navegador.
+        let recurso = null;
+        const handler = response => {
+            try {
+                if (recurso || !response.ok()) return;
+                if (response.url() === videoUrl) recurso = response;
+            } catch (_) {}
+        };
+        page.on('response', handler);
+
+        await page.goto(videoUrl, {
+            waitUntil: 'domcontentloaded',
+            timeout: 90000
+        }).catch(() => {});
+
+        if (recurso) {
+            const buffer = await recurso.buffer().catch(() => null);
+            if (buffer?.length > 10000) return buffer;
+        }
+
+        // Último intento: descargar el recurso desde Chromium con sus cookies.
+        try {
+            const base64 = await page.evaluate(async recursoUrl => {
+                const respuesta = await fetch(recursoUrl, {
+                    credentials: 'include',
+                    redirect: 'follow'
+                });
+
+                if (!respuesta.ok) throw new Error('HTTP ' + respuesta.status);
+
+                const bytes = new Uint8Array(await respuesta.arrayBuffer());
+                let binario = '';
+                for (let i = 0; i < bytes.length; i += 0x8000) {
+                    binario += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+                }
+                return btoa(binario);
+            }, videoUrl);
+
+            const buffer = Buffer.from(base64, 'base64');
+            if (buffer.length > 10000) return buffer;
+        } catch (error) {
+            console.warn('⚠️ Instagram Chromium fetch falló:', error.message);
+        }
+
+        throw new Error('Chromium encontró el video pero no pudo descargar el MP4');
+    } catch (e) {
+        throw new Error(String(e?.message || e).replace(/\\s+/g, ' ').slice(0, 700));
+    } finally {
+        if (browser) await browser.close().catch(() => {});
+    }
+}
+
 async function comandoInstagram(sock, chatId, msg, args) {
     const textoArgumentos = Array.isArray(args) ? args.join(' ') : String(args || '');
     const urlOriginal = extraerUrlInstagram(textoArgumentos);
@@ -1192,6 +1328,26 @@ async function comandoInstagram(sock, chatId, msg, args) {
             } catch (error) {
                 ultimoError = error;
                 console.warn('⚠️ Instagram con enlace original falló:', error.message);
+            }
+        }
+
+        if (!videoBuffer?.length) {
+            try {
+                console.log('📸 INSTAGRAM: activando respaldo Chromium...');
+                videoBuffer = await descargarInstagramConNavegador(url);
+            } catch (error) {
+                ultimoError = error;
+                console.warn('⚠️ Instagram Chromium falló:', error.message);
+            }
+        }
+
+        if (!videoBuffer?.length && url !== urlOriginal) {
+            try {
+                console.log('📸 INSTAGRAM: respaldo Chromium con enlace original...');
+                videoBuffer = await descargarInstagramConNavegador(urlOriginal);
+            } catch (error) {
+                ultimoError = error;
+                console.warn('⚠️ Instagram Chromium con enlace original falló:', error.message);
             }
         }
 
