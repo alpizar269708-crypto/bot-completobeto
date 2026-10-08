@@ -191,8 +191,14 @@ async function comandoPersonalizarBienvenida(sock, chatId, msg, texto) {
 }
 
 async function comandoRestaurarBienvenida(sock, chatId, msg) {
-    if (!chatId.endsWith('@g.us')) return;
-    if (!(await esAdmin(sock, chatId, msg.key.participant))) return;
+    if (!chatId.endsWith('@g.us')) {
+        await sock.sendMessage(chatId, { text: '❌ Este comando solo se usa en grupos.' }, { quoted: msg });
+        return;
+    }
+    if (!msg.key.fromMe && !(await esAdmin(sock, chatId, msg.key.participant || chatId))) {
+        await sock.sendMessage(chatId, { text: '❌ Solo los administradores del grupo pueden configurar la bienvenida.' }, { quoted: msg });
+        return;
+    }
 
     await Config.deleteOne({ clave: `bienvenida_personalizada_${chatId}` });
     bienvenidasDesactivadas.delete(chatId);
