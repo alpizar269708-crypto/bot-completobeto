@@ -347,7 +347,7 @@ async function comandoPreguntarAlerta(sock, chatId, msg, palabrasClave = []) {
     texto += 'Support-a-Creator: *JASC13* ❤️';
     await sock.sendMessage(chatId, { text: texto }, { quoted: msg });
 }
-async function enviarAlertaPavosAutomatica(sock, enviarAunqueNoHayaPavos = false, actualizarEnVivo = false) {
+async function enviarAlertaPavosAutomatica(sock, enviarAunqueNoHayaPavos = false, actualizarEnVivo = false, horaAlerta = '6:02 PM') {
     try {
         const configChat = await Config.findOne({ clave: 'chat_alertas_diarias' });
         if (!configChat || !configChat.valor) return false;
@@ -381,7 +381,7 @@ async function enviarAlertaPavosAutomatica(sock, enviarAunqueNoHayaPavos = false
         // En los reintentos solo se envía cuando aparecen PaVos.
         if (datos.pavos.length === 0) {
             if (enviarAunqueNoHayaPavos) {
-                const mensajeSinPavos = '🎮 *ALERTAS DE PAVOS — 6:02 PM*\n\n_No hay alertas de pavos registradas._\n\nSupport-a-Creator: *JASC13* ❤️';
+                const mensajeSinPavos = `🎮 *ALERTAS DE PAVOS — ${horaAlerta}*\n\n_No hay alertas de pavos registradas._\n\nSupport-a-Creator: *JASC13* ❤️`;
                 for (const grupo of grupos) {
                     try {
                         await sock.sendMessage(grupo, { text: mensajeSinPavos });
@@ -395,7 +395,7 @@ async function enviarAlertaPavosAutomatica(sock, enviarAunqueNoHayaPavos = false
         }
 
         const total = datos.pavos.reduce((acc, p) => acc + (p.cantidad || 50), 0);
-        let mensajeAuto = `🎮 *ALERTAS DE PAVOS — 6:02 PM*\n\n`;
+        let mensajeAuto = `🎮 *ALERTAS DE PAVOS — ${horaAlerta}*\n\n`;
 
         datos.pavos.forEach(p => {
             mensajeAuto += `⚡ *PL:* ${p.pl}\n🎯 *Misión:* ${p.mision}\n🪙 *PaVos:* ${p.cantidad || 50}\n\n`;
@@ -420,30 +420,30 @@ async function enviarAlertaPavosAutomatica(sock, enviarAunqueNoHayaPavos = false
 }
 
 function iniciarCronAlertasDiarias(sock) {
-    cron.schedule('0 2 18 * * *', async () => {
-        // Hora de México: 18:02, 18:03:30, 18:05:00, 18:06:30,
-        // 18:08:00, 18:09:30 y 18:11:00.
-        const intervaloReintentoMs = 90 * 1000;
-        const limiteMs = 9 * 60 * 1000;
-        const inicio = Date.now();
+    const zonaHoraria = "America/Mexico_City";
 
-        const enviado = await enviarAlertaPavosAutomatica(sock, true, true);
-        if (enviado) return;
+    // Solo se hace raspado automático en estos tres horarios:
+    // 18:01:30, 18:02:00 y 18:04:00, hora de Ciudad de México.
+    // No hay reintentos intermedios ni raspados periódicos adicionales.
+    const horarios = [
+        { cron: '30 1 18 * * *', etiqueta: '6:01:30 PM', enviarSinPavos: true },
+        { cron: '0 2 18 * * *', etiqueta: '6:02 PM', enviarSinPavos: false },
+        { cron: '0 4 18 * * *', etiqueta: '6:04 PM', enviarSinPavos: false }
+    ];
 
-        const reintentar = async () => {
-            const transcurrido = Date.now() - inicio;
-            if (transcurrido > limiteMs) return;
+    for (const horario of horarios) {
+        cron.schedule(horario.cron, async () => {
+            // Cada uno de los horarios programados actualiza STW Planner antes de leer los datos.
+            await enviarAlertaPavosAutomatica(
+                sock,
+                horario.enviarSinPavos,
+                true,
+                horario.etiqueta
+            );
+        }, { scheduled: true, timezone: zonaHoraria });
+    }
 
-            const seEnvio = await enviarAlertaPavosAutomatica(sock);
-            if (seEnvio) return;
-
-            if (Date.now() - inicio < limiteMs) {
-                setTimeout(reintentar, intervaloReintentoMs);
-            }
-        };
-
-        setTimeout(reintentar, intervaloReintentoMs);
-    }, { scheduled: true, timezone: "America/Mexico_City" });
+    console.log('🕒 Alertas de PaVos programadas para 18:01:30, 18:02 y 18:04 (hora de Ciudad de México); raspado solo en esos horarios y al usar el comando pavos.');
 }
 async function activarAlertasDiarias(sock, chatId, msg) {
     if (!(await esAdminValido(sock, chatId, msg))) return;
@@ -464,7 +464,7 @@ async function activarAlertasDiarias(sock, chatId, msg) {
 
     if (grupos.includes(chatId)) {
         await sock.sendMessage(chatId, {
-            text: 'ℹ️ *Este grupo ya se encuentra activado para las alertas de PaVos.*\n\n📅 Seguirán recibiendo la alerta automática todos los días a las *6:02 PM* (hora de Ciudad de México).'
+            text: 'ℹ️ *Este grupo ya se encuentra activado para las alertas de PaVos.*\n\n📅 Seguirán recibiendo la alerta automática todos los días a las *6:01:30 PM, 6:02 PM y 6:04 PM* (hora de Ciudad de México).'
         }, { quoted: msg });
         return;
     }
@@ -477,7 +477,7 @@ async function activarAlertasDiarias(sock, chatId, msg) {
     );
 
     await sock.sendMessage(chatId, {
-        text: `✅ *Alertas de PaVos activadas en este grupo.*\n\n📅 Recibirán la alerta automática todos los días a las *6:02 PM* (hora de Ciudad de México).\n🪙 El aviso contendrá *únicamente las alertas de PaVos*.`
+        text: `✅ *Alertas de PaVos activadas en este grupo.*\n\n📅 Recibirán la alerta automática todos los días a las *6:01:30 PM, 6:02 PM y 6:04 PM* (hora de Ciudad de México).\n🪙 El aviso contendrá *únicamente las alertas de PaVos*.`
     }, { quoted: msg });
 }
 
