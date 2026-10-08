@@ -43,7 +43,7 @@ function opcionesPuppeteer() {
         args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu']
     };
 }
-const { downloadMediaMessage } = require('@whiskeysockets/baileys');
+const { downloadMediaMessage, downloadContentFromMessage } = require('@whiskeysockets/baileys');
 const { Sticker, StickerTypes } = require('wa-sticker-formatter');
 
 const STICKER_PACK = 'JASC13';
@@ -260,54 +260,112 @@ async function comandoSticker(sock, msg) {
 
 // ♻️ Recuperar foto de una sola visualización como foto normal
 async function comandoRecup1Vez(sock, chatId, msg) {
+    const responder = async (text) => {
+        return await sock.sendMessage(chatId, { text }, { quoted: msg });
+    };
+
     try {
-        const contexto = msg.message?.extendedTextMessage?.contextInfo;
+        const contexto = msg.message?.extendedTextMessage?.contextInfo
+            || msg.message?.conversation?.contextInfo
+            || msg.message?.imageMessage?.contextInfo
+            || msg.message?.buttonsResponseMessage?.contextInfo
+            || msg.message?.listResponseMessage?.contextInfo;
+
         const citado = contexto?.quotedMessage;
         if (!citado) {
-            return await sock.sendMessage(chatId, {
-                text: '⚠️ Responde a una foto de *ver una vez* con el comando *recup1vez*.'
-            }, { quoted: msg });
+            return await responder('⚠️ Responde directamente a la foto de *ver una vez* y manda *recup1vez*.');
         }
 
-        // WhatsApp puede envolver el contenido de ver-una-vez en varias capas.
-        const extraerImagen = (mensaje) => {
+        // WhatsApp/Baileys puede entregar una foto de una vez con varias capas:
+        // viewOnceMessage, viewOnceMessageV2, viewOnceMessageV2Extension,
+        // ephemeralMessage y combinaciones entre ellas.
+        const extraerImagen = (mensaje, ruta = []) => {
             if (!mensaje || typeof mensaje !== 'object') return null;
-            if (mensaje.imageMessage) return mensaje.imageMessage;
-            for (const clave of ['viewOnceMessage', 'viewOnceMessageV2', 'viewOnceMessageV2Extension', 'ephemeralMessage']) {
-                if (mensaje[clave]?.message) {
-                    const encontrada = extraerImagen(mensaje[clave].message);
+
+            if (mensaje.imageMessage) {
+                return {
+                    image: mensaje.imageMessage,
+                    ruta: [...ruta, 'imageMessage']
+                };
+            }
+
+            const envolturas = [
+                'viewOnceMessage',
+                'viewOnceMessageV2',
+                'viewOnceMessageV2Extension',
+                'ephemeralMessage',
+                'documentWithCaptionMessage'
+            ];
+
+            for (const clave of envolturas) {
+                const interno = mensaje[clave]?.message;
+                if (interno) {
+                    const encontrada = extraerImagen(interno, [...ruta, clave]);
                     if (encontrada) return encontrada;
                 }
             }
+
             return null;
         };
 
-        const imagen = extraerImagen(citado);
-        if (!imagen) {
-            return await sock.sendMessage(chatId, {
-                text: '❌ El mensaje al que respondiste no contiene una foto de ver una vez.'
-            }, { quoted: msg });
+        const encontrada = extraerImagen(citado);
+        if (!encontrada?.image) {
+            console.warn('⚠️ recup1vez: estructura recibida sin imageMessage:', JSON.stringify(Object.keys(citado || {})));
+            return await responder(
+                '❌ No encontré una foto recuperable en ese mensaje. Asegúrate de responder *directamente* a la foto de ver una vez.'
+            );
         }
 
-        const buffer = await downloadMediaMessage(
-            { message: citado },
-            'buffer',
-            {},
-            { reuploadRequest: sock.updateMediaMessage }
-        );
+        const imagen = encontrada.image;
+        let buffer = null;
 
-        if (!buffer?.length) throw new Error('No se pudo descargar la foto de ver una vez.');
+        // Método principal: descargar directamente el imageMessage.
+        // Esto evita que downloadMediaMessage pierda la capa viewOnce.
+        try {
+            const stream = await downloadContentFromMessage(imagen, 'image');
+            const partes = [];
+            for await (const parte of stream) partes.push(Buffer.from(parte));
+            buffer = Buffer.concat(partes);
+        } catch (error) {
+            console.warn('⚠️ recup1vez: descarga directa falló, probando downloadMediaMessage:', error.message);
+        }
+
+        // Fallback para versiones de Baileys que requieren el mensaje completo.
+        if (!buffer?.length) {
+            try {
+                const mensajeNormalizado = {
+                    key: msg.key,
+                    message: { imageMessage: imagen }
+                };
+                buffer = await downloadMediaMessage(
+                    mensajeNormalizado,
+                    'buffer',
+                    {},
+                    { reuploadRequest: sock.updateMediaMessage }
+                );
+            } catch (error) {
+                console.warn('⚠️ recup1vez: fallback de downloadMediaMessage falló:', error.message);
+            }
+        }
+
+        if (!buffer?.length) {
+            throw new Error('No se pudo descargar el contenido multimedia.');
+        }
+
+        const mimetype = String(imagen.mimetype || 'image/jpeg').toLowerCase();
 
         await sock.sendMessage(chatId, {
             image: buffer,
-            mimetype: imagen.mimetype || 'image/jpeg',
-            caption: '♻️ Foto recuperada\n\nApoya a un creador: *JASC13*'
+            mimetype,
+            caption: '♻️ Foto recuperada\\n\\nApoya a un creador: *JASC13*'
         }, { quoted: msg });
+
+        console.log('✅ recup1vez: foto recuperada correctamente. Capas:', encontrada.ruta.join(' > '));
     } catch (e) {
-        console.error('Error al recuperar foto de una vez:', e?.stack || e);
-        await sock.sendMessage(chatId, {
-            text: '❌ No pude recuperar esa foto de ver una vez. Asegúrate de responder directamente al mensaje.'
-        }, { quoted: msg });
+        console.error('❌ Error al recuperar foto de una vez:', e?.stack || e);
+        await responder(
+            '❌ No pude recuperar esa foto de ver una vez. Prueba respondiendo directamente a la foto (sin reenviarla) y manda *recup1vez*.'
+        );
     }
 }
 
