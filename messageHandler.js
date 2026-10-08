@@ -88,7 +88,9 @@ async function procesarMensaje(sock, msg) {
     const comandoPropioPermitido = new Set([
         'warn', 'advertir', 'verwarns', 'limpiarwarns',
         'ban', 'unban', 'listanegra', 'banlist', 'unbanlist',
-        'listablanca'
+        'listablanca',
+        'desactivarbienvenida', 'activarbienvenida',
+        'personalizarbienvenida', 'restaurarbienvenida'
     ]);
 
     // Los mensajes enviados por el propio número del bot normalmente se ignoran.
