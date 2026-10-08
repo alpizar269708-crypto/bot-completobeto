@@ -83,7 +83,6 @@ async function verificarNuevoMiembro(sock, update) {
     try {
         bienvenidaDesactivada = await Config.findOne({ clave: `bienvenida_desactivada_${chatId}` }).lean();
         if (bienvenidaDesactivada?.valor === 'true') bienvenidasDesactivadas.add(chatId);
-        else bienvenidasDesactivadas.delete(chatId);
     } catch (error) {
         console.error('Error consultando configuración de bienvenida:', error.message);
     }
@@ -179,6 +178,7 @@ async function comandoPersonalizarBienvenida(sock, chatId, msg, texto) {
         { valor: mensaje },
         { upsert: true }
     );
+    bienvenidasDesactivadas.delete(chatId);
     await Config.deleteOne({ clave: `bienvenida_desactivada_${chatId}` });
 
     await sock.sendMessage(chatId, { text: '✅ Bienvenida personalizada guardada y activada.\nUsa *{usuario}* donde quieras mencionar al nuevo integrante.' }, { quoted: msg });
@@ -189,6 +189,7 @@ async function comandoRestaurarBienvenida(sock, chatId, msg) {
     if (!(await esAdmin(sock, chatId, msg.key.participant))) return;
 
     await Config.deleteOne({ clave: `bienvenida_personalizada_${chatId}` });
+    bienvenidasDesactivadas.delete(chatId);
     await Config.deleteOne({ clave: `bienvenida_desactivada_${chatId}` });
     await sock.sendMessage(chatId, { text: '🔄 Bienvenida restaurada al mensaje por defecto.' }, { quoted: msg });
 }
