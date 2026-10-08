@@ -1113,7 +1113,6 @@ async function descargarInstagramConYtDlp(url) {
             noWarnings: true,
             noPlaylist: true,
             noCheckCertificates: true,
-            impersonate: 'chrome',
             jsRuntimes: 'node',
             remoteComponents: 'ejs:github',
             userAgent: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/131.0.0.0 Safari/537.36',
@@ -1347,11 +1346,11 @@ async function comandoInstagram(sock, chatId, msg, args) {
     const textoArgumentos = Array.isArray(args) ? args.join(' ') : String(args || '');
     const urlOriginal = extraerUrlInstagram(textoArgumentos);
 
-    const diagnostico = async (texto) => {
-        console.log('📸 INSTAGRAM DIAGNÓSTICO:', texto);
-        try {
-            await sock.sendMessage(chatId, { text: texto }, { quoted: msg });
-        } catch (_) {}
+    const diagnosticos = [];
+    const registrarDiagnostico = (etapa, error) => {
+        const detalle = String(error?.message || error || 'Sin detalle').replace(/\s+/g, ' ').trim().slice(0, 700);
+        diagnosticos.push(etapa + ': ' + detalle);
+        console.warn('📸 INSTAGRAM DIAGNÓSTICO FINAL:', etapa, detalle);
     };
 
     console.log('📸 INSTAGRAM: comando recibido. Texto:', textoArgumentos);
@@ -1365,91 +1364,52 @@ async function comandoInstagram(sock, chatId, msg, args) {
     }
 
     try {
-        await diagnostico('🔎 *INSTAGRAM 1/7*\nEnlace recibido correctamente.\n\nURL: ' + urlOriginal);
-
         const url = await resolverEnlaceInstagram(urlOriginal);
         console.log('📸 INSTAGRAM: URL a procesar:', url);
-
-        await diagnostico(
-            '🔗 *INSTAGRAM 2/7*\nURL resuelta.\n\n' +
-            (url === urlOriginal ? 'No hubo redirección.' : 'URL final encontrada:') +
-            '\n' + url
-        );
 
         let videoBuffer = null;
         let ultimoError = null;
 
         try {
-            await diagnostico('⚙️ *INSTAGRAM 3/7*\nProbando descarga directa con yt-dlp...');
             videoBuffer = await descargarInstagramConYtDlp(url);
-            await diagnostico('✅ *INSTAGRAM 3/7*\nyt-dlp devolvió ' + (videoBuffer?.length || 0) + ' bytes.');
         } catch (error) {
             ultimoError = error;
-            console.warn('⚠️ Instagram yt-dlp falló:', error.message);
-            await diagnostico(
-                '❌ *INSTAGRAM 3/7*\nyt-dlp falló.\n\nError: ' +
-                String(error?.message || error).slice(0, 700)
-            );
+            registrarDiagnostico('yt-dlp', error);
         }
 
         if (!videoBuffer && url !== urlOriginal) {
             try {
-                await diagnostico('🔁 *INSTAGRAM 4/7*\nEl enlace resuelto falló. Probando yt-dlp con el enlace original...');
                 videoBuffer = await descargarInstagramConYtDlp(urlOriginal);
-                await diagnostico('✅ *INSTAGRAM 4/7*\nyt-dlp con enlace original devolvió ' + (videoBuffer?.length || 0) + ' bytes.');
             } catch (error) {
                 ultimoError = error;
-                console.warn('⚠️ Instagram con enlace original falló:', error.message);
-                await diagnostico(
-                    '❌ *INSTAGRAM 4/7*\nyt-dlp con enlace original falló.\n\nError: ' +
-                    String(error?.message || error).slice(0, 700)
-                );
+                registrarDiagnostico('yt-dlp enlace original', error);
             }
-        } else if (!videoBuffer) {
-            await diagnostico('ℹ️ *INSTAGRAM 4/7*\nNo hubo URL alternativa; se continúa con Chromium.');
         }
 
         if (!videoBuffer?.length) {
             try {
-                await diagnostico('🌐 *INSTAGRAM 5/7*\nProbando Chromium/Puppeteer...');
                 videoBuffer = await descargarInstagramConNavegador(url);
-                await diagnostico('✅ *INSTAGRAM 5/7*\nChromium devolvió ' + (videoBuffer?.length || 0) + ' bytes.');
             } catch (error) {
                 ultimoError = error;
-                console.warn('⚠️ Instagram Chromium falló:', error.message);
-                await diagnostico(
-                    '❌ *INSTAGRAM 5/7*\nChromium falló.\n\nError: ' +
-                    String(error?.message || error).slice(0, 700)
-                );
+                registrarDiagnostico('Chromium', error);
             }
         }
 
         if (!videoBuffer?.length && url !== urlOriginal) {
             try {
-                await diagnostico('🔁 *INSTAGRAM 6/7*\nProbando Chromium con el enlace original...');
                 videoBuffer = await descargarInstagramConNavegador(urlOriginal);
-                await diagnostico('✅ *INSTAGRAM 6/7*\nChromium con enlace original devolvió ' + (videoBuffer?.length || 0) + ' bytes.');
             } catch (error) {
                 ultimoError = error;
-                console.warn('⚠️ Instagram Chromium con enlace original falló:', error.message);
-                await diagnostico(
-                    '❌ *INSTAGRAM 6/7*\nChromium con enlace original falló.\n\nError: ' +
-                    String(error?.message || error).slice(0, 700)
-                );
+                registrarDiagnostico('Chromium enlace original', error);
             }
-        } else if (!videoBuffer) {
-            await diagnostico('ℹ️ *INSTAGRAM 6/7*\nNo hubo URL alternativa; se va directo al diagnóstico final.');
         }
 
         if (!videoBuffer?.length) {
-            await diagnostico(
-                '🧪 *INSTAGRAM 7/7*\nNo se obtuvo ningún video.\n\nÚltimo error:\n' +
-                String(ultimoError?.message || 'Sin error disponible').slice(0, 900)
-            );
-            throw new Error(ultimoError?.message || 'Instagram no devolvió un video descargable');
+            const resumen = diagnosticos.length
+                ? diagnosticos.join('\n')
+                : 'No se obtuvo un diagnóstico detallado.';
+            throw new Error(resumen || ultimoError?.message || 'Instagram no devolvió un video descargable');
         }
-
-        await diagnostico('📦 *INSTAGRAM FINAL*\nVideo descargado: ' + videoBuffer.length + ' bytes. Intentando enviarlo por WhatsApp...');
 
         await sock.sendMessage(chatId, {
             video: videoBuffer,
@@ -1461,8 +1421,9 @@ async function comandoInstagram(sock, chatId, msg, args) {
     } catch (e) {
         console.error('Error al descargar Instagram:', e?.stack || e);
         await sock.sendMessage(chatId, {
-            text: '❌ *DIAGNÓSTICO INSTAGRAM*\n\nFalló el proceso. Revisa los mensajes anteriores: ahí veremos exactamente qué etapa se rompió.\n\nError final: ' +
-                String(e?.message || e).slice(0, 900)
+            text: '❌ *DIAGNÓSTICO INSTAGRAM*\\n\\n' +
+                String(e?.message || e).slice(0, 1800) +
+                '\\n\\nApoya a un creador: *JASC13*'
         }, { quoted: msg });
     }
 }
