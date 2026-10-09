@@ -1421,9 +1421,9 @@ async function comandoInstagram(sock, chatId, msg, args) {
     } catch (e) {
         console.error('Error al descargar Instagram:', e?.stack || e);
         await sock.sendMessage(chatId, {
-            text: '❌ *DIAGNÓSTICO INSTAGRAM*\\n\\n' +
+            text: '❌ *DIAGNÓSTICO INSTAGRAM*\n\n' +
                 String(e?.message || e).slice(0, 1800) +
-                '\\n\\nApoya a un creador: *JASC13*'
+                '\n\nApoya a un creador: *JASC13*'
         }, { quoted: msg });
     }
 }
