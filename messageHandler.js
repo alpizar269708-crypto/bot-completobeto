@@ -236,7 +236,8 @@ Apoya a un creador: JASC13` });
             desactivados = [];
         }
 
-        const comandoDeConfiguracion = comando === 'menu' || comando === 'desactivarcomandos' || comando === 'catdesa' || comando === 'vertodoscomandos';
+        const comandoDeConfiguracion = comando === 'menu' || comando === 'desactivarcomandos' || comando === 'catdesa' || comando === 'vertodoscomandos' ||
+            ['desactivarbienvenida', 'activarbienvenida', 'personalizarbienvenida', 'restaurarbienvenida'].includes(comando);
         const estaDesactivado = desactivados.some(categoria =>
             categoriasMap[categoria] && categoriasMap[categoria].includes(comando)
         );
@@ -284,7 +285,9 @@ Apoya a un creador: JASC13` });
     }
 
     if (comando === 'personalizarbienvenida') {
-        await comandoPersonalizarBienvenida(sock, chatJid, msg, args.join(' '));
+        // Usar el texto original: no convertir la bienvenida a minúsculas ni quitarle acentos.
+        const textoBienvenidaOriginal = textoOriginal.trim().replace(/^\S+\s*/, '');
+        await comandoPersonalizarBienvenida(sock, chatJid, msg, textoBienvenidaOriginal);
         return;
     }
 
