@@ -9,6 +9,27 @@ const cacheListaBlanca = { valor: null, expira: 0 };
 // Respaldo en memoria para que la preferencia se aplique inmediatamente en el grupo actual.
 const bienvenidasDesactivadas = new Set();
 
+function normalizarNombreGrupoBienvenida(nombre = '') {
+    return String(nombre)
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, ' ')
+        .trim()
+        .replace(/\s+/g, ' ');
+}
+
+function obtenerBienvenidaEspecialPorGrupo(nombreGrupo = '') {
+    if (normalizarNombreGrupoBienvenida(nombreGrupo) !== 'fortniteros cazando espiritus br zr stw') {
+        return null;
+    }
+
+    return '👋 ¡Bienvenido/a a *Los Fortniteros*, {usuario}! 🎮💙\n' +
+        'Qué bueno tenerte aquí. Somos una comunidad pequeña que sigue creciendo y esperamos que te la pases genial.\n' +
+        '🎁 Cada 2 o 3 semanas hacemos rifas de gestos para agradecerles por quedarse con nosotros.\n' +
+        '¡Ponte cómodo/a y disfruta del grupo! 🫶🔥';
+}
+
 async function esAdmin(sock, chatId, userId) {
     if (await esPrivilegiadoTotalAsync(sock, userId)) return true;
 
@@ -84,11 +105,14 @@ async function verificarNuevoMiembro(sock, update) {
     const nuevosParticipantes = update.participants;
 
     // En comunidades no enviar bienvenidas a la sección de Avisos.
+    let nombreGrupo = '';
     try {
         const metadata = await sock.groupMetadata(chatId);
         if (metadata?.isCommunityAnnounce === true) return;
+        nombreGrupo = metadata?.subject || '';
     } catch (error) {}
 
+    const bienvenidaEspecial = obtenerBienvenidaEspecialPorGrupo(nombreGrupo);
     let bienvenidaDesactivada = null;
     try {
         bienvenidaDesactivada = await Config.findOne({ clave: `bienvenida_desactivada_${chatId}` }).lean();
@@ -116,8 +140,9 @@ async function verificarNuevoMiembro(sock, update) {
             }
         } else if (!bienvenidaApagada) {
             try {
-                const textoBienvenida = bienvenidaPersonalizada?.valor
-                    ? bienvenidaPersonalizada.valor.replace(/\{usuario\}/gi, `@${jid.split('@')[0]}`)
+                const mensajeBaseBienvenida = bienvenidaPersonalizada?.valor || bienvenidaEspecial;
+                const textoBienvenida = mensajeBaseBienvenida
+                    ? mensajeBaseBienvenida.replace(/\{usuario\}/gi, `@${jid.split('@')[0]}`)
                     : `Bienvenido/a @${jid.split('@')[0]} a la escupidera de Salty, esperamos que seas lo suficientemente rudo para estar aquí.`;
 
                 await sock.sendMessage(chatId, {
