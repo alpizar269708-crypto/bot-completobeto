@@ -107,7 +107,7 @@ async function comandoCarry(sock, chatId, msg, comando, args = []) {
         
         if (args.length < 1 || !/^[1-3]$/.test(String(args[0]).trim())) {
             return await sock.sendMessage(chatId, {
-                text: '❌ *Formato incorrecto*\\n\\nUsa: *carryleader [1-3] [motivo]*\\n\\nEl número indica cuántos jugadores faltan para completar el escuadrón.\\n• *1* = falta 1 jugador\\n• *2* = faltan 2 jugadores\\n• *3* = faltan 3 jugadores'
+                text: '❌ *Formato incorrecto*\n\nUsa: *carryleader [1-3] [motivo]*\n\nEl número indica cuántos jugadores faltan para completar el escuadrón.\n• *1* = falta 1 jugador\n• *2* = faltan 2 jugadores\n• *3* = faltan 3 jugadores'
             }, { quoted: msg });
         }
 
@@ -115,7 +115,7 @@ async function comandoCarry(sock, chatId, msg, comando, args = []) {
         args = args.slice(1);
         if (args.length === 0) {
             return await sock.sendMessage(chatId, {
-                text: '❌ Debes indicar el motivo del carry.\\n\\nUsa: *carryleader [1-3] [motivo]*'
+                text: '❌ Debes indicar el motivo del carry.\n\nUsa: *carryleader [1-3] [motivo]*'
             }, { quoted: msg });
         }
 
