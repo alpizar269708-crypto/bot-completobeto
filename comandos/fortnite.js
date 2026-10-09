@@ -400,48 +400,96 @@ async function enviarAlertaPavosAutomatica(sock, actualizarEnVivo = false, horaA
         mensajeAuto += `💰 *Total del día:* ${total} paVos\n\n`;
         mensajeAuto += `Support-a-Creator: *JASC13* ❤️`;
 
+        let enviadaAlMenosAUnGrupo = false;
         for (const grupo of grupos) {
             try {
                 await sock.sendMessage(grupo, { text: mensajeAuto });
+                enviadaAlMenosAUnGrupo = true;
             } catch (e) {
                 console.error(`Error enviando alerta automática a ${grupo}:`, e.message);
             }
         }
 
-        return true;
+        return enviadaAlMenosAUnGrupo;
     } catch (error) {
         console.error('Error en alerta automática de PaVos:', error.message);
         return false;
     }
 }
 
-function iniciarCronAlertasDiarias(sock) {
-    const zonaHoraria = 'America/Mexico_City';
+const CLAVE_ESTADO_ALERTA_PAVOS = 'stw_pavos_alerta_diaria_estado';
+let cronAlertasDiariasIniciado = false;
+let raspadoEnCurso = false;
 
-    // A las 18:01:30 siempre se avisa. Si no hay PaVos, se intenta otra vez
-    // a las 18:02 y 18:05; al encontrar PaVos, se omiten los intentos restantes.
+function fechaCDMX() {
+    return new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'America/Mexico_City',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+    }).format(new Date());
+}
+
+async function yaSeEnvioAlertaPavosHoy(hoy) {
+    try {
+        const doc = await Config.findOne({ clave: CLAVE_ESTADO_ALERTA_PAVOS });
+        if (!doc?.valor) return false;
+        const estado = JSON.parse(doc.valor);
+        return estado?.fecha === hoy && estado?.enviada === true;
+    } catch (e) {
+        console.error('⚠️ No se pudo leer el estado diario de PaVos:', e.message);
+        return false;
+    }
+}
+
+async function guardarAlertaPavosEnviada(hoy, horario) {
+    await Config.findOneAndUpdate(
+        { clave: CLAVE_ESTADO_ALERTA_PAVOS },
+        { valor: JSON.stringify({ fecha: hoy, enviada: true, horario, actualizadoEn: new Date().toISOString() }) },
+        { upsert: true }
+    );
+}
+
+function iniciarCronAlertasDiarias(sock) {
+    if (cronAlertasDiariasIniciado) {
+        console.log('ℹ️ El cron diario de PaVos ya estaba iniciado; no se duplicarán horarios.');
+        return;
+    }
+    cronAlertasDiariasIniciado = true;
+
+    const zonaHoraria = 'America/Mexico_City';
     const horarios = [
         { cron: '30 1 18 * * *', etiqueta: '6:01:30 PM', avisarSinPavos: true },
         { cron: '0 2 18 * * *', etiqueta: '6:02 PM', avisarSinPavos: false },
         { cron: '0 5 18 * * *', etiqueta: '6:05 PM', avisarSinPavos: false }
     ];
 
-    let diaConAlertaEnviada = null;
-
     for (const horario of horarios) {
         cron.schedule(horario.cron, async () => {
-            const hoy = new Date().toLocaleDateString('en-CA', { timeZone: zonaHoraria });
-            if (diaConAlertaEnviada === hoy) {
-                console.log(`⏭️ Se omite el raspado de las ${horario.etiqueta}: ya se encontraron PaVos hoy.`);
+            const hoy = fechaCDMX();
+            if (raspadoEnCurso) {
+                console.log(`⏭️ Se omite ${horario.etiqueta}: ya hay un raspado en curso.`);
                 return;
             }
 
-            const enviada = await enviarAlertaPavosAutomatica(sock, true, horario.etiqueta, horario.avisarSinPavos);
-            if (enviada) {
-                diaConAlertaEnviada = hoy;
-                console.log(`✅ PaVos encontrados y alerta enviada a las ${horario.etiqueta}; se omiten los raspados restantes de hoy.`);
-            } else {
-                console.log(`🔎 ${horario.etiqueta}: no se encontraron PaVos; se continuará con el siguiente horario si queda alguno.`);
+            try {
+                if (await yaSeEnvioAlertaPavosHoy(hoy)) {
+                    console.log(`⏭️ Se omite el raspado de las ${horario.etiqueta}: ya se envió una alerta con PaVos hoy.`);
+                    return;
+                }
+
+                raspadoEnCurso = true;
+                const enviada = await enviarAlertaPavosAutomatica(sock, true, horario.etiqueta, horario.avisarSinPavos);
+                if (enviada) {
+                    await guardarAlertaPavosEnviada(hoy, horario.etiqueta);
+                    console.log(`✅ PaVos encontrados y alerta enviada a las ${horario.etiqueta}; estado guardado en MongoDB para evitar duplicados tras reinicios.`);
+                } else {
+                    console.log(`🔎 ${horario.etiqueta}: no se enviaron PaVos; se continuará con el siguiente horario si queda alguno.`);
+                }
+            } catch (e) {
+                console.error(`❌ Error en el horario ${horario.etiqueta}:`, e.message);
+            } finally {
+                raspadoEnCurso = false;
             }
         }, { scheduled: true, timezone: zonaHoraria });
     }
