@@ -347,7 +347,7 @@ async function comandoPreguntarAlerta(sock, chatId, msg, palabrasClave = []) {
     texto += 'Support-a-Creator: *JASC13* ❤️';
     await sock.sendMessage(chatId, { text: texto }, { quoted: msg });
 }
-async function enviarAlertaPavosAutomatica(sock, actualizarEnVivo = false, horaAlerta = '6:01:30 PM') {
+async function enviarAlertaPavosAutomatica(sock, actualizarEnVivo = false, horaAlerta = '6:01:30 PM', avisarSinPavos = false) {
     try {
         const configChat = await Config.findOne({ clave: 'chat_alertas_diarias' });
         if (!configChat || !configChat.valor) return false;
@@ -375,8 +375,20 @@ async function enviarAlertaPavosAutomatica(sock, actualizarEnVivo = false, horaA
 
         const datos = await obtenerAlertasSTW(false);
 
-        // No enviar avisos vacíos: se seguirá intentando en los siguientes horarios.
-        if (!datos.pavos.length) return false;
+        // El primer intento informa aunque no encuentre PaVos; los siguientes solo avisan si encuentran.
+        if (!datos.pavos.length) {
+            if (avisarSinPavos) {
+                const mensajeSinPavos = `🎮 *ALERTAS DE PAVOS — ${horaAlerta}*\\n\\n😔 No hubo PaVos en este raspado.\\n\\n🔎 Seguiré revisando a las 6:02 PM y 6:05 PM.`;
+                for (const grupo of grupos) {
+                    try {
+                        await sock.sendMessage(grupo, { text: mensajeSinPavos });
+                    } catch (e) {
+                        console.error(`Error enviando aviso sin PaVos a ${grupo}:`, e.message);
+                    }
+                }
+            }
+            return false;
+        }
 
         const total = datos.pavos.reduce((acc, p) => acc + (p.cantidad || 50), 0);
         let mensajeAuto = `🎮 *ALERTAS DE PAVOS — ${horaAlerta}*\n\n`;
@@ -406,14 +418,12 @@ async function enviarAlertaPavosAutomatica(sock, actualizarEnVivo = false, horaA
 function iniciarCronAlertasDiarias(sock) {
     const zonaHoraria = 'America/Mexico_City';
 
-    // Se revisa a las 18:01:30 y, si aún no hay PaVos, se vuelve a raspar
-    // a las 18:02, 18:03 y 18:04. En cuanto se encuentra y envía una alerta,
-    // los siguientes horarios ya no hacen más raspados ese día.
+    // A las 18:01:30 siempre se avisa. Si no hay PaVos, se intenta otra vez
+    // a las 18:02 y 18:05; al encontrar PaVos, se omiten los intentos restantes.
     const horarios = [
-        { cron: '30 1 18 * * *', etiqueta: '6:01:30 PM' },
-        { cron: '0 2 18 * * *', etiqueta: '6:02 PM' },
-        { cron: '0 3 18 * * *', etiqueta: '6:03 PM' },
-        { cron: '0 4 18 * * *', etiqueta: '6:04 PM' }
+        { cron: '30 1 18 * * *', etiqueta: '6:01:30 PM', avisarSinPavos: true },
+        { cron: '0 2 18 * * *', etiqueta: '6:02 PM', avisarSinPavos: false },
+        { cron: '0 5 18 * * *', etiqueta: '6:05 PM', avisarSinPavos: false }
     ];
 
     let diaConAlertaEnviada = null;
@@ -422,21 +432,21 @@ function iniciarCronAlertasDiarias(sock) {
         cron.schedule(horario.cron, async () => {
             const hoy = new Date().toLocaleDateString('en-CA', { timeZone: zonaHoraria });
             if (diaConAlertaEnviada === hoy) {
-                console.log(`⏭️ Se omite el raspado de las ${horario.etiqueta}: ya se envió la alerta de PaVos de hoy.`);
+                console.log(`⏭️ Se omite el raspado de las ${horario.etiqueta}: ya se encontraron PaVos hoy.`);
                 return;
             }
 
-            const enviada = await enviarAlertaPavosAutomatica(sock, true, horario.etiqueta);
+            const enviada = await enviarAlertaPavosAutomatica(sock, true, horario.etiqueta, horario.avisarSinPavos);
             if (enviada) {
                 diaConAlertaEnviada = hoy;
-                console.log(`✅ Alerta de PaVos enviada a las ${horario.etiqueta}; se cancelan los raspados restantes de hoy.`);
+                console.log(`✅ PaVos encontrados y alerta enviada a las ${horario.etiqueta}; se omiten los raspados restantes de hoy.`);
             } else {
-                console.log(`🔎 ${horario.etiqueta}: no se encontraron PaVos; se intentará en el siguiente horario.`);
+                console.log(`🔎 ${horario.etiqueta}: no se encontraron PaVos; se continuará con el siguiente horario si queda alguno.`);
             }
         }, { scheduled: true, timezone: zonaHoraria });
     }
 
-    console.log('🕒 Un solo aviso diario de PaVos: raspados a las 18:01:30, 18:02, 18:03 y 18:04 (hora de Ciudad de México), deteniéndose en cuanto encuentre PaVos.');
+    console.log('🕒 Alertas de PaVos programadas a las 18:01:30, 18:02 y 18:05 (hora de Ciudad de México). El primer horario siempre envía un aviso.');
 }
 
 async function activarAlertasDiarias(sock, chatId, msg) {
@@ -458,7 +468,7 @@ async function activarAlertasDiarias(sock, chatId, msg) {
 
     if (grupos.includes(chatId)) {
         await sock.sendMessage(chatId, {
-            text: 'ℹ️ *Este grupo ya se encuentra activado para las alertas de PaVos.*\n\n📅 Seguirán recibiendo la alerta automática todos los días a las *6:01:30 PM, 6:02 PM, 6:03 PM y 6:04 PM* (hora de Ciudad de México).'
+            text: 'ℹ️ *Este grupo ya se encuentra activado para las alertas de PaVos.*\n\n📅 Seguirán recibiendo la alerta automática todos los días a las *6:01:30 PM, 6:02 PM y 6:05 PM* (hora de Ciudad de México).'
         }, { quoted: msg });
         return;
     }
@@ -471,7 +481,7 @@ async function activarAlertasDiarias(sock, chatId, msg) {
     );
 
     await sock.sendMessage(chatId, {
-        text: `✅ *Alertas de PaVos activadas en este grupo.*\n\n📅 Recibirán la alerta automática todos los días a las *6:01:30 PM, 6:02 PM, 6:03 PM y 6:04 PM* (hora de Ciudad de México).\n🪙 Se enviará *un solo aviso al día*, únicamente cuando se encuentren PaVos.`
+        text: `✅ *Alertas de PaVos activadas en este grupo.*\n\n📅 Recibirán la alerta automática todos los días a las *6:01:30 PM, 6:02 PM y 6:05 PM* (hora de Ciudad de México).\n🪙 A las *6:01:30 PM* se avisará aunque no haya PaVos; si no hay, se volverá a revisar a las *6:02 PM* y *6:05 PM*.`
     }, { quoted: msg });
 }
 
