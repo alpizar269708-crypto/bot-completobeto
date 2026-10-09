@@ -1263,9 +1263,9 @@ async function comandoRifaJasc13(sock, chatId, msg, args) {
         await guardarCashbackJasc13(cashback);
 
         await sock.sendMessage(chatId, {
-            text: '🔄 *Rifa JASC13 reiniciada.*\\n\\n' +
-                '🎟️ Los boletos utilizados en el sorteo fueron consumidos.\\n' +
-                '💎 Los puntos sobrantes se conservaron para la siguiente rifa.\\n' +
+            text: '🔄 *Rifa JASC13 reiniciada.*\n\n' +
+                '🎟️ Los boletos utilizados en el sorteo fueron consumidos.\n' +
+                '💎 Los puntos sobrantes se conservaron para la siguiente rifa.\n' +
                 '💰 El cashback se conservó completo para cada participante.'
         });
     }
