@@ -378,7 +378,7 @@ async function enviarAlertaPavosAutomatica(sock, actualizarEnVivo = false, horaA
         // El primer intento informa aunque no encuentre PaVos; los siguientes solo avisan si encuentran.
         if (!datos.pavos.length) {
             if (avisarSinPavos) {
-                const mensajeSinPavos = `🎮 *ALERTAS DE PAVOS — ${horaAlerta}*\\n\\n😔 No hubo PaVos en este raspado.\\n\\n🔎 Seguiré revisando a las 6:02 PM y 6:05 PM.`;
+                const mensajeSinPavos = `🎮 *ALERTAS DE PAVOS — ${horaAlerta}*\n\n😔 No hubo PaVos en este raspado.\n\n🔎 Seguiré revisando a las 6:02 PM y 6:05 PM.`;
                 for (const grupo of grupos) {
                     try {
                         await sock.sendMessage(grupo, { text: mensajeSinPavos });
