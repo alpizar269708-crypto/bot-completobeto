@@ -386,7 +386,15 @@ async function arrancarSocket(metodo, numeroTelefono, onCodeReady = null) {
             }
             
             iniciarCronAlertasDiarias(sock);
-            
+
+            // Actualiza TODAS las categorías de STW Planner al iniciar/conectar
+            // (PaVos, épicas, legendarias y destacadas), sin enviar mensajes a grupos.
+            // El raspado actualiza MongoDB y conserva los datos previos si la web falla.
+            const { extraerAlertasAPI } = require('./webBridge');
+            extraerAlertasAPI().catch(error => {
+                console.error('⚠️ Falló el raspado completo de STW Planner al iniciar:', error.message);
+            });
+
             // 🚀 Única fuente automática de alertas Fortnite: STW Planner
             iniciarPuenteDiscord(sock);
         }
