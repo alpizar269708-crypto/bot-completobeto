@@ -1016,26 +1016,17 @@ async function comandoPavosOficial(sock, chatId, msg) {
     ];
 
     let alertasElegidas = [];
-    let primeraAlertaVista = [];
     for (const fuente of fuentes) {
         const alertas = await fuente.consultar();
         if (!alertas.length) continue;
-
-        // Conservamos la primera respuesta real para recordar qué mostraba la fuente
-        // aunque las tres fuentes estén repitiendo las alertas del ciclo anterior.
-        if (!primeraAlertaVista.length) primeraAlertaVista = alertas;
 
         if (firmaAlertasPavos(alertas) === firmaAyer) continue;
         alertasElegidas = alertas;
         break;
     }
 
-    // Si las tres fuentes conservan la misma lista que ayer, igualmente
-    // se muestra la lista válida al usuario: repetir la alerta del día es mejor
-    // que responder falsamente que no existen PaVos.
-    if (!alertasElegidas.length && primeraAlertaVista.length) {
-        alertasElegidas = primeraAlertaVista;
-    }
+    // Si ninguna fuente detecta alertas actuales diferentes a las de ayer,
+    // no reutilizar la lista anterior: la respuesta debe quedar vacía.
     const snapshot = alertasElegidas;
     try {
         await Config.findOneAndUpdate(
@@ -1057,7 +1048,7 @@ async function comandoPavosOficial(sock, chatId, msg) {
     ];
 
     if (!alertasElegidas.length) {
-        lineas.push('😔 *No hubo PaVos en este raspado.* 💔');
+        lineas.push('😔 *No hay alertas de PaVos disponibles en este momento.*');
     } else {
         let total = 0;
         for (const alerta of alertasElegidas) {

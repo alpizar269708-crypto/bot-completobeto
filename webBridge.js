@@ -92,10 +92,14 @@ function traducirBiomaSTW(bioma) {
     if (!limpio) return '';
     const mapa = {
         'autumn industrial park': 'Parque industrial otoñal',
+        'the parque industrial': 'Parque industrial',
+        'parque industrial': 'Parque industrial',
         'the industrial park': 'Parque industrial',
         'industrial park': 'Parque industrial',
         'the swamps': 'Pantanos',
+        'the swamp': 'Pantanos',
         'swamps': 'Pantanos',
+        'swamp': 'Pantanos',
         'haunted forest': 'Bosque embrujado',
         'haunted woods': 'Bosque embrujado',
         'haunted bosque': 'Bosque embrujado',
@@ -152,11 +156,18 @@ function traducirBiomaSTW(bioma) {
         .replace(/\bthe portal\b/gi, 'El Portal')
         .replace(/\bthe crater\b/gi, 'El Cráter');
     limpio = limpio.replace(/\s+/g, ' ').replace(/\(\s*\)/g, '').trim();
-    // Si el nombre del bioma no está en el diccionario, no dejar que el
-    // nombre original en inglés termine en WhatsApp.
-    if (/\b(?:the|swamps?|haunted|forest|city|town|park|suburbs?|autumn|grasslands|desert|lakeside|tropical|bunkers?|portal|crater|route|ghost|arid)\b/i.test(limpio)) {
-        return 'Zona de misión';
-    }
+    // Si no se reconoce el nombre, usar una etiqueta en español en lugar
+    // de enviar un bioma en inglés o una mezcla de ambos idiomas.
+    const biomasEspanol = new Set([
+        ...Object.values(mapa),
+        'Bosque embrujado', 'Parque industrial', 'Pantanos', 'Pueblo fantasma',
+        'Ciudad', 'Suburbios', 'Desierto', 'Praderas', 'Ribera del lago',
+        'Ruta Trueno 99', 'Suburbios otoñales', 'Ciudad otoñal',
+        'Colinas otoñales', 'Zona de misión', 'Tropical', 'Búnkeres',
+        'Búnker', 'El Portal', 'El Cráter'
+    ].filter(Boolean).map(valor => String(valor).toLowerCase()));
+    const biomaBase = limpio.replace(/\s*\([^)]*\)/g, '').trim().toLowerCase();
+    if (!biomasEspanol.has(limpio.toLowerCase()) && !biomasEspanol.has(biomaBase)) return 'Zona de misión';
     return limpio;
 }
 
@@ -242,7 +253,7 @@ function traducirNombreObjetoSTW(nombre, tipo = 'other') {
     for (const [patron, traducido] of traducciones) {
         if (patron.test(limpio)) return traducido;
     }
-    return limpio
+    const resultado = limpio
         .replace(/\bScouting Party Lead\b/gi, 'Líder del equipo de exploración')
         .replace(/\bTraining Team Lead\b/gi, 'Líder del equipo de entrenamiento')
         .replace(/\bEMT Squad Lead\b/gi, 'Líder del equipo médico')
@@ -258,6 +269,19 @@ function traducirNombreObjetoSTW(nombre, tipo = 'other') {
         .replace(/\bSchematic\b/gi, '')
         .replace(/\s+/g, ' ')
         .trim();
+    // Nunca dejar pasar al mensaje un nombre que siga en inglés sin traducir.
+    if ((resultado === limpio && !/[áéíóúñ]/i.test(resultado)) ||
+        /\b(?:unknown|future|mission|alert|the|lead|team|assault|shotgun|survivor|defender|hero|schematic|squad|party|scouting|training|fire|weapon|damage|trap|durability|critical|rating|rain|lightning|storm|shard|pure|drop|eye|bottle|manual|swamps?|forest|park|haunted|city|suburbs?|desert|grasslands|route|town|ghost|industrial|plankerton|stonewood|twine peaks|canny valley)\b/i.test(resultado)) {
+        return ({
+            survivor: 'Superviviente',
+            defender: 'Defensor',
+            hero: 'Héroe',
+            schematic: 'Esquema',
+            perkup: 'Perk-Up',
+            vbucks: 'PaVos'
+        })[tipoFinal] || 'Recompensa de misión';
+    }
+    return resultado || 'Recompensa de misión';
 }
 
 function normalizarRecompensaSTW(nombre, rareza, tipo) {
@@ -1621,26 +1645,10 @@ async function extraerAlertasAPI(progreso = null, opciones = {}) {
         let epicas = seleccionarAlertasSTWPorRareza(todas, 'epic');
         let legendarias = seleccionarAlertasSTWPorRareza(todas, 'legendary');
 
-        // Si solo respondió la fuente exclusiva de PaVos, no borrar las últimas
-        // alertas épicas/legendarias/destacadas guardadas desde una fuente completa.
-        const leerCacheSTW = async clave => {
-            try {
-                const doc = await Config.findOne({ clave });
-                const parsed = doc?.valor ? JSON.parse(doc.valor) : [];
-                return Array.isArray(parsed) ? parsed : [];
-            } catch (_) { return []; }
-        };
-        let destacadasCacheAnterior = [];
-        if (!coberturaCompleta) {
-            const [epicasAnteriores, legendariasAnteriores, destacadasAnteriores] = await Promise.all([
-                leerCacheSTW('stw_epicas_scrapeadas'),
-                leerCacheSTW('stw_legendarias_scrapeadas'),
-                leerCacheSTW('stw_plaltas_scrapeadas')
-            ]);
-            if (!epicas.length) epicas = epicasAnteriores;
-            if (!legendarias.length) legendarias = legendariasAnteriores;
-            destacadasCacheAnterior = destacadasAnteriores;
-        }
+        // No conservar ni mezclar alertas de días anteriores si el raspado actual
+        // es parcial. Las listas guardadas siempre reflejan únicamente la consulta
+        // actual; si una fuente no devuelve alertas, esa categoría queda vacía.
+        const destacadasCacheAnterior = [];
 
         function evaluarAlertaChida(mision) {
             // Una alerta de PaVos también debe estar disponible en destacadas.
@@ -1723,15 +1731,6 @@ async function extraerAlertasAPI(progreso = null, opciones = {}) {
         }
 
         let plAltas = Array.from(mapaPlAltas.values());
-        if (!coberturaCompleta && destacadasCacheAnterior.length) {
-            const merged = new Map();
-            for (const item of [...destacadasCacheAnterior, ...plAltas]) {
-                const key = [item.zona || '', item.pl || '', item.mision || '', item.motivo || ''].join('|').toLowerCase();
-                const previo = merged.get(key);
-                if (!previo || Number(item.nivelAlerta || 0) > Number(previo.nivelAlerta || 0)) merged.set(key, item);
-            }
-            plAltas = Array.from(merged.values());
-        }
         plAltas.sort((a, b) => b.nivelAlerta - a.nivelAlerta || Number(b.pl) - Number(a.pl) || String(a.zona).localeCompare(String(b.zona)));
 
         await etapaDiagnostico('STW ETAPA 8/8: escribiendo resultados en MongoDB. Si se detiene aquí, revisar permisos/conexión de base de datos.');
