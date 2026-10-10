@@ -11,6 +11,11 @@ const URL_FORTNITEDB_DEV = 'https://dev.fortnitedb.com/index.php';
 const URL_FORTNITEDB_STATUS_HOME = 'https://status.fortnitedb.com/index.php';
 const URL_SEEBOT = 'https://seebot.dev/missions.php';
 
+// Circuit breaker: no repetir hosts que ya devolvieron 403 ni volver a lanzar un navegador que expiró.
+// Se conserva durante la vida del proceso para evitar gastar tiempo en errores conocidos.
+const hostsFortniteDBBloqueados = new Set();
+let navegadorFortniteDBDeshabilitado = false;
+
 const ZONAS = {
     S: 'Stonewood',
     P: 'Plankerton',
@@ -169,6 +174,12 @@ async function consultarFortniteDB(progreso) {
         ];
         const fallos = [];
         for (const intento of intentos) {
+            const host = new URL(intento.url).hostname;
+            if (hostsFortniteDBBloqueados.has(host)) {
+                fallos.push(intento.nombre + ': omitido; ya devolvió HTTP 403 en este proceso');
+                await paso('⏭️ FortniteDB: se omite ' + intento.nombre + '; ya falló con HTTP 403 y no se repetirá en este proceso.');
+                continue;
+            }
             try {
                 await paso('🔌 FortniteDB: probando ' + intento.nombre + ' (' + intento.url + ').');
                 respuesta = await descargarPagina(intento.url, 5000);
@@ -176,20 +187,25 @@ async function consultarFortniteDB(progreso) {
                 break;
             } catch (errorIntento) {
                 const detalle = detalleErrorHTTP(errorIntento);
+                if (errorIntento?.response?.status === 403) hostsFortniteDBBloqueados.add(host);
                 fallos.push(intento.nombre + ': ' + detalle);
                 await paso('⚠️ FortniteDB: falló ' + intento.nombre + ' — ' + detalle + '.');
             }
         }
-        if (!respuesta) {
+        if (!respuesta && !navegadorFortniteDBDeshabilitado) {
             await paso('🧭 FortniteDB: los intentos HTTP directos fallaron; iniciando comprobación de navegador normal como última alternativa.');
             try {
                 respuesta = await consultarFortniteDBConNavegador(progreso);
                 resultado.url = 'https://dev.fortnitedb.com/';
                 await paso('✅ FortniteDB: el navegador pudo cargar la página pública; ahora se intentará extraer la tabla con el mismo parser.');
             } catch (errorNavegador) {
+                navegadorFortniteDBDeshabilitado = true;
                 fallos.push('navegador Puppeteer: ' + (errorNavegador.message || String(errorNavegador)));
-                await paso('⚠️ FortniteDB: la alternativa de navegador tampoco pudo obtener datos — ' + (errorNavegador.message || String(errorNavegador)) + '.');
+                await paso('⚠️ FortniteDB: la alternativa de navegador tampoco pudo obtener datos — ' + (errorNavegador.message || String(errorNavegador)) + '. Queda deshabilitada para evitar repetir el mismo timeout en este proceso.');
             }
+        }
+        if (!respuesta && navegadorFortniteDBDeshabilitado) {
+            fallos.push('navegador Puppeteer: omitido; ya expiró en un intento anterior de este proceso');
         }
         if (!respuesta) {
             throw new Error('No se pudo leer FortniteDB por HTTP ni mediante una carga normal de navegador. Detalles: ' + fallos.join(' | ') +
