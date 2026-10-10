@@ -639,6 +639,22 @@ async function descargarSTWRenderizada(url, selectorEsperado = '#miniRwdTbl tr.m
 }
 
 async function descargarVBucksDailyRenderizada(url, timeout = 25000) {
+    let ultimoError;
+    for (let intento = 1; intento <= 2; intento++) {
+        try {
+            return await descargarVBucksDailyRenderizadaUnaVez(url, timeout);
+        } catch (error) {
+            ultimoError = error;
+            if (intento < 2) {
+                console.warn('V-Bucks Daily: primer intento falló; se reintentará una vez.');
+                await new Promise(resolve => setTimeout(resolve, 900));
+            }
+        }
+    }
+    throw ultimoError;
+}
+
+async function descargarVBucksDailyRenderizadaUnaVez(url, timeout = 25000) {
     let browser;
     try {
         const puppeteer = require('puppeteer');
@@ -654,11 +670,16 @@ async function descargarVBucksDailyRenderizada(url, timeout = 25000) {
         const status = response ? response.status() : 0;
         if (status >= 400) throw new Error('V-Bucks Daily respondió HTTP ' + status + '.');
 
+        const titleInicio = await page.title();
+        if (/just a moment|checking your browser|verify you are human|attention required/i.test(titleInicio)) {
+            throw new Error('La página no entregó las misiones en la carga inicial.');
+        }
+
         await page.waitForSelector('.mission-row', { timeout: 15000 });
         const filtroPulsado = await page.evaluate(() => {
             const normalizar = valor => String(valor || '')
                 .toLowerCase()
-                .replace(/\\s+/g, ' ')
+                .replace(/\s+/g, ' ')
                 .trim();
             const selectores = 'button, [role="button"], a, label, [data-filter], input[type="radio"], input[type="checkbox"]';
             const elementos = Array.from(document.querySelectorAll(selectores));
