@@ -509,45 +509,126 @@ function formatearFuente(resultado) {
 
 
 const FUENTES_ALTERNATIVAS_PAVOS = [
-    { nombre: 'PennyDB', url: 'https://pennydb.net/stw/vbucks' },
+    { nombre: 'PennyDB', url: 'https://pennydb.net/stw-missions' },
     { nombre: 'V-Bucks Daily', url: 'https://vbucksdaily.com/' }
 ];
 
-function extraerAlertasFuenteAlternativa(html, nombreFuente) {
+function normalizarZona(nombre) {
+    const zonas = {
+        stonewood: 'Stonewood',
+        plankerton: 'Plankerton',
+        'canny valley': 'Canny Valley',
+        'twine peaks': 'Twine Peaks',
+        ventures: 'Ventures'
+    };
+    return zonas[String(nombre || '').trim().toLowerCase()] || null;
+}
+
+function extraerAlertasVBucksDaily(html) {
     const $ = cheerio.load(String(html || ''));
     const alertas = [];
-    const vistos = new Set();
-    const selectores = ['tr', 'article', 'li', '[class*="mission"]', '[class*="alert"]', '[class*="card"]'];
-    for (const selector of selectores) {
-        $(selector).each((_, nodo) => {
-            const elemento = $(nodo);
-            const texto = limpiar(elemento.text());
-            if (!texto || texto.length > 900 || !/v[\s-]?bucks|currency_mtxswap/i.test(texto)) return;
-            const zonaMatch = texto.match(/\b(Stonewood|Plankerton|Canny Valley|Twine Peaks|Ventures)\b/i);
-            const plMatch = texto.match(/\b(?:PL\s*)?(\d{1,3})\b/i);
-            const cantidadMatch = texto.match(/(?:V[\s-]?Bucks|currency_mtxswap)[^\d]{0,45}(\d{1,3})|(\d{1,3})\s*(?:x\s*)?V[\s-]?Bucks/i);
-            if (!zonaMatch || !plMatch || !cantidadMatch) return;
-            const cantidad = Number(cantidadMatch[1] || cantidadMatch[2]);
-            const pl = Number(plMatch[1]);
-            if (!Number.isFinite(cantidad) || cantidad <= 0 || cantidad > 500 || !Number.isFinite(pl) || pl < 1 || pl > 200) return;
-            const zona = zonaMatch[1].replace(/\b\w/g, l => l.toUpperCase());
-            const clave = [zona.toLowerCase(), pl, cantidad].join('|');
-            if (vistos.has(clave)) return;
-            vistos.add(clave);
-            const misionMatch = texto.match(/(Ride the Lightning|Retrieve the Data|Repair the Shelter|Fight Category \d Storm|Fight the Storm|Evacuate the Shelter|Deliver the Bomb|Rescue the Survivors|Destroy the Encampments|Build the Radar Grid|Eliminate and Collect)/i);
+    $('.mission-row').each((_, fila) => {
+        const row = $(fila);
+        const plMatch = limpiar(row.find('.pl').first().text()).match(/\d{1,3}/);
+        const misionOriginal = limpiar(row.find('.mission-name strong').first().text());
+        const ubicacion = limpiar(row.find('.mission-name small').first().text());
+        const zonaMatch = ubicacion.match(/\b(Stonewood|Plankerton|Canny Valley|Twine Peaks|Ventures)\b/i);
+        if (!plMatch || !zonaMatch) return;
+
+        // Solo toma recompensas del bloque .vbucks; ignora XP, materiales y otras recompensas.
+        row.find('.mission-reward.vbucks').each((__, recompensa) => {
+            const texto = limpiar($(recompensa).find('strong').first().text() || $(recompensa).text());
+            const cantidadMatch = texto.match(/V-?Bucks\s*(?:×|x)\s*(\d+)/i);
+            if (!cantidadMatch) return;
+            const cantidad = Number(cantidadMatch[1]);
+            if (!Number.isFinite(cantidad) || cantidad <= 0) return;
+            const zona = normalizarZona(zonaMatch[1]);
             alertas.push({
                 zona,
-                zonaCodigo: ({ Stonewood: 'S', Plankerton: 'P', 'Canny Valley': 'C', 'Twine Peaks': 'T', Ventures: 'V' })[zona] || null,
-                pl,
-                mision: nombreMisionSeeBot(misionMatch ? misionMatch[1] : 'Misión de alerta'),
+                zonaCodigo: ({ Stonewood: 'S', Plankerton: 'P', 'Canny Valley': 'C', 'Twine Peaks': 'T', Ventures: 'V' })[zona],
+                pl: Number(plMatch[0]),
+                mision: nombreMisionSeeBot(misionOriginal),
+                misionOriginal,
                 cantidad,
-                fuenteAlternativa: nombreFuente
+                fuenteAlternativa: 'V-Bucks Daily'
             });
         });
-    }
+    });
     return alertas;
 }
 
+function extraerAlertasPennyDB(html) {
+    const $ = cheerio.load(String(html || ''));
+    const alertas = [];
+    const vistos = new Set();
+
+    // PennyDB presenta las recompensas como li dentro de la sección "Alert rewards".
+    // Se toma solo V-Bucks Voucher y la cifra de .mission-figure de esa misma fila.
+    $('h3.mission-label').each((_, encabezado) => {
+        if (!/alert rewards/i.test(limpiar($(encabezado).text()))) return;
+        const seccion = $(encabezado).closest('section');
+        if (!seccion.length) return;
+        const lista = seccion.find('li').filter((__, li) => {
+            const item = $(li);
+            const titulo = limpiar(item.find('[title]').first().attr('title') || '');
+            const nombre = limpiar(item.find('span.block').first().text() || item.text());
+            return /v-?bucks/i.test(titulo + ' ' + nombre);
+        });
+
+        lista.each((__, li) => {
+            const item = $(li);
+            const titulo = limpiar(item.find('[title]').first().attr('title') || '');
+            const nombreRecompensa = limpiar(item.find('span.block').first().text() || item.text());
+            if (!/v-?bucks/i.test(titulo + ' ' + nombreRecompensa)) return;
+            const cantidad = Number(limpiar(item.find('.mission-figure').first().text()).match(/\d+/)?.[0]);
+            if (!Number.isFinite(cantidad) || cantidad <= 0) return;
+
+            // El fragmento de recompensas no contiene zona, PL ni misión; se localiza
+            // el contenedor de misión más cercano que también incluya esos metadatos.
+            let contenedor = seccion.parent();
+            let contexto = '';
+            for (let nivel = 0; nivel < 9 && contenedor.length; nivel++, contenedor = contenedor.parent()) {
+                const texto = limpiar(contenedor.text());
+                const zonaMatch = texto.match(/\b(Stonewood|Plankerton|Canny Valley|Twine Peaks|Ventures)\b/i);
+                const plMatch = texto.match(/\b(?:PL|Power Level|Level)\s*[:#]?\s*(\d{1,3})\b/i) ||
+                    texto.match(/\b(\d{1,3})\s*(?:PL|Power Level)\b/i);
+                if (zonaMatch && plMatch) {
+                    contexto = texto;
+                    break;
+                }
+            }
+            if (!contexto) return;
+            const zonaMatch = contexto.match(/\b(Stonewood|Plankerton|Canny Valley|Twine Peaks|Ventures)\b/i);
+            const plMatch = contexto.match(/\b(?:PL|Power Level|Level)\s*[:#]?\s*(\d{1,3})\b/i) ||
+                contexto.match(/\b(\d{1,3})\s*(?:PL|Power Level)\b/i);
+            const zona = normalizarZona(zonaMatch?.[1]);
+            const misionMatch = contexto.match(/(Ride the Lightning|Retrieve the Data|Repair the Shelter|Fight Category \d Storm|Fight the Storm|Evacuate the Shelter|Deliver the Bomb|Rescue the Survivors|Destroy the Encampments|Build the Radar Grid|Eliminate and Collect)/i);
+            if (!zona || !plMatch) return;
+            const pl = Number(plMatch[1]);
+            const clave = [zona, pl, cantidad, contexto.slice(0, 120)].join('|');
+            if (vistos.has(clave)) return;
+            vistos.add(clave);
+            const original = misionMatch ? misionMatch[1] : 'Misión de alerta';
+            alertas.push({
+                zona,
+                zonaCodigo: ({ Stonewood: 'S', Plankerton: 'P', 'Canny Valley': 'C', 'Twine Peaks': 'T', Ventures: 'V' })[zona],
+                pl,
+                mision: nombreMisionSeeBot(original),
+                misionOriginal: original,
+                cantidad,
+                recompensaOriginal: nombreRecompensa,
+                fuenteAlternativa: 'PennyDB'
+            });
+        });
+    });
+    return alertas;
+}
+
+function extraerAlertasFuenteAlternativa(html, nombreFuente) {
+    if (nombreFuente === 'V-Bucks Daily') return extraerAlertasVBucksDaily(html);
+    if (nombreFuente === 'PennyDB') return extraerAlertasPennyDB(html);
+    return [];
+}
 async function consultarFuenteAlternativaPavos(fuente) {
     const resultado = { fuente: fuente.nombre, url: fuente.url, ok: false, alertas: [], totalPavos: 0, error: null };
     try {
