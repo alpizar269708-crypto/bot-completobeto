@@ -81,10 +81,10 @@ async function ejecutarMenu(sock, chatId, msg, args) {
 
     let menuFortnite = `🎮 *MENÚ FORTNITE (STW)* 🎮\n\n` +
     `*${prefijo}pavos* - Muestra misiones de pavos actuales.\n` +
-    `*${prefijo}destacadasstw* - Alertas destacadas de STW.\n` +
-    `*${prefijo}epicasstw* - Alertas de misiones épicas.\n` +
-    `*${prefijo}legendariasstw* - Alertas de misiones legendarias.\n` +
-    `*${prefijo}alertasstw* - Resumen general de alertas.\n` +
+    `*${prefijo}destacadasstw* - Lista completa de alertas destacadas útiles.\n` +
+    `*${prefijo}epicasstw* - Recompensas épicas útiles (héroes, supervivientes, defensores y esquemas).\n` +
+    `*${prefijo}legendariasstw* - Recompensas legendarias útiles de esas categorías.\n` +
+    `*${prefijo}alertasstw* - Resumen breve: PaVos y hasta 10 alertas destacadas; usa los comandos por rareza para las listas completas.\n` +
     `*${prefijo}alerta [nombre]* - Busca una recompensa específica.\n`;
 
     menuFortnite += `\n🚀 *CARRY / ESCUADRONES:*\n` +
