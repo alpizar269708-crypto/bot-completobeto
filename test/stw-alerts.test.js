@@ -311,9 +311,24 @@ test('los títulos de misiones desconocidos no se envían en inglés', () => {
     assert.equal(traducirNombreMisionSTW('Unknown Future Mission'), 'Misión de alerta');
 });
 
-test('las ubicaciones y recompensas conocidas se muestran en español', () => {
+test('las ubicaciones y recompensas se muestran en español sin filtrar nombres ingleses', () => {
     assert.equal(traducirBiomaSTW('The Swamps'), 'Pantanos');
     assert.equal(traducirBiomaSTW('Haunted Forest'), 'Bosque embrujado');
+    assert.equal(traducirBiomaSTW('The Parque industrial'), 'Parque industrial');
     assert.equal(traducirNombreMisionSTW('Mission Alert'), 'Misión de alerta');
     assert.equal(traducirNombreObjetoSTW('Scouting Party Lead Survivor', 'survivor'), 'Líder del equipo de exploración');
+    assert.equal(traducirNombreObjetoSTW('Unknown Future Mission Reward', 'survivor'), 'Superviviente');
+});
+
+test('la consulta STW no recupera cachés antiguos si falla el raspado', () => {
+    const codigo = fs.readFileSync(path.join(__dirname, '..', 'comandos', 'fortnite.js'), 'utf8');
+    assert.match(codigo, /actualizarEnVivo\s*&&\s*!raspadoCorrecto/);
+    assert.match(codigo, /No hay alertas de PaVos disponibles en este momento/);
+    assert.doesNotMatch(codigo, /primeraPrincipal/);
+});
+
+test('las consultas STW envían un aviso inmediato y genérico', () => {
+    const codigo = fs.readFileSync(path.join(__dirname, '..', 'messageHandler.js'), 'utf8');
+    assert.match(codigo, /Consultando, esto puede tardar unos segundos/);
+    assert.doesNotMatch(codigo, /Consultando.*(?:Planner|V-Bucks|SeeBot)/i);
 });
