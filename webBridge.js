@@ -955,4 +955,4 @@ function vincularChatWhatsApp(chatId) {
     chatWhatsAppActivo = chatId;
 }
 
-module.exports = { iniciarPuenteDiscord, vincularChatWhatsApp, extraerAlertasAPI };
+module.exports = { iniciarPuenteDiscord, vincularChatWhatsApp, extraerAlertasAPI, parsearTablaSeeBotSTW, parsearVBucksDailySTW };
