@@ -595,6 +595,34 @@ function extraerAlertasPennyDB(html) {
         const clave = [zona, Number(plMatch[1]), cantidad, misionOriginal || 'Misión de alerta'].join('|');
         if (vistos.has(clave)) return;
         vistos.add(clave);
+        let detalle = $();
+        let ancestro = brief.parent();
+        for (let nivel = 0; nivel < 8 && ancestro.length; nivel++, ancestro = ancestro.parent()) {
+            detalle = ancestro.find('.mission-detail').first();
+            if (detalle.length || ancestro.is('body') || ancestro.is('html')) break;
+        }
+        const otrasRecompensas = [];
+        detalle.find('section').each((__, section) => {
+            const seccion = $(section);
+            if (!/^alert rewards$/i.test(limpiar(seccion.find('h3').first().text()))) return;
+            seccion.find('li').each((___, li) => {
+                const fila = $(li);
+                const nombre = limpiar(fila.find('[title]').first().attr('title') || fila.text());
+                const valor = limpiar(fila.find('.mission-figure').first().text());
+                if (nombre && !/v-?bucks voucher/i.test(nombre)) otrasRecompensas.push(nombre + (valor ? ' × ' + valor : ''));
+            });
+        });
+        const modificadores = [];
+        detalle.find('section').each((__, section) => {
+            const seccion = $(section);
+            if (!/^modifiers$/i.test(limpiar(seccion.find('h3').first().text()))) return;
+            seccion.find('li').each((___, li) => {
+                const fila = $(li);
+                const img = fila.find('img').first();
+                const nombre = limpiar(img.attr('title') || img.attr('alt') || fila.text());
+                if (nombre) modificadores.push(nombre);
+            });
+        });
         alertas.push({
             zona,
             zonaCodigo: ({ Stonewood: 'S', Plankerton: 'P', 'Canny Valley': 'C', 'Twine Peaks': 'T', Ventures: 'V' })[zona],
@@ -603,6 +631,8 @@ function extraerAlertasPennyDB(html) {
             misionOriginal: misionOriginal || 'Misión de alerta',
             cantidad,
             recompensaOriginal: recompensa,
+            otrasRecompensas,
+            modificadores,
             fuenteAlternativa: 'PennyDB'
         });
     });
