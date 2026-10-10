@@ -156,19 +156,19 @@ function formatearMultiplicadorSTW(item) {
 function formatearAlertaSTW(item, encabezado = '') {
     let texto = '';
     if (encabezado) texto += encabezado + '\n';
-    texto += \`⚡ *PL:* \${item.pl ?? '?'}\n\`;
-    if (item.zona) texto += \`🌍 *Zona:* \${item.zona}\n\`;
+    texto += '⚡ *PL:* ' + (item.pl ?? '?') + '\n';
+    if (item.zona) texto += '🌍 *Zona:* ' + item.zona + '\n';
     texto += formatearMultiplicadorSTW(item);
-    if (item.mision || item.misionOriginal) texto += \`🎯 *Misión:* \${item.mision || item.misionOriginal}\n\`;
+    if (item.mision || item.misionOriginal) texto += '🎯 *Misión:* ' + (item.mision || item.misionOriginal) + '\n';
 
     const recompensas = obtenerRecompensasValiosasSTW(item);
-    if (recompensas.length) texto += \`🎁 *Recompensa:* \${recompensas.join(' | ')}\n\`;
-    else if (item.recompensa && item.recompensa !== 'Misión') texto += \`🎁 *Recompensa:* \${item.recompensa}\n\`;
+    if (recompensas.length) texto += '🎁 *Recompensa:* ' + recompensas.join(' | ') + '\n';
+    else if (item.recompensa && item.recompensa !== 'Misión') texto += '🎁 *Recompensa:* ' + item.recompensa + '\n';
 
     const modificadores = Array.isArray(item.modificadores) ? item.modificadores.filter(Boolean) : [];
-    if (modificadores.length) texto += \`🧩 *Modificadores:* \${modificadores.join(', ')}\n\`;
+    if (modificadores.length) texto += '🧩 *Modificadores:* ' + modificadores.join(', ') + '\n';
     const requisitos = String(item.questReqs || item.requisitos || '').trim();
-    if (requisitos) texto += \`📜 *Requisitos:* \${/^none$/i.test(requisitos) ? 'Ninguno' : requisitos}\n\`;
+    if (requisitos) texto += '📜 *Requisitos:* ' + (/^none$/i.test(requisitos) ? 'Ninguno' : requisitos) + '\n';
     return texto + '\n';
 }
 
@@ -184,7 +184,7 @@ async function alertasSTW(sock, chatId, msg, categoria = 'todas', progreso = nul
     }
 
     const fechaHoy = obtenerFechaActual();
-    const lineas = [\`📅 _\${fechaHoy}_\`, ''];
+    const lineas = ['📅 _' + fechaHoy + '_', ''];
     if (categoria === 'pavos' || categoria === 'todas') {
         lineas.push('🎮 *ALERTAS DE PAVOS*', '');
         if (!datos.pavos.length) {
@@ -197,16 +197,16 @@ async function alertasSTW(sock, chatId, msg, categoria = 'todas', progreso = nul
                 const cantidad = Number(p.cantidad || p.cantidadVbucks || 50);
                 totalPavos += cantidad;
                 lineas.push(
-                    \`🌍 *Zona:* \${p.zona || 'Desconocida'}\`,
-                    \`⚡ *PL:* \${p.pl ?? '?'}\`,
-                    \`🎯 *Misión:* \${p.mision || p.misionOriginal || 'Alerta de PaVos'}\`,
-                    \`🪙 *PaVos:* \${cantidad}\`,
-                    ...(Array.isArray(p.modificadores) && p.modificadores.length ? [\`🧩 *Modificadores:* \${p.modificadores.join(', ')}\`] : []),
-                    ...(p.requisitos || p.questReqs ? [\`📜 *Requisitos:* \${/^none$/i.test(String(p.requisitos || p.questReqs)) ? 'Ninguno' : (p.requisitos || p.questReqs)}\`] : []),
+                    '🌍 *Zona:* ' + (p.zona || 'Desconocida'),
+                    '⚡ *PL:* ' + (p.pl ?? '?'),
+                    '🎯 *Misión:* ' + (p.mision || p.misionOriginal || 'Alerta de PaVos'),
+                    '🪙 *PaVos:* ' + cantidad,
+                    ...(Array.isArray(p.modificadores) && p.modificadores.length ? ['🧩 *Modificadores:* ' + p.modificadores.join(', ')] : []),
+                    ...(p.requisitos || p.questReqs ? ['📜 *Requisitos:* ' + (/^none$/i.test(String(p.requisitos || p.questReqs)) ? 'Ninguno' : (p.requisitos || p.questReqs))] : []),
                     ''
                 );
             }
-            lineas.push(\`💰 *Total del día:* \${totalPavos} PaVos\`, '');
+            lineas.push('💰 *Total del día:* ' + totalPavos + ' PaVos', '');
         }
     }
 
