@@ -4,7 +4,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const { parsearTablaSeeBotSTW, parsearJSONSeeBotSTW, parsearVBucksDailySTW } = require('../webBridge');
+const { parsearTablaSeeBotSTW, parsearJSONSeeBotSTW, parsearVBucksDailySTW, seleccionarAlertasSTWPorRareza, traducirNombreMisionSTW, traducirZonaSTW, traducirBiomaSTW, traducirModificadorSTW } = require('../webBridge');
 
 const htmlSeeBot = [
 '<table id="miniRwdTbl">',
@@ -48,8 +48,11 @@ test('SeeBot #miniRwdTbl extrae zona, PL, misión, modificadores, rareza y requi
     assert.equal(epica.recompensas[0].rareza, 'epic');
     assert.match(epica.recompensas[0].nombre, /Deadly Blade Crash/);
     assert.equal(epica.modificadores.length, 5);
-    assert.ok(epica.modificadores.includes('Short Range'));
+    assert.ok(epica.modificadores.includes('Alcance corto'));
     assert.ok(epica.modificadores.includes('Tormenta de fuego'));
+    assert.ok(epica.modificadores.includes('Cortinas de humo'));
+    assert.ok(epica.modificadores.includes('Estallido curativo al morir'));
+    assert.equal(epica.mision, 'Atrapa la tormenta');
     assert.ok(epica.modificadores.includes('Charcos de ácido'));
 
     const legendaria = misiones.find(m => m.misionOriginal === 'Resupply');
@@ -109,12 +112,26 @@ test('SeeBot extrae las misiones del arreglo makeHtml cuando el HTML no incluye 
             }],
             modifiers: [],
             missionQuestReqs: 'None'
+        },
+        {
+            zone: 'Twine Peaks',
+            powerLevel: 70,
+            name: 'Repair the Shelter',
+            alertRewards: [{
+                itemType: 'Resource',
+                name: 'Pure Drop of Rain (Epic)',
+                id: 'Resource_PureDropOfRain',
+                rarity: 'Epic',
+                quantity: 5
+            }],
+            modifiers: [],
+            missionQuestReqs: 'None'
         }
     ];
     const html = '<script>makeHtml(' + JSON.stringify(datos) + ');</script>';
     const misiones = parsearJSONSeeBotSTW(html);
 
-    assert.equal(misiones.length, 3);
+    assert.equal(misiones.length, 4);
     const epica = misiones.find(m => m.misionOriginal === 'Trap the Storm');
     assert.ok(epica);
     assert.equal(epica.zona, 'Hexsylvania Venture Zone');
@@ -123,6 +140,15 @@ test('SeeBot extrae las misiones del arreglo makeHtml cuando el HTML no incluye 
     assert.equal(epica.recompensas[0].tipo, 'hero');
     assert.equal(epica.modificadores.length, 5);
     assert.equal(epica.questReqs, 'None');
+    assert.equal(epica.mision, 'Atrapa la tormenta');
+
+    const epicasUtiles = seleccionarAlertasSTWPorRareza(misiones, 'epic');
+    const legendariasUtiles = seleccionarAlertasSTWPorRareza(misiones, 'legendary');
+    assert.equal(epicasUtiles.length, 1, 'una recompensa épica genérica no debe generar alerta útil');
+    assert.equal(epicasUtiles[0].misionOriginal, 'Trap the Storm');
+    assert.equal(epicasUtiles[0].recompensas[0].tipo, 'hero');
+    assert.equal(legendariasUtiles.length, 1);
+    assert.equal(legendariasUtiles[0].recompensas[0].tipo, 'survivor');
 
     const legendaria = misiones.find(m => m.misionOriginal === 'Resupply');
     assert.equal(legendaria.recompensas[0].rareza, 'legendary');
@@ -147,6 +173,17 @@ test('V-Bucks Daily extrae alertas de PaVos como respaldo', () => {
     assert.equal(alertas[0].zona, 'Twine Peaks');
     assert.equal(alertas[0].pl, 94);
     assert.equal(alertas[0].cantidadVbucks, 50);
+});
+
+
+
+test('los textos de alerta de STW se traducen al español', () => {
+    assert.equal(traducirNombreMisionSTW('Category 3 Fight the Storm'), 'Lucha contra una tormenta de categoría 3');
+    assert.equal(traducirNombreMisionSTW('Ride the Lightning'), 'Monta el rayo');
+    assert.equal(traducirZonaSTW('Stonewood'), 'Bosque Pedregoso');
+    assert.equal(traducirZonaSTW('Hexsylvania Venture Zone'), 'Zona de Aventuras de Hexsylvania');
+    assert.equal(traducirBiomaSTW('Industrial Park (Arid)'), 'Parque industrial (árido)');
+    assert.equal(traducirModificadorSTW('Healing Deathburst: Enemies heal nearby enemies when they die.'), 'Estallido curativo al morir');
 });
 
 test('los comandos STW están registrados en el manejador', () => {
