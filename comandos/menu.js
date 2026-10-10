@@ -2,7 +2,7 @@ const { esPrivilegiadoTotalAsync } = require('../utils/whatsapp');
 const { Config } = require('../database/modelos');
 
 const categoriasMap = {
-    fortnite: ['pavos', 'destacadasstw', 'legendariasstw', 'epicasstw', 'alertasstw', 'stw', 'alerta', 'setgrupostw', 'unsetgrupostw', 'setprecio', 'rpavos', 'rdestacadasstw', 'rlegendariasstw', 'repicasstw', 'ralertasstw', 'ralerta', 'rdiagnostico', 'rsetgrupostw', 'runsetgrupostw', 'rsetprecio'],
+    fortnite: ['rpavos', 'rdestacadasstw', 'repicasstw', 'rlegendariasstw', 'ralertasstw', 'ralerta'],
     tienda: ['tienda', 'tiendavb'],
     carry: ['carryleader', 'carryjoin', 'carryleave', 'carryclose', 'blcarry', 'unblcarry', 'listcarrybl', 'rcarryleader', 'rcarryjoin', 'rcarryleave', 'rcarryclose', 'rblcarry', 'runblcarry', 'rlistcarrybl'],
     rifas: ['rifa', 'rifainscripcion', 'cerrarrifa', 'rifajasc13', 'addvarios', 'abrirrifa', 'activarrifaaqui', 'menurifajasc13'],
@@ -80,29 +80,14 @@ async function ejecutarMenu(sock, chatId, msg, args) {
     }
 
     let menuFortnite = `🎮 *MENÚ FORTNITE (STW)* 🎮\n\n` +
-    `*rdiagnostico* - Diagnóstico profundo, etapa por etapa, de FortniteDB, SeeBot y las alertas STW.\n` +
-    `*rpavos* - Muestra misiones actuales que dan PaVos.\n` +
-    `*rdestacadasstw* - Alertas destacadas / PL altas de STW.\n` +
-    `*repicasstw* - Alertas de misiones épicas.\n` +
-    `*rlegendariasstw* - Alertas de misiones legendarias.\n` +
-    `*ralertasstw* - Resumen general de alertas.\n` +
-    `*ralerta [nombre]* - Busca una recompensa específica.\n`;
+    `*rdestacadasstw* - Alertas destacadas y PL altas; envía diagnóstico detallado durante la extracción.\n` +
+    `*repicasstw* - Recompensas épicas; envía diagnóstico detallado durante la consulta.\n` +
+    `*rlegendariasstw* - Recompensas legendarias; envía diagnóstico detallado durante la consulta.\n` +
+    `*ralertasstw* - Resumen de alertas; envía diagnóstico detallado durante la consulta.\n` +
+    `*ralerta [nombre]* - Busca una recompensa e informa cada etapa de la búsqueda.\n` +
+    `*rpavos* - Alertas de PaVos con diagnóstico detallado de descarga, extracción y guardado.\n`;
 
-    menuFortnite += `\n🚀 *CARRY / ESCUADRONES:*\n` +
-        `*rcarryleader [1-3] [motivo]* - Crea un escuadrón indicando cuántos jugadores faltan.\n` +
-        `*rcarryjoin* - Únete al escuadrón activo.\n` +
-        `*rcarryleave* - Sal del escuadrón actual.\n` +
-        `*rcarryclose* - Cierra tu escuadrón.\n` +
-        `*rblcarry [@user / número / cita]* - Bloquea a alguien del carry (Admins).\n` +
-        `*runblcarry [@user / número / cita]* - Quita a alguien de la lista negra (Admins).\n` +
-        `*rlistcarrybl* - Muestra la lista negra de carry (Admins).\n`;
-
-    menuFortnite += `\n⚙️ *Gestión del Grupo:*\n` +
-        `*rsetprecio* - Configura precio de venta de PaVos.\n` +
-        `*rsetgrupostw* - Activa reportes diarios a las 6:05 PM aquí.\n` +
-        `*runsetgrupostw* - Desactiva los reportes diarios.\n`;
-
-    let menuModeracion = `🛡️ *MENÚ MODERACIÓN (Admins)* 🛡️\n\n`;
+        let menuModeracion = `🛡️ *MENÚ MODERACIÓN (Admins)* 🛡️\n\n`;
     if (isAdmin && isGroup) {
         menuModeracion += `*${prefijo}warn [@user] / verwarns* - Advierte a un usuario.\n` +
         `*${prefijo}limpiarwarns [@user]* - Borra todos los warns del usuario y lo deja en 0/3.\n` +
