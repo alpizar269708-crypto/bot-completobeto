@@ -327,8 +327,7 @@ test('la consulta STW no recupera cachés antiguos si falla el raspado', () => {
     assert.doesNotMatch(codigo, /primeraPrincipal/);
 });
 
-test('las consultas STW envían un aviso inmediato y genérico', () => {
+test('las consultas STW no envían el aviso genérico de espera eliminado', () => {
     const codigo = fs.readFileSync(path.join(__dirname, '..', 'messageHandler.js'), 'utf8');
-    assert.match(codigo, /Consultando, esto puede tardar unos segundos/);
-    assert.doesNotMatch(codigo, /Consultando.*(?:Planner|V-Bucks|SeeBot)/i);
+    assert.doesNotMatch(codigo, /Consultando, esto puede tardar unos segundos\. No hace falta repetir el comando\./);
 });
