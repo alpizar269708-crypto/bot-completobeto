@@ -28,7 +28,7 @@ const { comandoCarry } = require('./comandos/carry');
 const { comandoPaypal, comandoCalculadoraPaypal } = require('./comandos/paypal');
 
 const categoriasMap = {
-    'fortnite': ['pavos', 'destacadasstw', 'legendariasstw', 'epicasstw', 'alertasstw', 'stw', 'alerta', 'setgrupostw', 'unsetgrupostw', 'setprecio'],
+    'fortnite': ['pavos', 'rpavos', 'destacadasstw', 'legendariasstw', 'epicasstw', 'alertasstw', 'stw', 'alerta', 'setgrupostw', 'unsetgrupostw', 'setprecio'],
     'economia': ['cartera', 'bal', 'banco', 'pay', 'pagar', 'top', 'topdinero', 'daily', 'weekly', 'farmear', 'work', 'crime', 'mendigar', 'pescar', 'minar', 'cazar', 'explorar', 'ruleta', 'cf', 'slots', 'dados', 'adivina', 'buscaminas', 'rob', 'ppt', 'pelea', 'carrera', 'hackear', 'shop', 'buy', 'inventario', 'mochila', 'vender', 'use', 'regalar'],
     'utilidades': ['s', 'sticker', 'recup1vez', 'tiktok', 'instagram', 'traduce', 'skin', 'stats', 'tiendastats', 'tiendavb', 'contacto', 'ping'],
     'paypal': ['paypal', 'paypaln', 'paypali'],
@@ -69,26 +69,6 @@ const comandosValidos = new Set([
         'vertodoscomandos', 'listablanca', 'paypal', 'paypaln', 'paypali', 'desactivarbienvenida', 'activarbienvenida', 'personalizarbienvenida', 'restaurarbienvenida'
 ]);
 
-
-async function ejecutarFortniteConDiagnostico(sock, chatJid, msg, comando, ejecutar) {
-    const inicio = Date.now();
-    let numeroEtapa = 0;
-    const progreso = async (texto) => {
-        numeroEtapa++;
-        const prefijo = '🧪 *' + comando + ' — DIAGNÓSTICO DETALLADO*\n' +
-            '📍 Etapa de seguimiento: ' + numeroEtapa + '\n' +
-            '⏱️ Tiempo: ' + ((Date.now() - inicio) / 1000).toFixed(2) + ' s\n\n';
-        await sock.sendMessage(chatJid, { text: prefijo + String(texto).slice(0, 2800) }, { quoted: msg });
-    };
-    await progreso('🚦 ETAPA 0 — Comando recibido. Inicio de la ejecución y seguimiento activo.');
-    try {
-        await ejecutar(progreso);
-        await progreso('🏁 EJECUCIÓN TERMINADA. El manejador regresó sin lanzar una excepción. Duración total=' + ((Date.now() - inicio) / 1000).toFixed(2) + ' s.');
-    } catch (error) {
-        await progreso('🛑 ERROR NO CONTROLADO. Punto de fallo: manejador del comando. Error exacto: ' + String(error.stack || error.message || error).slice(0, 1800));
-        console.error('Error en diagnóstico Fortnite (' + comando + '):', error);
-    }
-}
 
 async function procesarMensaje(sock, msg) {
     const chatJid = msg.key.remoteJid;
