@@ -237,12 +237,16 @@ async function arrancarSocket(metodo, numeroTelefono, onCodeReady = null) {
     const normalizarSaltosMensaje = valor => typeof valor === 'string'
         ? valor.replace(/\\n/g, '\n').replace(/\/n(?=\s|$)/g, '\n')
         : valor;
-    const limpiarContenidoMensaje = valor => {
-        if (typeof valor === 'string') return normalizarSaltosMensaje(valor);
-        if (Array.isArray(valor)) return valor.map(limpiarContenidoMensaje);
-        if (valor && typeof valor === 'object') {
+    const limpiarContenidoMensaje = (valor, clave = '') => {
+        if (typeof valor === 'string') {
+            return /^(text|caption|title|description|footer|body|buttonText|content)$/i.test(clave)
+                ? normalizarSaltosMensaje(valor)
+                : valor;
+        }
+        if (Array.isArray(valor)) return valor.map(elemento => limpiarContenidoMensaje(elemento, clave));
+        if (valor && typeof valor === 'object' && Object.getPrototypeOf(valor) === Object.prototype) {
             const limpio = {};
-            for (const [clave, dato] of Object.entries(valor)) limpio[clave] = limpiarContenidoMensaje(dato);
+            for (const [nombre, dato] of Object.entries(valor)) limpio[nombre] = limpiarContenidoMensaje(dato, nombre);
             return limpio;
         }
         return valor;
