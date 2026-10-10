@@ -514,6 +514,66 @@ async function descargarSTWRenderizada(url, selectorEsperado = '#miniRwdTbl tr.m
     }
 }
 
+async function descargarVBucksDailyRenderizada(url, timeout = 25000) {
+    let browser;
+    try {
+        const puppeteer = require('puppeteer');
+        browser = await puppeteer.launch({
+            headless: true,
+            args: ['--no-sandbox', '--disable-setuid-sandbox']
+        });
+        const page = await browser.newPage();
+        page.setDefaultNavigationTimeout(timeout);
+        page.setDefaultTimeout(12000);
+        await page.setUserAgent('Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Safari/537.36');
+        const response = await page.goto(url, { waitUntil: 'domcontentloaded', timeout });
+        const status = response ? response.status() : 0;
+        if (status >= 400) throw new Error('V-Bucks Daily respondió HTTP ' + status + '.');
+
+        await page.waitForSelector('.mission-row', { timeout: 15000 });
+        const filtroPulsado = await page.evaluate(() => {
+            const normalizar = valor => String(valor || '')
+                .toLowerCase()
+                .replace(/\\s+/g, ' ')
+                .trim();
+            const selectores = 'button, [role="button"], a, label, [data-filter], input[type="radio"], input[type="checkbox"]';
+            const elementos = Array.from(document.querySelectorAll(selectores));
+            const filtro = elementos.find(el => {
+                const texto = normalizar(el.innerText || el.textContent || '');
+                const aria = normalizar(el.getAttribute('aria-label'));
+                const titulo = normalizar(el.getAttribute('title'));
+                const valor = normalizar(el.getAttribute('value'));
+                const dataFilter = normalizar(el.getAttribute('data-filter'));
+                return texto === 'all rewards' || aria === 'all rewards' || titulo === 'all rewards' ||
+                    valor === 'all rewards' || dataFilter === 'all' ||
+                    texto.startsWith('all rewards ') || texto === 'all rewards (all)';
+            });
+            if (!filtro) return false;
+            const clicable = filtro.closest('label, button, [role="button"], a, [data-filter]') || filtro;
+            clicable.click();
+            return true;
+        });
+
+        if (!filtroPulsado) throw new Error('No se encontró el filtro “All rewards” en V-Bucks Daily.');
+        // El filtro puede actualizar las filas del DOM mediante JavaScript.
+        // Esperar a que aparezcan las recompensas que no son solo PaVos.
+        await page.waitForFunction(() => {
+            const filas = Array.from(document.querySelectorAll('.mission-row'));
+            return filas.some(fila => fila.querySelector('.mission-reward.perks')) ||
+                document.querySelectorAll('.mission-row .mission-reward').length > 2;
+        }, { timeout: 12000 }).catch(() => {});
+        await new Promise(resolve => setTimeout(resolve, 700));
+
+        const html = await page.content();
+        const title = await page.title();
+        if (/just a moment|checking your browser|verify you are human|attention required/i.test(title)) {
+            throw new Error('V-Bucks Daily mostró una página de protección en lugar de las misiones.');
+        }
+        return { html, title, status, urlFinal: page.url(), filtroPulsado };
+    } finally {
+        if (browser) await browser.close().catch(() => {});
+    }
+}
 function parsearTablaSeeBotSTW(html) {
     const $ = cheerio.load(String(html || ''));
     const filas = [];
@@ -1062,7 +1122,33 @@ async function extraerAlertasAPI(progreso = null) {
                 console.log('✅ SeeBot JSON makeHtml: misiones extraídas=' + todasSeeBotJSON.length + '.');
             }
         }
-        const todasVBucksDaily = htmlVBucksDaily ? parsearVBucksDailySTW(htmlVBucksDaily) : [];
+        let todasVBucksDaily = htmlVBucksDaily ? parsearVBucksDailySTW(htmlVBucksDaily) : [];
+        const vbucksDailyTraeRarezasHTTP = todasVBucksDaily.some(m =>
+            (m.recompensas || []).some(r => r.tipo !== 'vbucks' && ['epic', 'legendary', 'mythic'].includes(r.rareza))
+        );
+        if (htmlVBucksDaily && !vbucksDailyTraeRarezasHTTP) {
+            try {
+                const renderizadaDaily = await descargarVBucksDailyRenderizada(urlVBucksDaily);
+                const htmlRenderizado = cheerio.load(renderizadaDaily.html);
+                const filasRenderizadasDaily = htmlRenderizado('.mission-row').length;
+                const misionesRenderizadasDaily = parsearVBucksDailySTW(renderizadaDaily.html);
+                const traeRecompensasRaras = misionesRenderizadasDaily.some(m =>
+                    (m.recompensas || []).some(r => r.tipo !== 'vbucks' && ['epic', 'legendary', 'mythic'].includes(r.rareza))
+                );
+                console.log('🔎 V-Bucks Daily navegador | HTTP=' + renderizadaDaily.status +
+                    ' | filtro All rewards=' + (renderizadaDaily.filtroPulsado ? 'activado' : 'no activado') +
+                    ' | filas .mission-row=' + filasRenderizadasDaily +
+                    ' | misiones válidas=' + misionesRenderizadasDaily.length +
+                    ' | con recompensas épicas/legendarias=' + (misionesRenderizadasDaily.filter(m =>
+                        (m.recompensas || []).some(r => r.tipo !== 'vbucks' && ['epic', 'legendary', 'mythic'].includes(r.rareza))
+                    ).length) + '.');
+                if (traeRecompensasRaras || misionesRenderizadasDaily.length > todasVBucksDaily.length) {
+                    todasVBucksDaily = misionesRenderizadasDaily;
+                }
+            } catch (errorDailyRender) {
+                console.warn('⚠️ V-Bucks Daily: no se pudo activar “All rewards” en el navegador:', errorDailyRender.message);
+            }
+        }
         console.log('🔎 STW fuentes recibidas | Planner HTML=' + String(htmlPrincipal || '').length +
             ' chars / misiones=' + todasPlanner.length +
             ' | V-Bucks Daily HTML=' + String(htmlVBucksDaily || '').length + ' chars / misiones=' + todasVBucksDaily.length +
