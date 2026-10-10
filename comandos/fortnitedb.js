@@ -390,7 +390,7 @@ async function diagnosticarMenuFortnite(progreso) {
 function formatearFuente(resultado) {
     const lineas = [
         (resultado.ok ? '✅' : '❌') + ' *' + resultado.fuente + '*',
-        resultado.ok ? 'Alertas encontradas: ' + resultado.alertas.length : 'Error: ' + resultado.error
+        resultado.ok ? 'Alertas encontradas: ' + resultado.alertas.length : 'Último punto: ' + (resultado.etapaFallo || 'no registrado') + '\nError exacto: ' + resultado.error
     ];
     if (resultado.ok) {
         for (const alerta of resultado.alertas) {
@@ -404,16 +404,16 @@ function formatearFuente(resultado) {
 async function comandoRPavos(sock, chatId, msg) {
     const inicio = Date.now();
     const progreso = async (texto) => {
-        await sock.sendMessage(chatId, { text: '🧪 *DIAGNÓSTICO RPAVOS*\n\n' + texto }, { quoted: msg });
+        await sock.sendMessage(chatId, { text: '🧪 *RDIAGNOSTICO — TRAZA TÉCNICA*\n\n' + texto }, { quoted: msg });
     };
 
     await progreso('🚦 Inicio del diagnóstico. Consultaré ambas páginas de forma independiente; si una falla, continuaré con la otra.');
 
-    const [fortniteDB, seeBot, menuFortnite] = await Promise.all([
-        consultarFortniteDB(progreso),
-        consultarSeeBot(progreso),
-        diagnosticarMenuFortnite(progreso)
-    ]);
+    // Ejecución secuencial intencional: evita intercalar mensajes y permite seguir
+    // la traza de cada página desde conexión hasta extracción, incluso si una falla.
+    const fortniteDB = await consultarFortniteDB(progreso);
+    const seeBot = await consultarSeeBot(progreso);
+    const menuFortnite = await diagnosticarMenuFortnite(progreso);
 
     const lineas = [
         '🧪 *RESULTADO FINAL DEL DIAGNÓSTICO RDIAGNOSTICO*',
@@ -435,7 +435,7 @@ async function comandoRPavos(sock, chatId, msg) {
         const diferencia = fortniteDB.totalPavos - seeBot.totalPavos;
         lineas.push('', '🧮 Diferencia entre fuentes: ' + (diferencia > 0 ? '+' : '') + diferencia + ' PaVos.');
     } else {
-        lineas.push('', '⚠️ Una o ambas fuentes fallaron; revisa arriba la última etapa reportada para cada página.');
+        lineas.push('', '⚠️ Una o ambas fuentes fallaron. Cada bloque anterior identifica el último punto completado y el error exacto de esa página.');
     }
 
     await sock.sendMessage(chatId, { text: lineas.join('\n') }, { quoted: msg });
