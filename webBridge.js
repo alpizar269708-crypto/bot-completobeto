@@ -403,6 +403,36 @@ function deduplicarSTW(lista) {
 }
 
 
+async function descargarSTWRenderizada(url, selectorEsperado = '#miniRwdTbl tr.missionRow', timeout = 15000) {
+    let browser;
+    try {
+        const puppeteer = require('puppeteer');
+        browser = await puppeteer.launch({
+            headless: true,
+            args: ['--no-sandbox', '--disable-setuid-sandbox']
+        });
+        const page = await browser.newPage();
+        page.setDefaultNavigationTimeout(timeout);
+        page.setDefaultTimeout(timeout);
+        await page.setUserAgent('Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Safari/537.36');
+        const response = await page.goto(url, { waitUntil: 'domcontentloaded', timeout });
+        const status = response ? response.status() : 0;
+        if (status >= 400) throw new Error('La página renderizada respondió HTTP ' + status + '.');
+        await page.waitForFunction((selector) => {
+            const filas = document.querySelectorAll(selector);
+            return filas.length > 1;
+        }, { timeout }, selectorEsperado);
+        const html = await page.content();
+        const title = await page.title();
+        if (/just a moment|checking your browser|verify you are human|attention required/i.test(title)) {
+            throw new Error('El navegador recibió una página de protección o verificación, no una tabla de misiones.');
+        }
+        return { html, title, status, urlFinal: page.url() };
+    } finally {
+        if (browser) await browser.close().catch(() => {});
+    }
+}
+
 function parsearTablaSeeBotSTW(html) {
     const $ = cheerio.load(String(html || ''));
     const filas = [];
@@ -695,7 +725,33 @@ async function extraerAlertasAPI(progreso = null) {
         ]);
 
         const todasPlanner = htmlPrincipal ? parsearPaginaSTW(htmlPrincipal, 'all') : [];
-        const todasSeeBot = htmlSeeBot ? parsearTablaSeeBotSTW(htmlSeeBot) : [];
+        let todasSeeBot = htmlSeeBot ? parsearTablaSeeBotSTW(htmlSeeBot) : [];
+        let filasSeeBotHTML = 0;
+        try { filasSeeBotHTML = htmlSeeBot ? cheerio.load(htmlSeeBot)('#miniRwdTbl tr.missionRow').length : 0; } catch (_) {}
+        console.log('🔎 STW fuentes recibidas | Planner HTML=' + String(htmlPrincipal || '').length +
+            ' chars / misiones=' + todasPlanner.length +
+            ' | SeeBot HTML=' + String(htmlSeeBot || '').length + ' chars / filas #miniRwdTbl=' +
+            filasSeeBotHTML + ' / misiones válidas=' + todasSeeBot.length + '.');
+
+        // La tabla de SeeBot puede montarse con JavaScript. Si el HTML HTTP no
+        // trae filas utilizables, pedir la página pública en un navegador normal.
+        if (todasSeeBot.length === 0) {
+            try {
+                const renderizada = await descargarSTWRenderizada(urlSeeBot);
+                const parseadas = parsearTablaSeeBotSTW(renderizada.html);
+                const filasRenderizadas = cheerio.load(renderizada.html)('#miniRwdTbl tr.missionRow').length;
+                console.log('🔎 SeeBot navegador | HTTP=' + renderizada.status +
+                    ' | título=' + (renderizada.title || '(sin título)') +
+                    ' | filas #miniRwdTbl=' + filasRenderizadas +
+                    ' | misiones válidas=' + parseadas.length + '.');
+                if (parseadas.length > 0) {
+                    htmlSeeBot = renderizada.html;
+                    todasSeeBot = parseadas;
+                }
+            } catch (errorRender) {
+                console.warn('⚠️ SeeBot no entregó filas válidas por HTTP ni al renderizar:', errorRender.message);
+            }
+        }
         const mapaTodas = new Map();
         for (const m of [...todasPlanner, ...todasSeeBot]) {
             const nombreMision = String(m.misionOriginal || m.mision || '').toLowerCase().replace(/\s+/g, ' ').trim();
@@ -812,7 +868,14 @@ async function extraerAlertasAPI(progreso = null) {
             }
         });
         const tiposBuenos = ['hero', 'survivor', 'defender', 'schematic'];
-        const coberturaCompleta = todasPlanner.length > 0 || todasSeeBot.length > 0;
+        const plannerTraeRecompensas = todasPlanner.some(m =>
+            (m.recompensas || []).some(r => ['epic', 'legendary', 'mythic'].includes(r.rareza))
+        );
+        // Solo marcamos cobertura completa cuando hay una tabla general con
+        // suficientes misiones, no cuando la página está refrescando y solo
+        // se pudo recuperar el subconjunto de PaVos.
+        const coberturaCompleta = todasSeeBot.length >= 5 ||
+            (todasPlanner.length >= 5 && plannerTraeRecompensas);
 
         let epicas = todas
             .filter(m => (m.recompensas || []).some(r => r.rareza === 'epic'))
@@ -935,10 +998,28 @@ async function extraerAlertasAPI(progreso = null) {
         await Config.findOneAndUpdate({ clave: 'stw_epicas_scrapeadas' }, { valor: JSON.stringify(deduplicarSTW(epicas)) }, { upsert: true });
         await Config.findOneAndUpdate({ clave: 'stw_legendarias_scrapeadas' }, { valor: JSON.stringify(deduplicarSTW(legendarias)) }, { upsert: true });
         await Config.findOneAndUpdate({ clave: 'stw_plaltas_scrapeadas' }, { valor: JSON.stringify(plAltas) }, { upsert: true });
-        await Config.findOneAndUpdate({ clave: 'stw_ultima_actualizacion' }, { valor: JSON.stringify({ fuente: 'STW Planner', actualizadoEn: new Date().toISOString(), totalMisiones: todas.length, pavos: pavosFinal.length, epicas: epicas.length, legendarias: legendarias.length, plAltas: plAltas.length }) }, { upsert: true });
+        await Config.findOneAndUpdate({ clave: 'stw_ultima_actualizacion' }, { valor: JSON.stringify({
+            fuente: coberturaCompleta ? (todasSeeBot.length >= 5 ? 'SeeBot + STW Planner' : 'STW Planner') : (pavosDaily.length ? 'V-Bucks Daily (parcial)' : 'Fuentes STW (parcial)'),
+            actualizadoEn: new Date().toISOString(),
+            totalMisiones: todas.length,
+            misionesPlanner: todasPlanner.length,
+            misionesSeeBot: todasSeeBot.length,
+            coberturaCompleta,
+            pavos: pavosFinal.length,
+            epicas: epicas.length,
+            legendarias: legendarias.length,
+            plAltas: plAltas.length
+        }) }, { upsert: true });
         await etapaDiagnostico('STW ETAPA 4/5: guardado MongoDB completado; PaVos=' + pavosFinal.length + ', épicas=' + epicas.length + ', legendarias=' + legendarias.length + ', PL altas=' + plAltas.length + '.');
 
-        console.log('✅ STW Planner guardado | Total: ' + todas.length + ' | 🪙 Pavos: ' + pavosFinal.length + ' | 🟣 Épicas: ' + epicas.length + ' | 🟠 Legendarias: ' + legendarias.length + ' | 🔥 Alertas destacadas: ' + plAltas.length);
+        console.log((coberturaCompleta ? '✅' : '⚠️') + ' STW guardado | cobertura=' + (coberturaCompleta ? 'COMPLETA' : 'PARCIAL (se conservó caché anterior de épicas/legendarias)') +
+            ' | total unificado=' + todas.length +
+            ' | Planner=' + todasPlanner.length +
+            ' | SeeBot=' + todasSeeBot.length +
+            ' | PaVos=' + pavosFinal.length +
+            ' | épicas=' + epicas.length +
+            ' | legendarias=' + legendarias.length +
+            ' | destacadas=' + plAltas.length);
         await etapaDiagnostico('STW FINAL: proceso terminado correctamente en ' + ((Date.now() - tiempoDiagnostico) / 1000).toFixed(2) + ' s.');
         return { ok: true, total: todas.length, pavos: pavosFinal.length, epicas: epicas.length, legendarias: legendarias.length, plAltas: plAltas.length };
     } catch (e) {
