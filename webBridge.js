@@ -1747,9 +1747,8 @@ async function extraerAlertasAPI(progreso = null, opciones = {}) {
 }
 function iniciarPuenteDiscord(sock) {
     sockWhatsApp = sock;
-    // STW Planner se raspa una vez al día, a las 18:02 hora de México,
-    // desde el cron de alertas diarias en comandos/fortnite.js.
-    // Las consultas manuales hacen raspado en vivo antes de responder.
+    // El snapshot STW se actualiza al arrancar el proceso y en los horarios
+    // programados de comandos/fortnite.js. Los comandos leen la caché de MongoDB.
 }
 
 function vincularChatWhatsApp(chatId) {
