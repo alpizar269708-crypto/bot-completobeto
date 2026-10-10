@@ -563,32 +563,50 @@ function seleccionarAlertasSTWPorRareza(misiones, rareza) {
 }
 function deduplicarSTW(lista) {
     const mapa = new Map();
+    const normalizar = valor => String(valor || '').toLowerCase()
+        .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-z0-9]+/g, ' ').trim();
+    const claveRecompensa = r => [
+        normalizar(r && r.tipo), normalizar(r && r.rareza),
+        normalizar(r && (r.raw || r.nombre))
+            .replace(/\b(survivor|superviviente)\b/g, '')
+            .replace(/\b(x|×)\s*\d+\b/g, '').trim()
+    ].join('|');
 
     for (const item of Array.isArray(lista) ? lista : []) {
         if (!item) continue;
-
-        const clave = item.id
-            ? String(item.id)
-            : [
-                item.zona ?? '',
-                item.pl ?? '',
-                item.mision ?? '',
-                item.ubicacion ?? '',
-                item.recompensa ?? '',
-                item.cantidad ?? '',
-                item.rareza ?? '',
-                item.tipo ?? '',
-                item.esX4 ? 'x4' : ''
-            ].join('|').toLowerCase();
-
+        const clave = [
+            normalizar(item.zona), String(item.pl ?? ''),
+            normalizar(item.misionOriginal || item.mision), normalizar(item.ubicacion),
+            item.esX4 ? 'x4' : ''
+        ].join('|');
         if (!mapa.has(clave)) {
-            mapa.set(clave, item);
+            mapa.set(clave, { ...item, recompensas: [...(item.recompensas || [])], modificadores: [...(item.modificadores || [])] });
+            continue;
         }
+        const anterior = mapa.get(clave);
+        const recompensas = [...(anterior.recompensas || [])];
+        const vistas = new Map(recompensas.map((r, index) => [claveRecompensa(r), index]));
+        for (const r of (item.recompensas || [])) {
+            const k = claveRecompensa(r);
+            if (!vistas.has(k)) {
+                vistas.set(k, recompensas.length);
+                recompensas.push(r);
+            } else {
+                const indice = vistas.get(k);
+                if (!(Number(recompensas[indice].cantidad) > 0) && Number(r.cantidad) > 0) {
+                    recompensas[indice] = { ...r, ...recompensas[indice], cantidad: Number(r.cantidad) };
+                }
+            }
+        }
+        const modificadores = [...new Set([...(anterior.modificadores || []), ...(item.modificadores || [])])];
+        mapa.set(clave, {
+            ...item, ...anterior, recompensas, modificadores,
+            recompensa: recompensas.map(r => r.nombre).filter(Boolean).join(' | ') || anterior.recompensa || item.recompensa
+        });
     }
-
     return Array.from(mapa.values());
 }
-
 
 async function descargarSTWRenderizada(url, selectorEsperado = '#miniRwdTbl tr.missionRow', timeout = 15000) {
     let browser;
@@ -1185,7 +1203,14 @@ function parsearPavosSTW(html) {
 async function extraerAlertasAPI(progreso = null) {
     const informarDiagnostico = async (texto) => { if (typeof progreso === 'function') { try { await progreso(texto); } catch (e) {} } };
     const tiempoDiagnostico = Date.now();
-    const etapaDiagnostico = async (texto) => { await informarDiagnostico('[' + ((Date.now() - tiempoDiagnostico) / 1000).toFixed(2) + ' s] ' + texto); };
+    let progresoGeneralEnviado = false;
+    const etapaDiagnostico = async (texto) => {
+        console.log('[' + ((Date.now() - tiempoDiagnostico) / 1000).toFixed(2) + ' s] ' + texto);
+        if (!progresoGeneralEnviado) {
+            progresoGeneralEnviado = true;
+            await informarDiagnostico('⏳ Actualizando las alertas. Esto puede tardar unos segundos.');
+        }
+    };
     try {
         console.log('\n--- 🌐 RASPADO STW PLANNER ---');
         const urlPrincipal = 'https://stw-planner.com/mission-alerts';
@@ -1589,7 +1614,11 @@ async function extraerAlertasAPI(progreso = null) {
             ' | legendarias=' + legendarias.length +
             ' | destacadas=' + plAltas.length);
         await etapaDiagnostico('STW FINAL: proceso terminado correctamente en ' + ((Date.now() - tiempoDiagnostico) / 1000).toFixed(2) + ' s.');
-        return { ok: true, total: todas.length, pavos: pavosFinal.length, epicas: epicas.length, legendarias: legendarias.length, plAltas: plAltas.length };
+        return {
+            ok: true, total: todas.length, pavos: pavosFinal.length,
+            epicas: epicas.length, legendarias: legendarias.length, plAltas: plAltas.length,
+            fuentes: { principal: todasPlanner, secundaria: todasVBucksDaily, tercera: todasSeeBot }
+        };
     } catch (e) {
         console.error('❌ Error en la extracción STW Planner:', e.stack || e.message);
         await etapaDiagnostico('STW FALLÓ: ' + String(e.stack || e.message || e).slice(0, 900));
@@ -1607,4 +1636,4 @@ function vincularChatWhatsApp(chatId) {
     chatWhatsAppActivo = chatId;
 }
 
-module.exports = { iniciarPuenteDiscord, vincularChatWhatsApp, extraerAlertasAPI, parsearTablaSeeBotSTW, parsearJSONSeeBotSTW, parsearVBucksDailySTW, traducirNombreMisionSTW, traducirNombreObjetoSTW, normalizarRecompensaSTW, traducirZonaSTW, traducirBiomaSTW, traducirModificadorSTW, seleccionarAlertasSTWPorRareza };
+module.exports = { iniciarPuenteDiscord, vincularChatWhatsApp, extraerAlertasAPI, parsearTablaSeeBotSTW, parsearJSONSeeBotSTW, parsearVBucksDailySTW, deduplicarSTW, traducirNombreMisionSTW, traducirNombreObjetoSTW, normalizarRecompensaSTW, traducirZonaSTW, traducirBiomaSTW, traducirModificadorSTW, seleccionarAlertasSTWPorRareza };
