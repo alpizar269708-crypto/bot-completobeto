@@ -1768,7 +1768,7 @@ async function extraerAlertasAPI(progreso = null, opciones = {}) {
         return {
             ok: true, total: todas.length, pavos: pavosFinal.length,
             epicas: epicas.length, legendarias: legendarias.length, plAltas: plAltas.length,
-            fuentes: { principal: todasPlanner, secundaria: todasVBucksDaily, tercera: todasSeeBot }
+            fuentes: { principal: [...todasPlanner, ...pavosPagina], secundaria: todasVBucksDaily, tercera: todasSeeBot }
         };
     } catch (e) {
         console.error('❌ Error en la extracción STW Planner:', e.stack || e.message);
