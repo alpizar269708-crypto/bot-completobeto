@@ -670,17 +670,16 @@ function iniciarCronAlertasDiarias(sock) {
 
             try {
                 if (await yaSeEnvioAlertaPavosHoy(hoy)) {
-                    console.log(`⏭️ Se omite el raspado de las ${horario.etiqueta}: ya se envió una alerta con PaVos hoy.`);
+                    console.log(`⏭️ Se omite el raspado de las ${horario.etiqueta}: la alerta diaria ya fue enviada hoy.`);
                     return;
                 }
 
                 raspadoEnCurso = true;
                 const enviada = await enviarAlertaPavosAutomatica(sock, true, horario.etiqueta, horario.avisarSinPavos);
                 if (enviada) {
-                    await guardarAlertaPavosEnviada(hoy, horario.etiqueta);
-                    console.log(`✅ PaVos encontrados y alerta enviada a las ${horario.etiqueta}; estado guardado en MongoDB para evitar duplicados tras reinicios.`);
+                    console.log(`✅ Alerta diaria enviada a las ${horario.etiqueta}; estado y firmas guardados para evitar duplicados tras reinicios.`);
                 } else {
-                    console.log(`🔎 ${horario.etiqueta}: no se enviaron PaVos; se continuará con el siguiente horario si queda alguno.`);
+                    console.log(`🔎 ${horario.etiqueta}: no se detectó una alerta nueva; se continuará con el siguiente horario si queda alguno.`);
                 }
             } catch (e) {
                 console.error(`❌ Error en el horario ${horario.etiqueta}:`, e.message);
@@ -690,7 +689,7 @@ function iniciarCronAlertasDiarias(sock) {
         }, { scheduled: true, timezone: zonaHoraria });
     }
 
-    console.log('🕒 Alertas de PaVos programadas a las 18:01:30, 18:02 y 18:05 (hora de Ciudad de México). El primer horario siempre envía un aviso.');
+    console.log('🕒 Alertas diarias programadas a las 18:01:30, 18:02 y 18:05 (hora de Ciudad de México). Se publican cambios nuevos y, al final, un solo respaldo si no hubo cambios.');
 
     // Calentar la caché al iniciar el bot para que los comandos tengan datos
     // recientes incluso si la primera consulta manual falla.
