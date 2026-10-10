@@ -91,11 +91,13 @@ function deduplicarPlAltasVbucks(lista) {
 
 async function obtenerAlertasSTW(actualizarEnVivo = true, progreso = null) {
     let raspadoCorrecto = false;
+    let fuentes = null;
     if (actualizarEnVivo) {
         try {
             const { extraerAlertasAPI } = require('../webBridge');
             const resultado = await extraerAlertasAPI(progreso);
             raspadoCorrecto = Boolean(resultado && resultado.ok === true);
+            fuentes = resultado && resultado.fuentes ? resultado.fuentes : null;
             if (!raspadoCorrecto) console.warn('STW: las fuentes web no entregaron datos completos; se intentará usar el último caché válido.');
         } catch (error) {
             console.error('No se pudo actualizar STW:', error.stack || error.message);
@@ -114,7 +116,8 @@ async function obtenerAlertasSTW(actualizarEnVivo = true, progreso = null) {
         epicas: scrapeEpicas,
         legendarias: scrapeLegendarias,
         plAltas: deduplicarPlAltasVbucks(scrapePlAltas),
-        errorActualizacion: actualizarEnVivo && !raspadoCorrecto && !hayCache
+        errorActualizacion: actualizarEnVivo && !raspadoCorrecto && !hayCache,
+        fuentes
     };
 }
 
