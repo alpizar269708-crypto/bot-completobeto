@@ -460,7 +460,7 @@ async function comandoRPavos(sock, chatId, msg) {
         lineas.push('⚠️ La comparación completa requiere que ambas fuentes extraigan datos correctamente.');
     }
     lineas.push('', '⏱️ Tiempo total: ' + ((Date.now() - inicio) / 1000).toFixed(2) + ' s', 'Support-a-Creator: *JASC13* ❤️');
-    await sock.sendMessage(chatId, { text: lineas.join('\\n') }, { quoted: msg });
+    await sock.sendMessage(chatId, { text: lineas.join('\n') }, { quoted: msg });
 }
 
 module.exports = {
