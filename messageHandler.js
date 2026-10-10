@@ -588,32 +588,25 @@ Apoya a un creador: JASC13` });
                 break;
             case 'pavos':
             case 'rpavos':
-                await sock.sendMessage(chatJid, { text: '⏳ Consultando, esto puede tardar unos segundos. No hace falta repetir el comando.' }, { quoted: msg });
                 await comandoPavosOficial(sock, chatJid, msg);
                 break;
             case 'destacadasstw':
-                await sock.sendMessage(chatJid, { text: '⏳ Consultando, esto puede tardar unos segundos. No hace falta repetir el comando.' }, { quoted: msg });
                 await comandoDestacadasSTW(sock, chatJid, msg);
                 break;
             case 'legendariasstw':
-                await sock.sendMessage(chatJid, { text: '⏳ Consultando, esto puede tardar unos segundos. No hace falta repetir el comando.' }, { quoted: msg });
                 await alertasSTW(sock, chatJid, msg, 'legendarias');
                 break;
             case 'epicasstw':
-                await sock.sendMessage(chatJid, { text: '⏳ Consultando, esto puede tardar unos segundos. No hace falta repetir el comando.' }, { quoted: msg });
                 await alertasSTW(sock, chatJid, msg, 'epicas');
                 break;
             case 'alertasstw':
             case 'stw':
-                await sock.sendMessage(chatJid, { text: '⏳ Consultando, esto puede tardar unos segundos. No hace falta repetir el comando.' }, { quoted: msg });
                 await alertasSTW(sock, chatJid, msg, 'todas');
                 break;
             case 'alerta':
-                if (args.length) await sock.sendMessage(chatJid, { text: '⏳ Consultando, esto puede tardar unos segundos. No hace falta repetir el comando.' }, { quoted: msg });
                 await comandoPreguntarAlerta(sock, chatJid, msg, args);
                 break;
             case 'alertanov':
-                if (args.length) await sock.sendMessage(chatJid, { text: '⏳ Consultando, esto puede tardar unos segundos. No hace falta repetir el comando.' }, { quoted: msg });
                 await comandoPreguntarAlerta(sock, chatJid, msg, args, undefined, true);
                 break;
             case 'setgrupostw':
