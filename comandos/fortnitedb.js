@@ -12,7 +12,7 @@ const ZONAS = {
 };
 
 function limpiar(texto) {
-    return String(texto || '').replace(/\\u00a0/g, ' ').replace(/\\s+/g, ' ').trim();
+    return String(texto || '').replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim();
 }
 
 function obtenerNombreMision(icono, alt = '') {
@@ -85,11 +85,11 @@ async function obtenerAlertasFortniteDB() {
         const alt = $(celdas[1]).find('img').attr('alt') || '';
         const poderTexto = limpiar($(celdas[2]).text());
         const recompensa = limpiar($(celdas[3]).text());
-        const matchPavos = recompensa.match(/(\\d+)\\s*x?\\s*(?:V-Bucks|V\\s*Bucks)/i);
+        const matchPavos = recompensa.match(/(\d+)\s*x?\s*(?:V-Bucks|V\s*Bucks)/i);
 
         if (!matchPavos || !ZONAS[zonaCodigo]) return;
 
-        const poderMatch = poderTexto.match(/\\d+/);
+        const poderMatch = poderTexto.match(/\d+/);
         alertas.push({
             zona: ZONAS[zonaCodigo],
             zonaCodigo,
@@ -147,12 +147,12 @@ async function comandoRPavos(sock, chatId, msg) {
             'Support-a-Creator: *JASC13* ❤️'
         );
 
-        await sock.sendMessage(chatId, { text: lineas.join('\\n') }, { quoted: msg });
+        await sock.sendMessage(chatId, { text: lineas.join('\n') }, { quoted: msg });
     } catch (error) {
         console.error('❌ Error en rpavos / FortniteDB:', error.message);
         await sock.sendMessage(chatId, {
-            text: '❌ *No pude consultar FortniteDB.*\\n\\n' +
-                'El comando de respaldo no enviará datos guardados ni inventados.\\n' +
+            text: '❌ *No pude consultar FortniteDB.*\n\n' +
+                'El comando de respaldo no enviará datos guardados ni inventados.\n' +
                 'Detalle: ' + (error.message || 'error desconocido')
         }, { quoted: msg });
     }
