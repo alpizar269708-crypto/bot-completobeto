@@ -1312,9 +1312,9 @@ async function extraerAlertasAPI(progreso = null, opciones = {}) {
         [htmlPrincipal, htmlPavos, htmlVBucksDaily] = await Promise.all([
             descargarFuente('Fuente 1', urlPrincipal),
             descargarFuente('PaVos de la fuente 1', urlPavos),
-            descargarFuente('Fuente 2', urlVBucksDaily)
+            descargarFuente('Fuente 2', urlVBucksDaily),
+            cargarSeeBot().then(() => null)
         ]);
-        await cargarSeeBot();
 
         ({ misiones: todasPlanner, pavos: pavosPagina } = parsearFuentePlanner());
         todasVBucksDaily = htmlVBucksDaily ? parsearVBucksDailySTW(htmlVBucksDaily) : [];
