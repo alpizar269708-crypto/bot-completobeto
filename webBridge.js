@@ -475,18 +475,18 @@ function seleccionarAlertasSTWPorRareza(misiones, rareza) {
 function deduplicarSTW(lista) {
     const mapa = new Map();
     const normalizar = valor => String(valor || '').toLowerCase()
-        .normalize('NFD').replace(/[\\u0300-\\u036f]/g, '')
+        .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
         .replace(/[^a-z0-9]+/g, ' ').trim();
     const claveRecompensa = r => [
         normalizar(r && r.tipo), normalizar(r && r.rareza),
         normalizar(r && (r.raw || r.nombre))
-            .replace(/\\b(survivor|superviviente)\\b/g, '')
-            .replace(/\\b(x|×)\\s*\\d+\\b/g, '').trim()
+            .replace(/\b(survivor|superviviente)\b/g, '')
+            .replace(/\b(x|×)\s*\\d+\b/g, '').trim()
     ].join('|');
 
     for (const item of Array.isArray(lista) ? lista : []) {
         if (!item) continue;
-        const nombreMision = traducirNombreMisionSTW(item.misionOriginal || item.mision || '');
+        const nombreMision = item.misionOriginal || item.mision || '';
         const clave = [
             normalizar(item.zona), String(item.pl ?? ''),
             normalizar(nombreMision), normalizar(item.ubicacion),
