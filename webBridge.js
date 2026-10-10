@@ -1121,7 +1121,14 @@ function parsearPavosSTW(html) {
 async function extraerAlertasAPI(progreso = null) {
     const informarDiagnostico = async (texto) => { if (typeof progreso === 'function') { try { await progreso(texto); } catch (e) {} } };
     const tiempoDiagnostico = Date.now();
-    const etapaDiagnostico = async (texto) => { await informarDiagnostico('[' + ((Date.now() - tiempoDiagnostico) / 1000).toFixed(2) + ' s] ' + texto); };
+    let progresoGeneralEnviado = false;
+    const etapaDiagnostico = async (texto) => {
+        console.log('[' + ((Date.now() - tiempoDiagnostico) / 1000).toFixed(2) + ' s] ' + texto);
+        if (!progresoGeneralEnviado) {
+            progresoGeneralEnviado = true;
+            await informarDiagnostico('⏳ Actualizando las alertas. Esto puede tardar unos segundos.');
+        }
+    };
     try {
         console.log('\n--- 🌐 RASPADO STW PLANNER ---');
         const urlPrincipal = 'https://stw-planner.com/mission-alerts';
