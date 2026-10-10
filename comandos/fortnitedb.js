@@ -279,7 +279,7 @@ async function consultarSeeBot(progreso) {
             const zona = String(mision.zone || '').trim();
             if (!['Stonewood', 'Plankerton', 'Canny Valley', 'Twine Peaks', 'Ventures'].includes(zona)) continue;
             const recompensas = Array.isArray(mision.alertRewards) ? mision.alertRewards : [];
-            const recompensaPavos = recompensas.find(r => /v-bucks/i.test(String(r.itemType || '')));
+            const recompensaPavos = recompensas.find(r => /v-?bucks|v\s*bucks|currency_mtxswap|mtxswap/i.test(String(r.itemType || '') + ' ' + String(r.name || '') + ' ' + String(r.id || '')));
             if (!recompensaPavos) continue;
             const cantidad = Number(recompensaPavos.quantity);
             if (!Number.isFinite(cantidad) || cantidad <= 0) continue;
