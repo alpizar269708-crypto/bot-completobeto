@@ -730,6 +730,43 @@ function extraerAlertasPennyDB(html) {
     alertas.diagnosticoPennyDB = { filasRecompensa, filasConCantidad, filasSinContexto };
     return alertas;
 }
+async function consultarPennyDBConNavegador() {
+    // PennyDB puede entregar por HTTP el resumen estático, mientras que las tarjetas
+    // de misiones y sus detalles aparecen después de ejecutar JavaScript.
+    // Se usa una carga normal de navegador; no se intenta evadir protección anti-bot.
+    let browser;
+    try {
+        const puppeteer = require('puppeteer');
+        browser = await puppeteer.launch({
+            headless: true,
+            args: ['--no-sandbox', '--disable-setuid-sandbox']
+        });
+        const page = await browser.newPage();
+        page.setDefaultNavigationTimeout(15000);
+        await page.setUserAgent('Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36');
+        const response = await page.goto('https://pennydb.net/stw-missions', {
+            waitUntil: 'domcontentloaded',
+            timeout: 15000
+        });
+        const status = response ? response.status() : 0;
+        await page.waitForFunction(() => {
+            const html = document.documentElement?.innerHTML || '';
+            return /v-bucks\\s+voucher/i.test(html) ||
+                Boolean(document.querySelector('.mission-brief .mission-bay'));
+        }, { timeout: 12000 }).catch(() => {});
+        const html = await page.content();
+        const titulo = await page.title();
+        const texto = await page.locator('body').innerText().catch(() => '');
+        if (/just a moment|checking your browser|verify you are human|attention required/i.test(titulo + ' ' + texto.slice(0, 1200))) {
+            throw new Error('PennyDB entregó una pantalla de protección anti-bot en la carga del navegador.');
+        }
+        if (status >= 400) throw new Error('PennyDB respondió HTTP ' + status + ' en navegador.');
+        return { html, status: status || 200, url: page.url(), titulo };
+    } finally {
+        if (browser) await browser.close().catch(() => {});
+    }
+}
+
 function extraerAlertasFuenteAlternativa(html, nombreFuente) {
     if (nombreFuente === 'V-Bucks Daily') return extraerAlertasVBucksDaily(html);
     if (nombreFuente === 'PennyDB') return extraerAlertasPennyDB(html);
@@ -740,9 +777,29 @@ async function consultarFuenteAlternativaPavos(fuente) {
     try {
         const respuesta = await descargarPagina(fuente.url, fuente.nombre === 'V-Bucks Daily' ? 25000 : 15000);
         resultado.http = respuesta.status;
-        const html = String(respuesta.data || '');
+        let html = String(respuesta.data || '');
+        let pennyDBFallbackError = null;
+        let pennyDBPaginaRenderizada = false;
         if (/just a moment|checking your browser|verify you are human/i.test(html.slice(0, 5000))) {
             throw new Error('la página respondió con una pantalla anti-bot');
+        }
+        if (fuente.nombre === 'PennyDB' && !/v-?bucks\\s+voucher/i.test(html)) {
+            try {
+                const renderizada = await consultarPennyDBConNavegador();
+                // Solo reemplazar la respuesta HTTP si la página renderizada aporta
+                // la estructura de alertas; así no se confunde un HTML incompleto con cero.
+                if (/v-?bucks\\s+voucher/i.test(renderizada.html) ||
+                    /mission-brief[\\s\\S]{0,1200}mission-bay/i.test(renderizada.html)) {
+                    html = renderizada.html;
+                    pennyDBPaginaRenderizada = true;
+                    resultado.httpNavegador = renderizada.status;
+                    resultado.urlNavegador = renderizada.url;
+                } else {
+                    pennyDBFallbackError = 'El navegador abrió PennyDB, pero tras esperar no apareció V-Bucks Voucher ni una tarjeta .mission-brief .mission-bay.';
+                }
+            } catch (errorNavegador) {
+                pennyDBFallbackError = errorNavegador.message || String(errorNavegador);
+            }
         }
         if (fuente.nombre === 'PennyDB') {
             const $debug = cheerio.load(html);
@@ -757,6 +814,8 @@ async function consultarFuenteAlternativaPavos(fuente) {
                 encabezadosAlertRewards: $debug('h3.mission-label').filter((_, el) => /alert rewards/i.test(limpiar($debug(el).text()))).length,
                 mencionaVoucher: /v-bucks voucher/i.test(html),
                 mencionaAlertRewards: /alert rewards/i.test(html),
+                paginaRenderizada: pennyDBPaginaRenderizada,
+                fallbackNavegador: pennyDBFallbackError,
                 fragmento: index >= 0 ? textoPlano.slice(Math.max(0, index - 100), index + 260) : textoPlano.slice(0, 260)
             };
         }
@@ -770,7 +829,7 @@ async function consultarFuenteAlternativaPavos(fuente) {
             const contadorVBucks = bloqueContador ? limpiar(bloqueContador[1]) : '(contador no localizado)';
             const ceroVBucks = Boolean(bloqueContador && /\b0\b/.test(bloqueContador[1]));
             const tieneVoucher = /v-?bucks\s+voucher/i.test(html);
-            if (ceroVBucks && !tieneVoucher) {
+            if (ceroVBucks && !tieneVoucher && pennyDBPaginaRenderizada) {
                 resultado.ok = true;
                 resultado.totalPavos = 0;
                 resultado.alertas.diagnosticoPennyDB = resultado.alertas.diagnosticoPennyDB || {
@@ -797,6 +856,10 @@ async function consultarFuenteAlternativaPavos(fuente) {
                 if (!d.filasRecompensa) throw new Error('PennyDB: el selector no encontró filas V-Bucks dentro de Alert rewards.' + resumen);
                 if (!d.filasConCantidad) throw new Error('PennyDB: encontró ' + d.filasRecompensa + ' fila(s) Voucher, pero no leyó una cantidad válida de .mission-figure.' + resumen);
                 throw new Error('PennyDB: encontró ' + d.filasConCantidad + ' recompensa(s) con cantidad, pero no pudo asociar zona y PL (' + d.filasSinContexto + ' fila(s) sin contexto).' + resumen);
+            }
+            if (fuente.nombre === 'PennyDB' && !pennyDBPaginaRenderizada && !tieneVoucher) {
+                throw new Error('PennyDB: el HTML HTTP no contiene las tarjetas de alertas (Voucher ausente); no se puede afirmar que haya 0 PaVos. ' +
+                    (pennyDBFallbackError ? 'Fallback de navegador: ' + pennyDBFallbackError : 'El navegador no confirmó la carga de las tarjetas.'));
             }
             throw new Error('la página respondió, pero el parser no encontró filas V-Bucks verificables en el HTML recibido');
         }
