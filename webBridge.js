@@ -1296,7 +1296,7 @@ function parsearPavosSTW(html) {
     return Array.from(mapa.values());
 }
 
-async function extraerAlertasAPI(progreso = null) {
+async function extraerAlertasAPI(progreso = null, opciones = {}) {
     const informarDiagnostico = async (texto) => { if (typeof progreso === 'function') { try { await progreso(texto); } catch (e) {} } };
     const tiempoDiagnostico = Date.now();
     let progresoGeneralEnviado = false;
@@ -1374,11 +1374,38 @@ async function extraerAlertasAPI(progreso = null) {
         let filasSeeBotHTML = 0;
         let todasSeeBotJSON = [];
         let todasVBucksDaily = [];
-        const fuenteExhaustiva = arguments.length > 1 && arguments[1] && arguments[1].exhaustivo === true;
+        const fuenteExhaustiva = opciones.exhaustivo === true;
+        const compararCambiosDiarios = opciones.soloCambiosDiarios === true;
+        let firmasPreviasDiarias = {};
+        if (compararCambiosDiarios) {
+            try {
+                const estadoDiario = await Config.findOne({ clave: 'stw_pavos_alerta_diaria_estado' }).lean();
+                firmasPreviasDiarias = estadoDiario?.valor ? (JSON.parse(estadoDiario.valor).firmasPorFuente || {}) : {};
+            } catch (_) { firmasPreviasDiarias = {}; }
+        }
+        const normalizarClaveDiaria = valor => String(valor || '').toLowerCase().normalize('NFD')
+            .replace(/[\\u0300-\\u036f]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
+        const fuenteTieneCambiosDiarios = (misiones, nombreFuente) => {
+            if (!compararCambiosDiarios) return false;
+            const firmasFuente = firmasPreviasDiarias[nombreFuente] || {};
+            const validas = (Array.isArray(misiones) ? misiones : []).filter(m => (m.recompensas || []).some(r => r && (
+                r.tipo === 'vbucks' ||
+                (['hero', 'survivor', 'defender', 'schematic'].includes(r.tipo) && ['mythic', 'legendary', 'epic'].includes(r.rareza)) ||
+                (r.tipo === 'perkup' && ['epic', 'legendary'].includes(r.rareza))
+            )));
+            return validas.some(item => {
+                const clave = [normalizarClaveDiaria(item.zona), String(item.pl ?? ''), normalizarClaveDiaria(item.misionOriginal || item.mision), normalizarClaveDiaria(item.ubicacion)].join('|');
+                const recompensas = (item.recompensas || []).map(r => [r.tipo || '', r.rareza || '', String(r.raw || r.nombre || ''), Number(r.cantidad || 0)].join(':')).sort();
+                const firma = JSON.stringify([item.pl, item.zona, item.misionOriginal || item.mision, item.ubicacion, recompensas]);
+                return firmasFuente[clave] !== firma;
+            });
+        };
 
         await etapaDiagnostico(fuenteExhaustiva
             ? 'STW: modo detallado, revisando las tres fuentes para completar modificadores y requisitos.'
-            : 'STW: consulta secuencial; se detiene en la primera fuente que entregue misiones válidas.');
+            : compararCambiosDiarios
+                ? 'STW: revisando fuentes en orden y avanzando si no hay alertas nuevas respecto al último envío.'
+                : 'STW: consulta secuencial; se detiene en la primera fuente que entregue misiones válidas.');
 
         // Fuente 1: STW Planner. La página principal y su sección de PaVos
         // pertenecen a la misma fuente lógica.
@@ -1388,8 +1415,10 @@ async function extraerAlertasAPI(progreso = null) {
         ]);
         ({ misiones: todasPlanner, pavos: pavosPagina } = parsearFuentePlanner());
 
-        const tieneDatosPlanner = todasPlanner.length > 0 || pavosPagina.length > 0;
-        if (fuenteExhaustiva || !tieneDatosPlanner) {
+        const misionesPlannerConPavos = [...todasPlanner, ...pavosPagina];
+        const tieneDatosPlanner = misionesPlannerConPavos.length > 0;
+        const plannerTieneCambioDiario = fuenteTieneCambiosDiarios(misionesPlannerConPavos, 'principal');
+        if (fuenteExhaustiva || !tieneDatosPlanner || (compararCambiosDiarios && !plannerTieneCambioDiario)) {
             // Fuente 2: solo se consulta si la primera no devolvió misiones.
             htmlVBucksDaily = await descargarFuente('Fuente 2', urlVBucksDaily);
             todasVBucksDaily = htmlVBucksDaily ? parsearVBucksDailySTW(htmlVBucksDaily) : [];
@@ -1413,7 +1442,8 @@ async function extraerAlertasAPI(progreso = null) {
                     console.warn('⚠️ No se pudo completar la segunda fuente en navegador:', errorDailyRender.message);
                 }
             }
-            if (fuenteExhaustiva || todasVBucksDaily.length === 0) {
+            const segundaTieneCambioDiario = fuenteTieneCambiosDiarios(todasVBucksDaily, 'secundaria');
+            if (fuenteExhaustiva || todasVBucksDaily.length === 0 || (compararCambiosDiarios && !segundaTieneCambioDiario)) {
                 // Fuente 3: solo si la segunda no devolvió misiones; en modo
                 // detallado se consultan todas para enriquecer modificadores.
                 await cargarSeeBot();
