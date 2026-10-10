@@ -624,7 +624,7 @@ async function enviarAlertaPavosAutomatica(sock, actualizarEnVivo = false, horaA
             let avisoEnviado = false;
             for (const grupo of grupos) {
                 try {
-                    await sock.sendMessage(grupo, { text: '😔 No se encontraron alertas de PaVos en el raspado de hoy.' });
+                    await sock.sendMessage(grupo, { text: '🎮 *ALERTAS DE PAVOS — 6:02 PM*\\n\\n_No hay alertas de pavos registradas._\\n\\nSupport-a-Creator: *JASC13* ❤️' });
                     avisoEnviado = true;
                 } catch (e) {
                     console.error('Error enviando aviso de alertas vacías:', e.message);
@@ -782,10 +782,8 @@ function iniciarCronAlertasDiarias(sock) {
                 if (!hayPavos) {
                     console.warn('⚠️ ' + horario.etiqueta + ': no hay alertas de PaVos válidas guardadas; se enviará aviso según el horario y se conservarán los reintentos.');
                     if (horario.etiqueta === '6:01:20 PM') {
-                        // El primer horario siempre informa si encontró PaVos o no, pero no bloquea los reintentos.
+                        // Solo el primer raspado envía el mensaje de que no hay alertas; los reintentos silencian resultados vacíos.
                         await enviarAlertaPavosAutomatica(sock, false, horario.etiqueta, true, false);
-                    } else if (horario.ultimo) {
-                        await enviarAlertaPavosAutomatica(sock, false, horario.etiqueta, true);
                     }
                     return;
                 }
