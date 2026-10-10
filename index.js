@@ -194,6 +194,25 @@ async function inicializarBase() {
         await mongoose.connect(process.env.MONGO_URI);
     }
     iniciarVerificacionTarifasPaypal();
+
+    // Actualiza el snapshot STW cada vez que Render inicia el proceso.
+    // Se ejecuta en segundo plano para no retrasar la conexión de WhatsApp.
+    void (async () => {
+        try {
+            const { extraerAlertasAPI } = require('./webBridge');
+            const resultado = await extraerAlertasAPI();
+            if (resultado && resultado.ok) {
+                console.log('✅ Snapshot STW de arranque guardado en MongoDB | PaVos=' + (resultado.pavos || 0) +
+                    ' | épicas=' + (resultado.epicas || 0) + ' | legendarias=' + (resultado.legendarias || 0) +
+                    ' | destacadas=' + (resultado.plAltas || 0));
+            } else {
+                console.warn('⚠️ Raspado STW de arranque sin datos válidos; no se marcará como actualizado.');
+            }
+        } catch (error) {
+            console.error('❌ Error en el raspado STW de arranque:', error.stack || error.message);
+        }
+    })();
+
     authState = await useMongoDBAuthState('sesion');
     baseLista = true;
     
@@ -406,9 +425,7 @@ async function arrancarSocket(metodo, numeroTelefono, onCodeReady = null) {
             
             iniciarCronAlertasDiarias(sock);
 
-            // PAUSA TEMPORAL: no raspar STW Planner durante el arranque.
-            // Se mantiene el puente de Discord, pero no se hacen solicitudes a esa web.
-            // 🚀 Única fuente automática de alertas Fortnite: STW Planner
+            // El raspado STW ya se inició al conectar MongoDB; aquí solo se registra el puente.
             iniciarPuenteDiscord(sock);
         }
     });
