@@ -292,11 +292,6 @@ async function alertasSTW(sock, chatId, msg, categoria = 'todas', progreso = nul
                     '⚡ *PL:* ' + (p.pl ?? '?'),
                     '🎯 *Misión:* ' + traducirMisionSalidaSTW(p),
                     '🪙 *PaVos:* ' + cantidad,
-                    ...(traducirModificadoresSalidaSTW(p.modificadores).length
-                        ? ['🧩 *Modificadores:* ' + traducirModificadoresSalidaSTW(p.modificadores).join(', ')] : []),
-                    ...((p.requisitos || p.questReqs)
-                        ? ['📜 *Requisitos:* ' + (/^none$/i.test(String(p.requisitos || p.questReqs))
-                            ? 'Ninguno' : (p.requisitos || p.questReqs))] : []),
                     ''
                 );
             }
@@ -319,7 +314,7 @@ async function alertasSTW(sock, chatId, msg, categoria = 'todas', progreso = nul
         const limite = 10;
         if (!lista.length) {
             lineas.push(datos.errorActualizacion
-                ? '⚠️ _No pude consultar las fuentes de alertas en este momento._'
+                ? '⚠️ _No pude actualizar las alertas en este momento._'
                 : '_No hay recompensas destacadas disponibles en este momento._', '');
         } else {
             for (const item of lista.slice(0, limite)) lineas.push(formatearResumenAlertaSTW(item));
