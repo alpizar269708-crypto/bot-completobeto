@@ -46,12 +46,14 @@ function nombreMisionSeeBot(nombre) {
     return traducirNombreMisionSTW(nombre) || nombre || 'Misión de alerta';
 }
 
+let progresoGeneralReportado = false;
 async function reportar(progreso, texto) {
-    if (typeof progreso !== 'function') return;
+    if (typeof progreso !== 'function' || progresoGeneralReportado) return;
+    progresoGeneralReportado = true;
     try {
-        await progreso(texto);
+        await progreso('⏳ Consultando las alertas. Esto puede tardar unos segundos.');
     } catch (e) {
-        console.error('No se pudo enviar una actualización del diagnóstico:', e.message);
+        console.error('No se pudo enviar una actualización:', e.message);
     }
 }
 
@@ -1009,8 +1011,8 @@ async function comandoPavosOficial(sock, chatId, msg) {
     const firmaAyer = firmaAlertasPavos(alertasAyer);
     const fuentes = [
         { nombre: 'STW Planner', consultar: consultarPavosSTWPlanner },
-        { nombre: 'SeeBot.dev', consultar: consultarPavosSeeBot },
-        { nombre: 'V-Bucks Daily', consultar: consultarPavosVBucksDaily }
+        { nombre: 'V-Bucks Daily', consultar: consultarPavosVBucksDaily },
+        { nombre: 'SeeBot.dev', consultar: consultarPavosSeeBot }
     ];
 
     let alertasElegidas = [];
