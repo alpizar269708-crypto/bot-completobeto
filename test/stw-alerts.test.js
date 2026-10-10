@@ -46,7 +46,8 @@ test('SeeBot #miniRwdTbl extrae zona, PL, misión, modificadores, rareza y requi
     assert.equal(epica.recompensas.length, 1);
     assert.equal(epica.recompensas[0].tipo, 'hero');
     assert.equal(epica.recompensas[0].rareza, 'epic');
-    assert.match(epica.recompensas[0].nombre, /Deadly Blade Crash/);
+    assert.match(epica.recompensas[0].nombre, /Crash de hoja mortal/);
+    assert.doesNotMatch(epica.recompensas[0].nombre, /Deadly Blade Crash/i);
     assert.equal(epica.modificadores.length, 5);
     assert.ok(epica.modificadores.includes('Alcance corto'));
     assert.ok(epica.modificadores.includes('Tormenta de fuego'));
