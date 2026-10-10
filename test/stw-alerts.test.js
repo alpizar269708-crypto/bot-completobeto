@@ -193,7 +193,7 @@ test('los textos de alerta de STW se traducen al español', () => {
 
 test('los comandos STW están registrados en el manejador', () => {
     const handler = fs.readFileSync(path.join(__dirname, '..', 'messageHandler.js'), 'utf8');
-    for (const comando of ['pavos', 'rpavos', 'destacadasstw', 'legendariasstw', 'epicasstw', 'alertasstw', 'stw', 'alerta', 'alertanob', 'setgrupostw', 'unsetgrupostw']) {
+    for (const comando of ['pavos', 'rpavos', 'destacadasstw', 'legendariasstw', 'epicasstw', 'alertasstw', 'stw', 'alerta', 'alertanov', 'setgrupostw', 'unsetgrupostw']) {
         assert.ok(handler.includes("'" + comando + "'"), 'falta registrar ' + comando);
         assert.ok(handler.includes("case '" + comando + "'"), 'falta ejecutar ' + comando);
     }
@@ -273,7 +273,7 @@ test('las misiones repetidas entre fuentes se agrupan y conservan ambas recompen
     assert.equal(lista[0].recompensas.length, 2);
 });
 
-test('los comandos normales ocultan modificadores y requisitos, alertanob los muestra y nunca expone x4/x5', () => {
+test('los comandos normales ocultan modificadores y requisitos, alertanov los muestra y nunca expone x4/x5', () => {
     const { formatearAlertaSTW } = require('../comandos/fortnite');
     const item = {
         pl: 88, zona: 'Twine Peaks', misionOriginal: 'Ride the Lightning',

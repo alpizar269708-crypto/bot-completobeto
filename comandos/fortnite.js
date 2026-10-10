@@ -89,13 +89,13 @@ function deduplicarPlAltasVbucks(lista) {
     return Array.from(mapa.values());
 }
 
-async function obtenerAlertasSTW(actualizarEnVivo = true, progreso = null) {
+async function obtenerAlertasSTW(actualizarEnVivo = true, progreso = null, opciones = {}) {
     let raspadoCorrecto = false;
     let fuentes = null;
     if (actualizarEnVivo) {
         try {
             const { extraerAlertasAPI } = require('../webBridge');
-            const resultado = await extraerAlertasAPI(progreso);
+            const resultado = await extraerAlertasAPI(progreso, opciones);
             raspadoCorrecto = Boolean(resultado && resultado.ok === true);
             fuentes = resultado && resultado.fuentes ? resultado.fuentes : null;
             if (!raspadoCorrecto) console.warn('STW: las fuentes web no entregaron datos completos; se intentará usar el último caché válido.');
@@ -194,9 +194,10 @@ function traducirMisionSalidaSTW(item) {
     const nombreOriginal = partes.shift();
     const nombre = traducirNombre(nombreOriginal) || 'Misión de alerta';
     const biomaOriginal = partes.length ? partes.join(' - ') : String(item.ubicacion || '').trim();
-    const bioma = biomaOriginal && typeof traducirBioma === 'function'
+    let bioma = biomaOriginal && typeof traducirBioma === 'function'
         ? traducirBioma(biomaOriginal)
         : biomaOriginal;
+    bioma = String(bioma || '').replace(/^the\s+/i, '').replace(/\bhaunted\s+bosque\b/gi, 'Bosque embrujado').replace(/\bthe\s+/gi, '').trim();
     return [nombre, bioma && !/^zona desconocida$/i.test(bioma) ? bioma : ''].filter(Boolean).join(' - ');
 }
 
@@ -392,7 +393,7 @@ async function comandoDestacadasSTW(sock, chatId, msg, progreso = null) {
 
     try {
         await informar('🗄️ ETAPA 1/4 — Leyendo datos guardados en MongoDB.');
-        const datos = await obtenerAlertasSTW(true, informar);
+        const datos = await obtenerAlertasSTW(true, informar, { exhaustivo: mostrarDetalles });
         await informar('🔎 ETAPA 2/4 — Seleccionando alertas destacadas de PL altas. Total recibido=' + (datos.plAltas || []).length + '.');
         const listaPlAltas = datos.plAltas || [];
 
@@ -423,7 +424,7 @@ async function comandoPreguntarAlerta(sock, chatId, msg, palabrasClave = [], pro
         progresoEnviado = true;
         try { await progreso('⏳ Buscando alertas.'); } catch (_) {}
     };
-    const nombreComando = mostrarDetalles ? 'alertanob' : 'alerta';
+    const nombreComando = mostrarDetalles ? 'alertanov' : 'alerta';
     const termino = Array.isArray(palabrasClave)
         ? palabrasClave.join(' ').trim()
         : String(palabrasClave || '').trim();
@@ -603,7 +604,7 @@ async function enviarAlertaPavosAutomatica(sock, actualizarEnVivo = false, horaA
         grupos = [...new Set(grupos.filter(id => typeof id === 'string' && id.endsWith('@g.us')))];
         if (!grupos.length) return false;
 
-        const datos = await obtenerAlertasSTW(actualizarEnVivo);
+        const datos = await obtenerAlertasSTW(actualizarEnVivo, null, { soloCambiosDiarios: true });
         const docEstado = await Config.findOne({ clave: CLAVE_ESTADO_ALERTA_PAVOS });
         let estado = {};
         try { estado = docEstado && docEstado.valor ? JSON.parse(docEstado.valor) : {}; } catch (_) {}

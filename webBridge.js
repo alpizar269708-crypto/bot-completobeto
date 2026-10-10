@@ -154,7 +154,7 @@ function traducirBiomaSTW(bioma) {
     limpio = limpio.replace(/\s+/g, ' ').replace(/\(\s*\)/g, '').trim();
     // Si el nombre del bioma no está en el diccionario, no dejar que el
     // nombre original en inglés termine en WhatsApp.
-    if (/\b(?:the|swamps?|haunted|forest|city|town|park|industrial|suburbs?|autumn|grasslands|desert|lakeside|tropical|bunkers?|portal|crater|route|ghost|arid)\b/i.test(limpio)) {
+    if (/\b(?:the|swamps?|haunted|forest|city|town|park|suburbs?|autumn|grasslands|desert|lakeside|tropical|bunkers?|portal|crater|route|ghost|arid)\b/i.test(limpio)) {
         return 'Zona de misión';
     }
     return limpio;
@@ -193,6 +193,8 @@ function traducirNombreObjetoSTW(nombre, tipo = 'other') {
     let limpio = limpiarTextoSTW(nombre)
         .replace(/\s*\((?:Mythic|Legendary|Epic|Rare|Uncommon|Common)\)\s*$/i, '')
         .replace(/^\s*(?:mythic|legendary|epic|rare|uncommon|common)\s+/i, '')
+        .replace(/^\s*(?:survivor|defender|hero|schematic)\s*:\s*/i, '')
+        .replace(/^\s*(?:survivor|defender|hero|schematic)\s+/i, '')
         .trim();
     const tipoFinal = String(tipo || '').toLowerCase();
     if (tipoFinal === 'survivor') limpio = limpio.replace(/\s+survivor$/i, '').trim();
@@ -1296,7 +1298,7 @@ function parsearPavosSTW(html) {
     return Array.from(mapa.values());
 }
 
-async function extraerAlertasAPI(progreso = null) {
+async function extraerAlertasAPI(progreso = null, opciones = {}) {
     const informarDiagnostico = async (texto) => { if (typeof progreso === 'function') { try { await progreso(texto); } catch (e) {} } };
     const tiempoDiagnostico = Date.now();
     let progresoGeneralEnviado = false;
@@ -1318,7 +1320,6 @@ async function extraerAlertasAPI(progreso = null) {
         let htmlSeeBot = '';
         let htmlVBucksDaily = '';
 
-        await etapaDiagnostico('STW ETAPA 1: consultando STW Planner primero, V-Bucks Daily como segunda fuente y SeeBot como tercera fuente de respaldo.');
         const descargarFuente = async (nombre, url) => {
             try {
                 const html = await descargarSTW(url);
@@ -1330,78 +1331,133 @@ async function extraerAlertasAPI(progreso = null) {
                 return '';
             }
         };
-        [htmlPrincipal, htmlPavos, htmlVBucksDaily, htmlSeeBot] = await Promise.all([
-            descargarFuente('STW Planner', urlPrincipal),
-            descargarFuente('STW Planner PaVos', urlPavos),
-            descargarFuente('V-Bucks Daily', urlVBucksDaily),
-            descargarFuente('SeeBot', urlSeeBot)
-        ]);
+        const parsearFuentePlanner = () => {
+            const misiones = htmlPrincipal ? parsearPaginaSTW(htmlPrincipal, 'all') : [];
+            const pavos = htmlPavos ? parsearPavosSTW(htmlPavos) : [];
+            return { misiones, pavos };
+        };
+        const cargarSeeBot = async () => {
+            htmlSeeBot = await descargarFuente('Fuente 3', urlSeeBot);
+            let misiones = htmlSeeBot ? parsearTablaSeeBotSTW(htmlSeeBot) : [];
+            let filas = 0;
+            try { filas = htmlSeeBot ? cheerio.load(htmlSeeBot)('#miniRwdTbl tr.missionRow').length : 0; } catch (_) {}
+            let json = [];
+            if (misiones.length === 0 && htmlSeeBot) {
+                json = parsearJSONSeeBotSTW(htmlSeeBot);
+                if (json.length) {
+                    misiones = json;
+                    console.log('✅ STW JSON alternativo: misiones extraídas=' + json.length + '.');
+                }
+            }
+            if (misiones.length === 0) {
+                try {
+                    const renderizada = await descargarSTWRenderizada(urlSeeBot);
+                    const parseadas = parsearTablaSeeBotSTW(renderizada.html);
+                    const filasRenderizadas = cheerio.load(renderizada.html)('#miniRwdTbl tr.missionRow').length;
+                    console.log('🔎 Fuente 3 navegador | HTTP=' + renderizada.status +
+                        ' | filas de misión=' + filasRenderizadas + ' | misiones válidas=' + parseadas.length + '.');
+                    if (parseadas.length > 0) {
+                        htmlSeeBot = renderizada.html;
+                        misiones = parseadas;
+                        filas = filasRenderizadas;
+                    }
+                } catch (errorRender) {
+                    console.warn('⚠️ No se pudo obtener la tercera fuente:', errorRender.message);
+                }
+            }
+            todasSeeBot = misiones;
+            filasSeeBotHTML = filas;
+            todasSeeBotJSON = json;
+        };
 
-        const todasPlanner = htmlPrincipal ? parsearPaginaSTW(htmlPrincipal, 'all') : [];
-        let todasSeeBot = htmlSeeBot ? parsearTablaSeeBotSTW(htmlSeeBot) : [];
+        let pavosPagina = [];
+        let todasPlanner = [];
+        let todasSeeBot = [];
         let filasSeeBotHTML = 0;
-        try { filasSeeBotHTML = htmlSeeBot ? cheerio.load(htmlSeeBot)('#miniRwdTbl tr.missionRow').length : 0; } catch (_) {}
         let todasSeeBotJSON = [];
-        if (todasSeeBot.length === 0 && htmlSeeBot) {
-            todasSeeBotJSON = parsearJSONSeeBotSTW(htmlSeeBot);
-            if (todasSeeBotJSON.length) {
-                todasSeeBot = todasSeeBotJSON;
-                console.log('✅ SeeBot JSON makeHtml: misiones extraídas=' + todasSeeBotJSON.length + '.');
-            }
-        }
-        let todasVBucksDaily = htmlVBucksDaily ? parsearVBucksDailySTW(htmlVBucksDaily) : [];
-        const vbucksDailyTraeRarezasHTTP = todasVBucksDaily.some(m =>
-            (m.recompensas || []).some(r => r.tipo !== 'vbucks' && ['epic', 'legendary', 'mythic'].includes(r.rareza))
-        );
-        if (htmlVBucksDaily && !vbucksDailyTraeRarezasHTTP) {
+        let todasVBucksDaily = [];
+        const fuenteExhaustiva = opciones.exhaustivo === true;
+        const compararCambiosDiarios = opciones.soloCambiosDiarios === true;
+        let firmasPreviasDiarias = {};
+        if (compararCambiosDiarios) {
             try {
-                const renderizadaDaily = await descargarVBucksDailyRenderizada(urlVBucksDaily);
-                const htmlRenderizado = cheerio.load(renderizadaDaily.html);
-                const filasRenderizadasDaily = htmlRenderizado('.mission-row').length;
-                const misionesRenderizadasDaily = parsearVBucksDailySTW(renderizadaDaily.html);
-                const traeRecompensasRaras = misionesRenderizadasDaily.some(m =>
-                    (m.recompensas || []).some(r => r.tipo !== 'vbucks' && ['epic', 'legendary', 'mythic'].includes(r.rareza))
-                );
-                console.log('🔎 V-Bucks Daily navegador | HTTP=' + renderizadaDaily.status +
-                    ' | filtro All rewards=' + (renderizadaDaily.filtroPulsado ? 'activado' : 'no activado') +
-                    ' | filas .mission-row=' + filasRenderizadasDaily +
-                    ' | misiones válidas=' + misionesRenderizadasDaily.length +
-                    ' | con recompensas épicas/legendarias=' + (misionesRenderizadasDaily.filter(m =>
-                        (m.recompensas || []).some(r => r.tipo !== 'vbucks' && ['epic', 'legendary', 'mythic'].includes(r.rareza))
-                    ).length) + '.');
-                if (traeRecompensasRaras || misionesRenderizadasDaily.length > todasVBucksDaily.length) {
-                    todasVBucksDaily = misionesRenderizadasDaily;
-                }
-            } catch (errorDailyRender) {
-                console.warn('⚠️ V-Bucks Daily: no se pudo activar “All rewards” en el navegador:', errorDailyRender.message);
-            }
+                const estadoDiario = await Config.findOne({ clave: 'stw_pavos_alerta_diaria_estado' }).lean();
+                firmasPreviasDiarias = estadoDiario?.valor ? (JSON.parse(estadoDiario.valor).firmasPorFuente || {}) : {};
+            } catch (_) { firmasPreviasDiarias = {}; }
         }
-        console.log('🔎 STW fuentes recibidas | Planner HTML=' + String(htmlPrincipal || '').length +
-            ' chars / misiones=' + todasPlanner.length +
-            ' | V-Bucks Daily HTML=' + String(htmlVBucksDaily || '').length + ' chars / misiones=' + todasVBucksDaily.length +
-            ' | SeeBot HTML=' + String(htmlSeeBot || '').length + ' chars / filas #miniRwdTbl=' +
-            filasSeeBotHTML + ' / misiones válidas=' + todasSeeBot.length +
-            ' / por tabla=' + (todasSeeBot.length - todasSeeBotJSON.length) + ' / por JSON=' + todasSeeBotJSON.length + '.');
+        const normalizarClaveDiaria = valor => String(valor || '').toLowerCase().normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
+        const fuenteTieneCambiosDiarios = (misiones, nombreFuente) => {
+            if (!compararCambiosDiarios) return false;
+            const firmasFuente = firmasPreviasDiarias[nombreFuente] || {};
+            const validas = (Array.isArray(misiones) ? misiones : []).filter(m => (m.recompensas || []).some(r => r && (
+                r.tipo === 'vbucks' ||
+                (['hero', 'survivor', 'defender', 'schematic'].includes(r.tipo) && ['mythic', 'legendary', 'epic'].includes(r.rareza)) ||
+                (r.tipo === 'perkup' && ['epic', 'legendary'].includes(r.rareza))
+            )));
+            return validas.some(item => {
+                const clave = [normalizarClaveDiaria(item.zona), String(item.pl ?? ''), normalizarClaveDiaria(item.misionOriginal || item.mision), normalizarClaveDiaria(item.ubicacion)].join('|');
+                const recompensas = (item.recompensas || []).map(r => [r.tipo || '', r.rareza || '', String(r.raw || r.nombre || ''), Number(r.cantidad || 0)].join(':')).sort();
+                const firma = JSON.stringify([item.pl, item.zona, item.misionOriginal || item.mision, item.ubicacion, recompensas]);
+                return firmasFuente[clave] !== firma;
+            });
+        };
 
-        // Si no hay filas ni JSON en la respuesta directa, pedir la página pública
-        // en un navegador normal como última alternativa.
-        if (todasSeeBot.length === 0) {
-            try {
-                const renderizada = await descargarSTWRenderizada(urlSeeBot);
-                const parseadas = parsearTablaSeeBotSTW(renderizada.html);
-                const filasRenderizadas = cheerio.load(renderizada.html)('#miniRwdTbl tr.missionRow').length;
-                console.log('🔎 SeeBot navegador | HTTP=' + renderizada.status +
-                    ' | título=' + (renderizada.title || '(sin título)') +
-                    ' | filas #miniRwdTbl=' + filasRenderizadas +
-                    ' | misiones válidas=' + parseadas.length + '.');
-                if (parseadas.length > 0) {
-                    htmlSeeBot = renderizada.html;
-                    todasSeeBot = parseadas;
+        await etapaDiagnostico(fuenteExhaustiva
+            ? 'STW: modo detallado, revisando las tres fuentes para completar modificadores y requisitos.'
+            : compararCambiosDiarios
+                ? 'STW: revisando fuentes en orden y avanzando si no hay alertas nuevas respecto al último envío.'
+                : 'STW: consulta secuencial; se detiene en la primera fuente que entregue misiones válidas.');
+
+        // Fuente 1: STW Planner. La página principal y su sección de PaVos
+        // pertenecen a la misma fuente lógica.
+        [htmlPrincipal, htmlPavos] = await Promise.all([
+            descargarFuente('Fuente 1', urlPrincipal),
+            descargarFuente('PaVos de la fuente 1', urlPavos)
+        ]);
+        ({ misiones: todasPlanner, pavos: pavosPagina } = parsearFuentePlanner());
+
+        const tieneDatosPlanner = todasPlanner.length > 0;
+        const plannerTieneCambioDiario = fuenteTieneCambiosDiarios(todasPlanner, 'principal');
+        if (fuenteExhaustiva || !tieneDatosPlanner || (compararCambiosDiarios && !plannerTieneCambioDiario)) {
+            // Fuente 2: solo se consulta si la primera no devolvió misiones.
+            htmlVBucksDaily = await descargarFuente('Fuente 2', urlVBucksDaily);
+            todasVBucksDaily = htmlVBucksDaily ? parsearVBucksDailySTW(htmlVBucksDaily) : [];
+            const traeRarezasHTTP = todasVBucksDaily.some(m =>
+                (m.recompensas || []).some(r => r.tipo !== 'vbucks' && ['epic', 'legendary', 'mythic'].includes(r.rareza))
+            );
+            if (htmlVBucksDaily && !traeRarezasHTTP) {
+                try {
+                    const renderizadaDaily = await descargarVBucksDailyRenderizada(urlVBucksDaily);
+                    const misionesRenderizadasDaily = parsearVBucksDailySTW(renderizadaDaily.html);
+                    const filasRenderizadasDaily = cheerio.load(renderizadaDaily.html)('.mission-row').length;
+                    const traeRecompensasRaras = misionesRenderizadasDaily.some(m =>
+                        (m.recompensas || []).some(r => r.tipo !== 'vbucks' && ['epic', 'legendary', 'mythic'].includes(r.rareza))
+                    );
+                    console.log('🔎 Fuente 2 navegador | filtro completo=' + (renderizadaDaily.filtroPulsado ? 'activado' : 'no activado') +
+                        ' | filas=' + filasRenderizadasDaily + ' | misiones válidas=' + misionesRenderizadasDaily.length + '.');
+                    if (misionesRenderizadasDaily.length > todasVBucksDaily.length) {
+                        todasVBucksDaily = misionesRenderizadasDaily;
+                    }
+                } catch (errorDailyRender) {
+                    console.warn('⚠️ No se pudo completar la segunda fuente en navegador:', errorDailyRender.message);
                 }
-            } catch (errorRender) {
-                console.warn('⚠️ SeeBot no entregó filas válidas por HTTP ni al renderizar:', errorRender.message);
             }
+            const segundaTieneCambioDiario = fuenteTieneCambiosDiarios(todasVBucksDaily, 'secundaria');
+            if (fuenteExhaustiva || todasVBucksDaily.length === 0 || (compararCambiosDiarios && !segundaTieneCambioDiario)) {
+                // Fuente 3: solo si la segunda no devolvió misiones; en modo
+                // detallado se consultan todas para enriquecer modificadores.
+                await cargarSeeBot();
+            }
+        } else {
+            console.log('⏭️ Fuente 1 encontró misiones; se omiten las fuentes 2 y 3.');
         }
+
+        console.log('🔎 STW fuentes recibidas | fuente 1=' + todasPlanner.length +
+            ' | fuente 2=' + todasVBucksDaily.length +
+            ' | fuente 3=' + todasSeeBot.length +
+            ' | filas tabla=' + filasSeeBotHTML + ' | JSON=' + todasSeeBotJSON.length + '.');
+
         const mapaTodas = new Map();
         for (const m of [...todasPlanner, ...todasVBucksDaily, ...todasSeeBot]) {
             const nombreMision = String(m.misionOriginal || m.mision || '').toLowerCase().replace(/\s+/g, ' ').trim();
@@ -1466,7 +1522,7 @@ async function extraerAlertasAPI(progreso = null) {
             });
         }
         let todas = Array.from(mapaTodas.values());
-        const pavosPagina = htmlPavos ? parsearPavosSTW(htmlPavos) : [];
+        // pavosPagina ya se obtuvo junto con la fuente 1.
         const pavosDaily = todasVBucksDaily.filter(m => m.vbucks || m.tipoAlerta === 'vbucks');
         await etapaDiagnostico('STW ETAPA 2: resultados: Planner=' + todasPlanner.length + ', V-Bucks Daily=' + todasVBucksDaily.length + ', SeeBot=' + todasSeeBot.length + ', combinadas=' + todas.length + ', PaVos URL secundaria=' + pavosPagina.length + ', PaVos Daily=' + pavosDaily.length + '.');
 
