@@ -699,6 +699,28 @@ async function guardarAlertaPavosEnviada(hoy, horario, firmasPorFuente = {}) {
     );
 }
 
+async function enviarAvisoConsultaSTW(sock) {
+    try {
+        const configChat = await Config.findOne({ clave: 'chat_alertas_diarias' });
+        if (!configChat || !configChat.valor) return;
+        let grupos = [];
+        try {
+            grupos = JSON.parse(configChat.valor);
+            if (!Array.isArray(grupos)) grupos = [configChat.valor];
+        } catch (_) { grupos = [configChat.valor]; }
+        grupos = [...new Set(grupos.filter(id => typeof id === 'string' && id.endsWith('@g.us')))];
+        for (const grupo of grupos) {
+            try {
+                await sock.sendMessage(grupo, { text: '⏳ Consultando, esto puede tardar unos segundos. No hace falta repetir el comando.' });
+            } catch (error) {
+                console.error('No se pudo enviar el aviso previo STW a ' + grupo + ':', error.message);
+            }
+        }
+    } catch (error) {
+        console.error('No se pudo preparar el aviso previo STW:', error.message);
+    }
+}
+
 function iniciarCronAlertasDiarias(sock) {
     if (cronAlertasDiariasIniciado) {
         console.log('ℹ️ El cron diario de STW ya estaba iniciado; no se duplicarán horarios.');
@@ -741,6 +763,9 @@ function iniciarCronAlertasDiarias(sock) {
                     return;
                 }
                 raspadoEnCurso = true;
+                if (horario.etiqueta === '6:01:20 PM') {
+                    await enviarAvisoConsultaSTW(sock);
+                }
                 console.log('🌐 ' + horario.etiqueta + ': iniciando raspado HTTP de STW; los comandos leerán la caché guardada.');
                 const { extraerAlertasAPI } = require('../webBridge');
                 const resultado = await extraerAlertasAPI();
