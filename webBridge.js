@@ -166,7 +166,8 @@ function traducirBiomaSTW(bioma) {
         'Colinas otoñales', 'Zona de misión', 'Tropical', 'Búnkeres',
         'Búnker', 'El Portal', 'El Cráter'
     ].filter(Boolean).map(valor => String(valor).toLowerCase()));
-    if (!biomasEspanol.has(limpio.toLowerCase())) return 'Zona de misión';
+    const biomaBase = limpio.replace(/\s*\([^)]*\)/g, '').trim().toLowerCase();
+    if (!biomasEspanol.has(limpio.toLowerCase()) && !biomasEspanol.has(biomaBase)) return 'Zona de misión';
     return limpio;
 }
 
