@@ -509,15 +509,21 @@ function parsearPavosSTW(html) {
     return Array.from(mapa.values());
 }
 
-async function extraerAlertasAPI() {
+async function extraerAlertasAPI(progreso = null) {
+    const informarDiagnostico = async (texto) => { if (typeof progreso === 'function') { try { await progreso(texto); } catch (e) {} } };
+    const tiempoDiagnostico = Date.now();
+    const etapaDiagnostico = async (texto) => { await informarDiagnostico('[' + ((Date.now() - tiempoDiagnostico) / 1000).toFixed(2) + ' s] ' + texto); };
     try {
         console.log('\n--- 🌐 RASPADO STW PLANNER ---');
         const urlPrincipal = 'https://stw-planner.com/mission-alerts';
         const urlPavos = 'https://stw-planner.com/mission-alerts/v-buck-missions';
+        await etapaDiagnostico('STW ETAPA 1/5: descargando páginas principal y de PaVos.');
         const [htmlPrincipal, htmlPavos] = await Promise.all([descargarSTW(urlPrincipal), descargarSTW(urlPavos)]);
+        await etapaDiagnostico('STW ETAPA 2/5: descarga terminada; HTML principal=' + String(htmlPrincipal || '').length + ' caracteres; HTML PaVos=' + String(htmlPavos || '').length + ' caracteres.');
 
         const todas = parsearPaginaSTW(htmlPrincipal, 'all');
         const pavosPagina = parsearPavosSTW(htmlPavos);
+        await etapaDiagnostico('STW ETAPA 3/5: parseo terminado; misiones principales=' + todas.length + '; misiones PaVos=' + pavosPagina.length + '.');
 
         // STW Planner actualmente muestra la misión de PaVos también en la
         // página principal de Mission Alerts. Conservamos ambas fuentes para
@@ -669,10 +675,15 @@ async function extraerAlertasAPI() {
         await Config.findOneAndUpdate({ clave: 'stw_legendarias_scrapeadas' }, { valor: JSON.stringify(deduplicarSTW(legendarias)) }, { upsert: true });
         await Config.findOneAndUpdate({ clave: 'stw_plaltas_scrapeadas' }, { valor: JSON.stringify(plAltas) }, { upsert: true });
         await Config.findOneAndUpdate({ clave: 'stw_ultima_actualizacion' }, { valor: JSON.stringify({ fuente: 'STW Planner', actualizadoEn: new Date().toISOString(), totalMisiones: todas.length, pavos: pavosFinal.length, epicas: epicas.length, legendarias: legendarias.length, plAltas: plAltas.length }) }, { upsert: true });
+        await etapaDiagnostico('STW ETAPA 4/5: guardado MongoDB completado; PaVos=' + pavosFinal.length + ', épicas=' + epicas.length + ', legendarias=' + legendarias.length + ', PL altas=' + plAltas.length + '.');
 
         console.log('✅ STW Planner guardado | Total: ' + todas.length + ' | 🪙 Pavos: ' + pavosFinal.length + ' | 🟣 Épicas: ' + epicas.length + ' | 🟠 Legendarias: ' + legendarias.length + ' | 🔥 Alertas destacadas: ' + plAltas.length);
+        await etapaDiagnostico('STW ETAPA 5/5: proceso terminado correctamente en ' + ((Date.now() - tiempoDiagnostico) / 1000).toFixed(2) + ' s.');
+        return { ok: true, total: todas.length, pavos: pavosFinal.length, epicas: epicas.length, legendarias: legendarias.length, plAltas: plAltas.length };
     } catch (e) {
-        console.error('❌ Error en la extracción STW Planner:', e.message);
+        console.error('❌ Error en la extracción STW Planner:', e.stack || e.message);
+        await etapaDiagnostico('STW FALLÓ: ' + String(e.stack || e.message || e).slice(0, 900));
+        return { ok: false, error: e.message || String(e) };
     }
 }
 function iniciarPuenteDiscord(sock) {
