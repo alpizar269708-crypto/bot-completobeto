@@ -529,13 +529,6 @@ async function enviarAlertaPavosAutomatica(sock, actualizarEnVivo = false, horaA
             mensajeAuto += '⚡ *PL:* ' + (p.pl ?? '?') + '\n';
             mensajeAuto += '🎯 *Misión:* ' + (p.mision || p.misionOriginal || 'Alerta de PaVos') + '\n';
             mensajeAuto += '🪙 *PaVos:* ' + cantidad + '\n';
-            if (Array.isArray(p.modificadores) && p.modificadores.length) {
-                mensajeAuto += '🧩 *Modificadores:* ' + p.modificadores.join(', ') + '\n';
-            }
-            const requisitos = p.requisitos || p.questReqs;
-            if (requisitos) {
-                mensajeAuto += '📜 *Requisitos:* ' + (/^none$/i.test(String(requisitos)) ? 'Ninguno' : requisitos) + '\n';
-            }
             mensajeAuto += '\n';
         });
 
