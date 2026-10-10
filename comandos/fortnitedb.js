@@ -171,7 +171,7 @@ async function consultarFortniteDB(progreso) {
                 zona: ZONAS[zonaCodigo],
                 zonaCodigo,
                 pl: poderMatch ? Number(poderMatch[0]) : null,
-                mision: nombreMisionFortniteDB(imagen.attr('src') || '', imagen.attr('alt') || ''),
+                mision: 'Alerta de PaVos', // FortniteDB muestra zona, PL y recompensa en esta tabla; no expone aquí el nombre de la misión.
                 cantidad: Number(matchPavos[1])
             });
         });
@@ -407,8 +407,8 @@ async function comandoRPavos(sock, chatId, msg) {
     const progreso = async (texto) => {
         numeroEtapa++;
         await sock.sendMessage(chatId, {
-            text: '🪙 *R PAVOS — DIAGNÓSTICO DE DOS FUENTES*\\n📍 Seguimiento ' + numeroEtapa +
-                ' | ⏱️ ' + ((Date.now() - inicio) / 1000).toFixed(2) + ' s\\n\\n' + String(texto).slice(0, 2800)
+            text: '🪙 *R PAVOS — DIAGNÓSTICO DE DOS FUENTES*\n📍 Seguimiento ' + numeroEtapa +
+                ' | ⏱️ ' + ((Date.now() - inicio) / 1000).toFixed(2) + ' s\n\n' + String(texto).slice(0, 2800)
         }, { quoted: msg });
     };
 
@@ -445,7 +445,8 @@ async function comandoRPavos(sock, chatId, msg) {
     }
 
     if (fortniteDB.ok && seeBot.ok) {
-        const clave = a => [String(a.zonaCodigo || a.zona || '').toLowerCase(), String(a.pl ?? ''), String(a.cantidad ?? ''), String(a.mision || '').toLowerCase()].join('|');
+        // FortniteDB no expone el nombre de misión en su tabla de PaVos; comparamos zona, PL y cantidad.
+        const clave = a => [String(a.zonaCodigo || a.zona || '').toLowerCase(), String(a.pl ?? ''), String(a.cantidad ?? '')].join('|');
         const mapaDB = new Set(fortniteDB.alertas.map(clave));
         const mapaSee = new Set(seeBot.alertas.map(clave));
         const soloDB = fortniteDB.alertas.filter(a => !mapaSee.has(clave(a)));
