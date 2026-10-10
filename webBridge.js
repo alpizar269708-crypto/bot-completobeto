@@ -688,7 +688,7 @@ async function extraerAlertasAPI(progreso = null) {
                 return '';
             }
         };
-        const [htmlPrincipal, htmlPavos, htmlSeeBot] = await Promise.all([
+        [htmlPrincipal, htmlPavos, htmlSeeBot] = await Promise.all([
             descargarFuente('STW Planner', urlPrincipal),
             descargarFuente('STW Planner PaVos', urlPavos),
             descargarFuente('SeeBot', urlSeeBot)
