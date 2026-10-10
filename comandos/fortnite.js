@@ -380,23 +380,23 @@ async function comandoDestacadasSTW(sock, chatId, msg, progreso = null) {
     await sock.sendMessage(chatId, { text: texto }, { quoted: msg });
 }
 
-async function comandoPreguntarAlerta(sock, chatId, msg, palabrasClave = [], progreso = null) {
+async function comandoPreguntarAlerta(sock, chatId, msg, palabrasClave = [], progreso = null, detallada = false) {
     const informar = async texto => { if (typeof progreso === 'function') { try { await progreso(texto); } catch (_) {} } };
     const termino = Array.isArray(palabrasClave)
         ? palabrasClave.join(' ').trim()
         : String(palabrasClave || '').trim();
 
     if (!termino) {
-        await sock.sendMessage(chatId, { text: '🤖 Escribe después de *alerta* una palabra o frase para buscar en las alertas.' }, { quoted: msg });
+        await sock.sendMessage(chatId, { text: '🤖 Escribe después de *' + (detallada ? 'alertanob' : 'alerta') + '* una palabra o frase para buscar en las alertas.' }, { quoted: msg });
         return;
     }
 
-    await informar('🧭 Búsqueda de recompensa iniciada; término=' + termino + '.');
+    await informar('🔎 Iniciando búsqueda de alertas.');
     const datos = await obtenerAlertasSTW(true, informar);
-    await informar('🔎 ETAPA 1/3 — Datos cargados; combinando PaVos, épicas, legendarias y destacadas para buscar coincidencias.');
+    await informar('🔎 Datos de alertas cargados; buscando coincidencias.');
     const hayDatosDisponibles = datos.pavos.length + datos.epicas.length + datos.legendarias.length + (datos.plAltas || []).length > 0;
     if (datos.errorActualizacion && !hayDatosDisponibles) {
-        await sock.sendMessage(chatId, { text: '⚠️ No pude consultar STW Planner, SeeBot ni V-Bucks Daily, y no hay alertas guardadas para buscar. Inténtalo de nuevo en un momento.' }, { quoted: msg });
+        await sock.sendMessage(chatId, { text: '⚠️ No pude actualizar las alertas y no hay datos guardados para buscar. Inténtalo de nuevo en un momento.' }, { quoted: msg });
         return;
     }
     const normalizarTexto = texto => String(texto || '')
@@ -421,12 +421,29 @@ async function comandoPreguntarAlerta(sock, chatId, msg, palabrasClave = [], pro
         : null;
     const clave = normalizarTexto(termino);
 
-    const coincidencias = [
+    const mapaCoincidencias = new Map();
+    for (const item of [
         ...datos.pavos.map(item => ({ ...item, categoria: 'PaVos' })),
         ...datos.epicas.map(item => ({ ...item, categoria: 'Épicas' })),
         ...datos.legendarias.map(item => ({ ...item, categoria: 'Legendarias' })),
         ...(datos.plAltas || []).map(item => ({ ...item, categoria: 'Destacadas' }))
-    ].filter(item => {
+    ]) {
+        const normalizarClave = valor => String(valor || '').toLowerCase().normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
+        const claveMision = [normalizarClave(item.zona), String(item.pl || ''), normalizarClave(item.misionOriginal || item.mision), normalizarClave(item.ubicacion)].join('|');
+        if (!mapaCoincidencias.has(claveMision)) {
+            mapaCoincidencias.set(claveMision, { ...item, recompensas: [...(item.recompensas || [])], categorias: [item.categoria] });
+            continue;
+        }
+        const anterior = mapaCoincidencias.get(claveMision);
+        const recompensas = [...(anterior.recompensas || [])];
+        const vistas = new Set(recompensas.map(r => normalizarClave((r.tipo || '') + ' ' + (r.rareza || '') + ' ' + (r.raw || r.nombre))));
+        for (const r of (item.recompensas || [])) {
+            const claveR = normalizarClave((r.tipo || '') + ' ' + (r.rareza || '') + ' ' + (r.raw || r.nombre));
+            if (!vistas.has(claveR)) { vistas.add(claveR); recompensas.push(r); }
+        }
+        mapaCoincidencias.set(claveMision, { ...anterior, recompensas, categorias: [...new Set([...(anterior.categorias || []), item.categoria])] });
+    }
+    const coincidencias = Array.from(mapaCoincidencias.values()).filter(item => {
         if (esBusquedaPL) {
             const plItem = Number(String(item.pl || '').replace(/[^0-9]/g, ''));
             return plItem >= Math.min(plMinimo, plMaximo) && plItem <= Math.max(plMinimo, plMaximo);
@@ -455,7 +472,7 @@ async function comandoPreguntarAlerta(sock, chatId, msg, palabrasClave = [], pro
         ? '🔎 *ALERTAS CON PL ' + etiquetaPL + '*\n\n'
         : '🔎 *ALERTAS QUE CONTIENEN:* ' + termino + '\n\n';
 
-    await informar('🧮 ETAPA 2/3 — Búsqueda terminada; coincidencias=' + coincidencias.length + '.');
+    await informar('🔎 Búsqueda terminada; coincidencias=' + coincidencias.length + '.');
     if (coincidencias.length === 0) {
         texto += esBusquedaPL
             ? '_No encontré alertas con PL ' + etiquetaPL + '._\n\n'
@@ -468,7 +485,7 @@ async function comandoPreguntarAlerta(sock, chatId, msg, palabrasClave = [], pro
     }
 
     texto += 'Support-a-Creator: *JASC13* ❤️';
-    await informar('✅ ETAPA 3/3 — Resultado construido; enviando respuesta a WhatsApp.');
+    await informar('✅ Búsqueda terminada.');
     await sock.sendMessage(chatId, { text: texto }, { quoted: msg });
 }
 async function enviarAlertaPavosAutomatica(sock, actualizarEnVivo = false, horaAlerta = '6:01:30 PM', avisarSinPavos = false) {
