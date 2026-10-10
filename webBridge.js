@@ -187,7 +187,7 @@ function limpiarTextoSTW(texto) {
 
 async function descargarSTW(url) {
     const response = await axios.get(url, {
-        timeout: 15000,
+        timeout: 8000,
         headers: {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/153 Safari/537.36',
             'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
@@ -1373,22 +1373,7 @@ async function extraerAlertasAPI(progreso = null, opciones = {}) {
                     console.log('✅ STW JSON alternativo: misiones extraídas=' + json.length + '.');
                 }
             }
-            if (misiones.length === 0) {
-                try {
-                    const renderizada = await descargarSTWRenderizada(urlSeeBot);
-                    const parseadas = parsearTablaSeeBotSTW(renderizada.html);
-                    const filasRenderizadas = cheerio.load(renderizada.html)('#miniRwdTbl tr.missionRow').length;
-                    console.log('🔎 Fuente 3 navegador | HTTP=' + renderizada.status +
-                        ' | filas de misión=' + filasRenderizadas + ' | misiones válidas=' + parseadas.length + '.');
-                    if (parseadas.length > 0) {
-                        htmlSeeBot = renderizada.html;
-                        misiones = parseadas;
-                        filas = filasRenderizadas;
-                    }
-                } catch (errorRender) {
-                    console.warn('⚠️ No se pudo obtener la tercera fuente:', errorRender.message);
-                }
-            }
+            // Solo HTTP/HTML: no iniciar navegador si SeeBot no entrega filas.
             todasSeeBot = misiones;
             filasSeeBotHTML = filas;
             todasSeeBotJSON = json;
@@ -1450,23 +1435,7 @@ async function extraerAlertasAPI(progreso = null, opciones = {}) {
             const traeRarezasHTTP = todasVBucksDaily.some(m =>
                 (m.recompensas || []).some(r => r.tipo !== 'vbucks' && ['epic', 'legendary', 'mythic'].includes(r.rareza))
             );
-            if (htmlVBucksDaily && !traeRarezasHTTP) {
-                try {
-                    const renderizadaDaily = await descargarVBucksDailyRenderizada(urlVBucksDaily);
-                    const misionesRenderizadasDaily = parsearVBucksDailySTW(renderizadaDaily.html);
-                    const filasRenderizadasDaily = cheerio.load(renderizadaDaily.html)('.mission-row').length;
-                    const traeRecompensasRaras = misionesRenderizadasDaily.some(m =>
-                        (m.recompensas || []).some(r => r.tipo !== 'vbucks' && ['epic', 'legendary', 'mythic'].includes(r.rareza))
-                    );
-                    console.log('🔎 Fuente 2 navegador | filtro completo=' + (renderizadaDaily.filtroPulsado ? 'activado' : 'no activado') +
-                        ' | filas=' + filasRenderizadasDaily + ' | misiones válidas=' + misionesRenderizadasDaily.length + '.');
-                    if (misionesRenderizadasDaily.length > todasVBucksDaily.length) {
-                        todasVBucksDaily = misionesRenderizadasDaily;
-                    }
-                } catch (errorDailyRender) {
-                    console.warn('⚠️ No se pudo completar la segunda fuente en navegador:', errorDailyRender.message);
-                }
-            }
+            // Solo HTTP/HTML: se omite el renderizado en navegador para no bloquear el raspado.
             const segundaTieneCambioDiario = fuenteTieneCambiosDiarios(todasVBucksDaily, 'secundaria');
             if (fuenteExhaustiva || todasVBucksDaily.length === 0 || (compararCambiosDiarios && !segundaTieneCambioDiario)) {
                 // Fuente 3: solo si la segunda no devolvió misiones; en modo
