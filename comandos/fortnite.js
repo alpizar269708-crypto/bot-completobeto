@@ -123,16 +123,9 @@ function obtenerRecompensasValiosasSTW(item) {
     const recompensas = Array.isArray(item.recompensas) ? item.recompensas : [];
     const valiosas = recompensas.filter(r => {
         if (!r || !r.tipo) return false;
-        const nombre = String(r.nombre || '').toLowerCase();
         if (r.tipo === 'vbucks') return true;
-        if (r.rareza === 'common' || r.rareza === 'uncommon' ||
-            /\bcom[uú]n\b/.test(nombre) || /recompensa com[uú]n/.test(nombre)) return false;
-        if (r.tipo === 'other') return ['mythic', 'legendary', 'epic', 'rare'].includes(r.rareza);
-        if (['hero', 'survivor', 'defender', 'schematic'].includes(r.tipo)) {
-            return ['mythic', 'legendary', 'epic', 'rare'].includes(r.rareza);
-        }
-        return ['supercharger', 'evolution', 'perkup', 'elemental', 'reperk', 'ore', 'llama'].includes(r.tipo)
-            || ['mythic', 'legendary', 'epic', 'rare'].includes(r.rareza);
+        if (!['hero', 'survivor', 'defender', 'schematic'].includes(r.tipo)) return false;
+        return ['mythic', 'legendary', 'epic', 'rare'].includes(r.rareza);
     });
     const unicas = [];
     const vistos = new Set();
@@ -154,28 +147,71 @@ function formatearMultiplicadorSTW(item) {
     return '';
 }
 
+function traductoresSTW() {
+    try { return require('../webBridge'); } catch (_) { return {}; }
+}
+
+function traducirZonaSalidaSTW(zona) {
+    const traductores = traductoresSTW();
+    return typeof traductores.traducirZonaSTW === 'function'
+        ? (traductores.traducirZonaSTW(zona) || zona || '')
+        : (zona || '');
+}
+
+function traducirMisionSalidaSTW(item) {
+    const traductores = traductoresSTW();
+    const traducirNombre = traductores.traducirNombreMisionSTW;
+    const traducirBioma = traductores.traducirBiomaSTW;
+    const fuente = String(item && (item.mision || item.misionOriginal) || '').trim();
+    if (!fuente || typeof traducirNombre !== 'function') return fuente;
+    const partes = fuente.split(/\s+-\s+/);
+    const nombreOriginal = partes.shift();
+    const nombre = traducirNombre(nombreOriginal) || nombreOriginal;
+    const biomaOriginal = partes.length ? partes.join(' - ') : String(item.ubicacion || '').trim();
+    const bioma = biomaOriginal && typeof traducirBioma === 'function'
+        ? traducirBioma(biomaOriginal)
+        : biomaOriginal;
+    return [nombre, bioma && !/^zona desconocida$/i.test(bioma) ? bioma : ''].filter(Boolean).join(' - ');
+}
+
+function traducirModificadoresSalidaSTW(modificadores) {
+    const traductores = traductoresSTW();
+    const traducir = traductores.traducirModificadorSTW;
+    const list = Array.isArray(modificadores) ? modificadores : [];
+    const traducidos = list.map(x => typeof traducir === 'function' ? traducir(x) : x).filter(Boolean);
+    return [...new Set(traducidos)];
+}
+
 function formatearAlertaSTW(item, encabezado = '') {
     let texto = '';
     if (encabezado) texto += encabezado + '\n';
     texto += '⚡ *PL:* ' + (item.pl ?? '?') + '\n';
-    if (item.zona) texto += '🌍 *Zona:* ' + item.zona + '\n';
+    if (item.zona) texto += '🌍 *Zona:* ' + traducirZonaSalidaSTW(item.zona) + '\n';
     texto += formatearMultiplicadorSTW(item);
-    if (item.mision || item.misionOriginal) texto += '🎯 *Misión:* ' + (item.mision || item.misionOriginal) + '\n';
+    const mision = traducirMisionSalidaSTW(item);
+    if (mision) texto += '🎯 *Misión:* ' + mision + '\n';
 
     const recompensas = obtenerRecompensasValiosasSTW(item);
     if (recompensas.length) {
         texto += '🎁 *Recompensa:* ' + recompensas.join(' | ') + '\n';
-    } else if (Number(item.cantidad || item.cantidadVbucks) > 0 && /pavos|v-?bucks/i.test(String(item.recompensa || item.tipo || item.tipoAlertaTexto || ''))) {
+    } else if (Number(item.cantidad || item.cantidadVbucks || item.cantidadVbucks) > 0 && /pavos|v-?bucks/i.test(String(item.recompensa || item.tipo || item.tipoAlertaTexto || ''))) {
         texto += '🎁 *Recompensa:* 🪙 ' + Number(item.cantidad || item.cantidadVbucks) + ' PaVos\n';
     } else if (item.recompensa && item.recompensa !== 'Misión') {
         texto += '🎁 *Recompensa:* ' + item.recompensa + '\n';
     }
 
-    const modificadores = Array.isArray(item.modificadores) ? item.modificadores.filter(Boolean) : [];
+    const modificadores = traducirModificadoresSalidaSTW(item.modificadores);
     if (modificadores.length) texto += '🧩 *Modificadores:* ' + modificadores.join(', ') + '\n';
     const requisitos = String(item.questReqs || item.requisitos || '').trim();
     if (requisitos) texto += '📜 *Requisitos:* ' + (/^none$/i.test(requisitos) ? 'Ninguno' : requisitos) + '\n';
     return texto + '\n';
+}
+
+function formatearResumenAlertaSTW(item) {
+    const recompensas = obtenerRecompensasValiosasSTW(item);
+    const resumenRecompensas = recompensas.length ? ' — ' + recompensas.join(', ') : '';
+    return '⭐ *' + traducirZonaSalidaSTW(item.zona || 'Zona desconocida') +
+        ' · PL ' + (item.pl ?? '?') + '* — ' + traducirMisionSalidaSTW(item) + resumenRecompensas;
 }
 
 
@@ -192,7 +228,7 @@ async function alertasSTW(sock, chatId, msg, categoria = 'todas', progreso = nul
     const fechaHoy = obtenerFechaActual();
     const lineas = ['📅 _' + fechaHoy + '_', ''];
     if (categoria === 'pavos' || categoria === 'todas') {
-        lineas.push('🎮 *ALERTAS DE PAVOS*', '');
+        lineas.push('🎮 *ALERTAS DE PaVos*', '');
         if (!datos.pavos.length) {
             lineas.push(datos.errorActualizacion
                 ? '⚠️ _No pude obtener alertas en vivo y todavía no hay caché guardado._'
@@ -203,12 +239,15 @@ async function alertasSTW(sock, chatId, msg, categoria = 'todas', progreso = nul
                 const cantidad = Number(p.cantidad || p.cantidadVbucks || 50);
                 totalPavos += cantidad;
                 lineas.push(
-                    '🌍 *Zona:* ' + (p.zona || 'Desconocida'),
+                    '🌍 *Zona:* ' + traducirZonaSalidaSTW(p.zona || 'Desconocida'),
                     '⚡ *PL:* ' + (p.pl ?? '?'),
-                    '🎯 *Misión:* ' + (p.mision || p.misionOriginal || 'Alerta de PaVos'),
+                    '🎯 *Misión:* ' + traducirMisionSalidaSTW(p),
                     '🪙 *PaVos:* ' + cantidad,
-                    ...(Array.isArray(p.modificadores) && p.modificadores.length ? ['🧩 *Modificadores:* ' + p.modificadores.join(', ')] : []),
-                    ...(p.requisitos || p.questReqs ? ['📜 *Requisitos:* ' + (/^none$/i.test(String(p.requisitos || p.questReqs)) ? 'Ninguno' : (p.requisitos || p.questReqs))] : []),
+                    ...(traducirModificadoresSalidaSTW(p.modificadores).length
+                        ? ['🧩 *Modificadores:* ' + traducirModificadoresSalidaSTW(p.modificadores).join(', ')] : []),
+                    ...((p.requisitos || p.questReqs)
+                        ? ['📜 *Requisitos:* ' + (/^none$/i.test(String(p.requisitos || p.questReqs))
+                            ? 'Ninguno' : (p.requisitos || p.questReqs))] : []),
                     ''
                 );
             }
@@ -216,15 +255,37 @@ async function alertasSTW(sock, chatId, msg, categoria = 'todas', progreso = nul
         }
     }
 
-    if (categoria === 'epicas' || categoria === 'todas') {
-        lineas.push('🟣 *ALERTAS ÉPICAS*', '');
-        if (!datos.epicas.length) lineas.push(datos.errorActualizacion ? '⚠️ _No pude consultar las fuentes de alertas en este momento._' : '_No hay alertas épicas disponibles en el caché actual._', '');
-        else for (const alerta of datos.epicas) lineas.push(formatearAlertaSTW(alerta));
+    if (categoria === 'todas') {
+        lineas.push('⭐ *RESUMEN DE ALERTAS DESTACADAS*', '');
+        const lista = (datos.plAltas || []).filter(item => {
+            const recompensas = Array.isArray(item.recompensas) ? item.recompensas : [];
+            return recompensas.some(r => ['hero', 'survivor', 'defender', 'schematic'].includes(r.tipo)
+                && ['epic', 'legendary', 'mythic'].includes(r.rareza));
+        });
+        const limite = 10;
+        if (!lista.length) {
+            lineas.push(datos.errorActualizacion
+                ? '⚠️ _No pude consultar las fuentes de alertas en este momento._'
+                : '_No hay recompensas destacadas disponibles en este momento._', '');
+        } else {
+            for (const item of lista.slice(0, limite)) lineas.push(formatearResumenAlertaSTW(item));
+            if (lista.length > limite) lineas.push('', '➕ _Hay ' + (lista.length - limite) + ' destacadas más; usa *destacadasstw* para verlas todas._');
+        }
+        lineas.push('', '📚 _Para ver listas completas por rareza, usa *epicasstw* o *legendariasstw*._', '');
     }
-    if (categoria === 'legendarias' || categoria === 'todas') {
-        lineas.push('🌟 *ALERTAS LEGENDARIAS*', '');
-        if (!datos.legendarias.length) lineas.push(datos.errorActualizacion ? '⚠️ _No pude consultar las fuentes de alertas en este momento._' : '_No hay alertas legendarias disponibles en el caché actual._', '');
-        else for (const alerta of datos.legendarias) lineas.push(formatearAlertaSTW(alerta));
+
+    if (categoria === 'epicas' || categoria === 'legendarias') {
+        const clave = categoria === 'epicas' ? 'epicas' : 'legendarias';
+        const titulo = categoria === 'epicas' ? '🟣 *ALERTAS ÉPICAS ÚTILES*' : '🟠 *ALERTAS LEGENDARIAS ÚTILES*';
+        const lista = datos[clave] || [];
+        lineas.push(titulo + ' · ' + lista.length, '');
+        if (!lista.length) {
+            lineas.push(datos.errorActualizacion
+                ? '⚠️ _No pude consultar las fuentes de alertas en este momento._'
+                : '_No hay recompensas de esta rareza en héroes, supervivientes, defensores o esquemas._', '');
+        } else {
+            for (const alerta of lista) lineas.push(formatearAlertaSTW(alerta));
+        }
     }
 
     lineas.push('Support-a-Creator: *JASC13* ❤️');
@@ -236,8 +297,6 @@ async function alertasSTW(sock, chatId, msg, categoria = 'todas', progreso = nul
         throw error;
     }
 }
-
-
 async function comandoDestacadasSTW(sock, chatId, msg, progreso = null) {
     const informar = async (texto) => { if (typeof progreso === 'function') await progreso(texto); };
     await informar('🧭 Comando de destacadas iniciado; consultará caché STW Planner y filtrará PL altas.');
