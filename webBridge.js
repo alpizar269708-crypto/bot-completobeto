@@ -481,7 +481,7 @@ function deduplicarSTW(lista) {
         normalizar(r && r.tipo), normalizar(r && r.rareza),
         normalizar(r && (r.raw || r.nombre))
             .replace(/\b(survivor|superviviente)\b/g, '')
-            .replace(/\b(x|×)\s*\\d+\b/g, '').trim()
+            .replace(/\b(x|×)\s*\d+\b/g, '').trim()
     ].join('|');
 
     for (const item of Array.isArray(lista) ? lista : []) {
