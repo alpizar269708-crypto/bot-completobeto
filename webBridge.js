@@ -151,7 +151,13 @@ function traducirBiomaSTW(bioma) {
         .replace(/\bbunkers?\b/gi, 'Búnkeres')
         .replace(/\bthe portal\b/gi, 'El Portal')
         .replace(/\bthe crater\b/gi, 'El Cráter');
-    return limpio.replace(/\s+/g, ' ').replace(/\(\s*\)/g, '').trim();
+    limpio = limpio.replace(/\s+/g, ' ').replace(/\(\s*\)/g, '').trim();
+    // Si el nombre del bioma no está en el diccionario, no dejar que el
+    // nombre original en inglés termine en WhatsApp.
+    if (/\b(?:the|swamps?|haunted|forest|city|town|park|industrial|suburbs?|autumn|grasslands|desert|lakeside|tropical|bunkers?|portal|crater|route|ghost|arid)\b/i.test(limpio)) {
+        return 'Zona de misión';
+    }
+    return limpio;
 }
 
 function traducirMisionYBioma(nombreIngles, textoCompletoZona) {
