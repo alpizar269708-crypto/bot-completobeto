@@ -491,6 +491,56 @@ async function comandoPreguntarAlerta(sock, chatId, msg, palabrasClave = [], pro
     await informar('✅ Búsqueda terminada.');
     await sock.sendMessage(chatId, { text: texto }, { quoted: msg });
 }
+function claveMisionAlertaDiaria(item) {
+    const normalizar = valor => String(valor || '').toLowerCase().normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
+    return [normalizar(item.zona), String(item.pl ?? ''), normalizar(item.misionOriginal || item.mision), normalizar(item.ubicacion)].join('|');
+}
+
+function firmaMisionAlertaDiaria(item) {
+    const recompensas = (item.recompensas || []).map(r =>
+        [r.tipo || '', r.rareza || '', String(r.raw || r.nombre || ''), Number(r.cantidad || 0)].join(':')
+    ).sort();
+    return JSON.stringify([item.pl, item.zona, item.misionOriginal || item.mision, item.ubicacion, recompensas]);
+}
+
+function firmasPorFuenteAlertaDiaria(fuentes) {
+    const resultado = {};
+    for (const nombre of ['principal', 'secundaria', 'tercera']) {
+        resultado[nombre] = {};
+        for (const item of (Array.isArray(fuentes && fuentes[nombre]) ? fuentes[nombre] : [])) {
+            resultado[nombre][claveMisionAlertaDiaria(item)] = firmaMisionAlertaDiaria(item);
+        }
+    }
+    return resultado;
+}
+
+function alertaDiariaEsUtil(item) {
+    return (item.recompensas || []).some(r => r && (
+        r.tipo === 'vbucks' ||
+        (['hero', 'survivor', 'defender', 'schematic', 'perkup'].includes(r.tipo) &&
+         ['mythic', 'legendary', 'epic'].includes(r.rareza))
+    ));
+}
+
+function combinarAlertasDiarias(lista) {
+    const mapa = new Map();
+    for (const item of (Array.isArray(lista) ? lista : []).filter(alertaDiariaEsUtil)) {
+        const clave = claveMisionAlertaDiaria(item);
+        if (!mapa.has(clave)) {
+            mapa.set(clave, { ...item, recompensas: [...(item.recompensas || [])] });
+            continue;
+        }
+        const anterior = mapa.get(clave);
+        const vistas = new Set(anterior.recompensas.map(r => [r.tipo || '', r.rareza || '', r.raw || r.nombre || ''].join('|')));
+        for (const r of (item.recompensas || [])) {
+            const kr = [r.tipo || '', r.rareza || '', r.raw || r.nombre || ''].join('|');
+            if (!vistas.has(kr)) { vistas.add(kr); anterior.recompensas.push(r); }
+        }
+    }
+    return Array.from(mapa.values());
+}
+
 async function enviarAlertaPavosAutomatica(sock, actualizarEnVivo = false, horaAlerta = '6:01:30 PM', avisarSinPavos = false) {
     try {
         const configChat = await Config.findOne({ clave: 'chat_alertas_diarias' });
