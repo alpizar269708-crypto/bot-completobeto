@@ -844,6 +844,26 @@ async function comandoRPavos(sock, chatId, msg) {
         ''
     ];
 
+    // El diagnóstico se imprime incluso cuando PennyDB informa cero PaVos,
+    // para distinguir un cero real de HTML que llegó incompleto al bot.
+    for (const fuente of alternativas) {
+        if (fuente.fuente !== 'PennyDB') continue;
+        const h = fuente.diagnosticoHTML || {};
+        const p = fuente.alertas?.diagnosticoPennyDB || {};
+        lineas.push('🧪 *DIAGNÓSTICO PENNYDB*');
+        lineas.push('URL: ' + (h.urlFinal || fuente.url || '(sin URL)'));
+        lineas.push('Título: ' + (h.titulo || '(sin título)') + ' | HTML: ' + (h.caracteresHTML ?? '?') + ' caracteres');
+        lineas.push('HTML contiene Voucher: ' + (h.mencionaVoucher ? 'sí' : 'no') +
+            ' | contiene Alert rewards: ' + (h.mencionaAlertRewards ? 'sí' : 'no'));
+        lineas.push('Contador V-Bucks in alerts: ' + (h.contadorVBucks || '(no localizado)') +
+            ' | cero detectado: ' + (h.ceroVBucksDetectado ? 'sí' : 'no'));
+        lineas.push('Filas recompensa=' + (p.filasRecompensa ?? 0) +
+            ' | con cantidad=' + (p.filasConCantidad ?? 0) +
+            ' | sin zona/PL=' + (p.filasSinContexto ?? 0));
+        if (h.fragmento) lineas.push('Fragmento HTML/texto: ' + h.fragmento.slice(0, 350));
+        lineas.push('');
+    }
+
     for (const fuente of alternativas.filter(f => f.ok)) {
         lineas.push('🌐 *' + fuente.fuente.toUpperCase() + ' — ALERTAS DETECTADAS*');
         for (const a of fuente.alertas) {
