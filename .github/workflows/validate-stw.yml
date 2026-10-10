@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - fix/stw-html-fixture-tests
+      - fix/stw-clean-alerts-alertanob
   pull_request:
     branches:
       - main
