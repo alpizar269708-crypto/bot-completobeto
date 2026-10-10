@@ -1065,11 +1065,6 @@ async function comandoPavosOficial(sock, chatId, msg) {
                 '⚡ *PL:* ' + (alerta.pl ?? '?'),
                 '🎯 *Misión:* ' + nombreMisionSeeBot(alerta.mision || alerta.misionOriginal || 'Alerta de PaVos'),
                 '🪙 *PaVos:* ' + alerta.cantidad,
-                ...(Array.isArray(alerta.modificadores) && alerta.modificadores.length
-                    ? ['🧩 *Modificadores:* ' + [...new Set(alerta.modificadores.map(traducirModificadorSTW))].join(', ')] : []),
-                ...((alerta.requisitos || alerta.questReqs)
-                    ? ['📜 *Requisitos:* ' + (/^none$/i.test(String(alerta.requisitos || alerta.questReqs))
-                        ? 'Ninguno' : (alerta.requisitos || alerta.questReqs))] : []),
                 ''
             );
         }
