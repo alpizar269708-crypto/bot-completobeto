@@ -212,12 +212,12 @@ async function alertasSTW(sock, chatId, msg, categoria = 'todas', progreso = nul
 
     if (categoria === 'epicas' || categoria === 'todas') {
         lineas.push('🟣 *ALERTAS ÉPICAS*', '');
-        if (!datos.epicas.length) lineas.push('_No hay alertas épicas disponibles en el caché actual._', '');
+        if (!datos.epicas.length) lineas.push(datos.errorActualizacion ? '⚠️ _No pude consultar las fuentes de alertas en este momento._' : '_No hay alertas épicas disponibles en el caché actual._', '');
         else for (const alerta of datos.epicas) lineas.push(formatearAlertaSTW(alerta));
     }
     if (categoria === 'legendarias' || categoria === 'todas') {
         lineas.push('🌟 *ALERTAS LEGENDARIAS*', '');
-        if (!datos.legendarias.length) lineas.push('_No hay alertas legendarias disponibles en el caché actual._', '');
+        if (!datos.legendarias.length) lineas.push(datos.errorActualizacion ? '⚠️ _No pude consultar las fuentes de alertas en este momento._' : '_No hay alertas legendarias disponibles en el caché actual._', '');
         else for (const alerta of datos.legendarias) lineas.push(formatearAlertaSTW(alerta));
     }
 
@@ -246,7 +246,9 @@ async function comandoDestacadasSTW(sock, chatId, msg, progreso = null) {
 
         await informar('🧹 ETAPA 3/4 — Lista seleccionada; elementos a formatear=' + listaPlAltas.length + '.');
         if (listaPlAltas.length === 0) {
-            texto += `_No hay alertas destacadas registradas en este momento._\n\n`;
+            texto += datos.errorActualizacion
+                ? '_No pude consultar las fuentes y no hay datos guardados para mostrar._\n\n'
+                : '_No hay alertas destacadas registradas en este momento._\n\n';
         } else {
             listaPlAltas.forEach(item => {
                 texto += formatearAlertaSTW(item, '⭐ *ALERTA DESTACADA*');
@@ -273,6 +275,11 @@ async function comandoPreguntarAlerta(sock, chatId, msg, palabrasClave = [], pro
 
     if (!termino) {
         await sock.sendMessage(chatId, { text: '🤖 Escribe después de *alerta* una palabra o frase para buscar en las alertas.' }, { quoted: msg });
+        return;
+    }
+    const hayDatosDisponibles = datos.pavos.length + datos.epicas.length + datos.legendarias.length + (datos.plAltas || []).length > 0;
+    if (datos.errorActualizacion && !hayDatosDisponibles) {
+        await sock.sendMessage(chatId, { text: '⚠️ No pude consultar STW Planner, SeeBot ni V-Bucks Daily, y no hay alertas guardadas para buscar. Inténtalo de nuevo en un momento.' }, { quoted: msg });
         return;
     }
 
