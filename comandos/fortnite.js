@@ -512,6 +512,27 @@ function iniciarCronAlertasDiarias(sock) {
     }
 
     console.log('🕒 Alertas de PaVos programadas a las 18:01:30, 18:02 y 18:05 (hora de Ciudad de México). El primer horario siempre envía un aviso.');
+
+    // Calentar la caché al iniciar el bot para que los comandos tengan datos
+    // recientes incluso si la primera consulta manual falla.
+    void (async () => {
+        try {
+            console.log('🌐 Actualización inicial de alertas STW: consultando STW Planner y SeeBot.');
+            const { extraerAlertasAPI } = require('../webBridge');
+            const resultado = await extraerAlertasAPI();
+            if (resultado && resultado.ok) {
+                console.log('✅ Caché STW inicial lista | misiones=' + (resultado.total || 0) +
+                    ' | PaVos=' + (resultado.pavos || 0) +
+                    ' | épicas=' + (resultado.epicas || 0) +
+                    ' | legendarias=' + (resultado.legendarias || 0) +
+                    ' | destacadas=' + (resultado.plAltas || 0));
+            } else {
+                console.warn('⚠️ No se pudo calentar la caché STW al iniciar; los comandos volverán a consultar las fuentes en vivo.');
+            }
+        } catch (error) {
+            console.error('❌ Falló la actualización inicial STW:', error.stack || error.message);
+        }
+    })();
 }
 
 async function activarAlertasDiarias(sock, chatId, msg) {
