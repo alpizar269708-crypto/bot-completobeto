@@ -91,11 +91,13 @@ function deduplicarPlAltasVbucks(lista) {
 
 async function obtenerAlertasSTW(actualizarEnVivo = true, progreso = null) {
     let raspadoCorrecto = false;
+    let fuentes = null;
     if (actualizarEnVivo) {
         try {
             const { extraerAlertasAPI } = require('../webBridge');
             const resultado = await extraerAlertasAPI(progreso);
             raspadoCorrecto = Boolean(resultado && resultado.ok === true);
+            fuentes = resultado && resultado.fuentes ? resultado.fuentes : null;
             if (!raspadoCorrecto) console.warn('STW: las fuentes web no entregaron datos completos; se intentará usar el último caché válido.');
         } catch (error) {
             console.error('No se pudo actualizar STW:', error.stack || error.message);
@@ -114,7 +116,8 @@ async function obtenerAlertasSTW(actualizarEnVivo = true, progreso = null) {
         epicas: scrapeEpicas,
         legendarias: scrapeLegendarias,
         plAltas: deduplicarPlAltasVbucks(scrapePlAltas),
-        errorActualizacion: actualizarEnVivo && !raspadoCorrecto && !hayCache
+        errorActualizacion: actualizarEnVivo && !raspadoCorrecto && !hayCache,
+        fuentes
     };
 }
 
@@ -268,7 +271,7 @@ function formatearAlertaSTW(item, encabezado = '', mostrarDetalles = false) {
         texto += '🎁 *Recompensa:* 🪙 ' + Number(item.cantidad || item.cantidadVbucks) + ' PaVos\n';
     }
     if (mostrarDetalles) {
-        const modificadores = traducirModificadoresSalidaSTW(item.modificadores).filter(modificador => !/\bx[45]\b/i.test(modificador));
+        const modificadores = traducirModificadoresSalidaSTW((item.modificadores || []).filter(modificador => !/\bx[45]\b/i.test(String(modificador)))).filter(modificador => !/\bx[45]\b/i.test(modificador));
         if (modificadores.length) texto += '🧩 *Modificadores:* ' + modificadores.join(', ') + '\n';
         const requisitos = traducirRequisitosSalidaSTW(item.questReqs || item.requisitos);
         if (requisitos) texto += '📜 *Requisitos:* ' + requisitos + '\n';
@@ -332,7 +335,7 @@ async function alertasSTW(sock, chatId, msg, categoria = 'todas', progreso = nul
         const limite = 10;
         if (!lista.length) {
             lineas.push(datos.errorActualizacion
-                ? '⚠️ _No pude consultar las fuentes de alertas en este momento._'
+                ? '⚠️ _No pude actualizar las alertas en este momento._'
                 : '_No hay recompensas destacadas disponibles en este momento._', '');
         } else {
             for (const item of lista.slice(0, limite)) lineas.push(formatearResumenAlertaSTW(item));
@@ -366,7 +369,7 @@ async function alertasSTW(sock, chatId, msg, categoria = 'todas', progreso = nul
 }
 async function comandoDestacadasSTW(sock, chatId, msg, progreso = null) {
     const informar = async (texto) => { if (typeof progreso === 'function') await progreso(texto); };
-    await informar('🧭 Comando de destacadas iniciado; consultará caché STW Planner y filtrará PL altas.');
+    await informar('🔎 Preparando las alertas destacadas.');
     const fechaHoy = obtenerFechaActual();
     let texto = `📅 _${fechaHoy}_\n\n🔥 *ALERTAS DESTACADAS — RECOMPENSAS BUENAS*\n\n`;
 
@@ -408,12 +411,12 @@ async function comandoPreguntarAlerta(sock, chatId, msg, palabrasClave = [], pro
         return;
     }
 
-    await informar('🧭 Búsqueda de recompensa iniciada; término=' + termino + '.');
+    await informar('🔎 Iniciando búsqueda de alertas.');
     const datos = await obtenerAlertasSTW(true, informar);
-    await informar('🔎 ETAPA 1/3 — Datos cargados; combinando PaVos, épicas, legendarias y destacadas para buscar coincidencias.');
+    await informar('🔎 Datos de alertas cargados; buscando coincidencias.');
     const hayDatosDisponibles = datos.pavos.length + datos.epicas.length + datos.legendarias.length + (datos.plAltas || []).length > 0;
     if (datos.errorActualizacion && !hayDatosDisponibles) {
-        await sock.sendMessage(chatId, { text: '⚠️ No pude consultar STW Planner, SeeBot ni V-Bucks Daily, y no hay alertas guardadas para buscar. Inténtalo de nuevo en un momento.' }, { quoted: msg });
+        await sock.sendMessage(chatId, { text: '⚠️ No pude actualizar las alertas y no hay datos guardados para buscar. Inténtalo de nuevo en un momento.' }, { quoted: msg });
         return;
     }
     const normalizarTexto = texto => String(texto || '')
@@ -498,7 +501,7 @@ async function comandoPreguntarAlerta(sock, chatId, msg, palabrasClave = [], pro
         ? '🔎 *ALERTAS CON PL ' + etiquetaPL + '*\n\n'
         : '🔎 *ALERTAS QUE CONTIENEN:* ' + termino + '\n\n';
 
-    await informar('🧮 ETAPA 2/3 — Búsqueda terminada; coincidencias=' + coincidencias.length + '.');
+    await informar('🔎 Búsqueda terminada; coincidencias=' + coincidencias.length + '.');
     if (coincidencias.length === 0) {
         texto += esBusquedaPL
             ? '_No encontré alertas con PL ' + etiquetaPL + '._\n\n'
@@ -512,7 +515,7 @@ async function comandoPreguntarAlerta(sock, chatId, msg, palabrasClave = [], pro
     }
 
     texto += 'Support-a-Creator: *JASC13* ❤️';
-    await informar('✅ ETAPA 3/3 — Resultado construido; enviando respuesta a WhatsApp.');
+    await informar('✅ Búsqueda terminada.');
     await sock.sendMessage(chatId, { text: texto }, { quoted: msg });
 }
 async function enviarAlertaPavosAutomatica(sock, actualizarEnVivo = false, horaAlerta = '6:01:30 PM', avisarSinPavos = false) {
