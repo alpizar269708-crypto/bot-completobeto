@@ -220,7 +220,6 @@ function normalizarRecompensaSTW(nombre, rareza, tipo) {
         defender: 'Defensor',
         schematic: 'Esquema',
         supercharger: 'Supercargador',
-        x4: 'Recompensa x4',
         evolution: 'Material de evolución',
         perkup: 'Perk-Up',
         elemental: 'Perk-Up elemental',
