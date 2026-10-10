@@ -422,11 +422,17 @@ async function comandoPreguntarAlerta(sock, chatId, msg, palabrasClave = [], pro
     const mapaCoincidencias = new Map();
     for (const item of coincidenciasFiltradas) {
         const normalizarClave = valor => normalizarTexto(valor).replace(/\s+/g, ' ').trim();
+        const traductores = traductoresSTW();
+        const nombreOriginal = String(item.misionOriginal || '').trim();
+        const nombreMisionBase = nombreOriginal && typeof traductores.traducirNombreMisionSTW === 'function'
+            ? traductores.traducirNombreMisionSTW(nombreOriginal)
+            : String(item.mision || '').split(/\s+-\s+/)[0].trim();
+        // La clave usa el nombre localizado y omite la ubicación: una misma
+        // alerta puede venir de una fuente con bioma y de otra sin bioma.
         const claveMision = [
             normalizarClave(item.zona),
             Number(item.pl || 0),
-            normalizarClave(item.misionOriginal || item.mision),
-            normalizarClave(item.ubicacion)
+            normalizarClave(nombreMisionBase)
         ].join('|');
         const anterior = mapaCoincidencias.get(claveMision);
         if (!anterior) {
