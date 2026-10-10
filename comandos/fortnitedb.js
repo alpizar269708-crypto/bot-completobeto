@@ -565,117 +565,96 @@ function extraerAlertasPennyDB(html) {
     let filasConCantidad = 0;
     let filasSinContexto = 0;
 
-    // PennyDB muestra las recompensas V-Bucks Voucher dentro de la sección
-    // "Alert rewards". No dependemos de un único tipo de contenedor exterior.
-    $('h3.mission-label').each((_, encabezado) => {
-        if (!/alert rewards/i.test(limpiar($(encabezado).text()))) return;
-        const seccion = $(encabezado).closest('section');
-        if (!seccion.length) return;
-
-        seccion.find('li').each((__, li) => {
-            const item = $(li);
-            const titulo = limpiar(item.find('[title]').map((___, el) => $(el).attr('title') || '').get().join(' '));
-            const nombreRecompensa = limpiar(item.find('span.block').first().text() || item.text());
-            if (!/v-?bucks|v-bucks voucher/i.test(titulo + ' ' + nombreRecompensa)) return;
-            filasRecompensa++;
-
-            const cantidadTexto = limpiar(item.find('.mission-figure').first().text() || item.text());
-            const cantidadMatch = cantidadTexto.match(/\b\d{1,4}\b/);
-            const cantidad = cantidadMatch ? Number(cantidadMatch[0]) : NaN;
-            if (!Number.isFinite(cantidad) || cantidad <= 0) return;
-            filasConCantidad++;
-
-            // Buscar primero atributos/clases de metadatos; después subir por el DOM
-            // hasta hallar un contenedor local con zona y nivel, sin usar el body entero.
-            let zona = null;
-            let pl = null;
-            let original = null;
-            let contenedor = item;
-            for (let nivel = 0; nivel < 12 && contenedor.length; nivel++, contenedor = contenedor.parent()) {
-                const texto = limpiar(contenedor.text());
-                const attrs = [
-                    contenedor.attr('data-zone'),
-                    contenedor.attr('data-region'),
-                    contenedor.attr('data-power-level'),
-                    contenedor.attr('data-pl'),
-                    contenedor.attr('aria-label'),
-                    contenedor.attr('title'),
-                    contenedor.attr('class')
-                ].filter(Boolean).join(' ') + ' ' + texto;
-
-                const zonaMatch = attrs.match(/\b(Stonewood|Plankerton|Canny Valley|Twine Peaks|Ventures)\b/i);
-                if (!zona && zonaMatch) zona = normalizarZona(zonaMatch[1]);
-
-                const plAttr = contenedor.attr('data-power-level') || contenedor.attr('data-pl');
-                const plMatch = String(plAttr || '').match(/\d{1,3}/) ||
-                    attrs.match(/\b(?:PL|Power Level|PowerLevel|Level)\s*[:#]?\s*(\d{1,3})\b/i) ||
-                    attrs.match(/\b(\d{1,3})\s*(?:PL|Power Level|PowerLevel)\b/i);
-                if (pl === null && plMatch) {
-                    const n = Number(plMatch[1] || plMatch[0]);
-                    if (n >= 1 && n <= 999) pl = n;
-                }
-
-                if (!original) {
-                    const tituloMision = contenedor.find('h1, h2, h3, h4, [data-mission-name], .mission-name, .mission-title').filter((___, el) => {
-                        const t = limpiar($(el).text());
-                        return t && !/alert rewards|base rewards/i.test(t) && !/v-?bucks/i.test(t);
-                    }).first();
-                    if (tituloMision.length) original = limpiar(tituloMision.attr('data-mission-name') || tituloMision.text());
-                }
-
-                // No subir al documento entero: cuando ya hay zona y PL, el contexto es suficiente.
-                if (zona && pl !== null) break;
-                if (contenedor.is('body') || contenedor.is('html')) break;
-            }
-
-            // Si la tarjeta no expone PL como texto, probar los nodos típicos del sitio.
-            if (pl === null) {
-                const raiz = item.parents().slice(0, 12);
-                raiz.find('[data-power-level], [data-pl], .power-level, .mission-power-level, .pl, [aria-label*="Power Level" i]')
-                    .each((___, el) => {
-                        if (pl !== null) return;
-                        const nodo = $(el);
-                        const valor = nodo.attr('data-power-level') || nodo.attr('data-pl') ||
-                            nodo.attr('aria-label') || nodo.text();
-                        const m = limpiar(valor).match(/(?:PL|Power\s*Level|Level)?\s*[:#]?\s*(\d{1,3})/i);
-                        if (m) {
-                            const n = Number(m[1]);
-                            if (n >= 1 && n <= 999) pl = n;
-                        }
-                    });
-            }
-
-            if (!zona || pl === null) {
-                filasSinContexto++;
-                return;
-            }
-
-            if (!original) {
-                // Fallback a texto local solo si contiene un nombre de misión conocido.
-                const textos = item.parents().slice(0, 10).map((___, el) => limpiar($(el).text())).get();
-                const contextoMision = textos.find(t => /(Ride the Lightning|Retrieve the Data|Repair the Shelter|Fight Category \d Storm|Fight the Storm|Evacuate the Shelter|Deliver the Bomb|Rescue the Survivors|Destroy the Encampments|Build the Radar Grid|Eliminate and Collect)/i.test(t));
-                const m = contextoMision && contextoMision.match(/(Ride the Lightning|Retrieve the Data|Repair the Shelter|Fight Category \d Storm|Fight the Storm|Evacuate the Shelter|Deliver the Bomb|Rescue the Survivors|Destroy the Encampments|Build the Radar Grid|Eliminate and Collect)/i);
-                original = m ? m[1] : 'Misión de alerta';
-            }
-
-            const clave = [zona, pl, cantidad, original].join('|');
-            if (vistos.has(clave)) return;
-            vistos.add(clave);
-            alertas.push({
-                zona,
-                zonaCodigo: ({ Stonewood: 'S', Plankerton: 'P', 'Canny Valley': 'C', 'Twine Peaks': 'T', Ventures: 'V' })[zona],
-                pl,
-                mision: nombreMisionSeeBot(original),
-                misionOriginal: original,
-                cantidad,
-                recompensaOriginal: nombreRecompensa,
-                fuenteAlternativa: 'PennyDB'
-            });
-        });
+    // La página /stw-missions puede cambiar encabezados y clases entre versiones.
+    // Buscar la recompensa por texto/atributos en todo el HTML y subir al contenedor de misión.
+    const candidatos = new Set();
+    $('[title], img[alt], li, .mission-reward, [class*="reward"]').each((_, el) => {
+        const nodo = $(el);
+        const texto = limpiar([
+            nodo.attr('title'), nodo.attr('alt'), nodo.text(),
+            nodo.find('[title]').map((__, hijo) => $(hijo).attr('title') || '').get().join(' '),
+            nodo.find('img[alt]').map((__, hijo) => $(hijo).attr('alt') || '').get().join(' ')
+        ].filter(Boolean).join(' '));
+        if (/v-?bucks(?:\s+voucher)?|voucher/i.test(texto)) candidatos.add(el);
     });
 
-    // Se adjunta el diagnóstico a la lista para que el llamador pueda explicar
-    // si falló el selector, la cantidad o los metadatos de la misión.
+    candidatos.forEach((el) => {
+        const item = $(el);
+        const itemTexto = limpiar([
+            item.attr('title'), item.attr('alt'), item.text(),
+            item.find('[title]').map((__, hijo) => $(hijo).attr('title') || '').get().join(' '),
+            item.find('img[alt]').map((__, hijo) => $(hijo).attr('alt') || '').get().join(' ')
+        ].filter(Boolean).join(' '));
+        if (!/v-?bucks|voucher/i.test(itemTexto)) return;
+
+        const fila = item.closest('li').length ? item.closest('li') :
+            (item.closest('.mission-reward').length ? item.closest('.mission-reward') : item);
+        const nombreRecompensa = itemTexto;
+        const cantidadTexto = limpiar(
+            fila.find('.mission-figure').first().text() ||
+            fila.find('[class*="figure"]').first().text() ||
+            fila.text() || itemTexto
+        );
+        const cantidadMatch = cantidadTexto.match(/(?:×|x)\s*(\d{1,4})|\b(\d{1,4})\b/);
+        const cantidad = cantidadMatch ? Number(cantidadMatch[1] || cantidadMatch[2]) : NaN;
+        if (!Number.isFinite(cantidad) || cantidad <= 0) return;
+        filasRecompensa++;
+        filasConCantidad++;
+
+        let zona = null;
+        let pl = null;
+        let original = null;
+        let contenedor = fila;
+        for (let nivel = 0; nivel < 14 && contenedor.length; nivel++, contenedor = contenedor.parent()) {
+            const texto = limpiar(contenedor.text());
+            const attrs = [
+                contenedor.attr('data-zone'), contenedor.attr('data-region'),
+                contenedor.attr('data-power-level'), contenedor.attr('data-pl'),
+                contenedor.attr('aria-label'), contenedor.attr('title'), contenedor.attr('class'),
+                contenedor.find('[title]').map((__, hijo) => $(hijo).attr('title') || '').get().join(' ')
+            ].filter(Boolean).join(' ') + ' ' + texto;
+            const zonaMatch = attrs.match(/\b(Stonewood|Plankerton|Canny Valley|Twine Peaks|Ventures)\b/i);
+            if (!zona && zonaMatch) zona = normalizarZona(zonaMatch[1]);
+
+            const plAttr = contenedor.attr('data-power-level') || contenedor.attr('data-pl');
+            const plMatch = String(plAttr || '').match(/\d{1,3}/) ||
+                attrs.match(/\b(?:PL|Power Level|PowerLevel)\s*[:#]?\s*(\d{1,3})\b/i) ||
+                attrs.match(/\b(\d{1,3})\s*(?:PL|Power Level|PowerLevel)\b/i);
+            if (pl === null && plMatch) {
+                const n = Number(plMatch[1] || plMatch[0]);
+                if (n >= 1 && n <= 999) pl = n;
+            }
+            if (!original) {
+                const tituloMision = contenedor.find('h1, h2, h3, h4, button, [data-mission-name], .mission-name, .mission-title, [class*="mission-name"]').filter((__, nodo) => {
+                    const t = limpiar($(nodo).text());
+                    return t && t.length < 100 && !/alert rewards|base rewards|v-?bucks|voucher/i.test(t) &&
+                        /(Ride the Lightning|Retrieve the Data|Repair the Shelter|Fight Category|Fight the Storm|Evacuate the Shelter|Deliver the Bomb|Rescue the Survivors|Destroy the Encampments|Build the Radar|Eliminate and Collect|Launch the Rocket|Resupply|Refuel Homebase)/i.test(t);
+                }).first();
+                if (tituloMision.length) original = limpiar(tituloMision.attr('data-mission-name') || tituloMision.text());
+            }
+            if (zona && pl !== null && original) break;
+            if (contenedor.is('body') || contenedor.is('html')) break;
+        }
+
+        if (!zona || pl === null) {
+            filasSinContexto++;
+            return;
+        }
+        if (!original) original = 'Misión de alerta';
+        const clave = [zona, pl, cantidad, original].join('|');
+        if (vistos.has(clave)) return;
+        vistos.add(clave);
+        alertas.push({
+            zona,
+            zonaCodigo: ({ Stonewood: 'S', Plankerton: 'P', 'Canny Valley': 'C', 'Twine Peaks': 'T', Ventures: 'V' })[zona],
+            pl,
+            mision: nombreMisionSeeBot(original),
+            misionOriginal: original,
+            cantidad,
+            recompensaOriginal: nombreRecompensa,
+            fuenteAlternativa: 'PennyDB'
+        });
+    });
     alertas.diagnosticoPennyDB = { filasRecompensa, filasConCantidad, filasSinContexto };
     return alertas;
 }
@@ -710,6 +689,19 @@ async function consultarFuenteAlternativaPavos(fuente) {
             };
         }
         resultado.alertas = extraerAlertasFuenteAlternativa(html, fuente.nombre);
+        if (fuente.nombre === 'PennyDB' && !resultado.alertas.length) {
+            const textoPenny = limpiar(cheerio.load(html)('body').text() || html.replace(/<[^>]*>/g, ' '));
+            // Si la página indica explícitamente cero alertas V-Bucks, es un resultado válido.
+            const ceroVBucks = /V-?Bucks\s+in\s+alerts\s*0\b/i.test(textoPenny);
+            if (ceroVBucks && !/v-?bucks\s+voucher/i.test(html)) {
+                resultado.ok = true;
+                resultado.totalPavos = 0;
+                resultado.alertas.diagnosticoPennyDB = resultado.alertas.diagnosticoPennyDB || {
+                    filasRecompensa: 0, filasConCantidad: 0, filasSinContexto: 0
+                };
+                return resultado;
+            }
+        }
         if (!resultado.alertas.length) {
             const d = resultado.alertas.diagnosticoPennyDB;
             if (fuente.nombre === 'PennyDB' && d) {
