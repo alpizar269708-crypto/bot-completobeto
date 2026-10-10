@@ -83,7 +83,7 @@ function limpiarTextoSTW(texto) {
 
 async function descargarSTW(url) {
     const response = await axios.get(url, {
-        timeout: 30000,
+        timeout: 15000,
         headers: {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/153 Safari/537.36',
             'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
@@ -674,27 +674,23 @@ async function extraerAlertasAPI(progreso = null) {
         let htmlSeeBot = '';
         let htmlVBucksDaily = '';
 
-        await etapaDiagnostico('STW ETAPA 1: consultando STW Planner, SeeBot y V-Bucks Daily de forma independiente.');
-        try {
-            htmlPrincipal = await descargarSTW(urlPrincipal);
-            await etapaDiagnostico('STW Planner: HTML principal recibido (' + String(htmlPrincipal || '').length + ' caracteres).');
-        } catch (error) {
-            console.warn('No se pudo cargar STW Planner:', error.message);
-            await etapaDiagnostico('STW Planner no disponible: ' + String(error.message || error).slice(0, 160));
-        }
-        try {
-            htmlPavos = await descargarSTW(urlPavos);
-            await etapaDiagnostico('STW Planner PaVos: HTML recibido (' + String(htmlPavos || '').length + ' caracteres).');
-        } catch (error) {
-            console.warn('No se pudo cargar la página secundaria de PaVos de STW Planner:', error.message);
-        }
-        try {
-            htmlSeeBot = await descargarSTW(urlSeeBot);
-            await etapaDiagnostico('SeeBot: HTML recibido (' + String(htmlSeeBot || '').length + ' caracteres).');
-        } catch (error) {
-            console.warn('No se pudo cargar SeeBot:', error.message);
-            await etapaDiagnostico('SeeBot no disponible: ' + String(error.message || error).slice(0, 160));
-        }
+        await etapaDiagnostico('STW ETAPA 1: consultando fuentes independientes en paralelo para que una página caída no bloquee las demás.');
+        const descargarFuente = async (nombre, url) => {
+            try {
+                const html = await descargarSTW(url);
+                await etapaDiagnostico(nombre + ': HTML recibido (' + String(html || '').length + ' caracteres).');
+                return html;
+            } catch (error) {
+                console.warn('No se pudo cargar ' + nombre + ':', error.message);
+                await etapaDiagnostico(nombre + ' no disponible: ' + String(error.message || error).slice(0, 160));
+                return '';
+            }
+        };
+        const [htmlPrincipal, htmlPavos, htmlSeeBot] = await Promise.all([
+            descargarFuente('STW Planner', urlPrincipal),
+            descargarFuente('STW Planner PaVos', urlPavos),
+            descargarFuente('SeeBot', urlSeeBot)
+        ]);
 
         const todasPlanner = htmlPrincipal ? parsearPaginaSTW(htmlPrincipal, 'all') : [];
         const todasSeeBot = htmlSeeBot ? parsearTablaSeeBotSTW(htmlSeeBot) : [];
@@ -779,7 +775,7 @@ async function extraerAlertasAPI(progreso = null) {
         for (const p of [...pavosPagina, ...pavosDesdePrincipal]) {
             const clave = [
                 p.pl ?? '',
-                p.mision ?? '',
+                p.misionOriginal ?? p.mision ?? '',
                 p.ubicacion ?? '',
                 p.zona ?? ''
             ].join('|').toLowerCase();
@@ -828,6 +824,7 @@ async function extraerAlertasAPI(progreso = null) {
             const epicas = buenas.filter(r => r.rareza === 'epic');
 
             if (legendarias.length === 0 && epicas.length === 0) {
+                if (contienePavos) return { mostrar: true, nivel: 70, motivo: '🪙 Alerta de PaVos', destacadas: mision.recompensas.filter(r => r.tipo === 'vbucks') };
                 return { mostrar: false, nivel: 0, motivo: '', destacadas: [] };
             }
 
@@ -889,7 +886,7 @@ async function extraerAlertasAPI(progreso = null) {
         for (const item of todas.map(prepararAlertaChida).filter(Boolean)) {
             const clave = [item.zona || '', item.pl || '', item.mision || '', item.ubicacion || ''].join('|').toLowerCase();
             const anterior = mapaPlAltas.get(clave);
-            if (!anterior || (item.motivo === '🪙 PaVos' && anterior.motivo !== '🪙 PaVos') || (anterior.motivo !== '🪙 PaVos' && item.nivelAlerta > anterior.nivelAlerta)) {
+            if (!anterior || (String(item.motivo || '').includes('PaVos') && !String(anterior.motivo || '').includes('PaVos')) || (!String(anterior.motivo || '').includes('PaVos') && item.nivelAlerta > anterior.nivelAlerta)) {
                 mapaPlAltas.set(clave, item);
             }
         }
