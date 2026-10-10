@@ -193,3 +193,36 @@ test('los comandos STW están registrados en el manejador', () => {
         assert.ok(handler.includes("case '" + comando + "'"), 'falta ejecutar ' + comando);
     }
 });
+
+
+test('V-Bucks Daily agrupa recompensas épicas y legendarias en una sola misión traducida', () => {
+    const html = [
+        '<div class="mission-row ">',
+        '<span class="pl">88</span>',
+        '<button class="mission-name"><img class="fortnite-icon mission-type-icon" alt="" aria-hidden="true" src="/assets/fortnite/ride-the-lightning.png"><span><strong>Ride the Lightning</strong><small>Twine Peaks · Thunder Route 99</small></span></button>',
+        '<div class="mission-rewards">',
+        '<div class="mission-reward perks"><img class="fortnite-icon" src="/assets/fortnite/epic-perk-up.png"><div><strong>Epic PERK-UP! <span>×80</span></strong><small>Epic · Alert reward</small></div></div>',
+        '<div class="mission-reward perks"><img class="fortnite-icon" src="/assets/fortnite/legendary-perk-up.png"><div><strong>Legendary PERK-UP! <span>×80</span></strong><small>Legendary · Alert reward</small></div></div>',
+        '</div></div>'
+    ].join('');
+
+    const misiones = parsearVBucksDailySTW(html);
+    assert.equal(misiones.length, 1, 'debe generar una misión, no una alerta separada por premio');
+    assert.equal(misiones[0].pl, 88);
+    assert.equal(misiones[0].zona, 'Twine Peaks');
+    assert.equal(misiones[0].misionOriginal, 'Ride the Lightning');
+    assert.equal(misiones[0].mision, 'Monta el rayo - Ruta Trueno 99');
+    assert.equal(misiones[0].recompensas.length, 2);
+    assert.ok(misiones[0].recompensas.some(r => r.rareza === 'epic' && r.tipo === 'perkup' && /épico.*80/i.test(r.nombre)));
+    assert.ok(misiones[0].recompensas.some(r => r.rareza === 'legendary' && r.tipo === 'perkup' && /legendario.*80/i.test(r.nombre)));
+
+    const epicas = seleccionarAlertasSTWPorRareza(misiones, 'epic');
+    const legendarias = seleccionarAlertasSTWPorRareza(misiones, 'legendary');
+    assert.equal(epicas.length, 1);
+    assert.equal(legendarias.length, 1);
+    for (const lista of [epicas, legendarias]) {
+        assert.equal(lista[0].recompensas.length, 2, 'ambas categorías conservan las recompensas épica y legendaria');
+        assert.match(lista[0].recompensa, /Perk-Up épico/);
+        assert.match(lista[0].recompensa, /Perk-Up legendario/);
+    }
+});

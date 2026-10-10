@@ -422,21 +422,28 @@ function extraerMisionEntrySTW($, missionEntry, zona, tipoAlerta) {
 }
 
 function seleccionarAlertasSTWPorRareza(misiones, rareza) {
-    const tiposPermitidos = new Set(['hero', 'survivor', 'defender', 'schematic']);
+    // Un listado representa misiones, no recompensas individuales. Una misión
+    // con premio épico y legendario aparece una sola vez en cada categoría y
+    // conserva juntas ambas recompensas.
+    const tiposPermitidos = new Set(['hero', 'survivor', 'defender', 'schematic', 'perkup']);
+    const rarezasVisibles = new Set(['mythic', 'legendary', 'epic']);
     const alertas = [];
     for (const mision of Array.isArray(misiones) ? misiones : []) {
-        const recompensas = (Array.isArray(mision.recompensas) ? mision.recompensas : [])
-            .filter(r => r && r.rareza === rareza && tiposPermitidos.has(r.tipo));
-        if (!recompensas.length) continue;
-        const recompensa = recompensas.map(r => r.nombre).filter(Boolean).join(' | ');
+        const todasLasRecompensas = (Array.isArray(mision.recompensas) ? mision.recompensas : []);
+        const recompensasVisibles = todasLasRecompensas.filter(r =>
+            r && tiposPermitidos.has(r.tipo) && rarezasVisibles.has(r.rareza)
+        );
+        if (!recompensasVisibles.some(r => r.rareza === rareza)) continue;
+
+        const recompensa = recompensasVisibles.map(r => r.nombre).filter(Boolean).join(' | ');
         alertas.push({
             ...mision,
             id: crypto.createHash('sha1').update([
                 mision.zona || '', mision.pl || '', mision.misionOriginal || mision.mision || '',
-                mision.ubicacion || '', rareza, recompensa
-            ].join('|')).digest('hex').slice(0, 14),
+                mision.ubicacion || '', rareza
+            ].join('|').toLowerCase()).digest('hex').slice(0, 14),
             rareza,
-            recompensas,
+            recompensas: recompensasVisibles,
             recompensa
         });
     }
@@ -446,6 +453,7 @@ function seleccionarAlertasSTWPorRareza(misiones, rareza) {
         String(a.mision || '').localeCompare(String(b.mision || ''))
     );
 }
+
 
 function deduplicarSTW(lista) {
     const mapa = new Map();
@@ -733,33 +741,147 @@ function parsearJSONSeeBotSTW(html) {
 function parsearVBucksDailySTW(html) {
     const $ = cheerio.load(String(html || ''));
     const alertas = [];
+    const zonasConocidas = /(Hexsylvania\s+Venture\s+Zone|Canny Valley|Twine Peaks|Plankerton|Stonewood|Ventures?(?:\s+Zone)?|Hexsylvania)/i;
+    const rarezas = ['mythic', 'legendary', 'epic', 'rare', 'uncommon', 'common'];
+    const etiquetasRareza = {
+        mythic: 'mítico', legendary: 'legendario', epic: 'épico',
+        rare: 'raro', uncommon: 'poco común', common: 'común'
+    };
+    const iconosRareza = {
+        mythic: '🟡', legendary: '🟠', epic: '🟣',
+        rare: '🔵', uncommon: '🟢', common: '⚪'
+    };
+
     $('.mission-row').each((_, fila) => {
         const row = $(fila);
         const plMatch = limpiarTextoSTW(row.find('.pl').first().text()).match(/\d{1,3}/);
         const nombre = limpiarTextoSTW(row.find('.mission-name strong').first().text());
-        const ubicacion = limpiarTextoSTW(row.find('.mission-name small').first().text());
-        const zonaMatch = ubicacion.match(/\b(Stonewood|Plankerton|Canny Valley|Twine Peaks|Ventures)\b/i);
-        if (!plMatch || !zonaMatch) return;
-        const zona = zonaMatch[1];
-        row.find('.mission-reward.vbucks').each((__, reward) => {
-            const t = limpiarTextoSTW($(reward).find('strong').first().text() || $(reward).text());
-            const qty = t.match(/V-?Bucks\s*(?:×|x)\s*(\d{1,4})/i);
-            if (!qty) return;
-            const cantidad = Number(qty[1]);
-            if (!Number.isFinite(cantidad) || cantidad <= 0) return;
-            const rewardObj = { nombre: '🪙 ' + cantidad + ' PaVos', raw: t, rareza: null, tipo: 'vbucks', cantidad, iconClasses: 'currency_mtxswap' };
-            alertas.push({
-                id: crypto.createHash('sha1').update(['vbucksdaily', zona, plMatch[0], nombre, cantidad].join('|')).digest('hex').slice(0, 14),
-                zona, pl: Number(plMatch[0]), mision: nombre || 'Alerta de PaVos', misionOriginal: nombre || 'Alerta de PaVos',
-                ubicacion: '', categoria: ['vbucks'], tipoAlerta: 'vbucks', tipoAlertaTexto: 'PaVos',
-                vbucks: true, cantidadVbucks: cantidad, esX4: false, multiplicadorRecompensa: null,
-                recompensas: [rewardObj], modificadores: [], rareza: null, recompensa: rewardObj.nombre,
-                source: 'https://vbucksdaily.com/', extraidoEn: new Date().toISOString()
+        const ubicacionCompleta = limpiarTextoSTW(row.find('.mission-name small').first().text());
+        if (!plMatch || !nombre || !ubicacionCompleta) return;
+
+        // V-Bucks Daily identifica la zona y el bioma en el mismo <small>,
+        // por ejemplo: "Twine Peaks · Thunder Route 99".
+        const partesUbicacion = ubicacionCompleta.split(/\s*(?:·|•|\||—)\s*/).map(limpiarTextoSTW).filter(Boolean);
+        let indiceZona = partesUbicacion.findIndex(p => zonasConocidas.test(p));
+        const coincidenciaZona = ubicacionCompleta.match(zonasConocidas);
+        const zona = indiceZona >= 0 ? partesUbicacion[indiceZona] : (coincidenciaZona ? coincidenciaZona[0] : '');
+        if (!zona) return;
+        const ubicacionCruda = indiceZona >= 0
+            ? partesUbicacion.filter((_, i) => i !== indiceZona).join(' · ')
+            : ubicacionCompleta.replace(zona, '');
+        const ubicacion = traducirBiomaSTW(ubicacionCruda.replace(/^[-·•|—\s]+|[-·•|—\s]+$/g, '').trim());
+
+        const recompensas = [];
+        row.find('.mission-reward').each((__, rewardEl) => {
+            const reward = $(rewardEl);
+            const icon = reward.find('img').first();
+            const iconSrc = String(icon.attr('src') || '').toLowerCase();
+            const iconTitle = limpiarTextoSTW(icon.attr('title') || icon.attr('alt') || '');
+            const clases = String(reward.attr('class') || '');
+            const textoFuerte = limpiarTextoSTW(reward.find('strong').first().text() || reward.text());
+            if (!textoFuerte) return;
+
+            const esPavos = /v-?bucks|v\s*bucks|currency_mtxswap/i.test(clases + ' ' + iconSrc + ' ' + textoFuerte);
+            const cantidadMatch = textoFuerte.match(/(?:[x×]\s*(\d{1,4})\b|\b(\d{1,4})\s*x\b)/i);
+            const cantidadEncontrada = cantidadMatch ? Number(cantidadMatch[1] || cantidadMatch[2]) : null;
+
+            if (esPavos) {
+                const cantidad = Number.isFinite(cantidadEncontrada) && cantidadEncontrada > 0 ? cantidadEncontrada : 50;
+                recompensas.push({
+                    nombre: '🪙 ' + cantidad + ' PaVos',
+                    raw: 'V-Bucks',
+                    rareza: null,
+                    tipo: 'vbucks',
+                    cantidad,
+                    iconClasses: iconSrc || clases
+                });
+                return;
+            }
+
+            const textoRareza = limpiarTextoSTW(reward.find('small').first().text());
+            const matchRareza = (textoRareza + ' ' + textoFuerte + ' ' + iconTitle + ' ' + iconSrc)
+                .match(/\b(mythic|legendary|epic|rare|uncommon|common)\b/i);
+            const rareza = matchRareza ? matchRareza[1].toLowerCase() : null;
+            let nombreRaw = (iconTitle && !/alert reward/i.test(iconTitle)) ? iconTitle : textoFuerte;
+            nombreRaw = nombreRaw
+                .replace(/^\s*(?:mythic|legendary|epic|rare|uncommon|common)\s+/i, '')
+                .replace(/\s*[x×]\s*\d{1,4}\s*$/i, '')
+                .replace(/[,;]+$/g, '')
+                .trim();
+            if (!nombreRaw) return;
+
+            const tipo = detectarTipoRecompensaSTW(iconSrc + ' ' + clases, '', nombreRaw);
+            let nombreRecompensa;
+            if (tipo === 'perkup') {
+                const icono = iconosRareza[rareza] || '⚪';
+                const rarezaEs = etiquetasRareza[rareza] || '';
+                nombreRecompensa = icono + ' Perk-Up' + (rarezaEs ? ' ' + rarezaEs : '');
+                if (cantidadEncontrada && cantidadEncontrada > 1) nombreRecompensa += ' ×' + cantidadEncontrada;
+            } else {
+                nombreRecompensa = normalizarRecompensaSTW(nombreRaw, rareza, tipo);
+                if (cantidadEncontrada && cantidadEncontrada > 1 && tipo !== 'hero' && tipo !== 'survivor' && tipo !== 'defender' && tipo !== 'schematic') {
+                    nombreRecompensa += ' ×' + cantidadEncontrada;
+                }
+            }
+            recompensas.push({
+                nombre: nombreRecompensa,
+                raw: nombreRaw,
+                rareza,
+                tipo,
+                cantidad: cantidadEncontrada,
+                iconClasses: iconSrc || clases
             });
         });
+
+        const recompensasUnicas = [];
+        const vistosRecompensas = new Set();
+        for (const recompensa of recompensas) {
+            const clave = [
+                recompensa.tipo || '',
+                recompensa.rareza || '',
+                String(recompensa.raw || recompensa.nombre || '').toLowerCase().replace(/^(mythic|legendary|epic|rare|uncommon|common)\s+/, '').trim(),
+                recompensa.cantidad || ''
+            ].join('|');
+            if (vistosRecompensas.has(clave)) continue;
+            vistosRecompensas.add(clave);
+            recompensasUnicas.push(recompensa);
+        }
+        if (!recompensasUnicas.length) return;
+
+        const hayPavos = recompensasUnicas.some(r => r.tipo === 'vbucks');
+        const recompensaTexto = recompensasUnicas.map(r => r.nombre).filter(Boolean).join(' | ');
+        const tipos = [...new Set(recompensasUnicas.map(r => r.tipo).filter(Boolean))];
+        const modificadores = row.find('.mission-modifier, .mission-modifiers .modifier').map((__, el) => traducirModificadorSTW(limpiarTextoSTW($(el).attr('title') || $(el).text()))).get().filter(Boolean);
+
+        alertas.push({
+            id: crypto.createHash('sha1').update(['vbucksdaily', zona, plMatch[0], nombre, ubicacion].join('|').toLowerCase()).digest('hex').slice(0, 14),
+            zona,
+            pl: Number(plMatch[0]),
+            mision: traducirMisionYBioma(nombre, ubicacion),
+            misionOriginal: nombre,
+            ubicacion,
+            categoria: tipos,
+            tipoAlerta: hayPavos ? 'vbucks' : 'normal',
+            tipoAlertaTexto: hayPavos ? 'PaVos' : 'Alerta',
+            vbucks: hayPavos,
+            cantidadVbucks: hayPavos ? (recompensasUnicas.find(r => r.tipo === 'vbucks')?.cantidad || 50) : null,
+            esX4: /\bgroup\b|\bx4\b/i.test(nombre),
+            multiplicadorRecompensa: /\bx4\b/i.test(nombre) ? 4 : null,
+            recompensas: recompensasUnicas,
+            modificadores: [...new Set(modificadores)],
+            rareza: recompensasUnicas.find(r => r.rareza === 'mythic')?.rareza
+                || recompensasUnicas.find(r => r.rareza === 'legendary')?.rareza
+                || recompensasUnicas.find(r => r.rareza === 'epic')?.rareza
+                || null,
+            recompensa: recompensaTexto || 'Misión',
+            source: 'https://vbucksdaily.com/',
+            extraidoEn: new Date().toISOString()
+        });
     });
+
     return deduplicarSTW(alertas);
 }
+
 
 function parsearPaginaSTW(html, fuente = 'all') {
     const $ = cheerio.load(html);
@@ -909,7 +1031,7 @@ async function extraerAlertasAPI(progreso = null) {
         let htmlSeeBot = '';
         let htmlVBucksDaily = '';
 
-        await etapaDiagnostico('STW ETAPA 1: consultando fuentes independientes en paralelo para que una página caída no bloquee las demás.');
+        await etapaDiagnostico('STW ETAPA 1: consultando STW Planner primero, V-Bucks Daily como segunda fuente y SeeBot como tercera fuente de respaldo.');
         const descargarFuente = async (nombre, url) => {
             try {
                 const html = await descargarSTW(url);
@@ -921,9 +1043,10 @@ async function extraerAlertasAPI(progreso = null) {
                 return '';
             }
         };
-        [htmlPrincipal, htmlPavos, htmlSeeBot] = await Promise.all([
+        [htmlPrincipal, htmlPavos, htmlVBucksDaily, htmlSeeBot] = await Promise.all([
             descargarFuente('STW Planner', urlPrincipal),
             descargarFuente('STW Planner PaVos', urlPavos),
+            descargarFuente('V-Bucks Daily', urlVBucksDaily),
             descargarFuente('SeeBot', urlSeeBot)
         ]);
 
@@ -939,8 +1062,10 @@ async function extraerAlertasAPI(progreso = null) {
                 console.log('✅ SeeBot JSON makeHtml: misiones extraídas=' + todasSeeBotJSON.length + '.');
             }
         }
+        const todasVBucksDaily = htmlVBucksDaily ? parsearVBucksDailySTW(htmlVBucksDaily) : [];
         console.log('🔎 STW fuentes recibidas | Planner HTML=' + String(htmlPrincipal || '').length +
             ' chars / misiones=' + todasPlanner.length +
+            ' | V-Bucks Daily HTML=' + String(htmlVBucksDaily || '').length + ' chars / misiones=' + todasVBucksDaily.length +
             ' | SeeBot HTML=' + String(htmlSeeBot || '').length + ' chars / filas #miniRwdTbl=' +
             filasSeeBotHTML + ' / misiones válidas=' + todasSeeBot.length +
             ' / por tabla=' + (todasSeeBot.length - todasSeeBotJSON.length) + ' / por JSON=' + todasSeeBotJSON.length + '.');
@@ -965,7 +1090,7 @@ async function extraerAlertasAPI(progreso = null) {
             }
         }
         const mapaTodas = new Map();
-        for (const m of [...todasPlanner, ...todasSeeBot]) {
+        for (const m of [...todasPlanner, ...todasVBucksDaily, ...todasSeeBot]) {
             const nombreMision = String(m.misionOriginal || m.mision || '').toLowerCase().replace(/\s+/g, ' ').trim();
             const clave = [m.zona || '', m.pl || '', nombreMision, m.esX4 ? 'x4' : 'normal'].join('|').toLowerCase();
             if (!mapaTodas.has(clave)) {
@@ -974,28 +1099,63 @@ async function extraerAlertasAPI(progreso = null) {
             }
             const anterior = mapaTodas.get(clave);
             const recompensas = [...(anterior.recompensas || [])];
-            const vistas = new Set(recompensas.map(r => String(r.tipo || '') + '|' + String(r.rareza || '') + '|' + String(r.raw || r.nombre || '').toLowerCase()));
+            const normalizarClaveRecompensa = valor => String(valor || '')
+                .toLowerCase()
+                .normalize('NFD')
+                .replace(/[\u0300-\u036f]/g, '')
+                .replace(/^\s*(?:mythic|legendary|epic|rare|uncommon|common)\s+/i, '')
+                .replace(/\s*\((?:mythic|legendary|epic|rare|uncommon|common)\)\s*$/i, '')
+                .replace(/\s*[x×]\s*\d{1,4}\s*$/i, '')
+                .replace(/[^a-z0-9]+/g, '')
+                .trim();
+            const claveRecompensa = r => [
+                String(r.tipo || '').toLowerCase(),
+                String(r.rareza || '').toLowerCase(),
+                normalizarClaveRecompensa(r.raw || r.nombre)
+            ].join('|');
+            const vistas = new Map(recompensas.map((r, index) => [claveRecompensa(r), index]));
             for (const r of (m.recompensas || [])) {
-                const k = String(r.tipo || '') + '|' + String(r.rareza || '') + '|' + String(r.raw || r.nombre || '').toLowerCase();
-                if (!vistas.has(k)) { vistas.add(k); recompensas.push(r); }
+                const k = claveRecompensa(r);
+                if (!vistas.has(k)) {
+                    vistas.set(k, recompensas.length);
+                    recompensas.push(r);
+                    continue;
+                }
+                // Si una fuente prioritaria no informa la cantidad, completar
+                // el dato desde otra sin duplicar visualmente la recompensa.
+                const indice = vistas.get(k);
+                if (!(Number(recompensas[indice].cantidad) > 0) && Number(r.cantidad) > 0) {
+                    recompensas[indice] = { ...r, ...recompensas[indice], cantidad: Number(r.cantidad) };
+                }
             }
             const modificadores = [...(anterior.modificadores || [])];
             for (const mod of (m.modificadores || [])) if (!modificadores.includes(mod)) modificadores.push(mod);
             mapaTodas.set(clave, {
-                ...anterior,
                 ...m,
+                ...anterior,
+                ubicacion: anterior.ubicacion || m.ubicacion || '',
+                mision: anterior.mision || m.mision,
+                misionOriginal: anterior.misionOriginal || m.misionOriginal,
+                categoria: [...new Set([...(anterior.categoria || []), ...(m.categoria || [])])],
+                tipoAlerta: (anterior.tipoAlerta && anterior.tipoAlerta !== 'normal') ? anterior.tipoAlerta : (m.tipoAlerta || anterior.tipoAlerta),
+                tipoAlertaTexto: anterior.tipoAlertaTexto || m.tipoAlertaTexto,
                 recompensas,
                 modificadores,
-                recompensa: recompensas.map(r => r.nombre).filter(Boolean).join(' | ') || m.recompensa || anterior.recompensa,
+                recompensa: recompensas.map(r => r.nombre).filter(Boolean).join(' | ') || anterior.recompensa || m.recompensa,
                 vbucks: Boolean(anterior.vbucks || m.vbucks || recompensas.some(r => r.tipo === 'vbucks')),
-                cantidadVbucks: m.cantidadVbucks || anterior.cantidadVbucks || recompensas.find(r => r.tipo === 'vbucks')?.cantidad || null,
-                questReqs: m.questReqs || anterior.questReqs,
-                source: m.source || anterior.source
+                cantidadVbucks: anterior.cantidadVbucks || m.cantidadVbucks || recompensas.find(r => r.tipo === 'vbucks')?.cantidad || null,
+                questReqs: anterior.questReqs || m.questReqs,
+                rareza: recompensas.find(r => r.rareza === 'mythic')?.rareza
+                    || recompensas.find(r => r.rareza === 'legendary')?.rareza
+                    || recompensas.find(r => r.rareza === 'epic')?.rareza
+                    || anterior.rareza || m.rareza,
+                source: anterior.source || m.source
             });
         }
         let todas = Array.from(mapaTodas.values());
         const pavosPagina = htmlPavos ? parsearPavosSTW(htmlPavos) : [];
-        await etapaDiagnostico('STW ETAPA 2: resultados: Planner=' + todasPlanner.length + ', SeeBot=' + todasSeeBot.length + ', combinadas=' + todas.length + ', PaVos URL secundaria=' + pavosPagina.length + '.');
+        const pavosDaily = todasVBucksDaily.filter(m => m.vbucks || m.tipoAlerta === 'vbucks');
+        await etapaDiagnostico('STW ETAPA 2: resultados: Planner=' + todasPlanner.length + ', V-Bucks Daily=' + todasVBucksDaily.length + ', SeeBot=' + todasSeeBot.length + ', combinadas=' + todas.length + ', PaVos URL secundaria=' + pavosPagina.length + ', PaVos Daily=' + pavosDaily.length + '.');
 
         // STW Planner actualmente muestra la misión de PaVos también en la
         // página principal de Mission Alerts. Conservamos ambas fuentes para
@@ -1015,28 +1175,21 @@ async function extraerAlertasAPI(progreso = null) {
                 modificadores: Array.isArray(m.modificadores) ? m.modificadores : [],
                 questReqs: m.questReqs || 'None',
                 requisitos: m.questReqs || 'None',
-                tipo: m.source === 'https://seebot.dev/missions.php' ? 'SeeBot.dev' : 'STW Planner',
+                tipo: m.source === 'https://seebot.dev/missions.php' ? 'SeeBot.dev' :
+                    m.source === 'https://vbucksdaily.com/' ? 'V-Bucks Daily' : 'STW Planner',
                 source: m.source || urlPrincipal,
                 extraidoEn: m.extraidoEn || new Date().toISOString()
             }));
 
-        let pavosDaily = [];
-        if (pavosPagina.length === 0 && pavosDesdePrincipal.length === 0) {
-            try {
-                htmlVBucksDaily = await descargarSTW(urlVBucksDaily);
-                pavosDaily = parsearVBucksDailySTW(htmlVBucksDaily);
-                await etapaDiagnostico('V-Bucks Daily: PaVos válidos extraídos=' + pavosDaily.length + '.');
-            } catch (error) {
-                console.warn('No se pudo cargar V-Bucks Daily:', error.message);
-            }
-            if (pavosDaily.length) {
-                todas = deduplicarSTW([...todas, ...pavosDaily]);
-                pavosDesdePrincipal = pavosDaily.map(m => ({
-                    pl: m.pl, mision: m.mision, misionOriginal: m.misionOriginal, ubicacion: m.ubicacion,
-                    zona: m.zona, cantidad: m.cantidadVbucks || 50, recompensa: 'PaVos',
-                    tipo: 'V-Bucks Daily', source: m.source, extraidoEn: m.extraidoEn
-                }));
-            }
+        // V-Bucks Daily ya se consultó como segunda fuente y sus misiones
+        // completas se incorporaron arriba. Si las otras fuentes no dan datos
+        // de PaVos, sus filas sirven igualmente como respaldo.
+        if (pavosPagina.length === 0 && pavosDesdePrincipal.length === 0 && pavosDaily.length) {
+            pavosDesdePrincipal = pavosDaily.map(m => ({
+                pl: m.pl, mision: m.mision, misionOriginal: m.misionOriginal, ubicacion: m.ubicacion,
+                zona: m.zona, cantidad: m.cantidadVbucks || 50, recompensa: 'PaVos',
+                tipo: 'V-Bucks Daily', source: m.source, extraidoEn: m.extraidoEn
+            }));
         }
 
         if (todas.length === 0 && pavosPagina.length === 0 && pavosDesdePrincipal.length === 0) {
@@ -1079,7 +1232,7 @@ async function extraerAlertasAPI(progreso = null) {
                 ]
             }
         });
-        const tiposBuenos = ['hero', 'survivor', 'defender', 'schematic'];
+        const tiposBuenos = ['hero', 'survivor', 'defender', 'schematic', 'perkup'];
         const plannerTraeRecompensas = todasPlanner.some(m =>
             (m.recompensas || []).some(r => ['epic', 'legendary', 'mythic'].includes(r.rareza))
         );
@@ -1089,8 +1242,12 @@ async function extraerAlertasAPI(progreso = null) {
         const seebotTraeRarezas = todasSeeBot.some(m =>
             (m.recompensas || []).some(r => ['epic', 'legendary', 'mythic'].includes(r.rareza))
         );
-        const coberturaCompleta = (todasSeeBot.length >= 5 && seebotTraeRarezas) ||
-            (todasPlanner.length >= 5 && plannerTraeRecompensas);
+        const vbucksDailyTraeRarezas = todasVBucksDaily.some(m =>
+            (m.recompensas || []).some(r => ['epic', 'legendary', 'mythic'].includes(r.rareza))
+        );
+        const coberturaCompleta = (todasPlanner.length >= 5 && plannerTraeRecompensas) ||
+            (todasVBucksDaily.length >= 5 && vbucksDailyTraeRarezas) ||
+            (todasSeeBot.length >= 5 && seebotTraeRarezas);
 
         let epicas = seleccionarAlertasSTWPorRareza(todas, 'epic');
         let legendarias = seleccionarAlertasSTWPorRareza(todas, 'legendary');
@@ -1128,7 +1285,7 @@ async function extraerAlertasAPI(progreso = null) {
                 return { mostrar: false, nivel: 0, motivo: '', destacadas: [] };
             }
 
-            const legendariasNoDefensor = legendarias.filter(r => ['hero', 'survivor', 'schematic'].includes(r.tipo));
+            const legendariasNoDefensor = legendarias.filter(r => ['hero', 'survivor', 'schematic', 'perkup'].includes(r.tipo));
             if (legendariasNoDefensor.length) {
                 return { mostrar: true, nivel: 95, motivo: '🟠 Recompensa legendaria', destacadas: legendariasNoDefensor };
             }
@@ -1138,7 +1295,7 @@ async function extraerAlertasAPI(progreso = null) {
                 return { mostrar: true, nivel: 92, motivo: '🟠 Defensor legendario', destacadas: defensoresLegendarios };
             }
 
-            const epicasUtiles = epicas.filter(r => ['hero', 'survivor', 'schematic'].includes(r.tipo));
+            const epicasUtiles = epicas.filter(r => ['hero', 'survivor', 'schematic', 'perkup'].includes(r.tipo));
             if (epicasUtiles.length && Number(mision.pl) >= 100) {
                 return { mostrar: true, nivel: 85, motivo: '🟣 Recompensa épica', destacadas: epicasUtiles };
             }
@@ -1209,10 +1366,13 @@ async function extraerAlertasAPI(progreso = null) {
         await Config.findOneAndUpdate({ clave: 'stw_legendarias_scrapeadas' }, { valor: JSON.stringify(deduplicarSTW(legendarias)) }, { upsert: true });
         await Config.findOneAndUpdate({ clave: 'stw_plaltas_scrapeadas' }, { valor: JSON.stringify(plAltas) }, { upsert: true });
         await Config.findOneAndUpdate({ clave: 'stw_ultima_actualizacion' }, { valor: JSON.stringify({
-            fuente: coberturaCompleta ? (todasSeeBot.length >= 5 ? 'SeeBot + STW Planner' : 'STW Planner') : (pavosDaily.length ? 'V-Bucks Daily (parcial)' : 'Fuentes STW (parcial)'),
+            fuente: coberturaCompleta
+                ? (todasPlanner.length >= 5 ? 'STW Planner + V-Bucks Daily + SeeBot' : todasVBucksDaily.length >= 5 ? 'V-Bucks Daily + SeeBot' : 'SeeBot + STW Planner')
+                : (todasVBucksDaily.length ? 'V-Bucks Daily (parcial)' : 'Fuentes STW (parcial)'),
             actualizadoEn: new Date().toISOString(),
             totalMisiones: todas.length,
             misionesPlanner: todasPlanner.length,
+            misionesVBucksDaily: todasVBucksDaily.length,
             misionesSeeBot: todasSeeBot.length,
             coberturaCompleta,
             pavos: pavosFinal.length,
@@ -1225,6 +1385,7 @@ async function extraerAlertasAPI(progreso = null) {
         console.log((coberturaCompleta ? '✅' : '⚠️') + ' STW guardado | cobertura=' + (coberturaCompleta ? 'COMPLETA' : 'PARCIAL (se conservó caché anterior de épicas/legendarias)') +
             ' | total unificado=' + todas.length +
             ' | Planner=' + todasPlanner.length +
+            ' | V-Bucks Daily=' + todasVBucksDaily.length +
             ' | SeeBot=' + todasSeeBot.length +
             ' | PaVos=' + pavosFinal.length +
             ' | épicas=' + epicas.length +
