@@ -1428,7 +1428,7 @@ async function extraerAlertasAPI(progreso = null, opciones = {}) {
 
         const tieneDatosPlanner = todasPlanner.length > 0;
         const plannerTieneCambioDiario = fuenteTieneCambiosDiarios(todasPlanner, 'principal');
-        if (fuenteExhaustiva || !tieneDatosPlanner || (compararCambiosDiarios && !plannerTieneCambioDiario)) {
+        if (fuenteExhaustiva || !tieneDatosPlanner || pavosPagina.length === 0 || (compararCambiosDiarios && !plannerTieneCambioDiario)) {
             // Fuente 2: solo se consulta si la primera no devolvió misiones.
             htmlVBucksDaily = await descargarFuente('Fuente 2', urlVBucksDaily);
             todasVBucksDaily = htmlVBucksDaily ? parsearVBucksDailySTW(htmlVBucksDaily) : [];
@@ -1437,7 +1437,7 @@ async function extraerAlertasAPI(progreso = null, opciones = {}) {
             );
             // Solo HTTP/HTML: se omite el renderizado en navegador para no bloquear el raspado.
             const segundaTieneCambioDiario = fuenteTieneCambiosDiarios(todasVBucksDaily, 'secundaria');
-            if (fuenteExhaustiva || todasVBucksDaily.length === 0 || (compararCambiosDiarios && !segundaTieneCambioDiario)) {
+            if (fuenteExhaustiva || todasVBucksDaily.length === 0 || !todasVBucksDaily.some(m => m.vbucks || m.tipoAlerta === 'vbucks') || (compararCambiosDiarios && !segundaTieneCambioDiario)) {
                 // Fuente 3: solo si la segunda no devolvió misiones; en modo
                 // detallado se consultan todas para enriquecer modificadores.
                 await cargarSeeBot();
