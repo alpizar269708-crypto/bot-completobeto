@@ -1,6 +1,7 @@
 const axios = require('axios');
 const cheerio = require('cheerio');
 const { Config } = require('../database/modelos');
+const { traducirNombreMisionSTW, traducirZonaSTW, traducirModificadorSTW } = require('../webBridge');
 
 const URL_FORTNITEDB = 'https://v2.fortnitedb.com/index.php';
 const URL_FORTNITEDB_PRINCIPAL = 'https://fortnitedb.com/index.php';
@@ -42,19 +43,7 @@ function nombreMisionFortniteDB(icono, alt = '') {
 }
 
 function nombreMisionSeeBot(nombre) {
-    const nombres = {
-        'retrieve the data': 'Recupera los datos',
-        'ride the lightning': 'Viaja en el rayo',
-        'repair the shelter': 'Repara el refugio',
-        'fight the storm': 'Lucha contra la tormenta',
-        'evacuate the shelter': 'Evacúa el refugio',
-        'deliver the bomb': 'Entrega la bomba',
-        'rescue the survivors': 'Rescata a los supervivientes',
-        'build the radar': 'Construye el radar',
-        'eliminate and collect': 'Elimina y recoge',
-        'destroy the encampments': 'Destruye los campamentos'
-    };
-    return nombres[String(nombre || '').trim().toLowerCase()] || nombre || 'Misión de alerta';
+    return traducirNombreMisionSTW(nombre) || nombre || 'Misión de alerta';
 }
 
 async function reportar(progreso, texto) {
@@ -1030,12 +1019,12 @@ async function comandoPavosOficial(sock, chatId, msg) {
         for (const alerta of alertasElegidas) {
             total += alerta.cantidad;
             lineas.push(
-                '🌍 *Zona:* ' + (alerta.zona || 'Desconocida'),
+                '🌍 *Zona:* ' + traducirZonaSTW(alerta.zona || 'Desconocida'),
                 '⚡ *PL:* ' + (alerta.pl ?? '?'),
-                '🎯 *Misión:* ' + (alerta.mision || alerta.misionOriginal || 'Alerta de PaVos'),
+                '🎯 *Misión:* ' + nombreMisionSeeBot(alerta.mision || alerta.misionOriginal || 'Alerta de PaVos'),
                 '🪙 *PaVos:* ' + alerta.cantidad,
                 ...(Array.isArray(alerta.modificadores) && alerta.modificadores.length
-                    ? ['🧩 *Modificadores:* ' + alerta.modificadores.join(', ')] : []),
+                    ? ['🧩 *Modificadores:* ' + [...new Set(alerta.modificadores.map(traducirModificadorSTW))].join(', ')] : []),
                 ...((alerta.requisitos || alerta.questReqs)
                     ? ['📜 *Requisitos:* ' + (/^none$/i.test(String(alerta.requisitos || alerta.questReqs))
                         ? 'Ninguno' : (alerta.requisitos || alerta.questReqs))] : []),

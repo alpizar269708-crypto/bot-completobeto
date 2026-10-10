@@ -7,72 +7,99 @@ const { Config } = require('./database/modelos');
 let chatWhatsAppActivo = null;
 let sockWhatsApp = null;
 
-function traducirMisionYBioma(nombreIngles, textoCompletoZona) {
+function traducirNombreMisionSTW(nombreIngles) {
+    let nombre = limpiarTextoSTW(nombreIngles).replace(/\s+Group$/i, '').trim();
+    if (!nombre) return '';
+
+    const categoriaTormenta = nombre.match(/^category\s+([1-4])\s+fight the storm$/i);
+    if (categoriaTormenta) return 'Lucha contra una tormenta de categoría ' + categoriaTormenta[1];
+
     const misionesMap = {
         'fight the storm': 'Lucha contra la tormenta',
         'retrieve the data': 'Recupera los datos',
         'repair the shelter': 'Repara el refugio',
-        'ride the lightning': 'Viaja en el rayo',
+        'ride the lightning': 'Monta el rayo',
         'evacuate the shelter': 'Evacúa el refugio',
         'deliver the bomb': 'Entrega la bomba',
         'resupply': 'Reabastecimiento',
-        'eliminate and collect': 'Elimina y recolecta',
+        'eliminate and collect': 'Elimina y recoge',
         'rescue the survivors': 'Rescata a los supervivientes',
         'build the radar': 'Construye el radar',
         'build the radar grid': 'Construye la cuadrícula del radar',
         'destroy the encampments': 'Destruye los campamentos',
         'refuel the homebase': 'Reabastece la base',
-        'hit the road': 'Hit the Road',
-        'atlas': 'Atlas'
+        'trap the storm': 'Atrapa la tormenta',
+        'hit the road': 'En la carretera',
+        'atlas': 'Atlas',
+        'category 1 fight the storm': 'Lucha contra una tormenta de categoría 1',
+        'category 2 fight the storm': 'Lucha contra una tormenta de categoría 2',
+        'category 3 fight the storm': 'Lucha contra una tormenta de categoría 3',
+        'category 4 fight the storm': 'Lucha contra una tormenta de categoría 4'
     };
+    return misionesMap[nombre.toLowerCase()] || nombre;
+}
 
-    let nombre = limpiarTextoSTW(nombreIngles)
-        .replace(/\s+Group$/i, '')
-        .trim();
+function traducirZonaSTW(zona) {
+    const limpio = limpiarTextoSTW(zona);
+    const clave = limpio.toLowerCase().replace(/\s+/g, ' ').trim();
+    const zonas = {
+        'stonewood': 'Bosque Pedregoso',
+        'plankerton': 'Ciudad Tablón',
+        'canny valley': 'Valle Latoso',
+        'twine peaks': 'Cumbres Leñosas',
+        'ventures': 'Aventuras',
+        'venture zone': 'Zona de Aventuras',
+        'hexsylvania venture zone': 'Zona de Aventuras de Hexsylvania',
+        'hexsylvania': 'Hexsylvania'
+    };
+    if (zonas[clave]) return zonas[clave];
+    return limpio.replace(/\bStonewood\b/gi, 'Bosque Pedregoso')
+        .replace(/\bPlankerton\b/gi, 'Ciudad Tablón')
+        .replace(/\bCanny Valley\b/gi, 'Valle Latoso')
+        .replace(/\bTwine Peaks\b/gi, 'Cumbres Leñosas')
+        .replace(/\bVenture Zone\b/gi, 'Zona de Aventuras')
+        .replace(/\bVentures\b/gi, 'Aventuras');
+}
 
-    const categoria = nombre.match(/^category\s+([1-4])\s+/i);
-    let base = categoria
-        ? nombre.replace(/^category\s+[1-4]\s+/i, '').trim()
-        : nombre;
-
-    const misionEsp = misionesMap[base.toLowerCase()] || base;
-    const prefijoCategoria = categoria ? 'Categoría ' + categoria[1] + ' ' : '';
-
-    const limpio = limpiarTextoSTW(textoCompletoZona)
-        .replace(/\bgroup\b/gi, '')
-        .replace(/\bbunker\b/gi, 'Búnker')
-        .replace(/\bbunkers\b/gi, 'Búnkeres')
-        .trim();
-
-    const biomasMap = {
-        'thunder route 99': 'Ruta del Trueno 99',
-        'thunder route': 'Ruta del Trueno 99',
-        'industrial park': 'Parque industrial',
+function traducirBiomaSTW(bioma) {
+    let limpio = limpiarTextoSTW(bioma);
+    if (!limpio) return '';
+    const mapa = {
         'autumn industrial park': 'Parque industrial otoñal',
+        'industrial park': 'Parque industrial',
+        'thunder route 99': 'Ruta Trueno 99',
+        'thunder route': 'Ruta Trueno 99',
         'ghost town': 'Pueblo fantasma',
         'autumn suburbs': 'Suburbios otoñales',
         'autumn city': 'Ciudad otoñal',
+        'autumn foothills': 'Colinas otoñales',
+        'autumn hills': 'Colinas otoñales',
         'grasslands': 'Praderas',
         'desert': 'Desierto',
         'city': 'Ciudad',
-        'lakeside': 'Orilla del lago',
+        'lakeside': 'Ribera del lago',
         'tropical': 'Tropical',
         'forest': 'Bosque',
-        'suburbs': 'Suburbios'
+        'suburbs': 'Suburbios',
+        'bunkers': 'Búnkeres',
+        'bunker': 'Búnker',
+        'the portal': 'El Portal',
+        'the crater': 'El Cráter',
+        'arid': 'árido',
+        'group': ''
     };
-
-    let biomaEsp = '';
-    const lowerLimpio = limpio.toLowerCase();
-    for (const [key, val] of Object.entries(biomasMap)) {
-        if (lowerLimpio.includes(key)) {
-            biomaEsp = val;
-            break;
-        }
+    for (const [ingles, espanol] of Object.entries(mapa).sort((x, y) => y[0].length - x[0].length)) {
+        limpio = limpio.replace(new RegExp('\\b' + ingles + '\\b', 'i'), espanol);
     }
-
-    if (!biomaEsp) biomaEsp = limpio || 'Zona desconocida';
-    return prefijoCategoria + misionEsp + ' - ' + biomaEsp;
+    return limpio.replace(/\s+/g, ' ').replace(/\(\s*\)/g, '').trim();
 }
+
+function traducirMisionYBioma(nombreIngles, textoCompletoZona) {
+    const mision = traducirNombreMisionSTW(nombreIngles);
+    const bioma = traducirBiomaSTW(textoCompletoZona);
+    return bioma ? mision + ' - ' + bioma : mision;
+}
+
 function limpiarTextoSTW(texto) {
     return String(texto || '')
         .replace(/\u00a0/g, ' ')
@@ -256,19 +283,24 @@ function obtenerNombreTipoAlertaSTW(tipo) {
 }
 
 function traducirModificadorSTW(nombre) {
-    const limpio = limpiarTextoSTW(nombre);
+    const texto = limpiarTextoSTW(nombre);
+    const titulo = texto.split(/[:\n]/)[0].trim();
     const mapa = {
         'Powerful Clubs and Hardware': 'Armas contundentes y ferretería poderosas',
         'Powerful Energy Attacks': 'Ataques de energía poderosos',
         'Leaping Ninjas': 'Ninjas saltarines',
-        'Epic Mini-Boss': 'Mini-Jefe épico',
+        'Epic Mini-Boss': 'Minijefe épico',
         'Adeot Outlanders': 'Forasteros expertos',
         'Well Drileld Soldiers': 'Soldados bien entrenados',
         'Adept Ninjas': 'Ninjas expertos',
         'Adept Constructors': 'Constructores expertos',
         'Ice Storm': 'Tormenta de hielo',
         'Fire Storm': 'Tormenta de fuego',
+        'Nature Storm': 'Tormenta de naturaleza',
+        'Water Storm': 'Tormenta de agua',
+        'Lightning Storm': 'Tormenta de relámpagos',
         'Melee Life Leech': 'Robo de vida cuerpo a cuerpo',
+        'Life Leech Attacks': 'Ataques con robo de vida',
         'Upgraded Outlanders': 'Forasteros mejorados',
         'Powerful Shotguns': 'Escopetas poderosas',
         'Sword Ninjas': 'Ninjas de espada',
@@ -279,17 +311,31 @@ function traducirModificadorSTW(nombre) {
         'Concussive Shieldbreak': 'Ruptura de escudo por conmoción',
         'Powerful Axes and Scythes': 'Hachas y guadañas poderosas',
         'Powerful Explosives': 'Explosivos poderosos',
-        'Lightning Storm': 'Tormenta de relámpagos',
         'Adept Soldiers': 'Soldados expertos',
         'Focused Ninjas': 'Ninjas concentrados',
         'Smoke Screens': 'Cortinas de humo',
-        'Life Leech Attacks': 'Ataques con robo de vida',
+        'Short Range': 'Alcance corto',
+        'Healing Deathburst': 'Estallido curativo al morir',
+        'Deathburst': 'Estallido mortal',
+        'Exploding Deathburst': 'Estallido mortal explosivo',
         'Acid Pools': 'Charcos de ácido',
         'Metal Corrosion': 'Corrosión metálica',
         'Uncharted Enemies': 'Enemigos no detectados',
-        'Slowing Attacks': 'Ataques ralentizantes'
+        'Slowing Attacks': 'Ataques ralentizantes',
+        'Traps Vulnerability': 'Vulnerabilidad a las trampas',
+        'Trap Vulnerability': 'Vulnerabilidad a las trampas',
+        'Wall Weakening': 'Debilitamiento de muros',
+        'Building Health': 'Salud de las estructuras',
+        'Building Vulnerability': 'Vulnerabilidad de las estructuras',
+        'Ricochet': 'Rebote',
+        'Smoke Screen': 'Cortina de humo',
+        'Berserker': 'Frenético',
+        'Vampiric': 'Vampírico',
+        'Mini-Boss': 'Minijefe',
+        'Epic Mini Boss': 'Minijefe épico'
     };
-    return mapa[limpio] || limpio;
+    const coincidencia = Object.entries(mapa).find(([ingles]) => ingles.toLowerCase() === titulo.toLowerCase());
+    return coincidencia ? coincidencia[1] : titulo;
 }
 
 function extraerModificadoresMissionEntrySTW($, missionEntry) {
@@ -374,6 +420,33 @@ function extraerMisionEntrySTW($, missionEntry, zona, tipoAlerta) {
         extraidoEn: new Date().toISOString()
     };
 }
+
+function seleccionarAlertasSTWPorRareza(misiones, rareza) {
+    const tiposPermitidos = new Set(['hero', 'survivor', 'defender', 'schematic']);
+    const alertas = [];
+    for (const mision of Array.isArray(misiones) ? misiones : []) {
+        const recompensas = (Array.isArray(mision.recompensas) ? mision.recompensas : [])
+            .filter(r => r && r.rareza === rareza && tiposPermitidos.has(r.tipo));
+        if (!recompensas.length) continue;
+        const recompensa = recompensas.map(r => r.nombre).filter(Boolean).join(' | ');
+        alertas.push({
+            ...mision,
+            id: crypto.createHash('sha1').update([
+                mision.zona || '', mision.pl || '', mision.misionOriginal || mision.mision || '',
+                mision.ubicacion || '', rareza, recompensa
+            ].join('|')).digest('hex').slice(0, 14),
+            rareza,
+            recompensas,
+            recompensa
+        });
+    }
+    return deduplicarSTW(alertas).sort((a, b) =>
+        Number(b.pl || 0) - Number(a.pl || 0) ||
+        String(a.zona || '').localeCompare(String(b.zona || '')) ||
+        String(a.mision || '').localeCompare(String(b.mision || ''))
+    );
+}
+
 function deduplicarSTW(lista) {
     const mapa = new Map();
 
@@ -507,7 +580,7 @@ function parsearTablaSeeBotSTW(html) {
         const recompensaTexto = recompensas.map(r => r.nombre).filter(Boolean).join(' | ') || 'Misión';
         filas.push({
             id: crypto.createHash('sha1').update(['seebot', zona, pl, misionOriginal, recompensaTexto].join('|')).digest('hex').slice(0, 14),
-            zona, pl, mision: misionOriginal, misionOriginal, ubicacion: '',
+            zona, pl, mision: traducirNombreMisionSTW(misionOriginal), misionOriginal, ubicacion: '',
             categoria: /\(Group\)$/i.test(misionOriginal) ? ['group'] : [],
             tipoAlerta, tipoAlertaTexto: obtenerNombreTipoAlertaSTW(tipoAlerta),
             vbucks, cantidadVbucks: vbucks ? cantidadVbucks : null,
@@ -599,7 +672,7 @@ function parsearJSONSeeBotSTW(html) {
             const rarezaCampo = obtenerRasgo(reward, ['rarity', 'itemRarity', 'rarityName', 'quality', 'tier', 'rarityType']);
             let rareza = rarezas.find(x => new RegExp('(^|[^a-z])' + x + '([^a-z]|$)', 'i').test(rarezaCampo));
             if (!rareza) rareza = rarezas.find(x => new RegExp('\\(' + x + '\\)', 'i').test(campos)) || null;
-            const nombreRaw = obtenerRasgo(reward, ['name', 'itemName', 'displayName', 'localizedName', 'title', 'itemType', 'id', 'templateId', 'itemId']);
+            const nombreRaw = obtenerRasgo(reward, ['localizedName', 'displayName', 'name', 'itemName', 'title', 'itemType', 'id', 'templateId', 'itemId']);
             if (!nombreRaw && !campos.trim()) continue;
             const nombreSinRareza = (nombreRaw || campos.trim())
                 .replace(/\s*\((Mythic|Legendary|Epic|Rare|Uncommon|Common)\)\s*$/i, '')
@@ -639,8 +712,8 @@ function parsearJSONSeeBotSTW(html) {
         const recompensaTexto = recompensas.map(r => r.nombre).filter(Boolean).join(' | ') || 'Misión';
         misiones.push({
             id: crypto.createHash('sha1').update(['seebot-json', zona, pl, misionOriginal, recompensaTexto].join('|')).digest('hex').slice(0, 14),
-            zona, pl, mision: misionOriginal, misionOriginal,
-            ubicacion: limpiarTextoSTW(m.location || m.biome || m.missionLocation || ''),
+            zona, pl, mision: traducirNombreMisionSTW(misionOriginal), misionOriginal,
+            ubicacion: traducirBiomaSTW(m.location || m.biome || m.missionLocation || ''),
             categoria: /\bgroup\b/i.test(misionOriginal) ? ['group'] : [],
             tipoAlerta, tipoAlertaTexto: obtenerNombreTipoAlertaSTW(tipoAlerta),
             vbucks: tienePavos,
@@ -1019,13 +1092,8 @@ async function extraerAlertasAPI(progreso = null) {
         const coberturaCompleta = (todasSeeBot.length >= 5 && seebotTraeRarezas) ||
             (todasPlanner.length >= 5 && plannerTraeRecompensas);
 
-        let epicas = todas
-            .filter(m => (m.recompensas || []).some(r => r.rareza === 'epic'))
-            .map(m => ({ pl: m.pl, mision: m.mision, ubicacion: m.ubicacion, zona: m.zona, recompensa: m.recompensa, recompensas: m.recompensas, multiplicadorRecompensa: m.multiplicadorRecompensa, esX4: m.esX4, rareza: 'epic', tipoAlerta: m.tipoAlerta, tipoAlertaTexto: m.tipoAlertaTexto, modificadores: m.modificadores, questReqs: m.questReqs, source: m.source }));
-
-        let legendarias = todas
-            .filter(m => (m.recompensas || []).some(r => r.rareza === 'legendary'))
-            .map(m => ({ pl: m.pl, mision: m.mision, ubicacion: m.ubicacion, zona: m.zona, recompensa: m.recompensa, recompensas: m.recompensas, multiplicadorRecompensa: m.multiplicadorRecompensa, esX4: m.esX4, rareza: 'legendary', tipoAlerta: m.tipoAlerta, tipoAlertaTexto: m.tipoAlertaTexto, modificadores: m.modificadores, questReqs: m.questReqs, source: m.source }));
+        let epicas = seleccionarAlertasSTWPorRareza(todas, 'epic');
+        let legendarias = seleccionarAlertasSTWPorRareza(todas, 'legendary');
 
         // Si solo respondió la fuente exclusiva de PaVos, no borrar las últimas
         // alertas épicas/legendarias/destacadas guardadas desde una fuente completa.
@@ -1051,7 +1119,7 @@ async function extraerAlertasAPI(progreso = null) {
         function evaluarAlertaChida(mision) {
             // Una alerta de PaVos también debe estar disponible en destacadas.
             const contienePavos = Boolean(mision.vbucks || mision.recompensas.some(r => r.tipo === 'vbucks'));
-            const buenas = mision.recompensas.filter(r => tiposBuenos.includes(r.tipo) || (r.rareza && !['common', 'uncommon'].includes(r.rareza)));
+            const buenas = mision.recompensas.filter(r => tiposBuenos.includes(r.tipo));
             const legendarias = buenas.filter(r => r.rareza === 'legendary');
             const epicas = buenas.filter(r => r.rareza === 'epic');
 
@@ -1181,4 +1249,4 @@ function vincularChatWhatsApp(chatId) {
     chatWhatsAppActivo = chatId;
 }
 
-module.exports = { iniciarPuenteDiscord, vincularChatWhatsApp, extraerAlertasAPI, parsearTablaSeeBotSTW, parsearJSONSeeBotSTW, parsearVBucksDailySTW };
+module.exports = { iniciarPuenteDiscord, vincularChatWhatsApp, extraerAlertasAPI, parsearTablaSeeBotSTW, parsearJSONSeeBotSTW, parsearVBucksDailySTW, traducirNombreMisionSTW, traducirZonaSTW, traducirBiomaSTW, traducirModificadorSTW, seleccionarAlertasSTWPorRareza };
