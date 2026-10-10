@@ -2,7 +2,7 @@ const { esPrivilegiadoTotalAsync } = require('../utils/whatsapp');
 const { Config } = require('../database/modelos');
 
 const categoriasMap = {
-    fortnite: ['pavos', 'destacadasstw', 'legendariasstw', 'epicasstw', 'alertasstw', 'stw', 'alerta', 'setgrupostw', 'unsetgrupostw', 'setprecio'],
+    fortnite: ['pavos', 'destacadasstw', 'legendariasstw', 'epicasstw', 'alertasstw', 'stw', 'alerta', 'alertanob', 'setgrupostw', 'unsetgrupostw', 'setprecio'],
     tienda: ['tienda', 'tiendavb'],
     carry: ['carryleader', 'carryjoin', 'carryleave', 'carryclose', 'blcarry', 'unblcarry', 'listcarrybl'],
     rifas: ['rifa', 'rifainscripcion', 'cerrarrifa', 'rifajasc13', 'addvarios', 'abrirrifa', 'activarrifaaqui', 'menurifajasc13'],
@@ -85,7 +85,8 @@ async function ejecutarMenu(sock, chatId, msg, args) {
     `*${prefijo}epicasstw* - Recompensas épicas útiles (héroes, supervivientes, defensores y esquemas).\n` +
     `*${prefijo}legendariasstw* - Recompensas legendarias útiles de esas categorías.\n` +
     `*${prefijo}alertasstw* - Resumen breve: PaVos y hasta 10 alertas destacadas; usa los comandos por rareza para las listas completas.\n` +
-    `*${prefijo}alerta [nombre]* - Busca una recompensa específica.\n`;
+    `*${prefijo}alerta [nombre]* - Busca una recompensa específica con datos resumidos.\n` +
+    `*${prefijo}alertanob [nombre]* - Alerta para novatos: muestra modificadores y requisitos reales necesarios para la misión.\n`;
 
     menuFortnite += `\n🚀 *CARRY / ESCUADRONES:*\n` +
         `*${prefijo}carryleader [1-3] [motivo]* - Crea un escuadrón indicando cuántos jugadores faltan.\n` +
