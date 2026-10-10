@@ -741,7 +741,7 @@ function parsearJSONSeeBotSTW(html) {
 function parsearVBucksDailySTW(html) {
     const $ = cheerio.load(String(html || ''));
     const alertas = [];
-    const zonasConocidas = /(Hexsylvania\\s+Venture\\s+Zone|Canny Valley|Twine Peaks|Plankerton|Stonewood|Ventures?(?:\\s+Zone)?|Hexsylvania)/i;
+    const zonasConocidas = /(Hexsylvania\s+Venture\s+Zone|Canny Valley|Twine Peaks|Plankerton|Stonewood|Ventures?(?:\s+Zone)?|Hexsylvania)/i;
     const rarezas = ['mythic', 'legendary', 'epic', 'rare', 'uncommon', 'common'];
     const etiquetasRareza = {
         mythic: 'mítico', legendary: 'legendario', epic: 'épico',
@@ -754,14 +754,14 @@ function parsearVBucksDailySTW(html) {
 
     $('.mission-row').each((_, fila) => {
         const row = $(fila);
-        const plMatch = limpiarTextoSTW(row.find('.pl').first().text()).match(/\\d{1,3}/);
+        const plMatch = limpiarTextoSTW(row.find('.pl').first().text()).match(/\d{1,3}/);
         const nombre = limpiarTextoSTW(row.find('.mission-name strong').first().text());
         const ubicacionCompleta = limpiarTextoSTW(row.find('.mission-name small').first().text());
         if (!plMatch || !nombre || !ubicacionCompleta) return;
 
         // V-Bucks Daily identifica la zona y el bioma en el mismo <small>,
         // por ejemplo: "Twine Peaks · Thunder Route 99".
-        const partesUbicacion = ubicacionCompleta.split(/\\s*(?:·|•|\\||—)\\s*/).map(limpiarTextoSTW).filter(Boolean);
+        const partesUbicacion = ubicacionCompleta.split(/\s*(?:·|•|\||—)\s*/).map(limpiarTextoSTW).filter(Boolean);
         let indiceZona = partesUbicacion.findIndex(p => zonasConocidas.test(p));
         const coincidenciaZona = ubicacionCompleta.match(zonasConocidas);
         const zona = indiceZona >= 0 ? partesUbicacion[indiceZona] : (coincidenciaZona ? coincidenciaZona[0] : '');
@@ -769,7 +769,7 @@ function parsearVBucksDailySTW(html) {
         const ubicacionCruda = indiceZona >= 0
             ? partesUbicacion.filter((_, i) => i !== indiceZona).join(' · ')
             : ubicacionCompleta.replace(zona, '');
-        const ubicacion = traducirBiomaSTW(ubicacionCruda.replace(/^[-·•|—\\s]+|[-·•|—\\s]+$/g, '').trim());
+        const ubicacion = traducirBiomaSTW(ubicacionCruda.replace(/^[-·•|—\s]+|[-·•|—\s]+$/g, '').trim());
 
         const recompensas = [];
         row.find('.mission-reward').each((__, rewardEl) => {
@@ -781,8 +781,8 @@ function parsearVBucksDailySTW(html) {
             const textoFuerte = limpiarTextoSTW(reward.find('strong').first().text() || reward.text());
             if (!textoFuerte) return;
 
-            const esPavos = /v-?bucks|v\\s*bucks|currency_mtxswap/i.test(clases + ' ' + iconSrc + ' ' + textoFuerte);
-            const cantidadMatch = textoFuerte.match(/(?:[x×]\\s*(\\d{1,4})\\b|\\b(\\d{1,4})\\s*x\\b)/i);
+            const esPavos = /v-?bucks|v\s*bucks|currency_mtxswap/i.test(clases + ' ' + iconSrc + ' ' + textoFuerte);
+            const cantidadMatch = textoFuerte.match(/(?:[x×]\s*(\d{1,4})\b|\b(\d{1,4})\s*x\b)/i);
             const cantidadEncontrada = cantidadMatch ? Number(cantidadMatch[1] || cantidadMatch[2]) : null;
 
             if (esPavos) {
@@ -800,12 +800,12 @@ function parsearVBucksDailySTW(html) {
 
             const textoRareza = limpiarTextoSTW(reward.find('small').first().text());
             const matchRareza = (textoRareza + ' ' + textoFuerte + ' ' + iconTitle + ' ' + iconSrc)
-                .match(/\\b(mythic|legendary|epic|rare|uncommon|common)\\b/i);
+                .match(/\b(mythic|legendary|epic|rare|uncommon|common)\b/i);
             const rareza = matchRareza ? matchRareza[1].toLowerCase() : null;
             let nombreRaw = (iconTitle && !/alert reward/i.test(iconTitle)) ? iconTitle : textoFuerte;
             nombreRaw = nombreRaw
-                .replace(/^\\s*(?:mythic|legendary|epic|rare|uncommon|common)\\s+/i, '')
-                .replace(/\\s*[x×]\\s*\\d{1,4}\\s*$/i, '')
+                .replace(/^\s*(?:mythic|legendary|epic|rare|uncommon|common)\s+/i, '')
+                .replace(/\s*[x×]\s*\d{1,4}\s*$/i, '')
                 .replace(/[,;]+$/g, '')
                 .trim();
             if (!nombreRaw) return;
@@ -839,7 +839,7 @@ function parsearVBucksDailySTW(html) {
             const clave = [
                 recompensa.tipo || '',
                 recompensa.rareza || '',
-                String(recompensa.raw || recompensa.nombre || '').toLowerCase().replace(/^(mythic|legendary|epic|rare|uncommon|common)\\s+/, '').trim(),
+                String(recompensa.raw || recompensa.nombre || '').toLowerCase().replace(/^(mythic|legendary|epic|rare|uncommon|common)\s+/, '').trim(),
                 recompensa.cantidad || ''
             ].join('|');
             if (vistosRecompensas.has(clave)) continue;
@@ -865,8 +865,8 @@ function parsearVBucksDailySTW(html) {
             tipoAlertaTexto: hayPavos ? 'PaVos' : 'Alerta',
             vbucks: hayPavos,
             cantidadVbucks: hayPavos ? (recompensasUnicas.find(r => r.tipo === 'vbucks')?.cantidad || 50) : null,
-            esX4: /\\bgroup\\b|\\bx4\\b/i.test(nombre),
-            multiplicadorRecompensa: /\\bx4\\b/i.test(nombre) ? 4 : null,
+            esX4: /\bgroup\b|\bx4\b/i.test(nombre),
+            multiplicadorRecompensa: /\bx4\b/i.test(nombre) ? 4 : null,
             recompensas: recompensasUnicas,
             modificadores: [...new Set(modificadores)],
             rareza: recompensasUnicas.find(r => r.rareza === 'mythic')?.rareza
@@ -1099,10 +1099,34 @@ async function extraerAlertasAPI(progreso = null) {
             }
             const anterior = mapaTodas.get(clave);
             const recompensas = [...(anterior.recompensas || [])];
-            const vistas = new Set(recompensas.map(r => String(r.tipo || '') + '|' + String(r.rareza || '') + '|' + String(r.raw || r.nombre || '').toLowerCase()));
+            const normalizarClaveRecompensa = valor => String(valor || '')
+                .toLowerCase()
+                .normalize('NFD')
+                .replace(/[\\u0300-\\u036f]/g, '')
+                .replace(/^\\s*(?:mythic|legendary|epic|rare|uncommon|common)\\s+/i, '')
+                .replace(/\\s*\\((?:mythic|legendary|epic|rare|uncommon|common)\\)\\s*$/i, '')
+                .replace(/\\s*[x×]\\s*\\d{1,4}\\s*$/i, '')
+                .replace(/[^a-z0-9]+/g, '')
+                .trim();
+            const claveRecompensa = r => [
+                String(r.tipo || '').toLowerCase(),
+                String(r.rareza || '').toLowerCase(),
+                normalizarClaveRecompensa(r.raw || r.nombre)
+            ].join('|');
+            const vistas = new Map(recompensas.map((r, index) => [claveRecompensa(r), index]));
             for (const r of (m.recompensas || [])) {
-                const k = String(r.tipo || '') + '|' + String(r.rareza || '') + '|' + String(r.raw || r.nombre || '').toLowerCase();
-                if (!vistas.has(k)) { vistas.add(k); recompensas.push(r); }
+                const k = claveRecompensa(r);
+                if (!vistas.has(k)) {
+                    vistas.set(k, recompensas.length);
+                    recompensas.push(r);
+                    continue;
+                }
+                // Si una fuente prioritaria no informa la cantidad, completar
+                // el dato desde otra sin duplicar visualmente la recompensa.
+                const indice = vistas.get(k);
+                if (!(Number(recompensas[indice].cantidad) > 0) && Number(r.cantidad) > 0) {
+                    recompensas[indice] = { ...r, ...recompensas[indice], cantidad: Number(r.cantidad) };
+                }
             }
             const modificadores = [...(anterior.modificadores || [])];
             for (const mod of (m.modificadores || [])) if (!modificadores.includes(mod)) modificadores.push(mod);
