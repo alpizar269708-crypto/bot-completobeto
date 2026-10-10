@@ -24,19 +24,27 @@ function traducirNombreMisionSTW(nombreIngles) {
         'resupply': 'Reabastecimiento',
         'eliminate and collect': 'Elimina y recoge',
         'rescue the survivors': 'Rescata a los supervivientes',
+        'rescue survivors': 'Rescata a los supervivientes',
         'build the radar': 'Construye el radar',
         'build the radar grid': 'Construye la cuadrícula del radar',
         'destroy the encampments': 'Destruye los campamentos',
         'refuel the homebase': 'Reabastece la base',
         'trap the storm': 'Atrapa la tormenta',
         'hit the road': 'En la carretera',
+        'ride the lightning group': 'Monta el rayo',
         'atlas': 'Atlas',
         'category 1 fight the storm': 'Lucha contra una tormenta de categoría 1',
         'category 2 fight the storm': 'Lucha contra una tormenta de categoría 2',
         'category 3 fight the storm': 'Lucha contra una tormenta de categoría 3',
         'category 4 fight the storm': 'Lucha contra una tormenta de categoría 4'
     };
-    return misionesMap[nombre.toLowerCase()] || nombre;
+    const clave = nombre.toLowerCase();
+    if (misionesMap[clave]) return misionesMap[clave];
+    const yaEspanol = Object.values(misionesMap).some(traduccion => traduccion.toLowerCase() === clave);
+    // Nunca filtrar al chat un nombre de misión sin traducir. Si aparece una
+    // misión nueva que aún no está en el catálogo, se muestra un nombre neutro
+    // en español en vez de dejar el título original en inglés.
+    return yaEspanol ? nombre : 'Misión especial';
 }
 
 function traducirZonaSTW(zona) {
@@ -466,29 +474,54 @@ function seleccionarAlertasSTWPorRareza(misiones, rareza) {
 
 function deduplicarSTW(lista) {
     const mapa = new Map();
+    const normalizar = valor => String(valor || '').toLowerCase()
+        .normalize('NFD').replace(/[\\u0300-\\u036f]/g, '')
+        .replace(/[^a-z0-9]+/g, ' ').trim();
+    const claveRecompensa = r => [
+        normalizar(r && r.tipo), normalizar(r && r.rareza),
+        normalizar(r && (r.raw || r.nombre))
+            .replace(/\\b(survivor|superviviente)\\b/g, '')
+            .replace(/\\b(x|×)\\s*\\d+\\b/g, '').trim()
+    ].join('|');
 
     for (const item of Array.isArray(lista) ? lista : []) {
         if (!item) continue;
-
-        const clave = item.id
-            ? String(item.id)
-            : [
-                item.zona ?? '',
-                item.pl ?? '',
-                item.mision ?? '',
-                item.ubicacion ?? '',
-                item.recompensa ?? '',
-                item.cantidad ?? '',
-                item.rareza ?? '',
-                item.tipo ?? '',
-                item.esX4 ? 'x4' : ''
-            ].join('|').toLowerCase();
+        const nombreMision = traducirNombreMisionSTW(item.misionOriginal || item.mision || '');
+        const clave = [
+            normalizar(item.zona), String(item.pl ?? ''),
+            normalizar(nombreMision), normalizar(item.ubicacion),
+            item.esX4 ? 'x4' : ''
+        ].join('|');
 
         if (!mapa.has(clave)) {
-            mapa.set(clave, item);
+            mapa.set(clave, { ...item, recompensas: [...(item.recompensas || [])], modificadores: [...(item.modificadores || [])] });
+            continue;
         }
-    }
 
+        const anterior = mapa.get(clave);
+        const recompensas = [...(anterior.recompensas || [])];
+        const vistas = new Map(recompensas.map((r, index) => [claveRecompensa(r), index]));
+        for (const r of (item.recompensas || [])) {
+            const k = claveRecompensa(r);
+            if (!vistas.has(k)) {
+                vistas.set(k, recompensas.length);
+                recompensas.push(r);
+            } else {
+                const indice = vistas.get(k);
+                if (!(Number(recompensas[indice].cantidad) > 0) && Number(r.cantidad) > 0) {
+                    recompensas[indice] = { ...r, ...recompensas[indice], cantidad: Number(r.cantidad) };
+                }
+            }
+        }
+        const modificadores = [...new Set([...(anterior.modificadores || []), ...(item.modificadores || [])])];
+        mapa.set(clave, {
+            ...item,
+            ...anterior,
+            recompensas,
+            modificadores,
+            recompensa: recompensas.map(r => r.nombre).filter(Boolean).join(' | ') || anterior.recompensa || item.recompensa
+        });
+    }
     return Array.from(mapa.values());
 }
 
@@ -1487,7 +1520,19 @@ async function extraerAlertasAPI(progreso = null) {
             ' | legendarias=' + legendarias.length +
             ' | destacadas=' + plAltas.length);
         await etapaDiagnostico('STW FINAL: proceso terminado correctamente en ' + ((Date.now() - tiempoDiagnostico) / 1000).toFixed(2) + ' s.');
-        return { ok: true, total: todas.length, pavos: pavosFinal.length, epicas: epicas.length, legendarias: legendarias.length, plAltas: plAltas.length };
+        return {
+            ok: true,
+            total: todas.length,
+            pavos: pavosFinal.length,
+            epicas: epicas.length,
+            legendarias: legendarias.length,
+            plAltas: plAltas.length,
+            fuentes: {
+                principal: todasPlanner,
+                secundaria: todasVBucksDaily,
+                tercera: todasSeeBot
+            }
+        };
     } catch (e) {
         console.error('❌ Error en la extracción STW Planner:', e.stack || e.message);
         await etapaDiagnostico('STW FALLÓ: ' + String(e.stack || e.message || e).slice(0, 900));
