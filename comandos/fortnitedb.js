@@ -196,8 +196,9 @@ async function consultarFortniteDB(progreso) {
 }
 
 function extraerDatosSeeBot(html) {
+    // Solo acepta una llamada makeHtml([ ... ]); evita confundirla con la
+    // declaración de la función makeHtml(misiones).
     const patrones = [
-        /makeHtml\s*\(/i,
         /makeHtml\s*\(\s*(\[)/i
     ];
     let inicioLlamada = -1;
