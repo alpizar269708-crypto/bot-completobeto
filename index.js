@@ -273,8 +273,7 @@ async function arrancarSocket(metodo, numeroTelefono, onCodeReady = null) {
     sock.sendMessage = async function(jid, content, options) {
         if (content && typeof content === 'object') {
             content = limpiarContenidoMensaje(content);
-            if (content.text && !content.text.includes('JASC13') &&
-                !/^⏳ Consultando, esto puede tardar unos segundos\. No hace falta repetir el comando\.$/.test(content.text.trim())) {
+            if (content.text && !content.text.includes('JASC13')) {
                 content.text += '\n\nApoya a un creador: *JASC13*';
             }
         }
