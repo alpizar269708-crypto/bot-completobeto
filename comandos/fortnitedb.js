@@ -8,8 +8,7 @@ const URL_FORTNITEDB_RESPALDO = 'https://cdn.fortnitedb.com/index.php';
 const URL_FORTNITEDB_ALTERNATIVA = 'https://fortnitedb.com/';
 const URL_FORTNITEDB_STATUS = 'https://status.fortnitedb.com/index.php';
 const URL_FORTNITEDB_DEV = 'https://dev.fortnitedb.com/index.php';
-const URL_FORTNITEDB_MISIONES = 'https://status.fortnitedb.com/index.php/mission-list/in_vBugz/any';
-const URL_FORTNITEDB_MISIONES_DEV = 'https://dev.fortnitedb.com/index.php/mission-list/in_vBugz/any';
+const URL_FORTNITEDB_STATUS_HOME = 'https://status.fortnitedb.com/index.php';
 const URL_SEEBOT = 'https://seebot.dev/missions.php';
 
 const ZONAS = {
@@ -124,8 +123,7 @@ async function consultarFortniteDBConNavegador(progreso) {
         const page = await browser.newPage();
         page.setDefaultNavigationTimeout(8000);
         await page.setUserAgent('Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36');
-        // La página dedicada tiene menos contenido que el inicio y puede ser más rápida.
-        const url = URL_FORTNITEDB_MISIONES_DEV;
+        const url = 'https://dev.fortnitedb.com/';
         const response = await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 8000 });
         const status = response ? response.status() : 0;
         const html = await page.content();
@@ -166,8 +164,8 @@ async function consultarFortniteDB(progreso) {
             { url: URL_FORTNITEDB, nombre: 'host v2 (principal)' },
             { url: URL_FORTNITEDB_PRINCIPAL, nombre: 'host principal alternativo' },
             { url: URL_FORTNITEDB_DEV, nombre: 'host dev' },
-            { url: URL_FORTNITEDB_MISIONES, nombre: 'página dedicada de PaVos en host status' },
-            { url: URL_FORTNITEDB_MISIONES_DEV, nombre: 'página dedicada de PaVos en host dev' }
+            { url: URL_FORTNITEDB_RESPALDO, nombre: 'host CDN alternativo' },
+            { url: URL_FORTNITEDB_STATUS_HOME, nombre: 'host status alternativo' }
         ];
         const fallos = [];
         for (const intento of intentos) {
@@ -186,7 +184,7 @@ async function consultarFortniteDB(progreso) {
             await paso('🧭 FortniteDB: los intentos HTTP directos fallaron; iniciando comprobación de navegador normal como última alternativa.');
             try {
                 respuesta = await consultarFortniteDBConNavegador(progreso);
-                resultado.url = URL_FORTNITEDB_MISIONES_DEV;
+                resultado.url = 'https://dev.fortnitedb.com/';
                 await paso('✅ FortniteDB: el navegador pudo cargar la página pública; ahora se intentará extraer la tabla con el mismo parser.');
             } catch (errorNavegador) {
                 fallos.push('navegador Puppeteer: ' + (errorNavegador.message || String(errorNavegador)));
