@@ -701,6 +701,13 @@ async function guardarAlertaPavosEnviada(hoy, horario, firmasPorFuente = {}) {
 
 async function enviarAvisoConsultaSTW(sock) {
     try {
+        // Este aviso solo puede enviarse entre las 18:01 y las 18:05, hora de Ciudad de México.
+        const ahoraCDMX = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Mexico_City' }));
+        const minutosCDMX = ahoraCDMX.getHours() * 60 + ahoraCDMX.getMinutes();
+        if (minutosCDMX < (18 * 60 + 1) || minutosCDMX > (18 * 60 + 5)) {
+            console.log('⏭️ Aviso previo STW omitido: fuera del horario permitido (18:01–18:05 CDMX).');
+            return;
+        }
         const configChat = await Config.findOne({ clave: 'chat_alertas_diarias' });
         if (!configChat || !configChat.valor) return;
         let grupos = [];
