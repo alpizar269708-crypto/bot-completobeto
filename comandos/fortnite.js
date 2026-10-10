@@ -353,7 +353,7 @@ async function alertasSTW(sock, chatId, msg, categoria = 'todas', progreso = nul
 }
 async function comandoDestacadasSTW(sock, chatId, msg, progreso = null) {
     const informar = async (texto) => { if (typeof progreso === 'function') await progreso(texto); };
-    await informar('🧭 Comando de destacadas iniciado; consultará caché STW Planner y filtrará PL altas.');
+    await informar('🔎 Preparando las alertas destacadas.');
     const fechaHoy = obtenerFechaActual();
     let texto = `📅 _${fechaHoy}_\n\n🔥 *ALERTAS DESTACADAS — RECOMPENSAS BUENAS*\n\n`;
 
@@ -431,7 +431,7 @@ async function comandoPreguntarAlerta(sock, chatId, msg, palabrasClave = [], pro
         ...datos.legendarias.map(item => ({ ...item, categoria: 'Legendarias' })),
         ...(datos.plAltas || []).map(item => ({ ...item, categoria: 'Destacadas' }))
     ]) {
-        const normalizarClave = valor => String(valor || '').toLowerCase().normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
+        const normalizarClave = valor => String(valor || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
         const claveMision = [normalizarClave(item.zona), String(item.pl || ''), normalizarClave(item.misionOriginal || item.mision), normalizarClave(item.ubicacion)].join('|');
         if (!mapaCoincidencias.has(claveMision)) {
             mapaCoincidencias.set(claveMision, { ...item, recompensas: [...(item.recompensas || [])], categorias: [item.categoria] });
@@ -482,9 +482,9 @@ async function comandoPreguntarAlerta(sock, chatId, msg, palabrasClave = [], pro
             : '_No encontré alertas que contengan esa palabra o frase._\n\n';
     } else {
         coincidencias.forEach(item => {
-            texto += '📌 *' + item.categoria + '*\n';
-            texto += formatearAlertaSTW(item);
-        });
+            texto += '📌 *' + (item.categorias || [item.categoria]).join(' · ') + '*\n';
+            texto += formatearAlertaSTW(item, '', detallada);
+        });;
     }
 
     texto += 'Support-a-Creator: *JASC13* ❤️';
