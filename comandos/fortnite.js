@@ -240,11 +240,11 @@ function formatearAlertaSTW(item, encabezado = '', detallada = false) {
 
 function traducirRequisitosSalidaSTW(requisitos) {
     return String(requisitos || '').trim()
+        .replace(/\bcomplete one mission in a (\d+)\+? zone\b/ig, 'Completa una misión en una zona de nivel $1 o superior')
+        .replace(/\bcomplete one mission\b/ig, 'Completa una misión')
         .replace(/\bcomplete\b/ig, 'completa')
-        .replace(/\bmission\b/ig, 'misión')
-        .replace(/\bmissions\b/ig, 'misiones')
-        .replace(/\bquest\b/ig, 'objetivo')
-        .replace(/\bquests\b/ig, 'objetivos')
+        .replace(/\bmissions?\b/ig, 'misión')
+        .replace(/\bquests?\b/ig, 'objetivo')
         .replace(/\bnone\b/ig, 'ninguno')
         .replace(/\bdefeat\b/ig, 'derrota')
         .replace(/\beliminate\b/ig, 'elimina')
@@ -253,6 +253,15 @@ function traducirRequisitosSalidaSTW(requisitos) {
         .replace(/\bstorm\b/ig, 'tormenta')
         .replace(/\bzone\b/ig, 'zona')
         .replace(/\bpower\s+level\b/ig, 'nivel de poder')
+        .replace(/\bone\b/ig, 'una')
+        .replace(/\bany\b/ig, 'cualquier')
+        .replace(/\bin\b/ig, 'en')
+        .replace(/\bat\b/ig, 'en')
+        .replace(/\bor\b/ig, 'o')
+        .replace(/\bhigher\b/ig, 'superior')
+        .replace(/\bwith\b/ig, 'con')
+        .replace(/\ba\b/ig, 'una')
+        .replace(/\s+/g, ' ')
         .trim();
 }
 
