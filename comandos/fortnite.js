@@ -294,7 +294,12 @@ function formatearResumenAlertaSTW(item) {
 
 
 async function alertasSTW(sock, chatId, msg, categoria = 'todas', progreso = null) {
-    const informar = async texto => { if (typeof progreso === 'function') { try { await progreso(texto); } catch (_) {} } };
+    let progresoEnviado = false;
+    const informar = async () => {
+        if (typeof progreso !== 'function' || progresoEnviado) return;
+        progresoEnviado = true;
+        try { await progreso('⏳ Preparando las alertas.'); } catch (_) {}
+    };
     let datos;
     try {
         datos = await obtenerAlertasSTW(true, informar);
@@ -375,7 +380,12 @@ async function alertasSTW(sock, chatId, msg, categoria = 'todas', progreso = nul
     }
 }
 async function comandoDestacadasSTW(sock, chatId, msg, progreso = null) {
-    const informar = async (texto) => { if (typeof progreso === 'function') await progreso(texto); };
+    let progresoEnviado = false;
+    const informar = async () => {
+        if (typeof progreso !== 'function' || progresoEnviado) return;
+        progresoEnviado = true;
+        try { await progreso('⏳ Preparando las alertas destacadas.'); } catch (_) {}
+    };
     await informar('🔎 Preparando las alertas destacadas.');
     const fechaHoy = obtenerFechaActual();
     let texto = `📅 _${fechaHoy}_\n\n🔥 *ALERTAS DESTACADAS — BUENAS RECOMPENSAS*\n\n`;
@@ -389,7 +399,7 @@ async function comandoDestacadasSTW(sock, chatId, msg, progreso = null) {
         await informar('🧹 ETAPA 3/4 — Lista seleccionada; elementos a formatear=' + listaPlAltas.length + '.');
         if (listaPlAltas.length === 0) {
             texto += datos.errorActualizacion
-                ? '_No pude consultar las fuentes y no hay datos guardados para mostrar._\n\n'
+                ? '_No pude actualizar las alertas en este momento._\n\n'
                 : '_No hay alertas destacadas registradas en este momento._\n\n';
         } else {
             listaPlAltas.forEach(item => {
@@ -407,7 +417,12 @@ async function comandoDestacadasSTW(sock, chatId, msg, progreso = null) {
 }
 
 async function comandoPreguntarAlerta(sock, chatId, msg, palabrasClave = [], progreso = null, mostrarDetalles = false) {
-    const informar = async texto => { if (typeof progreso === 'function') { try { await progreso(texto); } catch (_) {} } };
+    let progresoEnviado = false;
+    const informar = async () => {
+        if (typeof progreso !== 'function' || progresoEnviado) return;
+        progresoEnviado = true;
+        try { await progreso('⏳ Buscando alertas.'); } catch (_) {}
+    };
     const nombreComando = mostrarDetalles ? 'alertanob' : 'alerta';
     const termino = Array.isArray(palabrasClave)
         ? palabrasClave.join(' ').trim()
