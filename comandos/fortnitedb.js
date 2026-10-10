@@ -166,13 +166,15 @@ async function consultarFortniteDB(progreso) {
             const recompensa = limpiar($(celdas[3]).text());
             const matchPavos = recompensa.match(/(\d+)\s*x?\s*(?:V-Bucks|V\s*Bucks)/i);
             if (!matchPavos || !ZONAS[zonaCodigo]) return;
+            const cantidad = Number(matchPavos[1]);
+            if (!Number.isFinite(cantidad) || cantidad <= 0) return;
             const poderMatch = poderTexto.match(/\d+/);
             resultado.alertas.push({
                 zona: ZONAS[zonaCodigo],
                 zonaCodigo,
                 pl: poderMatch ? Number(poderMatch[0]) : null,
                 mision: 'Alerta de PaVos', // FortniteDB muestra zona, PL y recompensa en esta tabla; no expone aquí el nombre de la misión.
-                cantidad: Number(matchPavos[1])
+                cantidad
             });
         });
 
@@ -274,17 +276,19 @@ async function consultarSeeBot(progreso) {
 
         for (const mision of misiones) {
             const zona = String(mision.zone || '').trim();
-            if (!['Stonewood', 'Plankerton', 'Canny Valley', 'Twine Peaks'].includes(zona)) continue;
+            if (!['Stonewood', 'Plankerton', 'Canny Valley', 'Twine Peaks', 'Ventures'].includes(zona)) continue;
             const recompensas = Array.isArray(mision.alertRewards) ? mision.alertRewards : [];
             const recompensaPavos = recompensas.find(r => /v-bucks/i.test(String(r.itemType || '')));
             if (!recompensaPavos) continue;
+            const cantidad = Number(recompensaPavos.quantity);
+            if (!Number.isFinite(cantidad) || cantidad <= 0) continue;
 
             resultado.alertas.push({
                 zona,
-                zonaCodigo: ({ Stonewood: 'S', Plankerton: 'P', 'Canny Valley': 'C', 'Twine Peaks': 'T' })[zona],
+                zonaCodigo: ({ Stonewood: 'S', Plankerton: 'P', 'Canny Valley': 'C', 'Twine Peaks': 'T', Ventures: 'V' })[zona],
                 pl: Number(mision.powerLevel) || null,
                 mision: nombreMisionSeeBot(mision.name),
-                cantidad: Number(recompensaPavos.quantity) || 0
+                cantidad
             });
         }
 
@@ -447,12 +451,37 @@ async function comandoRPavos(sock, chatId, msg) {
     if (fortniteDB.ok && seeBot.ok) {
         // FortniteDB no expone el nombre de misión en su tabla de PaVos; comparamos zona, PL y cantidad.
         const clave = a => [String(a.zonaCodigo || a.zona || '').toLowerCase(), String(a.pl ?? ''), String(a.cantidad ?? '')].join('|');
-        const mapaDB = new Set(fortniteDB.alertas.map(clave));
-        const mapaSee = new Set(seeBot.alertas.map(clave));
-        const soloDB = fortniteDB.alertas.filter(a => !mapaSee.has(clave(a)));
-        const soloSee = seeBot.alertas.filter(a => !mapaDB.has(clave(a)));
+        const restantesSee = new Map();
+        for (const alerta of seeBot.alertas) {
+            const k = clave(alerta);
+            restantesSee.set(k, (restantesSee.get(k) || 0) + 1);
+        }
+        const soloDB = [];
+        let coincidencias = 0;
+        for (const alerta of fortniteDB.alertas) {
+            const k = clave(alerta);
+            const disponibles = restantesSee.get(k) || 0;
+            if (disponibles > 0) {
+                coincidencias++;
+                restantesSee.set(k, disponibles - 1);
+            } else {
+                soloDB.push(alerta);
+            }
+        }
+        const restantesDB = new Map();
+        for (const alerta of fortniteDB.alertas) {
+            const k = clave(alerta);
+            restantesDB.set(k, (restantesDB.get(k) || 0) + 1);
+        }
+        const soloSee = [];
+        for (const alerta of seeBot.alertas) {
+            const k = clave(alerta);
+            const disponibles = restantesDB.get(k) || 0;
+            if (disponibles > 0) restantesDB.set(k, disponibles - 1);
+            else soloSee.push(alerta);
+        }
         lineas.push('🔍 *COMPARACIÓN DETALLADA*',
-            'Coincidencias exactas: ' + fortniteDB.alertas.filter(a => mapaSee.has(clave(a))).length,
+            'Coincidencias por zona + PL + cantidad: ' + coincidencias,
             'Solo en FortniteDB: ' + soloDB.length + (soloDB.length ? ' — ' + soloDB.map(a => a.zona + '/PL' + (a.pl ?? '?') + '/' + a.cantidad + ' PaVos').join('; ') : ''),
             'Solo en SeeBot: ' + soloSee.length + (soloSee.length ? ' — ' + soloSee.map(a => a.zona + '/PL' + (a.pl ?? '?') + '/' + a.cantidad + ' PaVos').join('; ') : ''),
             'Diferencia de totales: ' + (fortniteDB.totalPavos - seeBot.totalPavos) + ' PaVos');
