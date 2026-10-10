@@ -234,10 +234,24 @@ async function arrancarSocket(metodo, numeroTelefono, onCodeReady = null) {
     vinculacionEstado = '<div style="font-family: Arial; text-align: center; margin-top: 50px;"><h2>🔄 Conectando con WhatsApp...</h2><p>Esperando respuesta del servidor de WhatsApp.</p></div>';
 
     const originalSendMessage = sock.sendMessage;
+    const normalizarSaltosMensaje = valor => typeof valor === 'string'
+        ? valor.replace(/\\n/g, '\n').replace(/\/n(?=\s|$)/g, '\n')
+        : valor;
+    const limpiarContenidoMensaje = valor => {
+        if (typeof valor === 'string') return normalizarSaltosMensaje(valor);
+        if (Array.isArray(valor)) return valor.map(limpiarContenidoMensaje);
+        if (valor && typeof valor === 'object') {
+            const limpio = {};
+            for (const [clave, dato] of Object.entries(valor)) limpio[clave] = limpiarContenidoMensaje(dato);
+            return limpio;
+        }
+        return valor;
+    };
     sock.sendMessage = async function(jid, content, options) {
-        if (content && typeof content === 'object' && content.text) {
-            if (!content.text.includes('JASC13')) {
-                content.text += `\n\nApoya a un creador: *JASC13*` ;
+        if (content && typeof content === 'object') {
+            content = limpiarContenidoMensaje(content);
+            if (content.text && !content.text.includes('JASC13')) {
+                content.text += '\n\nApoya a un creador: *JASC13*';
             }
         }
         return originalSendMessage.call(this, jid, content, options);
