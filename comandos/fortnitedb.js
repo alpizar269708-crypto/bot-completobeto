@@ -8,6 +8,8 @@ const URL_FORTNITEDB_RESPALDO = 'https://cdn.fortnitedb.com/index.php';
 const URL_FORTNITEDB_ALTERNATIVA = 'https://fortnitedb.com/';
 const URL_FORTNITEDB_STATUS = 'https://status.fortnitedb.com/index.php';
 const URL_FORTNITEDB_DEV = 'https://dev.fortnitedb.com/index.php';
+const URL_FORTNITEDB_MISIONES = 'https://status.fortnitedb.com/index.php/mission-list/in_vBugz/any';
+const URL_FORTNITEDB_MISIONES_DEV = 'https://dev.fortnitedb.com/index.php/mission-list/in_vBugz/any';
 const URL_SEEBOT = 'https://seebot.dev/missions.php';
 
 const ZONAS = {
@@ -60,9 +62,9 @@ async function reportar(progreso, texto) {
     }
 }
 
-async function descargarPagina(url) {
+async function descargarPagina(url, timeout = 12000) {
     const respuesta = await axios.get(url, {
-        timeout: 12000,
+        timeout,
         maxRedirects: 5,
         headers: {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/153.0.0.0 Safari/537.36',
@@ -120,10 +122,11 @@ async function consultarFortniteDBConNavegador(progreso) {
             args: ['--no-sandbox', '--disable-setuid-sandbox']
         });
         const page = await browser.newPage();
-        page.setDefaultNavigationTimeout(15000);
+        page.setDefaultNavigationTimeout(8000);
         await page.setUserAgent('Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36');
-        const url = 'https://dev.fortnitedb.com/';
-        const response = await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 15000 });
+        // La página dedicada tiene menos contenido que el inicio y puede ser más rápida.
+        const url = URL_FORTNITEDB_MISIONES_DEV;
+        const response = await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 8000 });
         const status = response ? response.status() : 0;
         const html = await page.content();
         const titulo = await page.title();
@@ -156,19 +159,21 @@ async function consultarFortniteDB(progreso) {
     };
 
     try {
-        await paso('🔬 *FortniteDB ETAPA 1 — CONEXIÓN:* preparando solicitud HTTP con timeout de 12 s, redirecciones máximas 5 y User-Agent de navegador.');
+        await paso('🔬 *FortniteDB ETAPA 1 — CONEXIÓN:* probando la página principal y la página dedicada de misiones de PaVos con timeout HTTP de 5 s por intento.');
         let respuesta;
         const intentos = [
             // El host v2 está sirviendo actualmente la página de misiones y se prueba primero.
             { url: URL_FORTNITEDB, nombre: 'host v2 (principal)' },
             { url: URL_FORTNITEDB_PRINCIPAL, nombre: 'host principal alternativo' },
-            { url: URL_FORTNITEDB_DEV, nombre: 'host dev' }
+            { url: URL_FORTNITEDB_DEV, nombre: 'host dev' },
+            { url: URL_FORTNITEDB_MISIONES, nombre: 'página dedicada de PaVos en host status' },
+            { url: URL_FORTNITEDB_MISIONES_DEV, nombre: 'página dedicada de PaVos en host dev' }
         ];
         const fallos = [];
         for (const intento of intentos) {
             try {
                 await paso('🔌 FortniteDB: probando ' + intento.nombre + ' (' + intento.url + ').');
-                respuesta = await descargarPagina(intento.url);
+                respuesta = await descargarPagina(intento.url, 5000);
                 resultado.url = intento.url;
                 break;
             } catch (errorIntento) {
@@ -181,7 +186,7 @@ async function consultarFortniteDB(progreso) {
             await paso('🧭 FortniteDB: los intentos HTTP directos fallaron; iniciando comprobación de navegador normal como última alternativa.');
             try {
                 respuesta = await consultarFortniteDBConNavegador(progreso);
-                resultado.url = 'https://dev.fortnitedb.com/';
+                resultado.url = URL_FORTNITEDB_MISIONES_DEV;
                 await paso('✅ FortniteDB: el navegador pudo cargar la página pública; ahora se intentará extraer la tabla con el mismo parser.');
             } catch (errorNavegador) {
                 fallos.push('navegador Puppeteer: ' + (errorNavegador.message || String(errorNavegador)));
@@ -310,8 +315,8 @@ async function consultarSeeBot(progreso) {
     };
 
     try {
-        await paso('🔬 *SeeBot ETAPA 1 — CONEXIÓN:* GET ' + URL_SEEBOT + '; timeout 25 s; redirecciones máximas 5.');
-        const respuesta = await descargarPagina(URL_SEEBOT);
+        await paso('🔬 *SeeBot ETAPA 1 — CONEXIÓN:* GET ' + URL_SEEBOT + '; timeout 12 s; redirecciones máximas 5.');
+        const respuesta = await descargarPagina(URL_SEEBOT, 12000);
         resultado.http = respuesta.status;
         resultado.contentType = respuesta.headers?.['content-type'] || 'desconocido';
         resultado.responseUrl = respuesta.request?.res?.responseUrl || URL_SEEBOT;
