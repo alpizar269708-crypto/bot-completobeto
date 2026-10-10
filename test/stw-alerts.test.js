@@ -59,7 +59,9 @@ test('SeeBot #miniRwdTbl extrae zona, PL, misión, modificadores, rareza y requi
     assert.ok(legendaria);
     assert.equal(legendaria.recompensas[0].rareza, 'legendary');
     assert.equal(legendaria.recompensas[0].tipo, 'survivor');
-    assert.match(legendaria.recompensas[0].nombre, /Training Team Lead Survivor/);
+    assert.match(legendaria.recompensas[0].nombre, /Superviviente legendario/);
+    assert.match(legendaria.recompensas[0].nombre, /equipo de entrenamiento/i);
+    assert.doesNotMatch(legendaria.recompensas[0].nombre, /Training Team Lead Survivor/i);
 
     const pavos = misiones.find(m => m.misionOriginal === 'Retrieve the Data');
     assert.ok(pavos);
@@ -188,7 +190,7 @@ test('los textos de alerta de STW se traducen al español', () => {
 
 test('los comandos STW están registrados en el manejador', () => {
     const handler = fs.readFileSync(path.join(__dirname, '..', 'messageHandler.js'), 'utf8');
-    for (const comando of ['pavos', 'rpavos', 'destacadasstw', 'legendariasstw', 'epicasstw', 'alertasstw', 'stw', 'alerta', 'setgrupostw', 'unsetgrupostw']) {
+    for (const comando of ['pavos', 'rpavos', 'destacadasstw', 'legendariasstw', 'epicasstw', 'alertasstw', 'stw', 'alerta', 'alertanob', 'setgrupostw', 'unsetgrupostw']) {
         assert.ok(handler.includes("'" + comando + "'"), 'falta registrar ' + comando);
         assert.ok(handler.includes("case '" + comando + "'"), 'falta ejecutar ' + comando);
     }
@@ -225,4 +227,20 @@ test('V-Bucks Daily agrupa recompensas épicas y legendarias en una sola misión
         assert.match(lista[0].recompensa, /Perk-Up épico/);
         assert.match(lista[0].recompensa, /Perk-Up legendario/);
     }
+});
+
+test('una recompensa Perk-Up solo incrementa el conteo si su misión tiene ambas rarezas', () => {
+    const doble = {
+        zona: 'Twine Peaks', pl: 88, mision: 'Monta el rayo', misionOriginal: 'Ride the Lightning',
+        recompensas: [
+            { nombre: 'Perk-Up épico ×80', raw: 'Epic PERK-UP!', rareza: 'epic', tipo: 'perkup', cantidad: 80 },
+            { nombre: 'Perk-Up legendario ×80', raw: 'Legendary PERK-UP!', rareza: 'legendary', tipo: 'perkup', cantidad: 80 }
+        ]
+    };
+    const soloEpica = {
+        zona: 'Twine Peaks', pl: 70, mision: 'Recupera los datos', misionOriginal: 'Retrieve the Data',
+        recompensas: [{ nombre: 'Perk-Up épico ×80', raw: 'Epic PERK-UP!', rareza: 'epic', tipo: 'perkup', cantidad: 80 }]
+    };
+    assert.equal(seleccionarAlertasSTWPorRareza([doble, soloEpica], 'epic').length, 1);
+    assert.equal(seleccionarAlertasSTWPorRareza([doble, soloEpica], 'legendary').length, 1);
 });
