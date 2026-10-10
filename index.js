@@ -235,7 +235,7 @@ async function arrancarSocket(metodo, numeroTelefono, onCodeReady = null) {
 
     const originalSendMessage = sock.sendMessage;
     const normalizarSaltosMensaje = valor => typeof valor === 'string'
-        ? valor.replace(/\\n/g, '\n').replace(/\/n(?=\s|$)/g, '\n')
+        ? valor.replace(/\\n/g, '\n').replace(/\/n(?=\s|$|[A-ZÁÉÍÓÚÜ¿¡])/g, '\n')
         : valor;
     const limpiarContenidoMensaje = (valor, clave = '') => {
         if (typeof valor === 'string') {
