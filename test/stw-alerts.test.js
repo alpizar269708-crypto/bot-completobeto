@@ -4,7 +4,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const { parsearTablaSeeBotSTW, parsearJSONSeeBotSTW, parsearVBucksDailySTW, seleccionarAlertasSTWPorRareza, traducirNombreMisionSTW, traducirNombreObjetoSTW, traducirZonaSTW, traducirBiomaSTW, traducirModificadorSTW } = require('../webBridge');
+const { parsearTablaSeeBotSTW, parsearJSONSeeBotSTW, parsearVBucksDailySTW, seleccionarAlertasSTWPorRareza, deduplicarSTW, traducirNombreMisionSTW, traducirNombreObjetoSTW, traducirZonaSTW, traducirBiomaSTW, traducirModificadorSTW } = require('../webBridge');
 
 const htmlSeeBot = [
 '<table id="miniRwdTbl">',
@@ -253,4 +253,60 @@ test('Perk-Up épico/legendario de una misma misión no duplica filas y excluye 
         assert.match(lista[0].recompensa, /Perk-Up épico/);
         assert.match(lista[0].recompensa, /Perk-Up legendario/);
     }
+});
+
+
+test('las misiones repetidas entre fuentes se agrupan y conservan ambas recompensas', () => {
+    const lista = deduplicarSTW([
+        {
+            id: 'origen-a', zona: 'Twine Peaks', pl: 88, ubicacion: 'Thunder Route 99',
+            misionOriginal: 'Ride the Lightning', mision: 'Monta el rayo',
+            recompensas: [{ tipo: 'perkup', rareza: 'epic', raw: 'Epic PERK-UP!', nombre: 'Perk-Up épico ×80', cantidad: 80 }]
+        },
+        {
+            id: 'origen-b', zona: 'Twine Peaks', pl: 88, ubicacion: 'Thunder Route 99',
+            misionOriginal: 'Ride the Lightning', mision: 'Monta el rayo',
+            recompensas: [{ tipo: 'perkup', rareza: 'legendary', raw: 'Legendary PERK-UP!', nombre: 'Perk-Up legendario ×80', cantidad: 80 }]
+        }
+    ]);
+    assert.equal(lista.length, 1);
+    assert.equal(lista[0].recompensas.length, 2);
+});
+
+test('los comandos normales ocultan modificadores y requisitos, alertanob los muestra y nunca expone x4/x5', () => {
+    const { formatearAlertaSTW } = require('../comandos/fortnite');
+    const item = {
+        pl: 88, zona: 'Twine Peaks', misionOriginal: 'Ride the Lightning',
+        mision: 'Monta el rayo - Ruta Trueno 99',
+        multiplicadorRecompensa: 4, modificadores: ['Short Range', 'x4'],
+        questReqs: 'Complete one mission', recompensas: []
+    };
+    const normal = formatearAlertaSTW(item);
+    assert.doesNotMatch(normal, /Modificadores|Requisitos|x4|x5/i);
+    assert.match(normal, /Monta el rayo/);
+    const detallada = formatearAlertaSTW(item, '', true);
+    assert.match(detallada, /Modificadores/);
+    assert.match(detallada, /Requisitos/);
+    assert.doesNotMatch(detallada, /\\bx4\\b|\\bx5\\b|Recompensa x4|Recompensa x5/i);
+    const vacia = formatearAlertaSTW({ ...item, questReqs: 'None' }, '', true);
+    assert.doesNotMatch(vacia, /Requisitos/);
+});
+
+test('el nombre del superviviente no repite Survivor y queda traducido', () => {
+    const { formatearAlertaSTW } = require('../comandos/fortnite');
+    const texto = formatearAlertaSTW({
+        pl: 88, zona: 'Twine Peaks',
+        misionOriginal: 'Ride the Lightning', mision: 'Monta el rayo',
+        recompensas: [{
+            tipo: 'survivor', rareza: 'legendary',
+            raw: 'Scouting Party Lead Survivor',
+            nombre: 'Scouting Party Lead Survivor'
+        }]
+    });
+    assert.match(texto, /Líder del equipo de exploración/);
+    assert.doesNotMatch(texto, /\\bSurvivor\\b/i);
+});
+
+test('los títulos de misiones desconocidos no se envían en inglés', () => {
+    assert.equal(traducirNombreMisionSTW('Unknown Future Mission'), 'Misión de alerta');
 });
