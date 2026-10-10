@@ -49,8 +49,8 @@ test('SeeBot #miniRwdTbl extrae zona, PL, misión, modificadores, rareza y requi
     assert.match(epica.recompensas[0].nombre, /Deadly Blade Crash/);
     assert.equal(epica.modificadores.length, 5);
     assert.ok(epica.modificadores.includes('Short Range'));
-    assert.ok(epica.modificadores.includes('Fire Storm'));
-    assert.ok(epica.modificadores.includes('Acid Pools'));
+    assert.ok(epica.modificadores.includes('Tormenta de fuego'));
+    assert.ok(epica.modificadores.includes('Charcos de ácido'));
 
     const legendaria = misiones.find(m => m.misionOriginal === 'Resupply');
     assert.ok(legendaria);
