@@ -693,13 +693,31 @@ async function consultarFuenteAlternativaPavos(fuente) {
         if (/just a moment|checking your browser|verify you are human/i.test(html.slice(0, 5000))) {
             throw new Error('la página respondió con una pantalla anti-bot');
         }
+        if (fuente.nombre === 'PennyDB') {
+            const $debug = cheerio.load(html);
+            const textoPlano = limpiar($debug('body').text() || html.replace(/<[^>]*>/g, ' '));
+            const voucherIndex = textoPlano.toLowerCase().indexOf('v-bucks voucher');
+            const alertIndex = textoPlano.toLowerCase().indexOf('alert rewards');
+            const index = voucherIndex >= 0 ? voucherIndex : alertIndex;
+            resultado.diagnosticoHTML = {
+                titulo: limpiar($debug('title').first().text()) || '(sin title)',
+                urlFinal: respuesta.request?.res?.responseUrl || fuente.url,
+                caracteresHTML: html.length,
+                encabezadosAlertRewards: $debug('h3.mission-label').filter((_, el) => /alert rewards/i.test(limpiar($debug(el).text()))).length,
+                mencionaVoucher: /v-bucks voucher/i.test(html),
+                mencionaAlertRewards: /alert rewards/i.test(html),
+                fragmento: index >= 0 ? textoPlano.slice(Math.max(0, index - 100), index + 260) : textoPlano.slice(0, 260)
+            };
+        }
         resultado.alertas = extraerAlertasFuenteAlternativa(html, fuente.nombre);
         if (!resultado.alertas.length) {
             const d = resultado.alertas.diagnosticoPennyDB;
             if (fuente.nombre === 'PennyDB' && d) {
-                if (!d.filasRecompensa) throw new Error('PennyDB DIAGNOSTICO: HTTP ' + resultado.http + ', HTML=' + html.length + ' caracteres; no apareció V-Bucks Voucher dentro de Alert rewards. Revisar si el HTML recibido es la página real o una respuesta distinta.');
-                if (!d.filasConCantidad) throw new Error('PennyDB DIAGNOSTICO: detecté ' + d.filasRecompensa + ' fila(s) V-Bucks Voucher, pero no pude extraer cantidad numérica de .mission-figure.');
-                throw new Error('PennyDB DIAGNOSTICO: detecté ' + d.filasConCantidad + ' recompensa(s) V-Bucks con cantidad, pero ' + d.filasSinContexto + ' no se pudieron asociar a zona y PL. La recompensa sí está en el HTML; falta ubicar el contenedor de misión.');
+                const h = resultado.diagnosticoHTML || {};
+                const resumen = ' | HTTP=' + resultado.http + ' | URL=' + (h.urlFinal || fuente.url) + ' | título=' + (h.titulo || '(desconocido)') + ' | HTML=' + (h.caracteresHTML || html.length) + ' caracteres | encabezados Alert rewards=' + (h.encabezadosAlertRewards ?? '?') + ' | contiene Voucher=' + (h.mencionaVoucher ? 'sí' : 'no') + ' | contiene Alert rewards=' + (h.mencionaAlertRewards ? 'sí' : 'no') + ' | fragmento=' + (h.fragmento || '(vacío)');
+                if (!d.filasRecompensa) throw new Error('PennyDB: el selector no encontró filas V-Bucks dentro de Alert rewards.' + resumen);
+                if (!d.filasConCantidad) throw new Error('PennyDB: encontró ' + d.filasRecompensa + ' fila(s) Voucher, pero no leyó una cantidad válida de .mission-figure.' + resumen);
+                throw new Error('PennyDB: encontró ' + d.filasConCantidad + ' recompensa(s) con cantidad, pero no pudo asociar zona y PL (' + d.filasSinContexto + ' fila(s) sin contexto).' + resumen);
             }
             throw new Error('la página respondió, pero el parser no encontró filas V-Bucks verificables en el HTML recibido');
         }
