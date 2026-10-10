@@ -92,10 +92,14 @@ function traducirBiomaSTW(bioma) {
     if (!limpio) return '';
     const mapa = {
         'autumn industrial park': 'Parque industrial otoñal',
+        'the parque industrial': 'Parque industrial',
+        'parque industrial': 'Parque industrial',
         'the industrial park': 'Parque industrial',
         'industrial park': 'Parque industrial',
         'the swamps': 'Pantanos',
+        'the swamp': 'Pantanos',
         'swamps': 'Pantanos',
+        'swamp': 'Pantanos',
         'haunted forest': 'Bosque embrujado',
         'haunted woods': 'Bosque embrujado',
         'haunted bosque': 'Bosque embrujado',
@@ -242,7 +246,7 @@ function traducirNombreObjetoSTW(nombre, tipo = 'other') {
     for (const [patron, traducido] of traducciones) {
         if (patron.test(limpio)) return traducido;
     }
-    return limpio
+    const resultado = limpio
         .replace(/\bScouting Party Lead\b/gi, 'Líder del equipo de exploración')
         .replace(/\bTraining Team Lead\b/gi, 'Líder del equipo de entrenamiento')
         .replace(/\bEMT Squad Lead\b/gi, 'Líder del equipo médico')
@@ -258,6 +262,18 @@ function traducirNombreObjetoSTW(nombre, tipo = 'other') {
         .replace(/\bSchematic\b/gi, '')
         .replace(/\s+/g, ' ')
         .trim();
+    // Nunca dejar pasar al mensaje un nombre que siga en inglés sin traducir.
+    if (/\b(?:the|lead|team|assault|shotgun|survivor|defender|hero|schematic|squad|party|scouting|training|fire|weapon|damage|trap|durability|critical|rating|rain|lightning|storm|shard|pure|drop|eye|bottle|manual|swamps?|forest|park|haunted|city|suburbs?|desert|grasslands|route|town|ghost|industrial|plankerton|stonewood|twine peaks|canny valley)\b/i.test(resultado)) {
+        return ({
+            survivor: 'Superviviente',
+            defender: 'Defensor',
+            hero: 'Héroe',
+            schematic: 'Esquema',
+            perkup: 'Perk-Up',
+            vbucks: 'PaVos'
+        })[tipoFinal] || 'Recompensa de misión';
+    }
+    return resultado || 'Recompensa de misión';
 }
 
 function normalizarRecompensaSTW(nombre, rareza, tipo) {
