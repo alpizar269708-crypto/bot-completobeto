@@ -104,6 +104,18 @@ async function obtenerAlertasSTW(actualizarEnVivo = true, progreso = null, opcio
         }
     }
 
+    // Una consulta en vivo fallida no debe reciclar alertas antiguas como si fueran actuales.
+    if (actualizarEnVivo && !raspadoCorrecto) {
+        return {
+            pavos: [],
+            epicas: [],
+            legendarias: [],
+            plAltas: [],
+            errorActualizacion: true,
+            fuentes: fuentes || { principal: [], secundaria: [], tercera: [] }
+        };
+    }
+
     const [scrapePavos, scrapeEpicas, scrapeLegendarias, scrapePlAltas] = await Promise.all([
         leerConfigJSON('stw_pavos_scrapeados'),
         leerConfigJSON('stw_epicas_scrapeadas'),
@@ -435,7 +447,7 @@ async function comandoPreguntarAlerta(sock, chatId, msg, palabrasClave = [], pro
     }
 
     await informar('🔎 Iniciando búsqueda de alertas.');
-    const datos = await obtenerAlertasSTW(true, informar);
+    const datos = await obtenerAlertasSTW(true, informar, mostrarDetalles ? { exhaustivo: true } : {});
     await informar('🔎 Datos de alertas cargados; buscando coincidencias.');
     const hayDatosDisponibles = datos.pavos.length + datos.epicas.length + datos.legendarias.length + (datos.plAltas || []).length > 0;
     if (datos.errorActualizacion && !hayDatosDisponibles) {
@@ -625,17 +637,25 @@ async function enviarAlertaPavosAutomatica(sock, actualizarEnVivo = false, horaA
             }
         }
 
-        if (!seleccionadas.length && horaAlerta === '6:05 PM') {
-            // Si ninguna de las tres fuentes detectó un cambio, no mezclar
-            // ni presentar como nueva una alerta de respaldo. Se conserva
-            // como máximo la primera alerta útil de la fuente principal.
-            const primeraPrincipal = combinarAlertasDiarias(fuentes.principal || [])
-                .sort((a, b) => Number(b.pl || 0) - Number(a.pl || 0))[0];
-            if (primeraPrincipal) seleccionadas = [primeraPrincipal];
-        }
         if (!seleccionadas.length) {
-            console.log('🔎 Alertas diarias: sin cambios nuevos; se intentará de nuevo en el siguiente horario.');
-            return false;
+            if (horaAlerta !== '6:05 PM') {
+                console.log('Alertas diarias: no se detectaron alertas nuevas; se revisará en el siguiente horario.');
+                return false;
+            }
+            // Último intento del día: avisar que no hay alertas actuales, nunca
+            // reciclar la lista anterior ni mostrarla como si fuera nueva.
+            const mensajeSinAlertas = '😔 No hay alertas de PaVos disponibles en este momento.';
+            let avisoEnviado = false;
+            for (const grupo of grupos) {
+                try {
+                    await sock.sendMessage(grupo, { text: mensajeSinAlertas });
+                    avisoEnviado = true;
+                } catch (e) {
+                    console.error('Error enviando aviso de alertas vacías:', e.message);
+                }
+            }
+            if (avisoEnviado) await guardarAlertaPavosEnviada(fechaCDMX(), horaAlerta, firmasPorFuenteAlertaDiaria(fuentes));
+            return avisoEnviado;
         }
 
         seleccionadas = combinarAlertasDiarias(seleccionadas)
