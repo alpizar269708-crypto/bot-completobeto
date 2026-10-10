@@ -28,7 +28,7 @@ const { comandoCarry } = require('./comandos/carry');
 const { comandoPaypal, comandoCalculadoraPaypal } = require('./comandos/paypal');
 
 const categoriasMap = {
-    'fortnite': ['pavos', 'rpavos', 'destacadasstw', 'legendariasstw', 'epicasstw', 'alertasstw', 'stw', 'alerta', 'setgrupostw', 'unsetgrupostw', 'setprecio'],
+    'fortnite': ['pavos', 'rpavos', 'destacadasstw', 'legendariasstw', 'epicasstw', 'alertasstw', 'stw', 'alerta', 'alertanob', 'setgrupostw', 'unsetgrupostw', 'setprecio'],
     'economia': ['cartera', 'bal', 'banco', 'pay', 'pagar', 'top', 'topdinero', 'daily', 'weekly', 'farmear', 'work', 'crime', 'mendigar', 'pescar', 'minar', 'cazar', 'explorar', 'ruleta', 'cf', 'slots', 'dados', 'adivina', 'buscaminas', 'rob', 'ppt', 'pelea', 'carrera', 'hackear', 'shop', 'buy', 'inventario', 'mochila', 'vender', 'use', 'regalar'],
     'utilidades': ['s', 'sticker', 'recup1vez', 'tiktok', 'instagram', 'traduce', 'skin', 'stats', 'tiendastats', 'tiendavb', 'contacto', 'ping'],
     'paypal': ['paypal', 'paypaln', 'paypali'],
@@ -57,7 +57,7 @@ const comandosConUsuarioBD = new Set([
 ]);
 
 const comandosValidos = new Set([
-        'desactivarcomandos', 'catdesa', 'setprecio', 'ping', 'pavos', 'rpavos', 'destacadasstw', 'legendariasstw', 'epicasstw', 'alertasstw', 'stw', 'alerta', 
+        'desactivarcomandos', 'catdesa', 'setprecio', 'ping', 'pavos', 'rpavos', 'destacadasstw', 'legendariasstw', 'epicasstw', 'alertasstw', 'stw', 'alerta', 'alertanob', 
         'setgrupostw', 'unsetgrupostw', 'grupo', 'mute', 'unmute', 'inactivos', 'tienda', 'tiendastats', 'tiendavb', 'ia', 'menu', 'menusecreto',
         's', 'sticker', 'recup1vez', 'tiktok', 'instagram', 'traduce', 'skin', 'stats', 'contacto',
         'warn', 'advertir', 'verwarns', 'limpiarwarns', 'ban', 'unban', 'listanegra', 'banlist', 'unbanlist', 
@@ -359,7 +359,8 @@ Apoya a un creador: JASC13` });
             ['epicasstw', 'Muestra alertas de misiones con recompensas épicas.'],
             ['legendariasstw', 'Muestra alertas de misiones con recompensas legendarias.'],
             ['alertasstw', 'Muestra el resumen general de alertas de Salvar el Mundo.'],
-            ['alerta', 'Busca una recompensa concreta por nombre.'],
+            ['alerta', 'Busca alertas por nombre sin mostrar modificadores ni requisitos.'],
+            ['alertanob', 'Alerta para novatos: busca una misión y muestra sus recompensas, modificadores y requisitos útiles.'],
             ['grupo', 'Abre o cierra el chat del grupo.'],
             ['mute', 'Silencia a un usuario del grupo.'],
             ['unmute', 'Quita el silencio a un usuario.'],
@@ -604,7 +605,10 @@ Apoya a un creador: JASC13` });
                 await alertasSTW(sock, chatJid, msg, 'todas');
                 break;
             case 'alerta':
-                await comandoPreguntarAlerta(sock, chatJid, msg, args);
+                await comandoPreguntarAlerta(sock, chatJid, msg, args, null, false);
+                break;
+            case 'alertanob':
+                await comandoPreguntarAlerta(sock, chatJid, msg, args, null, true);
                 break;
             case 'setgrupostw':
                 await activarAlertasDiarias(sock, chatJid, msg);
