@@ -399,7 +399,19 @@ async function enviarAlertaPavosAutomatica(sock, actualizarEnVivo = false, horaA
         let mensajeAuto = `🎮 *ALERTAS DE PAVOS — ${horaAlerta}*\n\n`;
 
         datos.pavos.forEach(p => {
-            mensajeAuto += `⚡ *PL:* ${p.pl}\n🎯 *Misión:* ${p.mision}\n🪙 *PaVos:* ${p.cantidad || 50}\n\n`;
+            const cantidad = Number(p.cantidad || p.cantidadVbucks || 50);
+            mensajeAuto += '🌍 *Zona:* ' + (p.zona || 'Desconocida') + '\n';
+            mensajeAuto += '⚡ *PL:* ' + (p.pl ?? '?') + '\n';
+            mensajeAuto += '🎯 *Misión:* ' + (p.mision || p.misionOriginal || 'Alerta de PaVos') + '\n';
+            mensajeAuto += '🪙 *PaVos:* ' + cantidad + '\n';
+            if (Array.isArray(p.modificadores) && p.modificadores.length) {
+                mensajeAuto += '🧩 *Modificadores:* ' + p.modificadores.join(', ') + '\n';
+            }
+            const requisitos = p.requisitos || p.questReqs;
+            if (requisitos) {
+                mensajeAuto += '📜 *Requisitos:* ' + (/^none$/i.test(String(requisitos)) ? 'Ninguno' : requisitos) + '\n';
+            }
+            mensajeAuto += '\n';
         });
 
         mensajeAuto += `💰 *Total del día:* ${total} paVos\n\n`;
