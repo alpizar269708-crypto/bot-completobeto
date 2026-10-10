@@ -156,11 +156,17 @@ function traducirBiomaSTW(bioma) {
         .replace(/\bthe portal\b/gi, 'El Portal')
         .replace(/\bthe crater\b/gi, 'El Cráter');
     limpio = limpio.replace(/\s+/g, ' ').replace(/\(\s*\)/g, '').trim();
-    // Si el nombre del bioma no está en el diccionario, no dejar que el
-    // nombre original en inglés termine en WhatsApp.
-    if (/\b(?:the|swamps?|haunted|forest|city|town|park|suburbs?|autumn|grasslands|desert|lakeside|tropical|bunkers?|portal|crater|route|ghost|arid)\b/i.test(limpio)) {
-        return 'Zona de misión';
-    }
+    // Si no se reconoce el nombre, usar una etiqueta en español en lugar
+    // de enviar un bioma en inglés o una mezcla de ambos idiomas.
+    const biomasEspanol = new Set([
+        ...Object.values(mapa),
+        'Bosque embrujado', 'Parque industrial', 'Pantanos', 'Pueblo fantasma',
+        'Ciudad', 'Suburbios', 'Desierto', 'Praderas', 'Ribera del lago',
+        'Ruta Trueno 99', 'Suburbios otoñales', 'Ciudad otoñal',
+        'Colinas otoñales', 'Zona de misión', 'Tropical', 'Búnkeres',
+        'Búnker', 'El Portal', 'El Cráter'
+    ].filter(Boolean).map(valor => String(valor).toLowerCase()));
+    if (!biomasEspanol.has(limpio.toLowerCase())) return 'Zona de misión';
     return limpio;
 }
 
@@ -263,7 +269,8 @@ function traducirNombreObjetoSTW(nombre, tipo = 'other') {
         .replace(/\s+/g, ' ')
         .trim();
     // Nunca dejar pasar al mensaje un nombre que siga en inglés sin traducir.
-    if (/\b(?:the|lead|team|assault|shotgun|survivor|defender|hero|schematic|squad|party|scouting|training|fire|weapon|damage|trap|durability|critical|rating|rain|lightning|storm|shard|pure|drop|eye|bottle|manual|swamps?|forest|park|haunted|city|suburbs?|desert|grasslands|route|town|ghost|industrial|plankerton|stonewood|twine peaks|canny valley)\b/i.test(resultado)) {
+    if ((resultado === limpio && !/[áéíóúñ]/i.test(resultado)) ||
+        /\b(?:unknown|future|mission|alert|the|lead|team|assault|shotgun|survivor|defender|hero|schematic|squad|party|scouting|training|fire|weapon|damage|trap|durability|critical|rating|rain|lightning|storm|shard|pure|drop|eye|bottle|manual|swamps?|forest|park|haunted|city|suburbs?|desert|grasslands|route|town|ghost|industrial|plankerton|stonewood|twine peaks|canny valley)\b/i.test(resultado)) {
         return ({
             survivor: 'Superviviente',
             defender: 'Defensor',
