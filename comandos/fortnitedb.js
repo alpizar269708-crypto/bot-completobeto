@@ -1,8 +1,10 @@
 const axios = require('axios');
 const cheerio = require('cheerio');
+const { Config } = require('../database/modelos');
 
 const URL_FORTNITEDB = 'https://fortnitedb.com/index.php';
 const URL_FORTNITEDB_RESPALDO = 'https://cdn.fortnitedb.com/index.php';
+const URL_FORTNITEDB_ALTERNATIVA = 'https://fortnitedb.com/';
 const URL_SEEBOT = 'https://seebot.dev/missions.php';
 
 const ZONAS = {
@@ -98,14 +100,28 @@ async function consultarFortniteDB(progreso) {
     try {
         await paso('🌐 *FortniteDB 1/4:* conectando con https://fortnitedb.com/');
         let respuesta;
-        try {
-            respuesta = await descargarPagina(URL_FORTNITEDB);
-        } catch (errorPrimario) {
-            const status = errorPrimario.response?.status;
-            if (status !== 403 && status !== 429) throw errorPrimario;
-            await paso('⚠️ FortniteDB rechazó la URL principal (HTTP ' + status + '); probando el espejo oficial CDN: ' + URL_FORTNITEDB_RESPALDO);
-            respuesta = await descargarPagina(URL_FORTNITEDB_RESPALDO);
-            resultado.url = URL_FORTNITEDB_RESPALDO;
+        const intentos = [
+            { url: URL_FORTNITEDB, nombre: 'página principal' },
+            { url: URL_FORTNITEDB_RESPALDO, nombre: 'espejo CDN' },
+            { url: URL_FORTNITEDB_ALTERNATIVA, nombre: 'ruta raíz' }
+        ];
+        const fallos = [];
+        for (const intento of intentos) {
+            try {
+                await paso('🔌 FortniteDB: probando ' + intento.nombre + ' (' + intento.url + ').');
+                respuesta = await descargarPagina(intento.url);
+                resultado.url = intento.url;
+                break;
+            } catch (errorIntento) {
+                const status = errorIntento.response?.status;
+                const detalle = status ? 'HTTP ' + status : (errorIntento.code || errorIntento.message || 'error desconocido');
+                fallos.push(intento.nombre + ': ' + detalle);
+                await paso('⚠️ FortniteDB: falló ' + intento.nombre + ' — ' + detalle + '.');
+            }
+        }
+        if (!respuesta) {
+            throw new Error('No se pudo descargar ninguna ruta de FortniteDB. Detalles: ' + fallos.join(' | ') +
+                '. Un HTTP 403 significa que el servidor/CDN bloqueó la petición; cambiar el parser no lo soluciona.');
         }
         resultado.http = respuesta.status;
         await paso('📥 *FortniteDB 2/4:* respuesta HTTP ' + respuesta.status + '; recibí ' + String(respuesta.data || '').length + ' caracteres.');
@@ -151,23 +167,55 @@ async function consultarFortniteDB(progreso) {
 }
 
 function extraerDatosSeeBot(html) {
-    const inicioLlamada = html.indexOf('makeHtml([');
+    const patrones = [
+        /makeHtml\\s*\\(/i,
+        /makeHtml\\s*\\(\\s*(\\[)/i
+    ];
+    let inicioLlamada = -1;
+    for (const patron of patrones) {
+        const coincidencia = patron.exec(html);
+        if (coincidencia) { inicioLlamada = coincidencia.index; break; }
+    }
     if (inicioLlamada < 0) {
-        throw new Error('La página cargó, pero no encontré el bloque makeHtml([...]) con los datos de misiones.');
+        const pistas = [];
+        if (/cloudflare|checking your browser|just a moment/i.test(html)) pistas.push('parece una página de protección anti-bots');
+        if (/application\\/json|__NEXT_DATA__|mission|alertRewards/i.test(html)) pistas.push('hay indicios de datos alternativos incrustados');
+        throw new Error('No encontré makeHtml(...) en SeeBot.dev' +
+            (pistas.length ? ' (' + pistas.join('; ') + ')' : '') +
+            '. HTML recibido: ' + String(html || '').length + ' caracteres.');
     }
 
-    const inicioJson = inicioLlamada + 'makeHtml('.length;
+    const inicioJson = html.indexOf('[', inicioLlamada);
     const cierreScript = html.indexOf('</script>', inicioJson);
-    const finLlamada = html.indexOf(');', inicioJson);
-    if (finLlamada < 0 || (cierreScript >= 0 && finLlamada > cierreScript)) {
-        throw new Error('Encontré makeHtml, pero no el cierre del bloque de datos antes de terminar el script.');
+    if (inicioJson < 0 || (cierreScript >= 0 && inicioJson > cierreScript)) {
+        throw new Error('Se encontró makeHtml, pero no comienza un arreglo JSON dentro del script.');
     }
+
+    // Encuentra el cierre real del arreglo, respetando corchetes dentro de strings.
+    let profundidad = 0, enString = false, escape = false, finJson = -1;
+    for (let i = inicioJson; i < html.length; i++) {
+        if (cierreScript >= 0 && i >= cierreScript) break;
+        const ch = html[i];
+        if (enString) {
+            if (escape) escape = false;
+            else if (ch === '\\\\') escape = true;
+            else if (ch === '"') enString = false;
+            continue;
+        }
+        if (ch === '"') { enString = true; continue; }
+        if (ch === '[') profundidad++;
+        if (ch === ']') {
+            profundidad--;
+            if (profundidad === 0) { finJson = i + 1; break; }
+        }
+    }
+    if (finJson < 0) throw new Error('El arreglo de misiones de SeeBot está incompleto o cambió de formato.');
 
     let misiones;
     try {
-        misiones = JSON.parse(html.slice(inicioJson, finLlamada).trim());
+        misiones = JSON.parse(html.slice(inicioJson, finJson));
     } catch (error) {
-        throw new Error('Encontré el bloque de misiones, pero el JSON no se pudo interpretar: ' + error.message);
+        throw new Error('Encontré el arreglo de misiones, pero el JSON no se pudo interpretar: ' + error.message);
     }
     if (!Array.isArray(misiones)) throw new Error('El bloque de SeeBot no contiene una lista de misiones.');
     return misiones;
@@ -221,6 +269,66 @@ async function consultarSeeBot(progreso) {
     return resultado;
 }
 
+async function diagnosticarMenuFortnite(progreso) {
+    const resultado = { fuente: 'Menú Fortnite / STW Planner', ok: true, pruebas: [], errores: [] };
+    const paso = async (texto) => { resultado.pruebas.push(texto); await reportar(progreso, texto); };
+    const claves = [
+        { clave: 'stw_pavos_scrapeados', nombre: 'pavos', comando: 'pavos' },
+        { clave: 'stw_epicas_scrapeadas', nombre: 'épicas', comando: 'epicasstw' },
+        { clave: 'stw_legendarias_scrapeadas', nombre: 'legendarias', comando: 'legendariasstw' },
+        { clave: 'stw_plaltas_scrapeadas', nombre: 'PL altas/destacadas', comando: 'destacadasstw' }
+    ];
+    const comandos = ['pavos', 'destacadasstw', 'epicasstw', 'legendariasstw', 'alertasstw', 'alerta', 'setgrupostw', 'unsetgrupostw'];
+    await paso('🧭 *Menú Fortnite:* comprobando los datos guardados y la cobertura de comandos.');
+    for (const item of claves) {
+        try {
+            const doc = await Config.findOne({ clave: item.clave }).lean();
+            if (!doc?.valor) {
+                resultado.ok = false;
+                resultado.errores.push(item.nombre + ': no existe caché (' + item.clave + ').');
+                await paso('❌ ' + item.nombre + ': falta el registro ' + item.clave + '.');
+                continue;
+            }
+            const datos = JSON.parse(doc.valor);
+            if (!Array.isArray(datos)) throw new Error('el contenido guardado no es una lista');
+            const conDatos = datos.length > 0;
+            await paso((conDatos ? '✅ ' : '⚠️ ') + item.nombre + ': JSON válido, ' + datos.length + ' registros' + (conDatos ? '.' : ' (lista vacía).'));
+            if (!conDatos) {
+                resultado.ok = false;
+                resultado.errores.push(item.nombre + ': caché vacía.');
+            }
+        } catch (error) {
+            resultado.ok = false;
+            resultado.errores.push(item.nombre + ': ' + error.message);
+            await paso('❌ ' + item.nombre + ': error leyendo o validando datos — ' + error.message + '.');
+        }
+    }
+    // Compara los comandos del menú con los comandos reconocidos por el manejador.
+    try {
+        const fs = require('fs');
+        const path = require('path');
+        const handler = fs.readFileSync(path.join(__dirname, '..', 'messageHandler.js'), 'utf8');
+        const menu = fs.readFileSync(path.join(__dirname, 'menu.js'), 'utf8');
+        for (const comando of comandos) {
+            const registrado = new RegExp("['\\\"]" + comando + "['\\\"]").test(handler);
+            const anunciado = menu.includes(comando);
+            const correcto = registrado && anunciado;
+            await paso((correcto ? '✅ ' : '❌ ') + 'Comando ' + comando + ': ' +
+                (registrado ? 'registrado en el manejador' : 'NO aparece registrado') + '; ' +
+                (anunciado ? 'mencionado en el menú' : 'NO aparece en el texto del menú') + '.');
+            if (!correcto) {
+                resultado.ok = false;
+                resultado.errores.push('Comando ' + comando + ': discrepancia entre menú y manejador.');
+            }
+        }
+    } catch (error) {
+        resultado.ok = false;
+        resultado.errores.push('No se pudieron revisar los archivos del menú: ' + error.message);
+        await paso('❌ No se pudieron revisar los archivos del menú: ' + error.message + '.');
+    }
+    return resultado;
+}
+
 function formatearFuente(resultado) {
     const lineas = [
         (resultado.ok ? '✅' : '❌') + ' *' + resultado.fuente + '*',
@@ -243,8 +351,11 @@ async function comandoRPavos(sock, chatId, msg) {
 
     await progreso('🚦 Inicio del diagnóstico. Consultaré ambas páginas de forma independiente; si una falla, continuaré con la otra.');
 
-    const fortniteDB = await consultarFortniteDB(progreso);
-    const seeBot = await consultarSeeBot(progreso);
+    const [fortniteDB, seeBot, menuFortnite] = await Promise.all([
+        consultarFortniteDB(progreso),
+        consultarSeeBot(progreso),
+        diagnosticarMenuFortnite(progreso)
+    ]);
 
     const lineas = [
         '🧪 *RESULTADO FINAL DEL DIAGNÓSTICO RPAVOS*',
@@ -252,6 +363,10 @@ async function comandoRPavos(sock, chatId, msg) {
         formatearFuente(fortniteDB),
         '',
         formatearFuente(seeBot),
+        '',
+        (menuFortnite.ok ? '✅' : '⚠️') + ' *MENÚ FORTNITE / STW PLANNER*',
+        ...menuFortnite.pruebas,
+        ...(menuFortnite.errores.length ? ['', '*Problemas detectados:*', ...menuFortnite.errores.map(e => '• ' + e)] : []),
         '',
         '⏱️ Tiempo total: ' + ((Date.now() - inicio) / 1000).toFixed(1) + ' s',
         '',
@@ -272,6 +387,7 @@ module.exports = {
     consultarFortniteDB,
     consultarSeeBot,
     extraerDatosSeeBot,
+    diagnosticarMenuFortnite,
     obtenerAlertasFortniteDB: async () => consultarFortniteDB(),
     comandoRPavos
 };
