@@ -1073,7 +1073,7 @@ async function comandoPavosOficial(sock, chatId, msg) {
         lineas.push('💰 *Total del día:* ' + total + ' PaVos');
     }
 
-    lineas.push('', 'Support-a-Creator: *JASC13* ❤️');
+    lineas.push('', 'Apoya a un creador: *JASC13* ❤️');
     await sock.sendMessage(chatId, { text: lineas.join('\n') }, { quoted: msg });
 }
 
