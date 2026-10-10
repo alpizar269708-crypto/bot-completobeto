@@ -365,8 +365,8 @@ async function consultarSeeBot(progreso) {
     };
 
     try {
-        await paso('🔬 *SeeBot ETAPA 1 — CONEXIÓN:* GET ' + URL_SEEBOT + '; timeout 12 s; redirecciones máximas 5.');
-        const respuesta = await descargarPagina(URL_SEEBOT, 12000);
+        await paso('🔬 *SeeBot ETAPA 1 — CONEXIÓN:* GET ' + URL_SEEBOT + '; timeout 25 s; redirecciones máximas 5.');
+        const respuesta = await descargarPagina(URL_SEEBOT, 25000);
         resultado.http = respuesta.status;
         resultado.contentType = respuesta.headers?.['content-type'] || 'desconocido';
         resultado.responseUrl = respuesta.request?.res?.responseUrl || URL_SEEBOT;
@@ -708,7 +708,7 @@ function extraerAlertasFuenteAlternativa(html, nombreFuente) {
 async function consultarFuenteAlternativaPavos(fuente) {
     const resultado = { fuente: fuente.nombre, url: fuente.url, ok: false, alertas: [], totalPavos: 0, error: null };
     try {
-        const respuesta = await descargarPagina(fuente.url, 10000);
+        const respuesta = await descargarPagina(fuente.url, fuente.nombre === 'V-Bucks Daily' ? 25000 : 15000);
         resultado.http = respuesta.status;
         const html = String(respuesta.data || '');
         if (/just a moment|checking your browser|verify you are human/i.test(html.slice(0, 5000))) {
