@@ -751,7 +751,7 @@ async function consultarPennyDBConNavegador() {
         const status = response ? response.status() : 0;
         await page.waitForFunction(() => {
             const html = document.documentElement?.innerHTML || '';
-            return /v-bucks\\s+voucher/i.test(html) ||
+            return /v-bucks\s+voucher/i.test(html) ||
                 Boolean(document.querySelector('.mission-brief .mission-bay'));
         }, { timeout: 12000 }).catch(() => {});
         const html = await page.content();
