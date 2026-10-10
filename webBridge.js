@@ -400,6 +400,132 @@ function deduplicarSTW(lista) {
     return Array.from(mapa.values());
 }
 
+
+function parsearTablaSeeBotSTW(html) {
+    const $ = cheerio.load(String(html || ''));
+    const filas = [];
+    $('#miniRwdTbl tr.missionRow').each((_, row) => {
+        const td = $(row).children('td');
+        if (td.length < 6) return;
+        const zona = limpiarTextoSTW($(td[0]).text());
+        const pl = Number(limpiarTextoSTW($(td[1]).text()));
+        const imgMision = $(td[2]).find('img').first();
+        const misionOriginal = limpiarTextoSTW(imgMision.attr('title') || imgMision.attr('alt') || $(td[2]).text());
+        if (!zona || !Number.isInteger(pl) || pl < 1 || pl > 160 || !misionOriginal) return;
+
+        const modificadores = [];
+        $(td[3]).find('img').each((__, img) => {
+            const tituloCompleto = limpiarTextoSTW($(img).attr('title') || $(img).attr('alt') || '');
+            const titulo = tituloCompleto.split(':')[0].trim();
+            if (!titulo) return;
+            const traducido = traducirModificadorSTW(titulo);
+            if (!modificadores.includes(traducido)) modificadores.push(traducido);
+        });
+
+        const recompensas = [];
+        let vbucks = false;
+        let cantidadVbucks = 50;
+        $(td[4]).find('span').each((__, span) => {
+            const s = $(span);
+            const clases = String(s.attr('class') || '').toLowerCase();
+            const texto = limpiarTextoSTW(s.text()).replace(/[,;]+$/g, '').trim();
+            if (!texto) return;
+
+            if (/v-bucks|v\s*bucks|v-bucks or x-ray|v-bucks or x ray/i.test(texto)) {
+                vbucks = true;
+                const cantidad = texto.match(/\bx\s*(\d{1,4})\b/i) || texto.match(/\b(\d{1,4})\s*x?\s*(?:v-?bucks|v\s*bucks)\b/i);
+                cantidadVbucks = cantidad ? Number(cantidad[1]) : 50;
+                recompensas.push({
+                    nombre: '🪙 ' + cantidadVbucks + ' PaVos',
+                    raw: texto,
+                    rareza: null,
+                    tipo: 'vbucks',
+                    cantidad: cantidadVbucks,
+                    iconClasses: 'currency_mtxswap'
+                });
+                return;
+            }
+
+            const img = s.find('img').first();
+            const iconUrl = String(img.attr('src') || '').toLowerCase();
+            const tituloImagen = limpiarTextoSTW(img.attr('title') || img.attr('alt') || '');
+            const nombreConRareza = tituloImagen || texto;
+            const rarezaEnNombre = nombreConRareza.match(/\((Mythic|Legendary|Epic|Rare|Uncommon|Common)\)\s*$/i);
+            const rareza = /(^|\s)mythic(\s|$)/.test(clases) ? 'mythic'
+                : /(^|\s)legendary(\s|$)/.test(clases) ? 'legendary'
+                : /(^|\s)epic(\s|$)/.test(clases) ? 'epic'
+                : /(^|\s)rare(\s|$)/.test(clases) ? 'rare'
+                : /(^|\s)uncommon(\s|$)/.test(clases) ? 'uncommon'
+                : /(^|\s)common(\s|$)/.test(clases) ? 'common'
+                : (rarezaEnNombre ? rarezaEnNombre[1].toLowerCase() : null);
+            const rawName = nombreConRareza.replace(/\s*\((Mythic|Legendary|Epic|Rare|Uncommon|Common)\)\s*$/i, '').replace(/[,;]+$/g, '').trim();
+            const tipo = /\/heroes\//.test(iconUrl) ? 'hero'
+                : /\/workers\//.test(iconUrl) ? 'survivor'
+                : /\/defenders\//.test(iconUrl) ? 'defender'
+                : /\/schematics\//.test(iconUrl) ? 'schematic'
+                : 'other';
+            const nombre = tipo === 'other'
+                ? (rareza === 'legendary' ? '🟠 ' : rareza === 'epic' ? '🟣 ' : '') + rawName
+                : normalizarRecompensaSTW(rawName, rareza, tipo);
+            recompensas.push({ nombre, raw: rawName, rareza, tipo, cantidad: null, iconClasses: iconUrl });
+        });
+
+        const esMiniBoss = modificadores.some(x => /mini-jefe épico/i.test(x));
+        const tipoAlerta = esMiniBoss ? 'mini-boss' : 'normal';
+        const recompensaTexto = recompensas.map(r => r.nombre).filter(Boolean).join(' | ') || 'Misión';
+        filas.push({
+            id: crypto.createHash('sha1').update(['seebot', zona, pl, misionOriginal, recompensaTexto].join('|')).digest('hex').slice(0, 14),
+            zona, pl, mision: misionOriginal, misionOriginal, ubicacion: '',
+            categoria: [/\(Group\)$/i.test(misionOriginal) ? 'group' : ''],
+            tipoAlerta, tipoAlertaTexto: obtenerNombreTipoAlertaSTW(tipoAlerta),
+            vbucks, cantidadVbucks: vbucks ? cantidadVbucks : null,
+            esX4: /\(Group\)$/i.test(misionOriginal) || /(?:\bx4\b|x4\s)/i.test(recompensaTexto),
+            multiplicadorRecompensa: /\(Group\)$/i.test(misionOriginal) ? 4 : null,
+            recompensas, modificadores,
+            rareza: recompensas.find(r => r.rareza === 'mythic')?.rareza
+                || recompensas.find(r => r.rareza === 'legendary')?.rareza
+                || recompensas.find(r => r.rareza === 'epic')?.rareza
+                || null,
+            recompensa: recompensaTexto,
+            questReqs: limpiarTextoSTW($(td[5]).text()) || 'None',
+            source: 'https://seebot.dev/missions.php',
+            extraidoEn: new Date().toISOString()
+        });
+    });
+    return deduplicarSTW(filas);
+}
+
+function parsearVBucksDailySTW(html) {
+    const $ = cheerio.load(String(html || ''));
+    const alertas = [];
+    $('.mission-row').each((_, fila) => {
+        const row = $(fila);
+        const plMatch = limpiarTextoSTW(row.find('.pl').first().text()).match(/\d{1,3}/);
+        const nombre = limpiarTextoSTW(row.find('.mission-name strong').first().text());
+        const ubicacion = limpiarTextoSTW(row.find('.mission-name small').first().text());
+        const zonaMatch = ubicacion.match(/\b(Stonewood|Plankerton|Canny Valley|Twine Peaks|Ventures)\b/i);
+        if (!plMatch || !zonaMatch) return;
+        const zona = zonaMatch[1];
+        row.find('.mission-reward.vbucks').each((__, reward) => {
+            const t = limpiarTextoSTW($(reward).find('strong').first().text() || $(reward).text());
+            const qty = t.match(/V-?Bucks\s*(?:×|x)\s*(\d{1,4})/i);
+            if (!qty) return;
+            const cantidad = Number(qty[1]);
+            if (!Number.isFinite(cantidad) || cantidad <= 0) return;
+            const rewardObj = { nombre: '🪙 ' + cantidad + ' PaVos', raw: t, rareza: null, tipo: 'vbucks', cantidad, iconClasses: 'currency_mtxswap' };
+            alertas.push({
+                id: crypto.createHash('sha1').update(['vbucksdaily', zona, plMatch[0], nombre, cantidad].join('|')).digest('hex').slice(0, 14),
+                zona, pl: Number(plMatch[0]), mision: nombre || 'Alerta de PaVos', misionOriginal: nombre || 'Alerta de PaVos',
+                ubicacion: '', categoria: ['vbucks'], tipoAlerta: 'vbucks', tipoAlertaTexto: 'PaVos',
+                vbucks: true, cantidadVbucks: cantidad, esX4: false, multiplicadorRecompensa: null,
+                recompensas: [rewardObj], modificadores: [], rareza: null, recompensa: rewardObj.nombre,
+                source: 'https://vbucksdaily.com/', extraidoEn: new Date().toISOString()
+            });
+        });
+    });
+    return deduplicarSTW(alertas);
+}
+
 function parsearPaginaSTW(html, fuente = 'all') {
     const $ = cheerio.load(html);
     const misiones = [];
@@ -429,7 +555,7 @@ function parsearPaginaSTW(html, fuente = 'all') {
     if (misiones.length === 0) {
         $('.mission-entry').each((index, missionEntry) => {
             const plTexto = limpiarTextoSTW($(missionEntry).find('.mission-pl').first().text());
-            const pl = Number((plTexto.match(/\\d{1,3}/) || [])[0]);
+            const pl = Number((plTexto.match(/\d{1,3}/) || [])[0]);
             if (!Number.isInteger(pl) || pl < 1 || pl > 160) return;
 
             const card = $(missionEntry).closest('.card--mission, [class*="mission-card"], [data-zone]');
@@ -541,31 +667,76 @@ async function extraerAlertasAPI(progreso = null) {
         console.log('\n--- 🌐 RASPADO STW PLANNER ---');
         const urlPrincipal = 'https://stw-planner.com/mission-alerts';
         const urlPavos = 'https://stw-planner.com/mission-alerts/v-buck-missions';
-        await etapaDiagnostico('STW ETAPA 1/5: descargando páginas principal y de PaVos.');
-        const [htmlPrincipal, htmlPavos] = await Promise.all([
-            descargarSTW(urlPrincipal),
-            // Esta ruta secundaria puede devolver 404 aunque /mission-alerts siga funcionando.
-            // No debemos cancelar todo el raspado: la página principal también incluye misiones de PaVos.
-            descargarSTW(urlPavos).catch(error => {
-                console.warn('⚠️ No se pudo cargar la página secundaria de PaVos de STW Planner; se usarán los datos de la página principal:', error.message);
-                return '';
-            })
-        ]);
-        await etapaDiagnostico('STW ETAPA 2/5: descarga terminada; HTML principal=' + String(htmlPrincipal || '').length + ' caracteres; HTML PaVos=' + String(htmlPavos || '').length + ' caracteres.');
+        const urlSeeBot = 'https://seebot.dev/missions.php';
+        const urlVBucksDaily = 'https://vbucksdaily.com/';
+        let htmlPrincipal = '';
+        let htmlPavos = '';
+        let htmlSeeBot = '';
+        let htmlVBucksDaily = '';
 
-        await etapaDiagnostico('STW ETAPA 3/8: entrando a parsearPaginaSTW(htmlPrincipal, all). Si se detiene aquí, el bloqueo está en el HTML principal.');
-        const todas = parsearPaginaSTW(htmlPrincipal, 'all');
-        await etapaDiagnostico('STW ETAPA 4/8: parsearPaginaSTW terminó; misiones principales=' + todas.length + '.');
-        await etapaDiagnostico('STW ETAPA 5/8: entrando a parsearPavosSTW(htmlPavos). Si se detiene aquí, el bloqueo está en la página de PaVos.');
-        const pavosPagina = parsearPavosSTW(htmlPavos);
-        await etapaDiagnostico('STW ETAPA 6/8: parsearPavosSTW terminó; misiones PaVos=' + pavosPagina.length + '.');
+        await etapaDiagnostico('STW ETAPA 1: consultando STW Planner, SeeBot y V-Bucks Daily de forma independiente.');
+        try {
+            htmlPrincipal = await descargarSTW(urlPrincipal);
+            await etapaDiagnostico('STW Planner: HTML principal recibido (' + String(htmlPrincipal || '').length + ' caracteres).');
+        } catch (error) {
+            console.warn('No se pudo cargar STW Planner:', error.message);
+            await etapaDiagnostico('STW Planner no disponible: ' + String(error.message || error).slice(0, 160));
+        }
+        try {
+            htmlPavos = await descargarSTW(urlPavos);
+            await etapaDiagnostico('STW Planner PaVos: HTML recibido (' + String(htmlPavos || '').length + ' caracteres).');
+        } catch (error) {
+            console.warn('No se pudo cargar la página secundaria de PaVos de STW Planner:', error.message);
+        }
+        try {
+            htmlSeeBot = await descargarSTW(urlSeeBot);
+            await etapaDiagnostico('SeeBot: HTML recibido (' + String(htmlSeeBot || '').length + ' caracteres).');
+        } catch (error) {
+            console.warn('No se pudo cargar SeeBot:', error.message);
+            await etapaDiagnostico('SeeBot no disponible: ' + String(error.message || error).slice(0, 160));
+        }
+
+        const todasPlanner = htmlPrincipal ? parsearPaginaSTW(htmlPrincipal, 'all') : [];
+        const todasSeeBot = htmlSeeBot ? parsearTablaSeeBotSTW(htmlSeeBot) : [];
+        const mapaTodas = new Map();
+        for (const m of [...todasPlanner, ...todasSeeBot]) {
+            const nombreMision = String(m.misionOriginal || m.mision || '').toLowerCase().replace(/\s+/g, ' ').trim();
+            const clave = [m.zona || '', m.pl || '', nombreMision, m.esX4 ? 'x4' : 'normal'].join('|').toLowerCase();
+            if (!mapaTodas.has(clave)) {
+                mapaTodas.set(clave, { ...m, recompensas: [...(m.recompensas || [])], modificadores: [...(m.modificadores || [])] });
+                continue;
+            }
+            const anterior = mapaTodas.get(clave);
+            const recompensas = [...(anterior.recompensas || [])];
+            const vistas = new Set(recompensas.map(r => String(r.tipo || '') + '|' + String(r.rareza || '') + '|' + String(r.raw || r.nombre || '').toLowerCase()));
+            for (const r of (m.recompensas || [])) {
+                const k = String(r.tipo || '') + '|' + String(r.rareza || '') + '|' + String(r.raw || r.nombre || '').toLowerCase();
+                if (!vistas.has(k)) { vistas.add(k); recompensas.push(r); }
+            }
+            const modificadores = [...(anterior.modificadores || [])];
+            for (const mod of (m.modificadores || [])) if (!modificadores.includes(mod)) modificadores.push(mod);
+            mapaTodas.set(clave, {
+                ...anterior,
+                ...m,
+                recompensas,
+                modificadores,
+                recompensa: recompensas.map(r => r.nombre).filter(Boolean).join(' | ') || m.recompensa || anterior.recompensa,
+                vbucks: Boolean(anterior.vbucks || m.vbucks || recompensas.some(r => r.tipo === 'vbucks')),
+                cantidadVbucks: m.cantidadVbucks || anterior.cantidadVbucks || recompensas.find(r => r.tipo === 'vbucks')?.cantidad || null,
+                questReqs: m.questReqs || anterior.questReqs,
+                source: m.source || anterior.source
+            });
+        }
+        let todas = Array.from(mapaTodas.values());
+        const pavosPagina = htmlPavos ? parsearPavosSTW(htmlPavos) : [];
+        await etapaDiagnostico('STW ETAPA 2: resultados: Planner=' + todasPlanner.length + ', SeeBot=' + todasSeeBot.length + ', combinadas=' + todas.length + ', PaVos URL secundaria=' + pavosPagina.length + '.');
 
         // STW Planner actualmente muestra la misión de PaVos también en la
         // página principal de Mission Alerts. Conservamos ambas fuentes para
         // evitar que un cambio de estructura en /v-buck-missions deje los
         // PaVos en cero.
         await etapaDiagnostico('STW ETAPA 7/8: iniciando filtros de recompensas, clasificación de rareza, deduplicación y PL altas.');
-        const pavosDesdePrincipal = todas
+        let pavosDesdePrincipal = todas
             .filter(m => m.vbucks || m.tipoAlerta === 'vbucks')
             .map(m => ({
                 pl: m.pl,
@@ -579,6 +750,25 @@ async function extraerAlertasAPI(progreso = null) {
                 source: m.source || urlPrincipal,
                 extraidoEn: m.extraidoEn || new Date().toISOString()
             }));
+
+        let pavosDaily = [];
+        if (pavosPagina.length === 0 && pavosDesdePrincipal.length === 0) {
+            try {
+                htmlVBucksDaily = await descargarSTW(urlVBucksDaily);
+                pavosDaily = parsearVBucksDailySTW(htmlVBucksDaily);
+                await etapaDiagnostico('V-Bucks Daily: PaVos válidos extraídos=' + pavosDaily.length + '.');
+            } catch (error) {
+                console.warn('No se pudo cargar V-Bucks Daily:', error.message);
+            }
+            if (pavosDaily.length) {
+                todas = deduplicarSTW([...todas, ...pavosDaily]);
+                pavosDesdePrincipal = pavosDaily.map(m => ({
+                    pl: m.pl, mision: m.mision, misionOriginal: m.misionOriginal, ubicacion: m.ubicacion,
+                    zona: m.zona, cantidad: m.cantidadVbucks || 50, recompensa: 'PaVos',
+                    tipo: 'V-Bucks Daily', source: m.source, extraidoEn: m.extraidoEn
+                }));
+            }
+        }
 
         if (todas.length === 0 && pavosPagina.length === 0 && pavosDesdePrincipal.length === 0) {
             console.warn('⚠️ STW Planner devolvió 0 misiones incluso con el parser de respaldo. No se modifican los datos anteriores; el comando debe probar la siguiente fuente disponible.');
@@ -623,18 +813,17 @@ async function extraerAlertasAPI(progreso = null) {
         const tiposBuenos = ['hero', 'survivor', 'defender', 'schematic'];
 
         const epicas = todas
-            .filter(m => m.recompensas.some(r => r.rareza === 'epic' && tiposBuenos.includes(r.tipo)))
-            .map(m => ({ pl: m.pl, mision: m.mision, ubicacion: m.ubicacion, zona: m.zona, recompensa: m.recompensa, recompensas: m.recompensas, multiplicadorRecompensa: m.multiplicadorRecompensa, esX4: m.esX4, rareza: 'epic', tipoAlerta: m.tipoAlerta, tipoAlertaTexto: m.tipoAlertaTexto, modificadores: m.modificadores, source: m.source }));
+            .filter(m => m.recompensas.some(r => r.rareza === 'epic'))
+            .map(m => ({ pl: m.pl, mision: m.mision, ubicacion: m.ubicacion, zona: m.zona, recompensa: m.recompensa, recompensas: m.recompensas, multiplicadorRecompensa: m.multiplicadorRecompensa, esX4: m.esX4, rareza: 'epic', tipoAlerta: m.tipoAlerta, tipoAlertaTexto: m.tipoAlertaTexto, modificadores: m.modificadores, questReqs: m.questReqs, source: m.source }));
 
         const legendarias = todas
-            .filter(m => m.recompensas.some(r => r.rareza === 'legendary' && tiposBuenos.includes(r.tipo)))
-            .map(m => ({ pl: m.pl, mision: m.mision, ubicacion: m.ubicacion, zona: m.zona, recompensa: m.recompensa, recompensas: m.recompensas, multiplicadorRecompensa: m.multiplicadorRecompensa, esX4: m.esX4, rareza: 'legendary', tipoAlerta: m.tipoAlerta, tipoAlertaTexto: m.tipoAlertaTexto, modificadores: m.modificadores, source: m.source }));
+            .filter(m => m.recompensas.some(r => r.rareza === 'legendary'))
+            .map(m => ({ pl: m.pl, mision: m.mision, ubicacion: m.ubicacion, zona: m.zona, recompensa: m.recompensa, recompensas: m.recompensas, multiplicadorRecompensa: m.multiplicadorRecompensa, esX4: m.esX4, rareza: 'legendary', tipoAlerta: m.tipoAlerta, tipoAlertaTexto: m.tipoAlertaTexto, modificadores: m.modificadores, questReqs: m.questReqs, source: m.source }));
 
         function evaluarAlertaChida(mision) {
-            // PLaltas SOLO admite recompensas épicas o legendarias de Héroe,
-            // Superviviente, Defensor o Esquema. PaVos, x4 y otras recompensas
-            // no califican por sí solas.
-            const buenas = mision.recompensas.filter(r => tiposBuenos.includes(r.tipo));
+            // Una alerta de PaVos también debe estar disponible en destacadas.
+            const contienePavos = Boolean(mision.vbucks || mision.recompensas.some(r => r.tipo === 'vbucks'));
+            const buenas = mision.recompensas.filter(r => tiposBuenos.includes(r.tipo) || (r.rareza && !['common', 'uncommon'].includes(r.rareza)));
             const legendarias = buenas.filter(r => r.rareza === 'legendary');
             const epicas = buenas.filter(r => r.rareza === 'epic');
 
@@ -662,6 +851,7 @@ async function extraerAlertasAPI(progreso = null) {
                 return { mostrar: true, nivel: 82, motivo: '🟣 Defensor épico', destacadas: defensoresEpicos };
             }
 
+            if (contienePavos) return { mostrar: true, nivel: 70, motivo: '🪙 Alerta de PaVos', destacadas: mision.recompensas.filter(r => r.tipo === 'vbucks') };
             return { mostrar: false, nivel: 0, motivo: '', destacadas: [] };
         }
 
@@ -688,6 +878,7 @@ async function extraerAlertasAPI(progreso = null) {
                 esX4: Boolean(mision.esX4),
                 multiplicadorRecompensa: mision.multiplicadorRecompensa || null,
                 modificadores: Array.isArray(mision.modificadores) ? mision.modificadores : [],
+                questReqs: mision.questReqs,
                 // Guardamos todas las recompensas, no solamente las destacadas.
                 recompensas: recompensasTodas,
                 source: mision.source || urlPrincipal
