@@ -3,7 +3,8 @@ const assert = require('node:assert/strict');
 const {
     parsearTablaSeeBotSTW,
     seleccionarAlertasSTWPorRareza,
-    parsearVBucksDailySTW
+    parsearVBucksDailySTW,
+    parsearJSONSeeBotSTW
 } = require('../webBridge');
 
 const seeBotHTML = `
@@ -99,4 +100,26 @@ test('V-Bucks Daily acepta el formato de recompensa ×50', () => {
       </div>`;
     const misiones = parsearVBucksDailySTW(html);
     assert.ok(misiones.some(m => m.zona === 'Twine Peaks' && m.pl === 124 && m.vbucks && m.cantidadVbucks === 50));
+});
+
+test('SeeBot JSON mantiene PaVos, modificadores y requisitos para el comando pavos', () => {
+    const data = [{
+        zone: 'Hexsylvania Venture Zone',
+        powerLevel: 124,
+        name: 'Trap the Storm',
+        alertRewards: [{
+            itemType: 'currency_mtxswap',
+            name: 'V-Bucks',
+            quantity: 50
+        }],
+        modifiers: ['Short Range', 'Smoke Screens'],
+        questReqs: 'None'
+    }];
+    const html = '<script>makeHtml(' + JSON.stringify(data) + ');</script>';
+    const misiones = parsearJSONSeeBotSTW(html);
+    const mision = misiones.find(m => m.misionOriginal === 'Trap the Storm');
+    assert.ok(mision);
+    assert.equal(mision.cantidadVbucks, 50);
+    assert.ok(mision.modificadores.length >= 2);
+    assert.equal(mision.questReqs, 'None');
 });
