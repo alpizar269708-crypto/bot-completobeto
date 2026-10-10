@@ -1,6 +1,7 @@
 const mongoose = require('mongoose'); 
 const { ejecutarMenu } = require('./comandos/menu');
 const { alertasSTW, comandoDestacadasSTW, comandoPreguntarAlerta, activarAlertasDiarias, desactivarAlertasDiarias } = require('./comandos/fortnite');
+const { comandoRPavos } = require('./comandos/fortnitedb');
 const { comandoTiendaMenu, comandoTiendaCategoria } = require('./comandos/tienda');
 const { comandoTiendaGG, manejarSeleccionTiendaGG } = require('./comandos/tiendagg');
 const { comandoTiendaVb } = require('./comandos/tiendaVb'); 
@@ -56,7 +57,7 @@ const comandosConUsuarioBD = new Set([
 ]);
 
 const comandosValidos = new Set([
-        'desactivarcomandos', 'catdesa', 'setprecio', 'ping', 'pavos', 'destacadasstw', 'legendariasstw', 'epicasstw', 'alertasstw', 'stw', 'alerta', 
+        'desactivarcomandos', 'catdesa', 'setprecio', 'ping', 'pavos', 'rpavos', 'destacadasstw', 'legendariasstw', 'epicasstw', 'alertasstw', 'stw', 'alerta', 
         'setgrupostw', 'unsetgrupostw', 'grupo', 'mute', 'unmute', 'inactivos', 'tienda', 'tiendastats', 'tiendavb', 'ia', 'menu', 'menusecreto',
         's', 'sticker', 'recup1vez', 'tiktok', 'instagram', 'traduce', 'skin', 'stats', 'contacto',
         'warn', 'advertir', 'verwarns', 'limpiarwarns', 'ban', 'unban', 'listanegra', 'banlist', 'unbanlist', 
@@ -587,6 +588,9 @@ Apoya a un creador: JASC13` });
                 break;
             case 'pavos':
                 await alertasSTW(sock, chatJid, msg, 'pavos');
+                break;
+            case 'rpavos':
+                await comandoRPavos(sock, chatJid, msg);
                 break;
             case 'destacadasstw':
                 await comandoDestacadasSTW(sock, chatJid, msg);
