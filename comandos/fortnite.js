@@ -93,23 +93,10 @@ async function obtenerAlertasSTW(actualizarEnVivo = false, progreso = null) {
     const informar = async (texto) => { if (typeof progreso === 'function') await progreso(texto); };
     const inicioDiagnostico = Date.now();
     await informar('🔬 ETAPA 1/6 — Preparando lectura de alertas STW. Actualización en vivo=' + Boolean(actualizarEnVivo) + '.');
-    // Solo el comando pavos y los tres horarios automáticos deben hacer raspado.
-    // El resto de comandos de consulta usa los datos guardados para evitar
-    // solicitudes adicionales a STW Planner.
-    if (actualizarEnVivo) {
-        try {
-            const { extraerAlertasAPI } = require('../webBridge');
-            await informar('🌐 ETAPA 2/6 — Iniciando extracción de STW Planner: descarga de páginas, parseo HTML y guardado en base de datos.');
-            const resultadoExtraccion = await extraerAlertasAPI(informar);
-            if (resultadoExtraccion && resultadoExtraccion.ok === false) await informar('⚠️ ETAPA 2/6 — El extractor reportó fallo; continuaré leyendo el caché anterior para no perder la respuesta. Error=' + (resultadoExtraccion.error || 'sin detalle'));
-            else await informar('✅ ETAPA 2/6 — Extracción de STW Planner terminó sin lanzar excepción (' + ((Date.now() - inicioDiagnostico) / 1000).toFixed(2) + ' s).');
-        } catch (e) {
-            console.error('⚠️ No se pudo refrescar STW Planner en vivo:', e.message);
-            await informar('❌ ETAPA 2/6 — Falló la extracción en vivo: ' + String(e.stack || e.message || e).slice(0, 900));
-        }
-    } else {
-        await informar('ℹ️ ETAPA 2/6 — Este comando consultará el caché existente; no hará un raspado nuevo.');
-    }
+    // PAUSA TEMPORAL DEL RASPADO STW PLANNER:
+    // Tanto los comandos como las alertas programadas leen solo el caché de MongoDB.
+    // No descargar páginas ni ejecutar parsers mientras se estabiliza el arranque.
+    await informar('⏸️ ETAPA 2/6 — Raspado de STW Planner temporalmente suspendido; se utilizarán únicamente datos guardados en MongoDB.');
 
     await informar('🗄️ ETAPA 3/6 — Leyendo cuatro listas guardadas en MongoDB: PaVos, épicas, legendarias y PL altas.');
     const [
@@ -393,16 +380,8 @@ async function enviarAlertaPavosAutomatica(sock, actualizarEnVivo = false, horaA
         grupos = [...new Set(grupos.filter(id => typeof id === 'string' && id.endsWith('@g.us')))];
         if (grupos.length === 0) return false;
 
-        // Cada intento programado hace un raspado nuevo antes de revisar las alertas.
-        if (actualizarEnVivo) {
-            try {
-                const { extraerAlertasAPI } = require('../webBridge');
-                await extraerAlertasAPI();
-            } catch (e) {
-                console.error('⚠️ No se pudo hacer el raspado de STW Planner:', e.message);
-            }
-        }
-
+        // PAUSA TEMPORAL: los horarios programados tampoco raspan STW Planner.
+        // Usan únicamente el caché ya guardado en MongoDB.
         const datos = await obtenerAlertasSTW(false);
 
         // El primer intento informa aunque no encuentre PaVos; los siguientes solo avisan si encuentran.
