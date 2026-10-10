@@ -507,6 +507,68 @@ function formatearFuente(resultado) {
     return lineas.join('\n');
 }
 
+
+const FUENTES_ALTERNATIVAS_PAVOS = [
+    { nombre: 'PennyDB', url: 'https://pennydb.net/stw-missions' },
+    { nombre: 'V-Bucks Daily', url: 'https://vbucksdaily.com/' },
+    { nombre: 'STW Planner', url: 'https://savetheworldsquad20190322123154.azurewebsites.net/mission-alerts' },
+    { nombre: 'StormBook', url: 'https://stormbookstwtracker.com/app/' }
+];
+
+function extraerAlertasFuenteAlternativa(html, nombreFuente) {
+    const $ = cheerio.load(String(html || ''));
+    const alertas = [];
+    const vistos = new Set();
+    const selectores = ['tr', 'article', 'li', '[class*="mission"]', '[class*="alert"]', '[class*="card"]'];
+    for (const selector of selectores) {
+        $(selector).each((_, nodo) => {
+            const elemento = $(nodo);
+            const texto = limpiar(elemento.text());
+            if (!texto || texto.length > 900 || !/v[\s-]?bucks|currency_mtxswap/i.test(texto)) return;
+            const zonaMatch = texto.match(/\b(Stonewood|Plankerton|Canny Valley|Twine Peaks|Ventures)\b/i);
+            const plMatch = texto.match(/\b(?:PL\s*)?(\d{1,3})\b/i);
+            const cantidadMatch = texto.match(/(?:V[\s-]?Bucks|currency_mtxswap)[^\d]{0,45}(\d{1,3})|(\d{1,3})\s*(?:x\s*)?V[\s-]?Bucks/i);
+            if (!zonaMatch || !plMatch || !cantidadMatch) return;
+            const cantidad = Number(cantidadMatch[1] || cantidadMatch[2]);
+            const pl = Number(plMatch[1]);
+            if (!Number.isFinite(cantidad) || cantidad <= 0 || cantidad > 500 || !Number.isFinite(pl) || pl < 1 || pl > 200) return;
+            const zona = zonaMatch[1].replace(/\b\w/g, l => l.toUpperCase());
+            const clave = [zona.toLowerCase(), pl, cantidad].join('|');
+            if (vistos.has(clave)) return;
+            vistos.add(clave);
+            const misionMatch = texto.match(/(Ride the Lightning|Retrieve the Data|Repair the Shelter|Fight Category \d Storm|Fight the Storm|Evacuate the Shelter|Deliver the Bomb|Rescue the Survivors|Destroy the Encampments|Build the Radar Grid|Eliminate and Collect)/i);
+            alertas.push({
+                zona,
+                zonaCodigo: ({ Stonewood: 'S', Plankerton: 'P', 'Canny Valley': 'C', 'Twine Peaks': 'T', Ventures: 'V' })[zona] || null,
+                pl,
+                mision: nombreMisionSeeBot(misionMatch ? misionMatch[1] : 'Misión de alerta'),
+                cantidad,
+                fuenteAlternativa: nombreFuente
+            });
+        });
+    }
+    return alertas;
+}
+
+async function consultarFuenteAlternativaPavos(fuente) {
+    const resultado = { fuente: fuente.nombre, url: fuente.url, ok: false, alertas: [], totalPavos: 0, error: null };
+    try {
+        const respuesta = await descargarPagina(fuente.url, 10000);
+        resultado.http = respuesta.status;
+        const html = String(respuesta.data || '');
+        if (/just a moment|checking your browser|verify you are human/i.test(html.slice(0, 5000))) {
+            throw new Error('la página respondió con una pantalla anti-bot');
+        }
+        resultado.alertas = extraerAlertasFuenteAlternativa(html, fuente.nombre);
+        if (!resultado.alertas.length) throw new Error('la página respondió, pero el parser no encontró filas V-Bucks verificables en el HTML recibido');
+        resultado.totalPavos = resultado.alertas.reduce((s, a) => s + a.cantidad, 0);
+        resultado.ok = true;
+    } catch (error) {
+        resultado.error = error.response?.status ? 'HTTP ' + error.response.status : error.message;
+    }
+    return resultado;
+}
+
 async function comandoRPavos(sock, chatId, msg) {
     const inicio = Date.now();
     let numeroEtapa = 0;
@@ -520,10 +582,17 @@ async function comandoRPavos(sock, chatId, msg) {
 
     await progreso('ETAPA 0 — Comando recibido. Este comando solo consultará SeeBot.dev y FortniteDB. Cada fuente se ejecuta por separado; si una falla, la otra continuará.');
 
-    // No ejecutar aquí diagnósticos de STW Planner ni de otros comandos.
-    const fortniteDB = await consultarFortniteDB(progreso);
-    await progreso('CAMBIO DE FUENTE — FortniteDB terminó. Ahora empieza SeeBot.dev, independientemente del resultado anterior.');
-    const seeBot = await consultarSeeBot(progreso);
+    // Consultar todas las fuentes simultáneamente: una fuente lenta no bloquea el inicio de las demás.
+    // SeeBot mantiene su parser actual; las alternativas son sondeos independientes.
+    await progreso('🚦 ETAPA 1 — Lanzando en paralelo FortniteDB, SeeBot.dev, PennyDB, V-Bucks Daily, STW Planner y StormBook.');
+    const tareas = await Promise.allSettled([
+        consultarFortniteDB(),
+        consultarSeeBot(),
+        ...FUENTES_ALTERNATIVAS_PAVOS.map(consultarFuenteAlternativaPavos)
+    ]);
+    const fortniteDB = tareas[0].status === 'fulfilled' ? tareas[0].value : { fuente: 'FortniteDB', ok: false, alertas: [], error: tareas[0].reason?.message || 'falló la consulta' };
+    const seeBot = tareas[1].status === 'fulfilled' ? tareas[1].value : { fuente: 'SeeBot.dev', ok: false, alertas: [], error: tareas[1].reason?.message || 'falló la consulta' };
+    const alternativas = tareas.slice(2).map((t, i) => t.status === 'fulfilled' ? t.value : ({ fuente: FUENTES_ALTERNATIVAS_PAVOS[i].nombre, ok: false, alertas: [], error: t.reason?.message || 'falló la consulta' }));
 
     const lineas = [
         '🪙 *RESULTADO FINAL — RPAVOS*',
@@ -531,8 +600,17 @@ async function comandoRPavos(sock, chatId, msg) {
         '🧭 *Comparación de fuentes*',
         'FortniteDB: ' + (fortniteDB.ok ? 'OK' : 'FALLÓ') + ' | alertas=' + fortniteDB.alertas.length + ' | total=' + (fortniteDB.ok ? fortniteDB.totalPavos : 'no disponible'),
         'SeeBot.dev: ' + (seeBot.ok ? 'OK' : 'FALLÓ') + ' | alertas=' + seeBot.alertas.length + ' | total=' + (seeBot.ok ? seeBot.totalPavos : 'no disponible') + (seeBot.rutaExtraccion ? ' | ruta=' + seeBot.rutaExtraccion : ''),
+        '',
+        '🌍 *FUENTES ALTERNATIVAS (consultadas en paralelo)*',
+        ...alternativas.map(f => (f.ok ? '✅ ' : '❌ ') + f.fuente + ': ' + (f.ok ? 'alertas=' + f.alertas.length + ' | total=' + f.totalPavos : (f.error || 'sin datos'))),
         ''
     ];
+
+    for (const fuente of alternativas.filter(f => f.ok)) {
+        lineas.push('🌐 *' + fuente.fuente.toUpperCase() + ' — ALERTAS DETECTADAS*');
+        for (const a of fuente.alertas) lineas.push('• ' + a.zona + ' | PL ' + (a.pl ?? '?') + ' | ' + a.mision + ' | ' + a.cantidad + ' PaVos');
+        lineas.push('*Total ' + fuente.fuente + ': ' + fuente.totalPavos + ' PaVos*', '');
+    }
 
     if (fortniteDB.ok) {
         lineas.push('🌐 *FORTNITEDB — PA VOS EXTRAÍDOS*');
