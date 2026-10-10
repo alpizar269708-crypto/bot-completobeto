@@ -545,72 +545,66 @@ async function enviarAlertaPavosAutomatica(sock, actualizarEnVivo = false, horaA
     try {
         const configChat = await Config.findOne({ clave: 'chat_alertas_diarias' });
         if (!configChat || !configChat.valor) return false;
-
         let grupos = [];
         try {
             grupos = JSON.parse(configChat.valor);
             if (!Array.isArray(grupos)) grupos = [configChat.valor];
-        } catch (e) {
-            grupos = [configChat.valor];
+        } catch (_) { grupos = [configChat.valor]; }
+        grupos = [...new Set(grupos.filter(id => typeof id === 'string' && id.endsWith('@g.us')))];
+        if (!grupos.length) return false;
+
+        const datos = await obtenerAlertasSTW(actualizarEnVivo);
+        const docEstado = await Config.findOne({ clave: CLAVE_ESTADO_ALERTA_PAVOS });
+        let estado = {};
+        try { estado = docEstado && docEstado.valor ? JSON.parse(docEstado.valor) : {}; } catch (_) {}
+        const firmasAnteriores = estado.firmasPorFuente || {};
+        const fuentes = datos.fuentes || {};
+        let seleccionadas = [];
+
+        // Primero se prueba la fuente principal; si no hay cambios, se intenta
+        // la segunda y después la tercera. Solo se publica la primera que cambió.
+        for (const nombreFuente of ['principal', 'secundaria', 'tercera']) {
+            const candidatas = combinarAlertasDiarias(fuentes[nombreFuente] || []);
+            if (!candidatas.length) continue;
+            const firmasPrevias = firmasAnteriores[nombreFuente] || {};
+            const nuevas = candidatas.filter(item =>
+                firmasPrevias[claveMisionAlertaDiaria(item)] !== firmaMisionAlertaDiaria(item)
+            );
+            if (nuevas.length) {
+                seleccionadas = nuevas;
+                break;
+            }
         }
 
-        grupos = [...new Set(grupos.filter(id => typeof id === 'string' && id.endsWith('@g.us')))];
-        if (grupos.length === 0) return false;
-
-        // El cron pasa actualizarEnVivo=true: refrescar primero las fuentes públicas
-        // y después leer lo guardado para no publicar alertas viejas por accidente.
-        const datos = await obtenerAlertasSTW(actualizarEnVivo);
-
-        // El primer intento informa aunque no encuentre PaVos; los siguientes solo avisan si encuentran.
-        if (!datos.pavos.length) {
-            if (avisarSinPavos) {
-                const mensajeSinPavos = `🎮 *ALERTAS DE PAVOS — ${horaAlerta}*\n\n😔 No hubo PaVos en este raspado.\n\n🔎 Seguiré revisando a las 6:02 PM y 6:05 PM.`;
-                for (const grupo of grupos) {
-                    try {
-                        await sock.sendMessage(grupo, { text: mensajeSinPavos });
-                    } catch (e) {
-                        console.error(`Error enviando aviso sin PaVos a ${grupo}:`, e.message);
-                    }
-                }
-            }
+        // No se manda una falsa alerta ni un aviso de "sin PaVos". El siguiente
+        // horario vuelve a raspar; una misión nueva sirve aunque no tenga PaVos.
+        if (!seleccionadas.length) {
+            console.log('🔎 Alertas diarias: sin cambios nuevos; se intentará de nuevo en el siguiente horario.');
             return false;
         }
 
-        const total = datos.pavos.reduce((acc, p) => acc + (p.cantidad || 50), 0);
-        let mensajeAuto = `🎮 *ALERTAS DE PAVOS — ${horaAlerta}*\n\n`;
+        seleccionadas = combinarAlertasDiarias(seleccionadas)
+            .sort((a, b) => Number(b.pl || 0) - Number(a.pl || 0))
+            .slice(0, 10);
+        let mensajeAuto = '🎮 *ALERTAS DIARIAS — ' + horaAlerta + '*\n\n';
+        for (const item of seleccionadas) mensajeAuto += formatearAlertaSTW(item);
+        mensajeAuto += '🔎 Usa *stw* para consultar el concentrado completo.';
 
-        datos.pavos.forEach(p => {
-            const cantidad = Number(p.cantidad || p.cantidadVbucks || 50);
-            mensajeAuto += '🌍 *Zona:* ' + (p.zona || 'Desconocida') + '\n';
-            mensajeAuto += '⚡ *PL:* ' + (p.pl ?? '?') + '\n';
-            mensajeAuto += '🎯 *Misión:* ' + (p.mision || p.misionOriginal || 'Alerta de PaVos') + '\n';
-            mensajeAuto += '🪙 *PaVos:* ' + cantidad + '\n';
-            if (Array.isArray(p.modificadores) && p.modificadores.length) {
-                mensajeAuto += '🧩 *Modificadores:* ' + p.modificadores.join(', ') + '\n';
-            }
-            const requisitos = p.requisitos || p.questReqs;
-            if (requisitos) {
-                mensajeAuto += '📜 *Requisitos:* ' + (/^none$/i.test(String(requisitos)) ? 'Ninguno' : requisitos) + '\n';
-            }
-            mensajeAuto += '\n';
-        });
-
-        mensajeAuto += `💰 *Total del día:* ${total} paVos\n\n`;
-        mensajeAuto += `Support-a-Creator: *JASC13* ❤️`;
-
-        let enviadaAlMenosAUnGrupo = false;
+        let enviada = false;
         for (const grupo of grupos) {
             try {
                 await sock.sendMessage(grupo, { text: mensajeAuto });
-                enviadaAlMenosAUnGrupo = true;
+                enviada = true;
             } catch (e) {
-                console.error(`Error enviando alerta automática a ${grupo}:`, e.message);
+                console.error('Error enviando alerta diaria al grupo:', e.message);
             }
         }
-
-        return enviadaAlMenosAUnGrupo;
+        if (enviada) {
+            await guardarAlertaPavosEnviada(fechaCDMX(), horaAlerta, firmasPorFuenteAlertaDiaria(fuentes));
+        }
+        return enviada;
     } catch (error) {
-        console.error('Error en alerta automática de PaVos:', error.message);
+        console.error('Error en alerta diaria:', error.message);
         return false;
     }
 }
@@ -640,10 +634,10 @@ async function yaSeEnvioAlertaPavosHoy(hoy) {
     }
 }
 
-async function guardarAlertaPavosEnviada(hoy, horario) {
+async function guardarAlertaPavosEnviada(hoy, horario, firmasPorFuente = {}) {
     await Config.findOneAndUpdate(
         { clave: CLAVE_ESTADO_ALERTA_PAVOS },
-        { valor: JSON.stringify({ fecha: hoy, enviada: true, horario, actualizadoEn: new Date().toISOString() }) },
+        { valor: JSON.stringify({ fecha: hoy, enviada: true, horario, firmasPorFuente, actualizadoEn: new Date().toISOString() }) },
         { upsert: true }
     );
 }
