@@ -405,7 +405,7 @@ async function comandoDestacadasSTW(sock, chatId, msg, progreso = null) {
 
     try {
         await informar('🗄️ ETAPA 1/4 — Leyendo datos guardados en MongoDB.');
-        const datos = await obtenerAlertasSTW(true, informar, { exhaustivo: mostrarDetalles });
+        const datos = await obtenerAlertasSTW(true, informar);
         await informar('🔎 ETAPA 2/4 — Seleccionando alertas destacadas de PL altas. Total recibido=' + (datos.plAltas || []).length + '.');
         const listaPlAltas = datos.plAltas || [];
 
