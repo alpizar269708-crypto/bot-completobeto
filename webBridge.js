@@ -1102,10 +1102,10 @@ async function extraerAlertasAPI(progreso = null) {
             const normalizarClaveRecompensa = valor => String(valor || '')
                 .toLowerCase()
                 .normalize('NFD')
-                .replace(/[\\u0300-\\u036f]/g, '')
-                .replace(/^\\s*(?:mythic|legendary|epic|rare|uncommon|common)\\s+/i, '')
-                .replace(/\\s*\\((?:mythic|legendary|epic|rare|uncommon|common)\\)\\s*$/i, '')
-                .replace(/\\s*[x×]\\s*\\d{1,4}\\s*$/i, '')
+                .replace(/[\u0300-\u036f]/g, '')
+                .replace(/^\s*(?:mythic|legendary|epic|rare|uncommon|common)\s+/i, '')
+                .replace(/\s*\((?:mythic|legendary|epic|rare|uncommon|common)\)\s*$/i, '')
+                .replace(/\s*[x×]\s*\d{1,4}\s*$/i, '')
                 .replace(/[^a-z0-9]+/g, '')
                 .trim();
             const claveRecompensa = r => [
