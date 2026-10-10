@@ -221,7 +221,7 @@ function formatearAlertaSTW(item, encabezado = '', detallada = false) {
         texto += '🎁 *Recompensa:* ' + recompensas.join(' | ') + '\n';
     } else if (Number(item.cantidad || item.cantidadVbucks) > 0 && /pavos|v-?bucks/i.test(String(item.recompensa || item.tipo || item.tipoAlertaTexto || ''))) {
         texto += '🎁 *Recompensa:* 🪙 ' + Number(item.cantidad || item.cantidadVbucks) + ' PaVos\n';
-    } else if (item.recompensa && item.recompensa !== 'Misión') {
+    } else if (item.recompensa && item.recompensa !== 'Misión' && !/\\b(?:x4|x5)\\b|recompensa\\s*x[45]/i.test(String(item.recompensa))) {
         texto += '🎁 *Recompensa:* ' + traducirRecompensaSalidaSTW({ nombre: item.recompensa }) + '\n';
     }
 
