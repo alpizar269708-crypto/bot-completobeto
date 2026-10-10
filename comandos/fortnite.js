@@ -91,13 +91,15 @@ function deduplicarPlAltasVbucks(lista) {
 
 async function obtenerAlertasSTW(actualizarEnVivo = true, progreso = null) {
     let raspadoCorrecto = false;
-    try {
-        const { extraerAlertasAPI } = require('../webBridge');
-        const resultado = await extraerAlertasAPI(progreso);
-        raspadoCorrecto = Boolean(resultado && resultado.ok === true);
-        if (!raspadoCorrecto) console.warn('STW: las fuentes web no entregaron datos completos; se intentará usar el último caché válido.');
-    } catch (error) {
-        console.error('No se pudo actualizar STW:', error.stack || error.message);
+    if (actualizarEnVivo) {
+        try {
+            const { extraerAlertasAPI } = require('../webBridge');
+            const resultado = await extraerAlertasAPI(progreso);
+            raspadoCorrecto = Boolean(resultado && resultado.ok === true);
+            if (!raspadoCorrecto) console.warn('STW: las fuentes web no entregaron datos completos; se intentará usar el último caché válido.');
+        } catch (error) {
+            console.error('No se pudo actualizar STW:', error.stack || error.message);
+        }
     }
 
     const [scrapePavos, scrapeEpicas, scrapeLegendarias, scrapePlAltas] = await Promise.all([
@@ -107,13 +109,12 @@ async function obtenerAlertasSTW(actualizarEnVivo = true, progreso = null) {
         leerConfigJSON('stw_plaltas_scrapeadas')
     ]);
     const hayCache = scrapePavos.length + scrapeEpicas.length + scrapeLegendarias.length + scrapePlAltas.length > 0;
-
     return {
         pavos: scrapePavos,
         epicas: scrapeEpicas,
         legendarias: scrapeLegendarias,
         plAltas: deduplicarPlAltasVbucks(scrapePlAltas),
-        errorActualizacion: !raspadoCorrecto && !hayCache
+        errorActualizacion: actualizarEnVivo && !raspadoCorrecto && !hayCache
     };
 }
 
@@ -265,10 +266,7 @@ async function comandoDestacadasSTW(sock, chatId, msg, progreso = null) {
 }
 
 async function comandoPreguntarAlerta(sock, chatId, msg, palabrasClave = [], progreso = null) {
-    const informar = async (texto) => { if (typeof progreso === 'function') await progreso(texto); };
-    await informar('🧭 Búsqueda de recompensa iniciada; término=' + (Array.isArray(palabrasClave) ? palabrasClave.join(' ') : String(palabrasClave || '')) + '.');
-    const datos = await obtenerAlertasSTW(false, informar);
-    await informar('🔎 ETAPA 1/3 — Datos cargados; combinando PaVos, épicas, legendarias y destacadas para buscar coincidencias.');
+    const informar = async texto => { if (typeof progreso === 'function') { try { await progreso(texto); } catch (_) {} } };
     const termino = Array.isArray(palabrasClave)
         ? palabrasClave.join(' ').trim()
         : String(palabrasClave || '').trim();
@@ -277,12 +275,15 @@ async function comandoPreguntarAlerta(sock, chatId, msg, palabrasClave = [], pro
         await sock.sendMessage(chatId, { text: '🤖 Escribe después de *alerta* una palabra o frase para buscar en las alertas.' }, { quoted: msg });
         return;
     }
+
+    await informar('🧭 Búsqueda de recompensa iniciada; término=' + termino + '.');
+    const datos = await obtenerAlertasSTW(true, informar);
+    await informar('🔎 ETAPA 1/3 — Datos cargados; combinando PaVos, épicas, legendarias y destacadas para buscar coincidencias.');
     const hayDatosDisponibles = datos.pavos.length + datos.epicas.length + datos.legendarias.length + (datos.plAltas || []).length > 0;
     if (datos.errorActualizacion && !hayDatosDisponibles) {
         await sock.sendMessage(chatId, { text: '⚠️ No pude consultar STW Planner, SeeBot ni V-Bucks Daily, y no hay alertas guardadas para buscar. Inténtalo de nuevo en un momento.' }, { quoted: msg });
         return;
     }
-
     const normalizarTexto = texto => String(texto || '')
         .toLowerCase()
         .normalize('NFD')
