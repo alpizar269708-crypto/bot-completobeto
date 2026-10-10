@@ -4,7 +4,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const { parsearTablaSeeBotSTW, parsearJSONSeeBotSTW, parsearVBucksDailySTW, seleccionarAlertasSTWPorRareza, traducirNombreMisionSTW, traducirZonaSTW, traducirBiomaSTW, traducirModificadorSTW } = require('../webBridge');
+const { parsearTablaSeeBotSTW, parsearJSONSeeBotSTW, parsearVBucksDailySTW, seleccionarAlertasSTWPorRareza, deduplicarSTW, traducirNombreMisionSTW, traducirZonaSTW, traducirBiomaSTW, traducirModificadorSTW } = require('../webBridge');
 
 const htmlSeeBot = [
 '<table id="miniRwdTbl">',
@@ -225,4 +225,72 @@ test('V-Bucks Daily agrupa recompensas épicas y legendarias en una sola misión
         assert.match(lista[0].recompensa, /Perk-Up épico/);
         assert.match(lista[0].recompensa, /Perk-Up legendario/);
     }
+});
+
+
+test('una misión duplicada entre fuentes se conserva una vez y combina sus recompensas', () => {
+    const duplicadas = deduplicarSTW([
+        {
+            id: 'fuente-a-1', zona: 'Twine Peaks', pl: 88,
+            misionOriginal: 'Ride the Lightning', mision: 'Monta el rayo - Ruta Trueno 99',
+            ubicacion: 'Ruta Trueno 99',
+            recompensas: [{ tipo: 'perkup', rareza: 'epic', raw: 'Epic PERK-UP!', nombre: 'Perk-Up épico ×80', cantidad: 80 }]
+        },
+        {
+            id: 'fuente-b-2', zona: 'Twine Peaks', pl: 88,
+            misionOriginal: 'Ride the Lightning', mision: 'Monta el rayo - Ruta Trueno 99',
+            ubicacion: 'Ruta Trueno 99',
+            recompensas: [{ tipo: 'perkup', rareza: 'legendary', raw: 'Legendary PERK-UP!', nombre: 'Perk-Up legendario ×80', cantidad: 80 }]
+        }
+    ]);
+    assert.equal(duplicadas.length, 1);
+    assert.equal(duplicadas[0].recompensas.length, 2);
+});
+
+test('alerta estándar oculta modificadores, requisitos y multiplicadores; alertanob muestra detalles útiles', () => {
+    const { formatearAlertaSTW } = require('../comandos/fortnite');
+    const item = {
+        pl: 88,
+        zona: 'Twine Peaks',
+        misionOriginal: 'Ride the Lightning',
+        mision: 'Monta el rayo - Ruta Trueno 99',
+        multiplicadorRecompensa: 4,
+        modificadores: ['Alcance corto'],
+        questReqs: 'Complete one mission',
+        recompensas: []
+    };
+    const normal = formatearAlertaSTW(item);
+    assert.doesNotMatch(normal, /Modificadores|Requisitos|x4|x5|None/i);
+    assert.match(normal, /Monta el rayo/);
+
+    const detallada = formatearAlertaSTW(item, '', true);
+    assert.match(detallada, /Modificadores/);
+    assert.match(detallada, /Requisitos/);
+    assert.doesNotMatch(detallada, /Recompensa x4|Recompensa x5/i);
+
+    const sinRequisitos = formatearAlertaSTW({ ...item, questReqs: 'None' }, '', true);
+    assert.doesNotMatch(sinRequisitos, /Requisitos/);
+});
+
+test('la recompensa de superviviente no repite la palabra Survivor y se traduce el nombre del rol', () => {
+    const { obtenerRecompensasValiosasSTW } = require('../comandos/fortnite');
+    const recompensas = obtenerRecompensasValiosasSTW({
+        recompensas: [{
+            tipo: 'survivor',
+            rareza: 'legendary',
+            nombre: '🟠 Superviviente legendario: Scouting Party Lead Survivor',
+            raw: 'Scouting Party Lead Survivor'
+        }]
+    });
+    assert.equal(recompensas.length, 1);
+    assert.match(recompensas[0], /Líder del grupo de exploración/);
+    assert.doesNotMatch(recompensas[0], /\bSurvivor\b/i);
+});
+
+test('alertanob aparece en el menú y en el enrutador', () => {
+    const handler = fs.readFileSync(path.join(__dirname, '..', 'messageHandler.js'), 'utf8');
+    const menu = fs.readFileSync(path.join(__dirname, '..', 'comandos', 'menu.js'), 'utf8');
+    assert.ok(handler.includes("'alertanob'"));
+    assert.ok(handler.includes("case 'alertanob':"));
+    assert.match(menu, /alertanob.*Alerta para novatos/);
 });
