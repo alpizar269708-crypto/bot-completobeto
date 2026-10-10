@@ -330,7 +330,7 @@ async function alertasSTW(sock, chatId, msg, categoria = 'todas', progreso = nul
         lineas.push(titulo + ' · ' + lista.length, '');
         if (!lista.length) {
             lineas.push(datos.errorActualizacion
-                ? '⚠️ _No pude consultar las fuentes de alertas en este momento._'
+                ? '⚠️ _No pude actualizar las alertas en este momento._'
                 : '_No hay recompensas de esta rareza en héroes, supervivientes, defensores o esquemas._', '');
         } else {
             for (const alerta of lista) lineas.push(formatearAlertaSTW(alerta));
@@ -573,6 +573,15 @@ async function enviarAlertaPavosAutomatica(sock, actualizarEnVivo = false, horaA
 
         // No se manda una falsa alerta ni un aviso de "sin PaVos". El siguiente
         // horario vuelve a raspar; una misión nueva sirve aunque no tenga PaVos.
+        if (!seleccionadas.length && horaAlerta === '6:05 PM') {
+            // Último respaldo: si ninguna fuente confirma un cambio, conservar
+            // una sola alerta de la primera fuente disponible, sin unir listas.
+            for (const nombreFuente of ['principal', 'secundaria', 'tercera']) {
+                const primera = combinarAlertasDiarias(fuentes[nombreFuente] || [])
+                    .sort((a, b) => Number(b.pl || 0) - Number(a.pl || 0))[0];
+                if (primera) { seleccionadas = [primera]; break; }
+            }
+        }
         if (!seleccionadas.length) {
             console.log('🔎 Alertas diarias: sin cambios nuevos; se intentará de nuevo en el siguiente horario.');
             return false;
