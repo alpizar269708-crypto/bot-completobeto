@@ -194,7 +194,7 @@ function formatearAlertaSTW(item, encabezado = '') {
     const recompensas = obtenerRecompensasValiosasSTW(item);
     if (recompensas.length) {
         texto += '🎁 *Recompensa:* ' + recompensas.join(' | ') + '\n';
-    } else if (Number(item.cantidad || item.cantidadVbucks || item.cantidadVbucks) > 0 && /pavos|v-?bucks/i.test(String(item.recompensa || item.tipo || item.tipoAlertaTexto || ''))) {
+    } else if (Number(item.cantidad || item.cantidadVbucks) > 0 && /pavos|v-?bucks/i.test(String(item.recompensa || item.tipo || item.tipoAlertaTexto || ''))) {
         texto += '🎁 *Recompensa:* 🪙 ' + Number(item.cantidad || item.cantidadVbucks) + ' PaVos\n';
     } else if (item.recompensa && item.recompensa !== 'Misión') {
         texto += '🎁 *Recompensa:* ' + item.recompensa + '\n';
@@ -383,6 +383,7 @@ async function comandoPreguntarAlerta(sock, chatId, msg, palabrasClave = [], pro
 
         const textoBusqueda = normalizarTexto([
             item.mision,
+            item.misionOriginal,
             item.zona,
             item.nombre,
             item.recompensa,
