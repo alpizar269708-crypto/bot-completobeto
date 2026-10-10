@@ -509,7 +509,6 @@ function formatearFuente(resultado) {
 
 
 const FUENTES_ALTERNATIVAS_PAVOS = [
-    { nombre: 'PennyDB', url: 'https://pennydb.net/stw-missions' },
     { nombre: 'V-Bucks Daily', url: 'https://vbucksdaily.com/' }
 ];
 
@@ -870,115 +869,181 @@ async function consultarFuenteAlternativaPavos(fuente) {
     return resultado;
 }
 
-async function comandoRPavos(sock, chatId, msg) {
-    const inicio = Date.now();
-    let numeroEtapa = 0;
-    const progreso = async (texto) => {
-        numeroEtapa++;
-        await sock.sendMessage(chatId, {
-            text: '🪙 *R PAVOS — DIAGNÓSTICO MULTIFUENTE*\n📍 Seguimiento ' + numeroEtapa +
-                ' | ⏱️ ' + ((Date.now() - inicio) / 1000).toFixed(2) + ' s\n\n' + String(texto).slice(0, 2800)
-        }, { quoted: msg });
-    };
+function obtenerCicloPavosMexico(fecha = new Date()) {
+    const partes = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'America/Mexico_City',
+        year: 'numeric', month: '2-digit', day: '2-digit',
+        hour: '2-digit', hourCycle: 'h23'
+    }).formatToParts(fecha);
+    const valor = tipo => partes.find(p => p.type === tipo)?.value;
+    let dia = valor('year') + '-' + valor('month') + '-' + valor('day');
+    if (Number(valor('hour')) < 18) {
+        const d = new Date(dia + 'T12:00:00Z');
+        d.setUTCDate(d.getUTCDate() - 1);
+        dia = d.toISOString().slice(0, 10);
+    }
+    const anterior = new Date(dia + 'T12:00:00Z');
+    anterior.setUTCDate(anterior.getUTCDate() - 1);
+    return { actual: dia, anterior: anterior.toISOString().slice(0, 10) };
+}
 
-    await progreso('ETAPA 0 — Comando recibido. Se consultarán tres fuentes en paralelo: SeeBot.dev, PennyDB y V-Bucks Daily. FortniteDB y StormBook se retiraron; STW Planner queda omitido.');
-    await progreso('🚦 ETAPA 1 — Lanzando en paralelo SeeBot.dev, PennyDB y V-Bucks Daily.');
+function normalizarAlertasPavos(alertas, fuente) {
+    const salida = [];
+    for (const alerta of Array.isArray(alertas) ? alertas : []) {
+        const cantidad = Number(alerta.cantidad ?? alerta.cantidadVbucks ?? 0);
+        const pl = Number(alerta.pl);
+        const zona = normalizarZona(alerta.zona || alerta.ubicacion || alerta.zone);
+        if (!zona || !Number.isFinite(cantidad) || cantidad <= 0) continue;
+        const misionOriginal = String(alerta.misionOriginal || alerta.mision || 'Misión de alerta').trim();
+        salida.push({
+            zona,
+            pl: Number.isFinite(pl) && pl > 0 ? pl : null,
+            mision: nombreMisionSeeBot(misionOriginal),
+            misionOriginal,
+            cantidad,
+            fuente
+        });
+    }
+    const unicas = new Map();
+    for (const a of salida) {
+        const clave = [a.zona, a.pl, a.mision, a.cantidad].join('|').toLowerCase();
+        if (!unicas.has(clave)) unicas.set(clave, a);
+    }
+    return Array.from(unicas.values()).sort((a, b) =>
+        String(a.zona).localeCompare(String(b.zona)) || Number(a.pl || 0) - Number(b.pl || 0)
+    );
+}
 
-    const tareas = await Promise.allSettled([
-        consultarSeeBot(),
-        ...FUENTES_ALTERNATIVAS_PAVOS.map(consultarFuenteAlternativaPavos)
-    ]);
-    const seeBot = tareas[0].status === 'fulfilled' ? tareas[0].value : {
-        fuente: 'SeeBot.dev', ok: false, alertas: [], error: tareas[0].reason?.message || 'falló la consulta'
-    };
-    const alternativas = tareas.slice(1).map((t, i) => t.status === 'fulfilled' ? t.value : ({
-        fuente: FUENTES_ALTERNATIVAS_PAVOS[i].nombre, ok: false, alertas: [], error: t.reason?.message || 'falló la consulta'
-    }));
+function firmaAlertasPavos(alertas) {
+    const normalizar = valor => String(valor || '')
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+    return (Array.isArray(alertas) ? alertas : [])
+        .map(a => [normalizar(a.zona), Number(a.pl || 0), normalizar(a.mision), Number(a.cantidad || 0)].join('|'))
+        .sort()
+        .join('||');
+}
 
+async function consultarPavosSTWPlanner() {
+    try {
+        const { extraerAlertasAPI } = require('../webBridge');
+        const resultado = await extraerAlertasAPI();
+        if (!resultado || resultado.ok !== true || Number(resultado.pavos || 0) <= 0) return [];
+        const doc = await Config.findOne({ clave: 'stw_pavos_scrapeados' });
+        const guardadas = doc?.valor ? JSON.parse(doc.valor) : [];
+        return normalizarAlertasPavos(guardadas, 'STW Planner');
+    } catch (_) {
+        return [];
+    }
+}
+
+async function consultarPavosSeeBot() {
+    try {
+        const resultado = await consultarSeeBot();
+        return resultado?.ok ? normalizarAlertasPavos(resultado.alertas, 'SeeBot.dev') : [];
+    } catch (_) {
+        return [];
+    }
+}
+
+async function consultarPavosVBucksDaily() {
+    try {
+        const resultado = await consultarFuenteAlternativaPavos({
+            nombre: 'V-Bucks Daily',
+            url: 'https://vbucksdaily.com/'
+        });
+        return resultado?.ok ? normalizarAlertasPavos(resultado.alertas, 'V-Bucks Daily') : [];
+    } catch (_) {
+        return [];
+    }
+}
+
+async function comandoPavosOficial(sock, chatId, msg) {
+    const ciclo = obtenerCicloPavosMexico();
+    const claveHoy = 'pavos_oficial_ciclo_' + ciclo.actual;
+    const claveAyer = 'pavos_oficial_ciclo_' + ciclo.anterior;
+
+    let alertasAyer = [];
+    try {
+        const docAyer = await Config.findOne({ clave: claveAyer });
+        if (docAyer?.valor) {
+            const parsed = JSON.parse(docAyer.valor);
+            alertasAyer = Array.isArray(parsed) ? parsed : [];
+        }
+    } catch (_) {}
+
+    const firmaAyer = firmaAlertasPavos(alertasAyer);
+    const fuentes = [
+        { nombre: 'STW Planner', consultar: consultarPavosSTWPlanner },
+        { nombre: 'SeeBot.dev', consultar: consultarPavosSeeBot },
+        { nombre: 'V-Bucks Daily', consultar: consultarPavosVBucksDaily }
+    ];
+
+    let alertasElegidas = [];
+    let primeraAlertaVista = [];
+    for (const fuente of fuentes) {
+        const alertas = await fuente.consultar();
+        if (!alertas.length) continue;
+
+        // Conservamos la primera respuesta real para recordar qué mostraba la fuente
+        // aunque las tres fuentes estén repitiendo las alertas del ciclo anterior.
+        if (!primeraAlertaVista.length) primeraAlertaVista = alertas;
+
+        if (firmaAlertasPavos(alertas) === firmaAyer) continue;
+        alertasElegidas = alertas;
+        break;
+    }
+
+    // Si las fuentes siguen mostrando exactamente las alertas de ayer, no las
+    // publicamos como si fueran nuevas. Si hoy ninguna fuente encuentra nada,
+    // guardamos una lista vacía para que el siguiente ciclo detecte el cambio.
+    const snapshot = alertasElegidas.length ? alertasElegidas : primeraAlertaVista;
+    try {
+        await Config.findOneAndUpdate(
+            { clave: claveHoy },
+            { valor: JSON.stringify(snapshot) },
+            { upsert: true }
+        );
+    } catch (_) {}
+
+    const fechaTexto = new Date().toLocaleDateString('es-MX', {
+        timeZone: 'America/Mexico_City',
+        weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
+    });
     const lineas = [
-        '🪙 *RESULTADO FINAL — RPAVOS*',
+        '📅 _' + fechaTexto + '_',
         '',
-        '🧭 *Comparación de fuentes*',
-        'SeeBot.dev: ' + (seeBot.ok ? 'OK' : 'FALLÓ') + ' | alertas=' + seeBot.alertas.length + ' | total=' + (seeBot.ok ? seeBot.totalPavos : 'no disponible') + (seeBot.rutaExtraccion ? ' | ruta=' + seeBot.rutaExtraccion : ''),
-        '',
-        '🌍 *FUENTES ALTERNATIVAS (consultadas en paralelo)*',
-        ...alternativas.map(f => (f.ok ? '✅ ' : '❌ ') + f.fuente + ': ' + (f.ok ? 'alertas=' + f.alertas.length + ' | total=' + f.totalPavos : (f.error || 'sin datos'))),
+        '🎮 *ALERTAS DE PAVOS*',
         ''
     ];
 
-    // El diagnóstico se imprime incluso cuando PennyDB informa cero PaVos,
-    // para distinguir un cero real de HTML que llegó incompleto al bot.
-    for (const fuente of alternativas) {
-        if (fuente.fuente !== 'PennyDB') continue;
-        const h = fuente.diagnosticoHTML || {};
-        const p = fuente.alertas?.diagnosticoPennyDB || {};
-        lineas.push('🧪 *DIAGNÓSTICO PENNYDB*');
-        lineas.push('URL: ' + (h.urlFinal || fuente.url || '(sin URL)'));
-        lineas.push('Título: ' + (h.titulo || '(sin título)') + ' | HTML: ' + (h.caracteresHTML ?? '?') + ' caracteres');
-        lineas.push('HTML contiene Voucher: ' + (h.mencionaVoucher ? 'sí' : 'no') +
-            ' | contiene Alert rewards: ' + (h.mencionaAlertRewards ? 'sí' : 'no'));
-        lineas.push('Contador V-Bucks in alerts: ' + (h.contadorVBucks || '(no localizado)') +
-            ' | cero detectado: ' + (h.ceroVBucksDetectado ? 'sí' : 'no'));
-        lineas.push('Filas recompensa=' + (p.filasRecompensa ?? 0) +
-            ' | con cantidad=' + (p.filasConCantidad ?? 0) +
-            ' | sin zona/PL=' + (p.filasSinContexto ?? 0));
-        if (h.fragmento) lineas.push('Fragmento HTML/texto: ' + h.fragmento.slice(0, 350));
-        lineas.push('');
-    }
-
-    for (const fuente of alternativas.filter(f => f.ok)) {
-        lineas.push('🌐 *' + fuente.fuente.toUpperCase() + ' — ALERTAS DETECTADAS*');
-        for (const a of fuente.alertas) {
-            lineas.push('• ' + a.zona + ' | PL ' + (a.pl ?? '?') + ' | ' + (a.misionOriginal || a.mision) + ' | ' + a.cantidad + ' PaVos');
-            if (a.recompensaOriginal) lineas.push('  Recompensa: ' + a.recompensaOriginal);
-            if (a.otrasRecompensas?.length) lineas.push('  Otras recompensas: ' + a.otrasRecompensas.join(', '));
-            if (a.modificadores?.length) lineas.push('  Modificadores: ' + a.modificadores.join(', '));
-        }
-        lineas.push('*Total ' + fuente.fuente + ': ' + fuente.totalPavos + ' PaVos*', '');
-    }
-
-    if (seeBot.ok) {
-        lineas.push('🌐 *SEEBOT.DEV — PA VOS EXTRAÍDOS*');
-        for (const a of seeBot.alertas) {
-            lineas.push('• ' + a.zona + ' | PL ' + (a.pl ?? '?') + ' | ' + a.mision + ' | ' + a.cantidad + ' PaVos' + (a.recompensaOriginal ? ' (' + a.recompensaOriginal + ')' : ''));
-            if (a.modificadores?.length) lineas.push('  Modificadores: ' + a.modificadores.join(', '));
-            if (a.requisitos && a.requisitos !== 'None') lineas.push('  Requisito: ' + a.requisitos);
-        }
-        lineas.push('*Total SeeBot: ' + seeBot.totalPavos + ' PaVos*', '');
+    if (!alertasElegidas.length) {
+        lineas.push('😔 *No hubo PaVos en este raspado.* 💔');
     } else {
-        lineas.push('❌ *SEEBOT.DEV FALLÓ*', 'Último punto: ' + (seeBot.etapaFallo || 'no registrado'), 'Error exacto: ' + (seeBot.error || 'sin detalle'), '');
+        let total = 0;
+        for (const alerta of alertasElegidas) {
+            total += alerta.cantidad;
+            lineas.push(
+                '🌍 *Zona:* ' + alerta.zona,
+                '⚡ *PL:* ' + (alerta.pl ?? '?'),
+                '🎯 *Misión:* ' + alerta.mision,
+                '🪙 *PaVos:* ' + alerta.cantidad,
+                ''
+            );
+        }
+        lineas.push('💰 *Total del día:* ' + total + ' PaVos');
     }
 
-    const fuentesCorrectas = [seeBot, ...alternativas].filter(f => f.ok);
-    if (fuentesCorrectas.length > 1) {
-        const clave = a => [String(a.zonaCodigo || a.zona || '').toLowerCase(), String(a.pl ?? ''), String(a.cantidad ?? '')].join('|');
-        const base = fuentesCorrectas[0];
-        let coincidencias = 0;
-        const conteoBase = new Map();
-        for (const a of base.alertas) {
-            const k = clave(a);
-            conteoBase.set(k, (conteoBase.get(k) || 0) + 1);
-        }
-        for (const fuente of fuentesCorrectas.slice(1)) {
-            let coincidenciasFuente = 0;
-            const disponibles = new Map(conteoBase);
-            for (const a of fuente.alertas) {
-                const k = clave(a);
-                const n = disponibles.get(k) || 0;
-                if (n > 0) {
-                    coincidenciasFuente++;
-                    disponibles.set(k, n - 1);
-                }
-            }
-            coincidencias += coincidenciasFuente;
-            lineas.push('🔍 Coincidencias ' + base.fuente + ' / ' + fuente.fuente + ': ' + coincidenciasFuente);
-        }
-        lineas.push('ℹ️ Las alertas coincidentes entre fuentes son la misma misión; no deben sumarse como misiones distintas.');
-    } else {
-        lineas.push('⚠️ La comparación entre fuentes requiere que al menos dos fuentes extraigan datos correctamente.');
-    }
-    lineas.push('', '⏱️ Tiempo total: ' + ((Date.now() - inicio) / 1000).toFixed(2) + ' s', 'Support-a-Creator: *JASC13* ❤️');
+    lineas.push('', 'Support-a-Creator: *JASC13* ❤️');
     await sock.sendMessage(chatId, { text: lineas.join('\n') }, { quoted: msg });
+}
+
+// Se conserva el alias antiguo, pero ambos comandos usan el mismo sistema oficial.
+async function comandoRPavos(sock, chatId, msg) {
+    return comandoPavosOficial(sock, chatId, msg);
 }
 module.exports = {
     consultarFortniteDB,
@@ -986,5 +1051,6 @@ module.exports = {
     extraerDatosSeeBot,
     diagnosticarMenuFortnite,
     obtenerAlertasFortniteDB: async () => consultarFortniteDB(),
-    comandoRPavos
+    comandoRPavos,
+    comandoPavosOficial
 };
