@@ -197,7 +197,7 @@ function traducirMisionSalidaSTW(item) {
     let bioma = biomaOriginal && typeof traducirBioma === 'function'
         ? traducirBioma(biomaOriginal)
         : biomaOriginal;
-    bioma = String(bioma || '').replace(/^the\\s+/i, '').replace(/\\bhaunted\\s+bosque\\b/gi, 'Bosque embrujado').replace(/\\bthe\\s+/gi, '').trim();
+    bioma = String(bioma || '').replace(/^the\s+/i, '').replace(/\bhaunted\s+bosque\b/gi, 'Bosque embrujado').replace(/\bthe\s+/gi, '').trim();
     return [nombre, bioma && !/^zona desconocida$/i.test(bioma) ? bioma : ''].filter(Boolean).join(' - ');
 }
 
