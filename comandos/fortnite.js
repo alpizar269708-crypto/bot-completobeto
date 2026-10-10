@@ -119,6 +119,30 @@ async function obtenerAlertasSTW(actualizarEnVivo = true, progreso = null) {
 }
 
 
+function traducirRecompensaSalidaSTW(recompensa) {
+    let nombre = String(recompensa && (recompensa.nombre || recompensa.raw) || '').trim();
+    if (!nombre) return '';
+    nombre = nombre
+        .replace(/\bScouting Party Lead\s+Survivor\b/ig, 'Líder del grupo de exploración')
+        .replace(/\bTraining Team Lead\s+Survivor\b/ig, 'Líder del equipo de entrenamiento')
+        .replace(/\bScouting Party Lead\b/ig, 'Líder del grupo de exploración')
+        .replace(/\bTraining Team Lead\b/ig, 'Líder del equipo de entrenamiento')
+        .replace(/\s+Survivor\b/ig, '')
+        .replace(/\bEpic PERK-UP!?/ig, 'Perk-Up épico')
+        .replace(/\bLegendary PERK-UP!?/ig, 'Perk-Up legendario')
+        .replace(/\bMythic PERK-UP!?/ig, 'Perk-Up mítico')
+        .replace(/\bRare PERK-UP!?/ig, 'Perk-Up raro')
+        .replace(/\bHero\b/ig, 'Héroe')
+        .replace(/\bDefender\b/ig, 'Defensor')
+        .replace(/\bSchematic\b/ig, 'Esquema')
+        .replace(/\bLegendary\b/ig, 'legendario')
+        .replace(/\bEpic\b/ig, 'épico')
+        .replace(/\bMythic\b/ig, 'mítico')
+        .replace(/\s{2,}/g, ' ')
+        .trim();
+    return nombre;
+}
+
 function obtenerRecompensasValiosasSTW(item) {
     const recompensas = Array.isArray(item.recompensas) ? item.recompensas : [];
     const valiosas = recompensas.filter(r => {
@@ -130,15 +154,14 @@ function obtenerRecompensasValiosasSTW(item) {
     const unicas = [];
     const vistos = new Set();
     for (const recompensa of valiosas) {
-        const nombre = String(recompensa.nombre || recompensa.raw || '').trim();
-        const clave = nombre.toLowerCase();
+        const nombre = traducirRecompensaSalidaSTW(recompensa);
+        const clave = nombre.toLowerCase().replace(/\s+/g, ' ').trim();
         if (!clave || vistos.has(clave)) continue;
         vistos.add(clave);
         unicas.push(nombre);
     }
     return unicas;
 }
-
 
 function formatearMultiplicadorSTW(item) {
     const multiplicador = Number(item.multiplicadorRecompensa);
@@ -182,12 +205,11 @@ function traducirModificadoresSalidaSTW(modificadores) {
     return [...new Set(traducidos)];
 }
 
-function formatearAlertaSTW(item, encabezado = '') {
+function formatearAlertaSTW(item, encabezado = '', detallada = false) {
     let texto = '';
     if (encabezado) texto += encabezado + '\n';
     texto += '⚡ *PL:* ' + (item.pl ?? '?') + '\n';
     if (item.zona) texto += '🌍 *Zona:* ' + traducirZonaSalidaSTW(item.zona) + '\n';
-    texto += formatearMultiplicadorSTW(item);
     const mision = traducirMisionSalidaSTW(item);
     if (mision) texto += '🎯 *Misión:* ' + mision + '\n';
 
@@ -197,14 +219,38 @@ function formatearAlertaSTW(item, encabezado = '') {
     } else if (Number(item.cantidad || item.cantidadVbucks) > 0 && /pavos|v-?bucks/i.test(String(item.recompensa || item.tipo || item.tipoAlertaTexto || ''))) {
         texto += '🎁 *Recompensa:* 🪙 ' + Number(item.cantidad || item.cantidadVbucks) + ' PaVos\n';
     } else if (item.recompensa && item.recompensa !== 'Misión') {
-        texto += '🎁 *Recompensa:* ' + item.recompensa + '\n';
+        texto += '🎁 *Recompensa:* ' + traducirRecompensaSalidaSTW({ nombre: item.recompensa }) + '\n';
     }
 
-    const modificadores = traducirModificadoresSalidaSTW(item.modificadores);
-    if (modificadores.length) texto += '🧩 *Modificadores:* ' + modificadores.join(', ') + '\n';
-    const requisitos = String(item.questReqs || item.requisitos || '').trim();
-    if (requisitos) texto += '📜 *Requisitos:* ' + (/^none$/i.test(requisitos) ? 'Ninguno' : requisitos) + '\n';
+    // Solo alertanob enseña modificadores y requisitos de la misión.
+    // Los multiplicadores x4/x5 nunca se muestran en ningún comando.
+    if (detallada) {
+        const modificadores = traducirModificadoresSalidaSTW(item.modificadores);
+        if (modificadores.length) texto += '🧩 *Modificadores:* ' + modificadores.join(', ') + '\n';
+        const requisitos = String(item.questReqs || item.requisitos || '').trim();
+        if (requisitos && !/^(?:none|ninguno|ninguna)$/i.test(requisitos)) {
+            texto += '📜 *Requisitos:* ' + traducirRequisitosSalidaSTW(requisitos) + '\n';
+        }
+    }
     return texto + '\n';
+}
+
+function traducirRequisitosSalidaSTW(requisitos) {
+    return String(requisitos || '').trim()
+        .replace(/\bcomplete\b/ig, 'completa')
+        .replace(/\bmission\b/ig, 'misión')
+        .replace(/\bmissions\b/ig, 'misiones')
+        .replace(/\bquest\b/ig, 'objetivo')
+        .replace(/\bquests\b/ig, 'objetivos')
+        .replace(/\bnone\b/ig, 'ninguno')
+        .replace(/\bdefeat\b/ig, 'derrota')
+        .replace(/\beliminate\b/ig, 'elimina')
+        .replace(/\bcollect\b/ig, 'reúne')
+        .replace(/\bsurvivors?\b/ig, 'supervivientes')
+        .replace(/\bstorm\b/ig, 'tormenta')
+        .replace(/\bzone\b/ig, 'zona')
+        .replace(/\bpower\s+level\b/ig, 'nivel de poder')
+        .trim();
 }
 
 function formatearResumenAlertaSTW(item) {
