@@ -1302,39 +1302,28 @@ async function extraerAlertasAPI(progreso = null, opciones = {}) {
         };
 
         await etapaDiagnostico(fuenteExhaustiva
-            ? 'STW: modo detallado, revisando las tres fuentes para completar modificadores y requisitos.'
+            ? 'STW: modo detallado, consultando las fuentes en paralelo.'
             : compararCambiosDiarios
-                ? 'STW: revisando fuentes en orden y avanzando si no hay alertas nuevas respecto al último envío.'
-                : 'STW: consulta secuencial; se detiene en la primera fuente que entregue misiones válidas.');
+                ? 'STW: comparando fuentes en paralelo con el último envío.'
+                : 'STW: consultando Planner, V-Bucks Daily y SeeBot en paralelo.');
 
-        // Fuente 1: STW Planner. La página principal y su sección de PaVos
-        // pertenecen a la misma fuente lógica.
-        [htmlPrincipal, htmlPavos] = await Promise.all([
+        // Una petición por URL, todas al mismo tiempo. Evita esperar a una
+        // fuente antes de comenzar la siguiente, sin duplicar solicitudes.
+        [htmlPrincipal, htmlPavos, htmlVBucksDaily] = await Promise.all([
             descargarFuente('Fuente 1', urlPrincipal),
-            descargarFuente('PaVos de la fuente 1', urlPavos)
+            descargarFuente('PaVos de la fuente 1', urlPavos),
+            descargarFuente('Fuente 2', urlVBucksDaily)
         ]);
+        await cargarSeeBot();
+
         ({ misiones: todasPlanner, pavos: pavosPagina } = parsearFuentePlanner());
-
-        const tieneDatosPlanner = todasPlanner.length > 0;
+        todasVBucksDaily = htmlVBucksDaily ? parsearVBucksDailySTW(htmlVBucksDaily) : [];
+        const traeRarezasHTTP = todasVBucksDaily.some(m =>
+            (m.recompensas || []).some(r => r.tipo !== 'vbucks' && ['epic', 'legendary', 'mythic'].includes(r.rareza))
+        );
         const plannerTieneCambioDiario = fuenteTieneCambiosDiarios(todasPlanner, 'principal');
-        if (fuenteExhaustiva || !tieneDatosPlanner || pavosPagina.length === 0 || (compararCambiosDiarios && !plannerTieneCambioDiario)) {
-            // Fuente 2: solo se consulta si la primera no devolvió misiones.
-            htmlVBucksDaily = await descargarFuente('Fuente 2', urlVBucksDaily);
-            todasVBucksDaily = htmlVBucksDaily ? parsearVBucksDailySTW(htmlVBucksDaily) : [];
-            const traeRarezasHTTP = todasVBucksDaily.some(m =>
-                (m.recompensas || []).some(r => r.tipo !== 'vbucks' && ['epic', 'legendary', 'mythic'].includes(r.rareza))
-            );
-            // Solo HTTP/HTML: se omite el renderizado en navegador para no bloquear el raspado.
-            const segundaTieneCambioDiario = fuenteTieneCambiosDiarios(todasVBucksDaily, 'secundaria');
-            if (fuenteExhaustiva || todasVBucksDaily.length === 0 || !todasVBucksDaily.some(m => m.vbucks || m.tipoAlerta === 'vbucks') || (compararCambiosDiarios && !segundaTieneCambioDiario)) {
-                // Fuente 3: solo si la segunda no devolvió misiones; en modo
-                // detallado se consultan todas para enriquecer modificadores.
-                await cargarSeeBot();
-            }
-        } else {
-            console.log('⏭️ Fuente 1 encontró misiones; se omiten las fuentes 2 y 3.');
-        }
-
+        const segundaTieneCambioDiario = fuenteTieneCambiosDiarios(todasVBucksDaily, 'secundaria');
+        console.log('⚡ STW: las cuatro solicitudes HTTP (dos Planner y una por cada respaldo) terminaron; fuentes analizadas en paralelo.');
         console.log('🔎 STW fuentes recibidas | fuente 1=' + todasPlanner.length +
             ' | fuente 2=' + todasVBucksDaily.length +
             ' | fuente 3=' + todasSeeBot.length +
