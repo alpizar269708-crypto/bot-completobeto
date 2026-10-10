@@ -783,13 +783,13 @@ async function consultarFuenteAlternativaPavos(fuente) {
         if (/just a moment|checking your browser|verify you are human/i.test(html.slice(0, 5000))) {
             throw new Error('la página respondió con una pantalla anti-bot');
         }
-        if (fuente.nombre === 'PennyDB' && !/v-?bucks\\s+voucher/i.test(html)) {
+        if (fuente.nombre === 'PennyDB' && !/v-?bucks\s+voucher/i.test(html)) {
             try {
                 const renderizada = await consultarPennyDBConNavegador();
                 // Solo reemplazar la respuesta HTTP si la página renderizada aporta
                 // la estructura de alertas; así no se confunde un HTML incompleto con cero.
-                if (/v-?bucks\\s+voucher/i.test(renderizada.html) ||
-                    /mission-brief[\\s\\S]{0,1200}mission-bay/i.test(renderizada.html)) {
+                if (/v-?bucks\s+voucher/i.test(renderizada.html) ||
+                    /mission-brief[\s\S]{0,1200}mission-bay/i.test(renderizada.html)) {
                     html = renderizada.html;
                     pennyDBPaginaRenderizada = true;
                     resultado.httpNavegador = renderizada.status;
