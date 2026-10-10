@@ -447,7 +447,7 @@ async function comandoPreguntarAlerta(sock, chatId, msg, palabrasClave = [], pro
     }
 
     await informar('🔎 Iniciando búsqueda de alertas.');
-    const datos = await obtenerAlertasSTW(true, informar, mostrarDetalles ? { exhaustivo: true } : {});
+    const datos = await obtenerAlertasSTW(false, informar, mostrarDetalles ? { exhaustivo: true } : {});
     await informar('🔎 Datos de alertas cargados; buscando coincidencias.');
     const hayDatosDisponibles = datos.pavos.length + datos.epicas.length + datos.legendarias.length + (datos.plAltas || []).length > 0;
     if (datos.errorActualizacion && !hayDatosDisponibles) {
