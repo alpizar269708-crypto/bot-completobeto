@@ -371,9 +371,9 @@ async function enviarAlertaPavosAutomatica(sock, actualizarEnVivo = false, horaA
         grupos = [...new Set(grupos.filter(id => typeof id === 'string' && id.endsWith('@g.us')))];
         if (grupos.length === 0) return false;
 
-        // PAUSA TEMPORAL: los horarios programados tampoco raspan STW Planner.
-        // Usan únicamente el caché ya guardado en MongoDB.
-        const datos = await obtenerAlertasSTW(false);
+        // El cron pasa actualizarEnVivo=true: refrescar primero las fuentes públicas
+        // y después leer lo guardado para no publicar alertas viejas por accidente.
+        const datos = await obtenerAlertasSTW(actualizarEnVivo);
 
         // El primer intento informa aunque no encuentre PaVos; los siguientes solo avisan si encuentran.
         if (!datos.pavos.length) {
