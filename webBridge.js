@@ -343,7 +343,7 @@ function traducirModificadorSTW(nombre) {
         'Epic Mini Boss': 'Minijefe épico'
     };
     const coincidencia = Object.entries(mapa).find(([ingles]) => ingles.toLowerCase() === titulo.toLowerCase());
-    return coincidencia ? coincidencia[1] : titulo;
+    return coincidencia ? coincidencia[1] : (titulo ? 'Modificador de misión' : '');
 }
 
 function extraerModificadoresMissionEntrySTW($, missionEntry) {
