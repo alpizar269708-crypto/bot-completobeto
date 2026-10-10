@@ -514,64 +514,26 @@ async function consultarPavosVBucksDaily() {
 }
 
 async function comandoPavosOficial(sock, chatId, msg) {
-    const ciclo = obtenerCicloPavosMexico();
-    const claveHoy = 'pavos_oficial_ciclo_' + ciclo.actual;
-    const claveAyer = 'pavos_oficial_ciclo_' + ciclo.anterior;
-
-    let alertasAyer = [];
+    let alertas = [];
     try {
-        const docAyer = await Config.findOne({ clave: claveAyer });
-        if (docAyer?.valor) {
-            const parsed = JSON.parse(docAyer.valor);
-            alertasAyer = Array.isArray(parsed) ? parsed : [];
-        }
-    } catch (_) {}
-
-    const firmaAyer = firmaAlertasPavos(alertasAyer);
-    const fuentes = [
-        { nombre: 'STW Planner', consultar: consultarPavosSTWPlanner },
-        { nombre: 'V-Bucks Daily', consultar: consultarPavosVBucksDaily },
-        { nombre: 'SeeBot.dev', consultar: consultarPavosSeeBot }
-    ];
-
-    let alertasElegidas = [];
-    for (const fuente of fuentes) {
-        const alertas = await fuente.consultar();
-        if (!alertas.length) continue;
-
-        if (firmaAlertasPavos(alertas) === firmaAyer) continue;
-        alertasElegidas = alertas;
-        break;
+        const doc = await Config.findOne({ clave: 'stw_pavos_scrapeados' }).lean();
+        const guardadas = doc?.valor ? JSON.parse(doc.valor) : [];
+        alertas = normalizarAlertasPavos(Array.isArray(guardadas) ? guardadas : [], 'snapshot STW');
+    } catch (error) {
+        console.error('No se pudo leer el snapshot guardado de PaVos:', error.message);
     }
-
-    // Si ninguna fuente detecta alertas actuales diferentes a las de ayer,
-    // no reutilizar la lista anterior: la respuesta debe quedar vacía.
-    const snapshot = alertasElegidas;
-    try {
-        await Config.findOneAndUpdate(
-            { clave: claveHoy },
-            { valor: JSON.stringify(snapshot) },
-            { upsert: true }
-        );
-    } catch (_) {}
 
     const fechaTexto = new Date().toLocaleDateString('es-MX', {
         timeZone: 'America/Mexico_City',
         weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
     });
-    const lineas = [
-        '📅 _' + fechaTexto + '_',
-        '',
-        '🎮 *ALERTAS DE PAVOS*',
-        ''
-    ];
-
-    if (!alertasElegidas.length) {
-        lineas.push('😔 *No hay alertas de PaVos disponibles en este momento.*');
+    const lineas = ['📅 _' + fechaTexto + '_', '', '🎮 *ALERTAS DE PAVOS*', ''];
+    if (!alertas.length) {
+        lineas.push('😔 *No hay alertas de PaVos guardadas en el raspado de hoy.*');
     } else {
         let total = 0;
-        for (const alerta of alertasElegidas) {
-            total += alerta.cantidad;
+        for (const alerta of alertas) {
+            total += Number(alerta.cantidad || 0);
             lineas.push(
                 '🌍 *Zona:* ' + traducirZonaSTW(alerta.zona || 'Desconocida'),
                 '⚡ *PL:* ' + (alerta.pl ?? '?'),
@@ -582,7 +544,6 @@ async function comandoPavosOficial(sock, chatId, msg) {
         }
         lineas.push('💰 *Total del día:* ' + total + ' PaVos');
     }
-
     lineas.push('', 'Apoya a un creador: *JASC13* ❤️');
     await sock.sendMessage(chatId, { text: lineas.join('\n') }, { quoted: msg });
 }
