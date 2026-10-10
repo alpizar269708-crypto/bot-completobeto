@@ -694,7 +694,15 @@ async function consultarFuenteAlternativaPavos(fuente) {
             throw new Error('la página respondió con una pantalla anti-bot');
         }
         resultado.alertas = extraerAlertasFuenteAlternativa(html, fuente.nombre);
-        if (!resultado.alertas.length) throw new Error('la página respondió, pero el parser no encontró filas V-Bucks verificables en el HTML recibido');
+        if (!resultado.alertas.length) {
+            const d = resultado.alertas.diagnosticoPennyDB;
+            if (fuente.nombre === 'PennyDB' && d) {
+                if (!d.filasRecompensa) throw new Error('PennyDB DIAGNOSTICO: HTTP ' + resultado.http + ', HTML=' + html.length + ' caracteres; no apareció V-Bucks Voucher dentro de Alert rewards. Revisar si el HTML recibido es la página real o una respuesta distinta.');
+                if (!d.filasConCantidad) throw new Error('PennyDB DIAGNOSTICO: detecté ' + d.filasRecompensa + ' fila(s) V-Bucks Voucher, pero no pude extraer cantidad numérica de .mission-figure.');
+                throw new Error('PennyDB DIAGNOSTICO: detecté ' + d.filasConCantidad + ' recompensa(s) V-Bucks con cantidad, pero ' + d.filasSinContexto + ' no se pudieron asociar a zona y PL. La recompensa sí está en el HTML; falta ubicar el contenedor de misión.');
+            }
+            throw new Error('la página respondió, pero el parser no encontró filas V-Bucks verificables en el HTML recibido');
+        }
         resultado.totalPavos = resultado.alertas.reduce((s, a) => s + a.cantidad, 0);
         resultado.ok = true;
     } catch (error) {
