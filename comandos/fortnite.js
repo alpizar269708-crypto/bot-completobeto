@@ -103,8 +103,8 @@ async function obtenerAlertasSTW(actualizarEnVivo = true, progreso = null) {
     }
 
     if (!raspadoCorrecto) {
-        console.warn('STW Planner no entregó datos válidos; no se mostrarán alertas antiguas como si fueran actuales.');
-        return { pavos: [], epicas: [], legendarias: [], plAltas: [] };
+        console.warn('STW Planner no entregó datos válidos; los comandos que tienen fuentes alternativas deben continuar con la siguiente fuente.');
+        return { pavos: [], epicas: [], legendarias: [], plAltas: [], errorActualizacion: true };
     }
 
     const [
@@ -198,7 +198,13 @@ function formatearAlertaSTW(item, encabezado = '') {
 async function alertasSTW(sock, chatId, msg, categoria = 'todas', progreso = null) {
     const informar = async (texto) => { if (typeof progreso === 'function') await progreso(texto); };
     await informar('🧭 Comando alertasSTW iniciado. Categoría solicitada=' + categoria + '.');
-    const datos = await obtenerAlertasSTW(categoria === 'pavos', informar);
+    let datos;
+    try {
+        datos = await obtenerAlertasSTW(categoria === 'pavos', informar);
+    } catch (error) {
+        console.error('Error cargando alertas STW para comando ' + categoria + ':', error.stack || error.message);
+        datos = { pavos: [], epicas: [], legendarias: [], plAltas: [], errorActualizacion: true };
+    }
     await informar('🧮 ETAPA FINAL — Preparando respuesta: PaVos=' + datos.pavos.length + ', épicas=' + datos.epicas.length + ', legendarias=' + datos.legendarias.length + ', destacadas=' + (datos.plAltas || []).length + '.');
     const fechaHoy = obtenerFechaActual();
     const lineasPavos = [`📅 _${fechaHoy}_`, '', '🎮 *ALERTAS DE PAVOS*', ''];
@@ -206,7 +212,9 @@ async function alertasSTW(sock, chatId, msg, categoria = 'todas', progreso = nul
     if (categoria === 'pavos' || categoria === 'todas') {
         
         if (datos.pavos.length === 0) {
-            lineasPavos.push('*No hay alertas de pavos registradas* 💔');
+            lineasPavos.push(datos.errorActualizacion
+                ? '*STW Planner no respondió con datos válidos; se intentará la siguiente fuente compatible.* ⚠️'
+                : '*No hay alertas de pavos registradas* 💔');
             lineasPavos.push('', '');
         } else {
             let totalPavos = 0;

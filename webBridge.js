@@ -423,6 +423,30 @@ function parsearPaginaSTW(html, fuente = 'all') {
         });
     });
 
+    // Respaldo de estructura: si el sitio cambia los contenedores externos,
+    // recorrer .mission-entry directamente en vez de depender de .card--mission
+    // y .mission-types. Deduplicar al final evita repetir las ya leídas.
+    if (misiones.length === 0) {
+        $('.mission-entry').each((index, missionEntry) => {
+            const plTexto = limpiarTextoSTW($(missionEntry).find('.mission-pl').first().text());
+            const pl = Number((plTexto.match(/\\d{1,3}/) || [])[0]);
+            if (!Number.isInteger(pl) || pl < 1 || pl > 160) return;
+
+            const card = $(missionEntry).closest('.card--mission, [class*="mission-card"], [data-zone]');
+            const zona = limpiarTextoSTW(
+                card.find('.mission-title, .zone-title, [class*="zone-title"]').first().text()
+                || card.attr('data-zone')
+                || card.attr('data-filter')
+                || ''
+            ) || 'Desconocida';
+
+            const contenedorTipo = $(missionEntry).closest('[data-filter-group="alertType"], [data-filter-group*="alert"]');
+            const tipo = fuente === 'vbucks' ? 'vbucks' : (contenedorTipo.attr('data-filter') || '');
+            const mision = extraerMisionEntrySTW($, missionEntry, zona, tipo);
+            if (mision) misiones.push(mision);
+        });
+    }
+
     $('.special-reward-entry .mission-entry').each((index, missionEntry) => {
         const special = $(missionEntry).closest('.special-reward-entry');
         const titulo = limpiarTextoSTW(special.find('.special-title').first().text());
@@ -557,8 +581,8 @@ async function extraerAlertasAPI(progreso = null) {
             }));
 
         if (todas.length === 0 && pavosPagina.length === 0 && pavosDesdePrincipal.length === 0) {
-            console.warn('⚠️ STW Planner devolvió 0 misiones. No se modifican los datos anteriores.');
-            return;
+            console.warn('⚠️ STW Planner devolvió 0 misiones incluso con el parser de respaldo. No se modifican los datos anteriores; el comando debe probar la siguiente fuente disponible.');
+            return { ok: false, error: 'STW Planner respondió, pero no se pudieron extraer misiones válidas.' };
         }
 
         const mapaPavos = new Map();
