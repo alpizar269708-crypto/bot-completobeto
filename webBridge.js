@@ -51,7 +51,7 @@ function traducirNombreMisionSTW(nombreIngles) {
     const traduccion = misionesMap[nombre.toLowerCase()];
     if (traduccion) return traduccion;
     if (Object.values(misionesMap).some(valor => valor.toLowerCase() === nombre.toLowerCase())) return nombre;
-    if (/^(atlas|misión de alerta|lucha|recupera|repara|monta|evacúa|entrega|reabastecimiento|elimina|rescata|construye|destruye|reabastece|atrapa|lanza|defiende|en la carretera)/i.test(nombre)) return nombre;
+    if (/^(atlas|misión de alerta|lucha|recupera|repara|monta|evacúa|entrega|reabastecimiento|elimina|rescata|construye|destruye|reabastece|atrapa|lanza|defiende|en la carretera)\b/i.test(nombre)) return nombre;
     return 'Misión de alerta';
 }
 
