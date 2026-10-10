@@ -193,6 +193,8 @@ function traducirNombreObjetoSTW(nombre, tipo = 'other') {
     let limpio = limpiarTextoSTW(nombre)
         .replace(/\s*\((?:Mythic|Legendary|Epic|Rare|Uncommon|Common)\)\s*$/i, '')
         .replace(/^\s*(?:mythic|legendary|epic|rare|uncommon|common)\s+/i, '')
+        .replace(/^\s*(?:survivor|defender|hero|schematic)\s*:\s*/i, '')
+        .replace(/^\s*(?:survivor|defender|hero|schematic)\s+/i, '')
         .trim();
     const tipoFinal = String(tipo || '').toLowerCase();
     if (tipoFinal === 'survivor') limpio = limpio.replace(/\s+survivor$/i, '').trim();
@@ -1415,9 +1417,8 @@ async function extraerAlertasAPI(progreso = null, opciones = {}) {
         ]);
         ({ misiones: todasPlanner, pavos: pavosPagina } = parsearFuentePlanner());
 
-        const misionesPlannerConPavos = [...todasPlanner, ...pavosPagina];
-        const tieneDatosPlanner = misionesPlannerConPavos.length > 0;
-        const plannerTieneCambioDiario = fuenteTieneCambiosDiarios(misionesPlannerConPavos, 'principal');
+        const tieneDatosPlanner = todasPlanner.length > 0;
+        const plannerTieneCambioDiario = fuenteTieneCambiosDiarios(todasPlanner, 'principal');
         if (fuenteExhaustiva || !tieneDatosPlanner || (compararCambiosDiarios && !plannerTieneCambioDiario)) {
             // Fuente 2: solo se consulta si la primera no devolvió misiones.
             htmlVBucksDaily = await descargarFuente('Fuente 2', urlVBucksDaily);
@@ -1768,7 +1769,7 @@ async function extraerAlertasAPI(progreso = null, opciones = {}) {
         return {
             ok: true, total: todas.length, pavos: pavosFinal.length,
             epicas: epicas.length, legendarias: legendarias.length, plAltas: plAltas.length,
-            fuentes: { principal: [...todasPlanner, ...pavosPagina], secundaria: todasVBucksDaily, tercera: todasSeeBot }
+            fuentes: { principal: todasPlanner, secundaria: todasVBucksDaily, tercera: todasSeeBot }
         };
     } catch (e) {
         console.error('❌ Error en la extracción STW Planner:', e.stack || e.message);
