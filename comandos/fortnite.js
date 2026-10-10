@@ -92,7 +92,7 @@ function deduplicarPlAltasVbucks(lista) {
 async function obtenerAlertasSTW(actualizarEnVivo = false, progreso = null) {
     const informar = async (texto) => { if (typeof progreso === 'function') await progreso(texto); };
     const inicioDiagnostico = Date.now();
-    await informar('🔬 ETAPA 1/6 — Preparando lectura de alertas STW. Actualización en vivo=' + Boolean(actualizarEnVivo) + '.');
+    await informar('🔬 ETAPA 1/6 — Preparando lectura de alertas STW. Actualización en vivo solicitada=' + Boolean(actualizarEnVivo) + '; raspado suspendido temporalmente.');
     // PAUSA TEMPORAL DEL RASPADO STW PLANNER:
     // Tanto los comandos como las alertas programadas leen solo el caché de MongoDB.
     // No descargar páginas ni ejecutar parsers mientras se estabiliza el arranque.
