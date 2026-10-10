@@ -1011,8 +1011,8 @@ async function comandoPavosOficial(sock, chatId, msg) {
     const firmaAyer = firmaAlertasPavos(alertasAyer);
     const fuentes = [
         { nombre: 'STW Planner', consultar: consultarPavosSTWPlanner },
-        { nombre: 'SeeBot.dev', consultar: consultarPavosSeeBot },
-        { nombre: 'V-Bucks Daily', consultar: consultarPavosVBucksDaily }
+        { nombre: 'V-Bucks Daily', consultar: consultarPavosVBucksDaily },
+        { nombre: 'SeeBot.dev', consultar: consultarPavosSeeBot }
     ];
 
     let alertasElegidas = [];
