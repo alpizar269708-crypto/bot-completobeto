@@ -2,9 +2,9 @@ const { esPrivilegiadoTotalAsync } = require('../utils/whatsapp');
 const { Config } = require('../database/modelos');
 
 const categoriasMap = {
-    fortnite: ['pavos', 'destacadasstw', 'legendariasstw', 'epicasstw', 'alertasstw', 'stw', 'alerta', 'setgrupostw', 'unsetgrupostw', 'setprecio'],
+    fortnite: ['pavos', 'destacadasstw', 'legendariasstw', 'epicasstw', 'alertasstw', 'stw', 'alerta', 'setgrupostw', 'unsetgrupostw', 'setprecio', 'rpavos', 'rdestacadasstw', 'rlegendariasstw', 'repicasstw', 'ralertasstw', 'ralerta', 'rdiagnostico', 'rsetgrupostw', 'runsetgrupostw', 'rsetprecio'],
     tienda: ['tienda', 'tiendavb'],
-    carry: ['carryleader', 'carryjoin', 'carryleave', 'carryclose', 'blcarry', 'unblcarry', 'listcarrybl'],
+    carry: ['carryleader', 'carryjoin', 'carryleave', 'carryclose', 'blcarry', 'unblcarry', 'listcarrybl', 'rcarryleader', 'rcarryjoin', 'rcarryleave', 'rcarryclose', 'rblcarry', 'runblcarry', 'rlistcarrybl'],
     rifas: ['rifa', 'rifainscripcion', 'cerrarrifa', 'rifajasc13', 'addvarios', 'abrirrifa', 'activarrifaaqui', 'menurifajasc13'],
     cashback: ['addcashback', 'delcashback', 'vercash', 'delvcash', 'canjecash'],
     economia: ['cartera', 'bal', 'banco', 'pay', 'pagar', 'top', 'topdinero', 'daily', 'weekly', 'farmear', 'work', 'crime', 'mendigar', 'pescar', 'minar', 'cazar', 'explorar', 'ruleta', 'cf', 'slots', 'dados', 'adivina', 'buscaminas', 'rob', 'ppt', 'pelea', 'carrera', 'hackear', 'shop', 'buy', 'inventario', 'mochila', 'vender', 'use', 'regalar'],
@@ -80,26 +80,27 @@ async function ejecutarMenu(sock, chatId, msg, args) {
     }
 
     let menuFortnite = `🎮 *MENÚ FORTNITE (STW)* 🎮\n\n` +
-    `*${prefijo}pavos* - Muestra misiones de pavos actuales.\n` +
-    `*${prefijo}destacadasstw* - Alertas destacadas de STW.\n` +
-    `*${prefijo}epicasstw* - Alertas de misiones épicas.\n` +
-    `*${prefijo}legendariasstw* - Alertas de misiones legendarias.\n` +
-    `*${prefijo}alertasstw* - Resumen general de alertas.\n` +
-    `*${prefijo}alerta [nombre]* - Busca una recompensa específica.\n`;
+    `*rdiagnostico* - Diagnóstico profundo, etapa por etapa, de FortniteDB, SeeBot y las alertas STW.\n` +
+    `*rpavos* - Muestra misiones actuales que dan PaVos.\n` +
+    `*rdestacadasstw* - Alertas destacadas / PL altas de STW.\n` +
+    `*repicasstw* - Alertas de misiones épicas.\n` +
+    `*rlegendariasstw* - Alertas de misiones legendarias.\n` +
+    `*ralertasstw* - Resumen general de alertas.\n` +
+    `*ralerta [nombre]* - Busca una recompensa específica.\n`;
 
     menuFortnite += `\n🚀 *CARRY / ESCUADRONES:*\n` +
-        `*${prefijo}carryleader [1-3] [motivo]* - Crea un escuadrón indicando cuántos jugadores faltan.\n` +
-        `*${prefijo}carryjoin* - Únete al escuadrón activo.\n` +
-        `*${prefijo}carryleave* - Sal del escuadrón actual.\n` +
-        `*${prefijo}carryclose* - Cierra tu escuadrón.\n` +
-        `*${prefijo}blcarry [@user / número / cita]* - Bloquea a alguien del carry (Admins).\n` +
-        `*${prefijo}unblcarry [@user / número / cita]* - Quita a alguien de la lista negra (Admins).\n` +
-        `*${prefijo}listcarrybl* - Muestra la lista negra de carry (Admins).\n`;
+        `*rcarryleader [1-3] [motivo]* - Crea un escuadrón indicando cuántos jugadores faltan.\n` +
+        `*rcarryjoin* - Únete al escuadrón activo.\n` +
+        `*rcarryleave* - Sal del escuadrón actual.\n` +
+        `*rcarryclose* - Cierra tu escuadrón.\n` +
+        `*rblcarry [@user / número / cita]* - Bloquea a alguien del carry (Admins).\n` +
+        `*runblcarry [@user / número / cita]* - Quita a alguien de la lista negra (Admins).\n` +
+        `*rlistcarrybl* - Muestra la lista negra de carry (Admins).\n`;
 
     menuFortnite += `\n⚙️ *Gestión del Grupo:*\n` +
-        `*${prefijo}setprecio* - Configura precio de venta de pavos.\n` +
-        `*${prefijo}setgrupostw* - Activa reportes diarios a las 6:05 PM aquí.\n` +
-        `*${prefijo}unsetgrupostw* - Desactiva los reportes diarios.\n`;
+        `*rsetprecio* - Configura precio de venta de PaVos.\n` +
+        `*rsetgrupostw* - Activa reportes diarios a las 6:05 PM aquí.\n` +
+        `*runsetgrupostw* - Desactiva los reportes diarios.\n`;
 
     let menuModeracion = `🛡️ *MENÚ MODERACIÓN (Admins)* 🛡️\n\n`;
     if (isAdmin && isGroup) {
