@@ -2,9 +2,9 @@ const { esPrivilegiadoTotalAsync } = require('../utils/whatsapp');
 const { Config } = require('../database/modelos');
 
 const categoriasMap = {
-    fortnite: ['rpavos', 'rdestacadasstw', 'repicasstw', 'rlegendariasstw', 'ralertasstw', 'ralerta'],
+    fortnite: ['pavos', 'destacadasstw', 'legendariasstw', 'epicasstw', 'alertasstw', 'stw', 'alerta', 'setgrupostw', 'unsetgrupostw', 'setprecio'],
     tienda: ['tienda', 'tiendavb'],
-    carry: ['carryleader', 'carryjoin', 'carryleave', 'carryclose', 'blcarry', 'unblcarry', 'listcarrybl', 'rcarryleader', 'rcarryjoin', 'rcarryleave', 'rcarryclose', 'rblcarry', 'runblcarry', 'rlistcarrybl'],
+    carry: ['carryleader', 'carryjoin', 'carryleave', 'carryclose', 'blcarry', 'unblcarry', 'listcarrybl'],
     rifas: ['rifa', 'rifainscripcion', 'cerrarrifa', 'rifajasc13', 'addvarios', 'abrirrifa', 'activarrifaaqui', 'menurifajasc13'],
     cashback: ['addcashback', 'delcashback', 'vercash', 'delvcash', 'canjecash'],
     economia: ['cartera', 'bal', 'banco', 'pay', 'pagar', 'top', 'topdinero', 'daily', 'weekly', 'farmear', 'work', 'crime', 'mendigar', 'pescar', 'minar', 'cazar', 'explorar', 'ruleta', 'cf', 'slots', 'dados', 'adivina', 'buscaminas', 'rob', 'ppt', 'pelea', 'carrera', 'hackear', 'shop', 'buy', 'inventario', 'mochila', 'vender', 'use', 'regalar'],
@@ -80,14 +80,28 @@ async function ejecutarMenu(sock, chatId, msg, args) {
     }
 
     let menuFortnite = `🎮 *MENÚ FORTNITE (STW)* 🎮\n\n` +
-    `*rdestacadasstw* - Alertas destacadas y PL altas; envía diagnóstico detallado durante la extracción.\n` +
-    `*repicasstw* - Recompensas épicas; envía diagnóstico detallado durante la consulta.\n` +
-    `*rlegendariasstw* - Recompensas legendarias; envía diagnóstico detallado durante la consulta.\n` +
-    `*ralertasstw* - Resumen de alertas; envía diagnóstico detallado durante la consulta.\n` +
-    `*ralerta [nombre]* - Busca una recompensa e informa cada etapa de la búsqueda.\n` +
-    `*rpavos* - Alertas de PaVos con diagnóstico detallado de descarga, extracción y guardado.\n`;
+    `*${prefijo}pavos* - Muestra misiones de pavos actuales.\n` +
+    `*${prefijo}destacadasstw* - Alertas destacadas de STW.\n` +
+    `*${prefijo}epicasstw* - Alertas de misiones épicas.\n` +
+    `*${prefijo}legendariasstw* - Alertas de misiones legendarias.\n` +
+    `*${prefijo}alertasstw* - Resumen general de alertas.\n` +
+    `*${prefijo}alerta [nombre]* - Busca una recompensa específica.\n`;
 
-        let menuModeracion = `🛡️ *MENÚ MODERACIÓN (Admins)* 🛡️\n\n`;
+    menuFortnite += `\n🚀 *CARRY / ESCUADRONES:*\n` +
+        `*${prefijo}carryleader [1-3] [motivo]* - Crea un escuadrón indicando cuántos jugadores faltan.\n` +
+        `*${prefijo}carryjoin* - Únete al escuadrón activo.\n` +
+        `*${prefijo}carryleave* - Sal del escuadrón actual.\n` +
+        `*${prefijo}carryclose* - Cierra tu escuadrón.\n` +
+        `*${prefijo}blcarry [@user / número / cita]* - Bloquea a alguien del carry (Admins).\n` +
+        `*${prefijo}unblcarry [@user / número / cita]* - Quita a alguien de la lista negra (Admins).\n` +
+        `*${prefijo}listcarrybl* - Muestra la lista negra de carry (Admins).\n`;
+
+    menuFortnite += `\n⚙️ *Gestión del Grupo:*\n` +
+        `*${prefijo}setprecio* - Configura precio de venta de pavos.\n` +
+        `*${prefijo}setgrupostw* - Activa reportes diarios a las 6:05 PM aquí.\n` +
+        `*${prefijo}unsetgrupostw* - Desactiva los reportes diarios.\n`;
+
+    let menuModeracion = `🛡️ *MENÚ MODERACIÓN (Admins)* 🛡️\n\n`;
     if (isAdmin && isGroup) {
         menuModeracion += `*${prefijo}warn [@user] / verwarns* - Advierte a un usuario.\n` +
         `*${prefijo}limpiarwarns [@user]* - Borra todos los warns del usuario y lo deja en 0/3.\n` +
