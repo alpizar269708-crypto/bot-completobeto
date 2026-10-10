@@ -575,12 +575,12 @@ async function comandoRPavos(sock, chatId, msg) {
     const progreso = async (texto) => {
         numeroEtapa++;
         await sock.sendMessage(chatId, {
-            text: '🪙 *R PAVOS — DIAGNÓSTICO DE DOS FUENTES*\n📍 Seguimiento ' + numeroEtapa +
+            text: '🪙 *R PAVOS — DIAGNÓSTICO MULTIFUENTE*\n📍 Seguimiento ' + numeroEtapa +
                 ' | ⏱️ ' + ((Date.now() - inicio) / 1000).toFixed(2) + ' s\n\n' + String(texto).slice(0, 2800)
         }, { quoted: msg });
     };
 
-    await progreso('ETAPA 0 — Comando recibido. Este comando solo consultará SeeBot.dev y FortniteDB. Cada fuente se ejecuta por separado; si una falla, la otra continuará.');
+    await progreso('ETAPA 0 — Comando recibido. Se consultarán seis fuentes en paralelo; una fuente lenta o fallida no impedirá que las demás se intenten.');
 
     // Consultar todas las fuentes simultáneamente: una fuente lenta no bloquea el inicio de las demás.
     // SeeBot mantiene su parser actual; las alternativas son sondeos independientes.
