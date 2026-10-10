@@ -4,7 +4,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const { parsearTablaSeeBotSTW, parsearVBucksDailySTW } = require('../webBridge');
+const { parsearTablaSeeBotSTW, parsearJSONSeeBotSTW, parsearVBucksDailySTW } = require('../webBridge');
 
 const htmlSeeBot = [
 '<table id="miniRwdTbl">',
@@ -60,6 +60,75 @@ test('SeeBot #miniRwdTbl extrae zona, PL, misión, modificadores, rareza y requi
 
     const pavos = misiones.find(m => m.misionOriginal === 'Retrieve the Data');
     assert.ok(pavos);
+    assert.equal(pavos.vbucks, true);
+    assert.equal(pavos.cantidadVbucks, 50);
+    assert.equal(pavos.recompensas[0].tipo, 'vbucks');
+});
+
+
+
+test('SeeBot extrae las misiones del arreglo makeHtml cuando el HTML no incluye la tabla', () => {
+    const datos = [
+        {
+            zone: 'Hexsylvania Venture Zone',
+            powerLevel: 124,
+            name: 'Trap the Storm',
+            alertRewards: [{
+                itemType: 'Hero',
+                name: 'Deadly Blade Crash (Epic)',
+                id: 'Hero_Deadly_Blade_Crash',
+                rarity: 'Epic',
+                quantity: 1
+            }],
+            modifiers: ['Short Range', 'Smoke Screens', 'Healing Deathburst', 'Fire Storm', 'Acid Pools'],
+            missionQuestReqs: 'None'
+        },
+        {
+            zone: 'Canny Valley',
+            powerLevel: 64,
+            name: 'Resupply',
+            alertRewards: [{
+                itemType: 'Survivor',
+                name: 'Training Team Lead Survivor (Legendary)',
+                id: 'Worker_TrainingTeamLead',
+                rarity: 'Legendary',
+                quantity: 1
+            }],
+            modifiers: [],
+            missionQuestReqs: 'None'
+        },
+        {
+            zone: 'Twine Peaks',
+            powerLevel: 94,
+            name: 'Retrieve the Data',
+            alertRewards: [{
+                itemType: 'currency_mtxswap',
+                name: 'V-Bucks or X-Ray',
+                id: 'V-Bucks',
+                quantity: 50
+            }],
+            modifiers: [],
+            missionQuestReqs: 'None'
+        }
+    ];
+    const html = '<script>makeHtml(' + JSON.stringify(datos) + ');</script>';
+    const misiones = parsearJSONSeeBotSTW(html);
+
+    assert.equal(misiones.length, 3);
+    const epica = misiones.find(m => m.misionOriginal === 'Trap the Storm');
+    assert.ok(epica);
+    assert.equal(epica.zona, 'Hexsylvania Venture Zone');
+    assert.equal(epica.pl, 124);
+    assert.equal(epica.recompensas[0].rareza, 'epic');
+    assert.equal(epica.recompensas[0].tipo, 'hero');
+    assert.equal(epica.modificadores.length, 5);
+    assert.equal(epica.questReqs, 'None');
+
+    const legendaria = misiones.find(m => m.misionOriginal === 'Resupply');
+    assert.equal(legendaria.recompensas[0].rareza, 'legendary');
+    assert.equal(legendaria.recompensas[0].tipo, 'survivor');
+
+    const pavos = misiones.find(m => m.misionOriginal === 'Retrieve the Data');
     assert.equal(pavos.vbucks, true);
     assert.equal(pavos.cantidadVbucks, 50);
     assert.equal(pavos.recompensas[0].tipo, 'vbucks');
