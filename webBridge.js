@@ -1621,26 +1621,10 @@ async function extraerAlertasAPI(progreso = null, opciones = {}) {
         let epicas = seleccionarAlertasSTWPorRareza(todas, 'epic');
         let legendarias = seleccionarAlertasSTWPorRareza(todas, 'legendary');
 
-        // Si solo respondió la fuente exclusiva de PaVos, no borrar las últimas
-        // alertas épicas/legendarias/destacadas guardadas desde una fuente completa.
-        const leerCacheSTW = async clave => {
-            try {
-                const doc = await Config.findOne({ clave });
-                const parsed = doc?.valor ? JSON.parse(doc.valor) : [];
-                return Array.isArray(parsed) ? parsed : [];
-            } catch (_) { return []; }
-        };
-        let destacadasCacheAnterior = [];
-        if (!coberturaCompleta) {
-            const [epicasAnteriores, legendariasAnteriores, destacadasAnteriores] = await Promise.all([
-                leerCacheSTW('stw_epicas_scrapeadas'),
-                leerCacheSTW('stw_legendarias_scrapeadas'),
-                leerCacheSTW('stw_plaltas_scrapeadas')
-            ]);
-            if (!epicas.length) epicas = epicasAnteriores;
-            if (!legendarias.length) legendarias = legendariasAnteriores;
-            destacadasCacheAnterior = destacadasAnteriores;
-        }
+        // No conservar ni mezclar alertas de días anteriores si el raspado actual
+        // es parcial. Las listas guardadas siempre reflejan únicamente la consulta
+        // actual; si una fuente no devuelve alertas, esa categoría queda vacía.
+        const destacadasCacheAnterior = [];
 
         function evaluarAlertaChida(mision) {
             // Una alerta de PaVos también debe estar disponible en destacadas.
@@ -1723,15 +1707,6 @@ async function extraerAlertasAPI(progreso = null, opciones = {}) {
         }
 
         let plAltas = Array.from(mapaPlAltas.values());
-        if (!coberturaCompleta && destacadasCacheAnterior.length) {
-            const merged = new Map();
-            for (const item of [...destacadasCacheAnterior, ...plAltas]) {
-                const key = [item.zona || '', item.pl || '', item.mision || '', item.motivo || ''].join('|').toLowerCase();
-                const previo = merged.get(key);
-                if (!previo || Number(item.nivelAlerta || 0) > Number(previo.nivelAlerta || 0)) merged.set(key, item);
-            }
-            plAltas = Array.from(merged.values());
-        }
         plAltas.sort((a, b) => b.nivelAlerta - a.nivelAlerta || Number(b.pl) - Number(a.pl) || String(a.zona).localeCompare(String(b.zona)));
 
         await etapaDiagnostico('STW ETAPA 8/8: escribiendo resultados en MongoDB. Si se detiene aquí, revisar permisos/conexión de base de datos.');
