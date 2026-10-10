@@ -124,7 +124,7 @@ function obtenerRecompensasValiosasSTW(item) {
     const valiosas = recompensas.filter(r => {
         if (!r || !r.tipo) return false;
         if (r.tipo === 'vbucks') return true;
-        if (!['hero', 'survivor', 'defender', 'schematic'].includes(r.tipo)) return false;
+        if (!['hero', 'survivor', 'defender', 'schematic', 'perkup'].includes(r.tipo)) return false;
         return ['mythic', 'legendary', 'epic', 'rare'].includes(r.rareza);
     });
     const unicas = [];
@@ -259,7 +259,7 @@ async function alertasSTW(sock, chatId, msg, categoria = 'todas', progreso = nul
         lineas.push('⭐ *RESUMEN DE ALERTAS DESTACADAS*', '');
         const lista = (datos.plAltas || []).filter(item => {
             const recompensas = Array.isArray(item.recompensas) ? item.recompensas : [];
-            return recompensas.some(r => ['hero', 'survivor', 'defender', 'schematic'].includes(r.tipo)
+            return recompensas.some(r => ['hero', 'survivor', 'defender', 'schematic', 'perkup'].includes(r.tipo)
                 && ['epic', 'legendary', 'mythic'].includes(r.rareza));
         });
         const limite = 10;
