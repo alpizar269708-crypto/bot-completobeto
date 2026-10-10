@@ -60,7 +60,9 @@ test('SeeBot #miniRwdTbl extrae zona, PL, misión, modificadores, rareza y requi
     assert.ok(legendaria);
     assert.equal(legendaria.recompensas[0].rareza, 'legendary');
     assert.equal(legendaria.recompensas[0].tipo, 'survivor');
-    assert.match(legendaria.recompensas[0].nombre, /Training Team Lead Survivor/);
+    assert.match(legendaria.recompensas[0].nombre, /Superviviente legendario/);
+    assert.match(legendaria.recompensas[0].nombre, /Líder del equipo de entrenamiento/);
+    assert.doesNotMatch(legendaria.recompensas[0].nombre, /Training Team Lead Survivor/i);
 
     const pavos = misiones.find(m => m.misionOriginal === 'Retrieve the Data');
     assert.ok(pavos);
