@@ -329,11 +329,11 @@ function extraerAlertasSeeBotTabla(html) {
         const celdas = $(fila).children('td');
         if (celdas.length < 6) return;
         const zona = limpiar($(celdas[0]).text());
-        const poder = limpiar($(celdas[1]).text()).match(/\\d+/);
+        const poder = limpiar($(celdas[1]).text()).match(/\d+/);
         const misionImg = $(celdas[2]).find('img').first();
         const nombreOriginal = limpiar(misionImg.attr('title') || misionImg.attr('alt') || $(celdas[2]).text());
         const textoRecompensa = limpiar($(celdas[4]).text());
-        const coincide = textoRecompensa.match(/(?:V-?Bucks|V\\s*Bucks)[^0-9]{0,50}(\\d+)/i);
+        const coincide = textoRecompensa.match(/(?:V-?Bucks|V\s*Bucks)[^0-9]{0,50}(\d+)/i);
         if (!coincide) return;
         const cantidad = Number(coincide[1]);
         if (!Number.isFinite(cantidad) || cantidad <= 0) return;
@@ -348,14 +348,13 @@ function extraerAlertasSeeBotTabla(html) {
             misionOriginal: nombreOriginal,
             cantidad,
             recompensaOriginal: textoRecompensa,
-            tipoRecompensa: /or\\s+X-Ray/i.test(textoRecompensa) ? 'V-Bucks or X-Ray' : 'V-Bucks',
+            tipoRecompensa: /or\s+X-Ray/i.test(textoRecompensa) ? 'V-Bucks or X-Ray' : 'V-Bucks',
             modificadores,
             requisitos: limpiar($(celdas[5]).text()) || 'None'
         });
     });
     return alertas;
 }
-
 async function consultarSeeBot(progreso) {
     const resultado = { fuente: 'SeeBot.dev', url: URL_SEEBOT, alertas: [], error: null, etapas: [] };
     const inicio = Date.now();
