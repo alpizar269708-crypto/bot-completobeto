@@ -89,7 +89,7 @@ function deduplicarPlAltasVbucks(lista) {
     return Array.from(mapa.values());
 }
 
-async function obtenerAlertasSTW(actualizarEnVivo = true, progreso = null, opciones = {}) {
+async function obtenerAlertasSTW(actualizarEnVivo = false, progreso = null, opciones = {}) {
     let raspadoCorrecto = false;
     let fuentes = null;
     if (actualizarEnVivo) {
@@ -315,7 +315,7 @@ async function alertasSTW(sock, chatId, msg, categoria = 'todas', progreso = nul
     };
     let datos;
     try {
-        datos = await obtenerAlertasSTW(true, informar);
+        datos = await obtenerAlertasSTW(false, informar);
     } catch (error) {
         console.error('Error cargando alertas STW para comando ' + categoria + ':', error.stack || error.message);
         datos = { pavos: [], epicas: [], legendarias: [], plAltas: [], errorActualizacion: true };
@@ -405,7 +405,7 @@ async function comandoDestacadasSTW(sock, chatId, msg, progreso = null) {
 
     try {
         await informar('🗄️ ETAPA 1/4 — Leyendo datos guardados en MongoDB.');
-        const datos = await obtenerAlertasSTW(true, informar);
+        const datos = await obtenerAlertasSTW(false, informar);
         await informar('🔎 ETAPA 2/4 — Seleccionando alertas destacadas de PL altas. Total recibido=' + (datos.plAltas || []).length + '.');
         const listaPlAltas = datos.plAltas || [];
 
@@ -604,7 +604,7 @@ function combinarAlertasDiarias(lista) {
     return Array.from(mapa.values());
 }
 
-async function enviarAlertaPavosAutomatica(sock, actualizarEnVivo = false, horaAlerta = '6:01:30 PM', avisarSinPavos = false) {
+async function enviarAlertaPavosAutomatica(sock, actualizarEnVivo = false, horaAlerta = '6:01:20 PM', avisarSinPavos = false) {
     try {
         const configChat = await Config.findOne({ clave: 'chat_alertas_diarias' });
         if (!configChat || !configChat.valor) return false;
@@ -616,70 +616,52 @@ async function enviarAlertaPavosAutomatica(sock, actualizarEnVivo = false, horaA
         grupos = [...new Set(grupos.filter(id => typeof id === 'string' && id.endsWith('@g.us')))];
         if (!grupos.length) return false;
 
-        const datos = await obtenerAlertasSTW(actualizarEnVivo, null, { soloCambiosDiarios: true });
-        const docEstado = await Config.findOne({ clave: CLAVE_ESTADO_ALERTA_PAVOS });
-        let estado = {};
-        try { estado = docEstado && docEstado.valor ? JSON.parse(docEstado.valor) : {}; } catch (_) {}
-        const firmasAnteriores = estado.firmasPorFuente || {};
-        const fuentes = datos.fuentes || {};
-        let seleccionadas = [];
-
-        for (const nombreFuente of ['principal', 'secundaria', 'tercera']) {
-            const candidatas = combinarAlertasDiarias(fuentes[nombreFuente] || []);
-            if (!candidatas.length) continue;
-            const firmasPrevias = firmasAnteriores[nombreFuente] || {};
-            const nuevas = candidatas.filter(item =>
-                firmasPrevias[claveMisionAlertaDiaria(item)] !== firmaMisionAlertaDiaria(item)
-            );
-            if (nuevas.length) {
-                seleccionadas = nuevas;
-                break;
-            }
-        }
-
-        if (!seleccionadas.length) {
-            if (horaAlerta !== '6:05 PM') {
-                console.log('Alertas diarias: no se detectaron alertas nuevas; se revisará en el siguiente horario.');
-                return false;
-            }
-            // Último intento del día: avisar que no hay alertas actuales, nunca
-            // reciclar la lista anterior ni mostrarla como si fuera nueva.
-            const mensajeSinAlertas = '😔 No hay alertas de PaVos disponibles en este momento.';
+        // Nunca raspar desde el envío: se usa exclusivamente el snapshot ya guardado.
+        const pavos = await leerConfigJSON('stw_pavos_scrapeados');
+        const alertas = pavos.filter(item => Number(item.cantidad || item.cantidadVbucks || 0) > 0);
+        if (!alertas.length) {
+            if (!avisarSinPavos) return false;
             let avisoEnviado = false;
             for (const grupo of grupos) {
                 try {
-                    await sock.sendMessage(grupo, { text: mensajeSinAlertas });
+                    await sock.sendMessage(grupo, { text: '😔 No se encontraron alertas de PaVos en el raspado de hoy.' });
                     avisoEnviado = true;
                 } catch (e) {
                     console.error('Error enviando aviso de alertas vacías:', e.message);
                 }
             }
-            if (avisoEnviado) await guardarAlertaPavosEnviada(fechaCDMX(), horaAlerta, firmasPorFuenteAlertaDiaria(fuentes));
+            if (avisoEnviado) await guardarAlertaPavosEnviada(fechaCDMX(), horaAlerta, {});
             return avisoEnviado;
         }
 
-        seleccionadas = combinarAlertasDiarias(seleccionadas)
-            .sort((a, b) => Number(b.pl || 0) - Number(a.pl || 0))
-            .slice(0, 10);
-        let mensajeAuto = '🎮 *ALERTAS DIARIAS — ' + horaAlerta + '*\n\n';
-        for (const item of seleccionadas) mensajeAuto += formatearAlertaSTW(item);
-        mensajeAuto += '🔎 Usa *stw* para consultar el concentrado completo.';
-
+        let mensaje = '🎮 *ALERTAS DE PaVOS — ' + horaAlerta + '*\n\n';
+        let total = 0;
+        for (const item of alertas) {
+            const cantidad = Number(item.cantidad || item.cantidadVbucks || 0);
+            total += cantidad;
+            mensaje += '🌍 *Zona:* ' + traducirZonaSalidaSTW(item.zona || 'Desconocida') + '\n' +
+                '⚡ *PL:* ' + (item.pl ?? '?') + '\n' +
+                '🎯 *Misión:* ' + traducirMisionSalidaSTW(item) + '\n' +
+                '🪙 *PaVos:* ' + cantidad + '\n\n';
+        }
+        mensaje += '💰 *Total del día:* ' + total + ' PaVos\n\n🔎 Usa *pavos* para consultar la información guardada.';
         let enviada = false;
         for (const grupo of grupos) {
             try {
-                await sock.sendMessage(grupo, { text: mensajeAuto });
+                await sock.sendMessage(grupo, { text: mensaje });
                 enviada = true;
             } catch (e) {
                 console.error('Error enviando alerta diaria al grupo:', e.message);
             }
         }
         if (enviada) {
-            await guardarAlertaPavosEnviada(fechaCDMX(), horaAlerta, firmasPorFuenteAlertaDiaria(fuentes));
+            const firmas = {};
+            for (const item of alertas) firmas[claveMisionAlertaDiaria(item)] = firmaMisionAlertaDiaria(item);
+            await guardarAlertaPavosEnviada(fechaCDMX(), horaAlerta, { snapshot: firmas });
         }
         return enviada;
     } catch (error) {
-        console.error('Error en alerta diaria:', error.message);
+        console.error('Error en alerta diaria:', error.stack || error.message);
         return false;
     }
 }
@@ -719,69 +701,71 @@ async function guardarAlertaPavosEnviada(hoy, horario, firmasPorFuente = {}) {
 
 function iniciarCronAlertasDiarias(sock) {
     if (cronAlertasDiariasIniciado) {
-        console.log('ℹ️ El cron diario de PaVos ya estaba iniciado; no se duplicarán horarios.');
+        console.log('ℹ️ El cron diario de STW ya estaba iniciado; no se duplicarán horarios.');
         return;
     }
     cronAlertasDiariasIniciado = true;
-
     const zonaHoraria = 'America/Mexico_City';
-    const horarios = [
-        { cron: '30 1 18 * * *', etiqueta: '6:01:30 PM', avisarSinPavos: true },
-        { cron: '0 2 18 * * *', etiqueta: '6:02 PM', avisarSinPavos: false },
-        { cron: '0 5 18 * * *', etiqueta: '6:05 PM', avisarSinPavos: false }
+    const clavesCacheSTW = [
+        'stw_pavos_scrapeados',
+        'stw_epicas_scrapeadas',
+        'stw_legendarias_scrapeadas',
+        'stw_plaltas_scrapeadas',
+        'stw_ultima_actualizacion'
     ];
 
+    // Vacía únicamente las cachés de alertas STW; no toca otros datos del bot.
+    cron.schedule('40 59 17 * * *', async () => {
+        try {
+            await Config.deleteMany({ clave: { $in: clavesCacheSTW } });
+            console.log('🧹 5:59:40 PM: caché de alertas STW limpiada en MongoDB.');
+        } catch (error) {
+            console.error('❌ No se pudo limpiar la caché STW:', error.message);
+        }
+    }, { scheduled: true, timezone: zonaHoraria });
+
+    const horarios = [
+        { cron: '20 1 18 * * *', etiqueta: '6:01:20 PM', ultimo: false },
+        { cron: '0 2 18 * * *', etiqueta: '6:02:00 PM', ultimo: false },
+        { cron: '0 5 18 * * *', etiqueta: '6:05:00 PM', ultimo: true }
+    ];
     for (const horario of horarios) {
         cron.schedule(horario.cron, async () => {
-            const hoy = fechaCDMX();
             if (raspadoEnCurso) {
-                console.log(`⏭️ Se omite ${horario.etiqueta}: ya hay un raspado en curso.`);
+                console.log('⏭️ Se omite ' + horario.etiqueta + ': ya hay un raspado en curso.');
                 return;
             }
-
             try {
-                if (await yaSeEnvioAlertaPavosHoy(hoy)) {
-                    console.log(`⏭️ Se omite el raspado de las ${horario.etiqueta}: la alerta diaria ya fue enviada hoy.`);
+                if (await yaSeEnvioAlertaPavosHoy(fechaCDMX())) {
+                    console.log('⏭️ Se omite ' + horario.etiqueta + ': la alerta diaria ya se envió.');
                     return;
                 }
-
                 raspadoEnCurso = true;
-                const enviada = await enviarAlertaPavosAutomatica(sock, true, horario.etiqueta, horario.avisarSinPavos);
-                if (enviada) {
-                    console.log(`✅ Alerta diaria enviada a las ${horario.etiqueta}; estado y firmas guardados para evitar duplicados tras reinicios.`);
-                } else {
-                    console.log(`🔎 ${horario.etiqueta}: no se detectó una alerta nueva; se continuará con el siguiente horario si queda alguno.`);
+                console.log('🌐 ' + horario.etiqueta + ': iniciando raspado HTTP de STW; los comandos leerán la caché guardada.');
+                const { extraerAlertasAPI } = require('../webBridge');
+                const resultado = await extraerAlertasAPI();
+                const pavos = await leerConfigJSON('stw_pavos_scrapeados');
+                const hayPavos = resultado && resultado.ok === true &&
+                    pavos.some(p => Number(p.cantidad || p.cantidadVbucks || 0) > 0);
+                if (!hayPavos) {
+                    console.warn('⚠️ ' + horario.etiqueta + ': no hay alertas de PaVos válidas guardadas; se esperará al siguiente intento.');
+                    if (horario.ultimo) await enviarAlertaPavosAutomatica(sock, false, horario.etiqueta, true);
+                    return;
                 }
-            } catch (e) {
-                console.error(`❌ Error en el horario ${horario.etiqueta}:`, e.message);
+                const enviada = await enviarAlertaPavosAutomatica(sock, false, horario.etiqueta, false);
+                if (enviada) {
+                    console.log('✅ Snapshot STW guardado en MongoDB y alerta enviada a las ' + horario.etiqueta + '.');
+                } else {
+                    console.log('⚠️ Había PaVos en caché, pero no se confirmó el envío; se conserva el snapshot.');
+                }
+            } catch (error) {
+                console.error('❌ Falló el raspado de ' + horario.etiqueta + ':', error.stack || error.message);
             } finally {
                 raspadoEnCurso = false;
             }
         }, { scheduled: true, timezone: zonaHoraria });
     }
-
-    console.log('🕒 Alertas diarias programadas a las 18:01:30, 18:02 y 18:05 (hora de Ciudad de México). Se publican cambios nuevos y, al final, un solo respaldo si no hubo cambios.');
-
-    // Calentar la caché al iniciar el bot para que los comandos tengan datos
-    // recientes incluso si la primera consulta manual falla.
-    void (async () => {
-        try {
-            console.log('🌐 Actualización inicial de alertas STW: consultando STW Planner y SeeBot.');
-            const { extraerAlertasAPI } = require('../webBridge');
-            const resultado = await extraerAlertasAPI();
-            if (resultado && resultado.ok) {
-                console.log('✅ Caché STW inicial lista | misiones=' + (resultado.total || 0) +
-                    ' | PaVos=' + (resultado.pavos || 0) +
-                    ' | épicas=' + (resultado.epicas || 0) +
-                    ' | legendarias=' + (resultado.legendarias || 0) +
-                    ' | destacadas=' + (resultado.plAltas || 0));
-            } else {
-                console.warn('⚠️ No se pudo calentar la caché STW al iniciar; los comandos volverán a consultar las fuentes en vivo.');
-            }
-        } catch (error) {
-            console.error('❌ Falló la actualización inicial STW:', error.stack || error.message);
-        }
-    })();
+    console.log('🕒 STW: borrado de caché 17:59:40; raspado 18:01:20 y reintentos 18:02:00/18:05:00 si faltan PaVos (hora CDMX).');
 }
 
 async function activarAlertasDiarias(sock, chatId, msg) {
@@ -803,7 +787,7 @@ async function activarAlertasDiarias(sock, chatId, msg) {
 
     if (grupos.includes(chatId)) {
         await sock.sendMessage(chatId, {
-            text: 'ℹ️ *Este grupo ya se encuentra activado para las alertas de PaVos.*\n\n📅 Seguirán recibiendo la alerta automática todos los días a las *6:01:30 PM, 6:02 PM y 6:05 PM* (hora de Ciudad de México).'
+            text: 'ℹ️ *Este grupo ya se encuentra activado para las alertas de PaVos.*\n\n📅 Seguirán recibiendo la alerta automática todos los días a las *6:01:20 PM, 6:02:00 PM y 6:05:00 PM* (hora de Ciudad de México).'
         }, { quoted: msg });
         return;
     }
@@ -816,7 +800,7 @@ async function activarAlertasDiarias(sock, chatId, msg) {
     );
 
     await sock.sendMessage(chatId, {
-        text: `✅ *Alertas de PaVos activadas en este grupo.*\n\n📅 Recibirán la alerta automática todos los días a las *6:01:30 PM, 6:02 PM y 6:05 PM* (hora de Ciudad de México).\n🪙 A las *6:01:30 PM* se avisará aunque no haya PaVos; si no hay, se volverá a revisar a las *6:02 PM* y *6:05 PM*.`
+        text: `✅ *Alertas de PaVos activadas en este grupo.*\n\n📅 Recibirán la alerta automática todos los días a las *6:01:20 PM, 6:02:00 PM y 6:05:00 PM* (hora de Ciudad de México).\n🪙 A las *6:01:20 PM* se avisará aunque no haya PaVos; si no hay, se volverá a revisar a las *6:02:00 PM* y *6:05:00 PM*.`
     }, { quoted: msg });
 }
 
