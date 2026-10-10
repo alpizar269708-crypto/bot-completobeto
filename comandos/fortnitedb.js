@@ -403,42 +403,63 @@ function formatearFuente(resultado) {
 
 async function comandoRPavos(sock, chatId, msg) {
     const inicio = Date.now();
+    let numeroEtapa = 0;
     const progreso = async (texto) => {
-        await sock.sendMessage(chatId, { text: '🧪 *RDIAGNOSTICO — TRAZA TÉCNICA*\n\n' + texto }, { quoted: msg });
+        numeroEtapa++;
+        await sock.sendMessage(chatId, {
+            text: '🪙 *R PAVOS — DIAGNÓSTICO DE DOS FUENTES*\\n📍 Seguimiento ' + numeroEtapa +
+                ' | ⏱️ ' + ((Date.now() - inicio) / 1000).toFixed(2) + ' s\\n\\n' + String(texto).slice(0, 2800)
+        }, { quoted: msg });
     };
 
-    await progreso('🚦 Inicio del diagnóstico. Consultaré ambas páginas de forma independiente; si una falla, continuaré con la otra.');
+    await progreso('ETAPA 0 — Comando recibido. Este comando solo consultará SeeBot.dev y FortniteDB. Cada fuente se ejecuta por separado; si una falla, la otra continuará.');
 
-    // Ejecución secuencial intencional: evita intercalar mensajes y permite seguir
-    // la traza de cada página desde conexión hasta extracción, incluso si una falla.
+    // No ejecutar aquí diagnósticos de STW Planner ni de otros comandos.
     const fortniteDB = await consultarFortniteDB(progreso);
+    await progreso('CAMBIO DE FUENTE — FortniteDB terminó. Ahora empieza SeeBot.dev, independientemente del resultado anterior.');
     const seeBot = await consultarSeeBot(progreso);
-    const menuFortnite = await diagnosticarMenuFortnite(progreso);
 
     const lineas = [
-        '🧪 *RESULTADO FINAL DEL DIAGNÓSTICO RDIAGNOSTICO*',
+        '🪙 *RESULTADO FINAL — RPAVOS*',
         '',
-        formatearFuente(fortniteDB),
-        '',
-        formatearFuente(seeBot),
-        '',
-        (menuFortnite.ok ? '✅' : '⚠️') + ' *MENÚ FORTNITE / STW PLANNER*',
-        ...menuFortnite.pruebas,
-        ...(menuFortnite.errores.length ? ['', '*Problemas detectados:*', ...menuFortnite.errores.map(e => '• ' + e)] : []),
-        '',
-        '⏱️ Tiempo total: ' + ((Date.now() - inicio) / 1000).toFixed(1) + ' s',
-        '',
-        'Support-a-Creator: *JASC13* ❤️'
+        '🧭 *Comparación de fuentes*',
+        'FortniteDB: ' + (fortniteDB.ok ? 'OK' : 'FALLÓ') + ' | alertas=' + fortniteDB.alertas.length + ' | total=' + (fortniteDB.ok ? fortniteDB.totalPavos : 'no disponible'),
+        'SeeBot.dev: ' + (seeBot.ok ? 'OK' : 'FALLÓ') + ' | alertas=' + seeBot.alertas.length + ' | total=' + (seeBot.ok ? seeBot.totalPavos : 'no disponible'),
+        ''
     ];
 
-    if (fortniteDB.ok && seeBot.ok) {
-        const diferencia = fortniteDB.totalPavos - seeBot.totalPavos;
-        lineas.push('', '🧮 Diferencia entre fuentes: ' + (diferencia > 0 ? '+' : '') + diferencia + ' PaVos.');
+    if (fortniteDB.ok) {
+        lineas.push('🌐 *FORTNITEDB — PA VOS EXTRAÍDOS*');
+        for (const a of fortniteDB.alertas) lineas.push('• ' + a.zona + ' | PL ' + (a.pl ?? '?') + ' | ' + a.mision + ' | ' + a.cantidad + ' PaVos');
+        lineas.push('*Total FortniteDB: ' + fortniteDB.totalPavos + ' PaVos*', '');
     } else {
-        lineas.push('', '⚠️ Una o ambas fuentes fallaron. Cada bloque anterior identifica el último punto completado y el error exacto de esa página.');
+        lineas.push('❌ *FORTNITEDB FALLÓ*', 'Último punto: ' + (fortniteDB.etapaFallo || 'no registrado'), 'Error exacto: ' + (fortniteDB.error || 'sin detalle'), '');
     }
 
-    await sock.sendMessage(chatId, { text: lineas.join('\n') }, { quoted: msg });
+    if (seeBot.ok) {
+        lineas.push('🌐 *SEEBOT.DEV — PA VOS EXTRAÍDOS*');
+        for (const a of seeBot.alertas) lineas.push('• ' + a.zona + ' | PL ' + (a.pl ?? '?') + ' | ' + a.mision + ' | ' + a.cantidad + ' PaVos');
+        lineas.push('*Total SeeBot: ' + seeBot.totalPavos + ' PaVos*', '');
+    } else {
+        lineas.push('❌ *SEEBOT.DEV FALLÓ*', 'Último punto: ' + (seeBot.etapaFallo || 'no registrado'), 'Error exacto: ' + (seeBot.error || 'sin detalle'), '');
+    }
+
+    if (fortniteDB.ok && seeBot.ok) {
+        const clave = a => [String(a.zonaCodigo || a.zona || '').toLowerCase(), String(a.pl ?? ''), String(a.cantidad ?? ''), String(a.mision || '').toLowerCase()].join('|');
+        const mapaDB = new Set(fortniteDB.alertas.map(clave));
+        const mapaSee = new Set(seeBot.alertas.map(clave));
+        const soloDB = fortniteDB.alertas.filter(a => !mapaSee.has(clave(a)));
+        const soloSee = seeBot.alertas.filter(a => !mapaDB.has(clave(a)));
+        lineas.push('🔍 *COMPARACIÓN DETALLADA*',
+            'Coincidencias exactas: ' + fortniteDB.alertas.filter(a => mapaSee.has(clave(a))).length,
+            'Solo en FortniteDB: ' + soloDB.length + (soloDB.length ? ' — ' + soloDB.map(a => a.zona + '/PL' + (a.pl ?? '?') + '/' + a.cantidad + ' PaVos').join('; ') : ''),
+            'Solo en SeeBot: ' + soloSee.length + (soloSee.length ? ' — ' + soloSee.map(a => a.zona + '/PL' + (a.pl ?? '?') + '/' + a.cantidad + ' PaVos').join('; ') : ''),
+            'Diferencia de totales: ' + (fortniteDB.totalPavos - seeBot.totalPavos) + ' PaVos');
+    } else {
+        lineas.push('⚠️ La comparación completa requiere que ambas fuentes extraigan datos correctamente.');
+    }
+    lineas.push('', '⏱️ Tiempo total: ' + ((Date.now() - inicio) / 1000).toFixed(2) + ' s', 'Support-a-Creator: *JASC13* ❤️');
+    await sock.sendMessage(chatId, { text: lineas.join('\\n') }, { quoted: msg });
 }
 
 module.exports = {
