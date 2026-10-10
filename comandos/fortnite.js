@@ -798,6 +798,6 @@ async function desactivarAlertasDiarias(sock, chatId, msg) {
 }
 
 module.exports = { 
-    obtenerAlertasSTW, alertasSTW, comandoDestacadasSTW, comandoPreguntarAlerta, 
+    obtenerAlertasSTW, alertasSTW, comandoDestacadasSTW, comandoPreguntarAlerta, formatearAlertaSTW, 
     iniciarCronAlertasDiarias, activarAlertasDiarias, desactivarAlertasDiarias
 };
