@@ -846,7 +846,12 @@ async function comandoRPavos(sock, chatId, msg) {
 
     for (const fuente of alternativas.filter(f => f.ok)) {
         lineas.push('🌐 *' + fuente.fuente.toUpperCase() + ' — ALERTAS DETECTADAS*');
-        for (const a of fuente.alertas) lineas.push('• ' + a.zona + ' | PL ' + (a.pl ?? '?') + ' | ' + a.mision + ' | ' + a.cantidad + ' PaVos');
+        for (const a of fuente.alertas) {
+            lineas.push('• ' + a.zona + ' | PL ' + (a.pl ?? '?') + ' | ' + (a.misionOriginal || a.mision) + ' | ' + a.cantidad + ' PaVos');
+            if (a.recompensaOriginal) lineas.push('  Recompensa: ' + a.recompensaOriginal);
+            if (a.otrasRecompensas?.length) lineas.push('  Otras recompensas: ' + a.otrasRecompensas.join(', '));
+            if (a.modificadores?.length) lineas.push('  Modificadores: ' + a.modificadores.join(', '));
+        }
         lineas.push('*Total ' + fuente.fuente + ': ' + fuente.totalPavos + ' PaVos*', '');
     }
 
