@@ -1,7 +1,7 @@
 const axios = require('axios');
 const cheerio = require('cheerio');
 const { Config } = require('../database/modelos');
-const { traducirNombreMisionSTW, traducirZonaSTW, traducirModificadorSTW } = require('../webBridge');
+const { traducirNombreMisionSTW, traducirZonaSTW, traducirModificadorSTW, parsearJSONSeeBotSTW } = require('../webBridge');
 
 const URL_FORTNITEDB = 'https://v2.fortnitedb.com/index.php';
 const URL_FORTNITEDB_PRINCIPAL = 'https://fortnitedb.com/index.php';
@@ -371,26 +371,57 @@ async function consultarSeeBot(progreso) {
             resultado.rutaExtraccion = 'HTML #miniRwdTbl';
             await paso('📋 *SeeBot ETAPA 5 — TABLA HTML:* alertas V-Bucks encontradas=' + alertasTabla.length + '; se conservaron misión, modificadores, requisitos y texto de recompensa.');
         } else {
-            await paso('↪️ SeeBot: la tabla #miniRwdTbl no produjo alertas; se intenta la ruta B, el arreglo JSON makeHtml(...).');
-            const misiones = extraerDatosSeeBot(html);
-            resultado.rutaExtraccion = 'JSON makeHtml';
-            await paso('📋 *SeeBot ETAPA 5 — DATOS JSON:* lista válida; misiones leídas=' + misiones.length + '; filtrando recompensas de PaVos.');
-            for (const mision of misiones) {
-                const zona = String(mision.zone || '').trim();
-                if (!['Stonewood', 'Plankerton', 'Canny Valley', 'Twine Peaks', 'Ventures'].includes(zona)) continue;
-                const recompensas = Array.isArray(mision.alertRewards) ? mision.alertRewards : [];
-                const recompensaPavos = recompensas.find(r => /v-?bucks|v\s*bucks|currency_mtxswap|mtxswap/i.test(String(r.itemType || '') + ' ' + String(r.name || '') + ' ' + String(r.id || '')));
-                if (!recompensaPavos) continue;
-                const cantidad = Number(recompensaPavos.quantity);
+            await paso('↪️ SeeBot: la tabla #miniRwdTbl no produjo filas directas; intentando primero el parser unificado del JSON makeHtml(...).');
+            const normalizadas = parsearJSONSeeBotSTW(html);
+            for (const mision of normalizadas) {
+                const recompensaPavos = (Array.isArray(mision.recompensas) ? mision.recompensas : [])
+                    .find(r => r && r.tipo === 'vbucks');
+                if (!mision.vbucks && !recompensaPavos) continue;
+                const cantidad = Number(mision.cantidadVbucks || recompensaPavos?.cantidad || 50);
                 if (!Number.isFinite(cantidad) || cantidad <= 0) continue;
+                const zona = String(mision.zona || '').trim();
                 resultado.alertas.push({
                     zona,
-                    zonaCodigo: ({ Stonewood: 'S', Plankerton: 'P', 'Canny Valley': 'C', 'Twine Peaks': 'T', Ventures: 'V' })[zona],
-                    pl: Number(mision.powerLevel) || null,
-                    mision: nombreMisionSeeBot(mision.name),
+                    zonaCodigo: ({ Stonewood: 'S', Plankerton: 'P', 'Canny Valley': 'C', 'Twine Peaks': 'T', Ventures: 'V' })[zona] || null,
+                    pl: Number(mision.pl) || null,
+                    mision: mision.mision || nombreMisionSeeBot(mision.misionOriginal),
+                    misionOriginal: mision.misionOriginal || mision.mision,
                     cantidad,
-                    tipoRecompensa: 'V-Bucks'
+                    tipoRecompensa: /or\s+X-Ray/i.test(String(recompensaPavos?.raw || '')) ? 'V-Bucks or X-Ray' : 'V-Bucks',
+                    modificadores: Array.isArray(mision.modificadores) ? mision.modificadores : [],
+                    questReqs: mision.questReqs || 'None',
+                    requisitos: mision.questReqs || 'None',
+                    source: mision.source || URL_SEEBOT
                 });
+            }
+            if (resultado.alertas.length) {
+                resultado.rutaExtraccion = 'JSON makeHtml normalizado';
+                await paso('📋 *SeeBot ETAPA 5 — DATOS JSON NORMALIZADOS:* misiones completas leídas=' + normalizadas.length +
+                    '; alertas de PaVos=' + resultado.alertas.length + '; se conservaron modificadores y requisitos.');
+            } else {
+                // Compatibilidad: mantener el parser anterior si SeeBot cambia
+                // los nombres de campos de recompensas en su JSON.
+                const misiones = extraerDatosSeeBot(html);
+                resultado.rutaExtraccion = 'JSON makeHtml (compatibilidad)';
+                await paso('📋 *SeeBot ETAPA 5 — RESPALDO JSON:* misiones leídas=' + misiones.length + '; filtrando recompensas de PaVos.');
+                for (const mision of misiones) {
+                    const zona = String(mision.zone || '').trim();
+                    if (!['Stonewood', 'Plankerton', 'Canny Valley', 'Twine Peaks', 'Ventures'].includes(zona)) continue;
+                    const recompensas = Array.isArray(mision.alertRewards) ? mision.alertRewards : [];
+                    const recompensaPavos = recompensas.find(r => /v-?bucks|v\s*bucks|currency_mtxswap|mtxswap/i.test(String(r.itemType || '') + ' ' + String(r.name || '') + ' ' + String(r.id || '')));
+                    if (!recompensaPavos) continue;
+                    const cantidad = Number(recompensaPavos.quantity);
+                    if (!Number.isFinite(cantidad) || cantidad <= 0) continue;
+                    resultado.alertas.push({
+                        zona,
+                        zonaCodigo: ({ Stonewood: 'S', Plankerton: 'P', 'Canny Valley': 'C', 'Twine Peaks': 'T', Ventures: 'V' })[zona] || null,
+                        pl: Number(mision.powerLevel) || null,
+                        mision: nombreMisionSeeBot(mision.name),
+                        misionOriginal: mision.name,
+                        cantidad,
+                        tipoRecompensa: 'V-Bucks'
+                    });
+                }
             }
         }
 
