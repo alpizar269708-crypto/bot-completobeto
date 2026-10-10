@@ -997,10 +997,13 @@ async function comandoPavosOficial(sock, chatId, msg) {
         break;
     }
 
-    // Si las fuentes siguen mostrando exactamente las alertas de ayer, no las
-    // publicamos como si fueran nuevas. Si hoy ninguna fuente encuentra nada,
-    // guardamos una lista vacía para que el siguiente ciclo detecte el cambio.
-    const snapshot = alertasElegidas.length ? alertasElegidas : primeraAlertaVista;
+    // Si las tres fuentes conservan la misma lista que ayer, igualmente
+    // se muestra la lista válida al usuario: repetir la alerta del día es mejor
+    // que responder falsamente que no existen PaVos.
+    if (!alertasElegidas.length && primeraAlertaVista.length) {
+        alertasElegidas = primeraAlertaVista;
+    }
+    const snapshot = alertasElegidas;
     try {
         await Config.findOneAndUpdate(
             { clave: claveHoy },
