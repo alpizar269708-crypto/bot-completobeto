@@ -52,7 +52,7 @@ async function ejecutarMenu(sock, chatId, msg, args) {
     const categoriasActivas = await obtenerCategoriasActivas(chatId); 
 
     const descripcionCategorias = {
-        fortnite: '🎮 *fortnite* - Alertas y pavos (Salvar el Mundo)',
+        fortnite: '🎮 *fortnite* - Alertas y PaVos de Salvar el Mundo',
         tienda: '🛒 *tienda* - Tienda diaria de Battle Royale',
         carry: '🚀 *carry* - Sistema de escuadrones y ayuda',
         rifas: '🎟️ *rifas* - Sistema de sorteos',
@@ -86,7 +86,7 @@ async function ejecutarMenu(sock, chatId, msg, args) {
     `*${prefijo}legendariasstw* - Recompensas legendarias útiles de esas categorías.\n` +
     `*${prefijo}alertasstw* - Resumen breve: PaVos y hasta 10 alertas destacadas; usa los comandos por rareza para las listas completas.\n` +
     `*${prefijo}alerta [nombre]* - Busca una recompensa específica con datos resumidos.\n` +
-    `*${prefijo}alertanob [nombre]* - Alerta para novatos: muestra modificadores y requisitos reales necesarios para la misión.\n`;
+    `*${prefijo}alertanob [nombre]* - Alerta para novatos: muestra detalles de la misión, modificadores y requisitos disponibles; nunca muestra multiplicadores x4/x5.\n`;
 
     menuFortnite += `\n🚀 *CARRY / ESCUADRONES:*\n` +
         `*${prefijo}carryleader [1-3] [motivo]* - Crea un escuadrón indicando cuántos jugadores faltan.\n` +

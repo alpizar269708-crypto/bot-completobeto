@@ -146,14 +146,16 @@ function normalizarRecompensaSalidaSTW(recompensa) {
 
 function obtenerRecompensasValiosasSTW(item) {
     const recompensas = Array.isArray(item.recompensas) ? item.recompensas : [];
-    const rarezasPerkUp = new Set(recompensas.filter(r => r && r.tipo === 'perkup').map(r => r.rareza));
+    const rarezasPerkUp = new Set(recompensas.filter(r => r && String(r.tipo || '').toLowerCase() === 'perkup').map(r => String(r.rareza || '').toLowerCase()));
     const tienePerkUpDoble = rarezasPerkUp.has('epic') && rarezasPerkUp.has('legendary');
     const valiosas = recompensas.filter(r => {
         if (!r || !r.tipo) return false;
-        if (r.tipo === 'vbucks') return true;
-        if (r.tipo === 'perkup') return tienePerkUpDoble && ['epic', 'legendary'].includes(r.rareza);
-        if (!['hero', 'survivor', 'defender', 'schematic'].includes(r.tipo)) return false;
-        return ['mythic', 'legendary', 'epic', 'rare'].includes(r.rareza);
+        const tipo = String(r.tipo || '').toLowerCase();
+        const rareza = String(r.rareza || '').toLowerCase();
+        if (tipo === 'vbucks') return true;
+        if (tipo === 'perkup') return tienePerkUpDoble && ['epic', 'legendary'].includes(rareza);
+        if (!['hero', 'survivor', 'defender', 'schematic'].includes(tipo)) return false;
+        return ['mythic', 'legendary', 'epic', 'rare'].includes(rareza);
     });
     const unicas = [];
     const vistos = new Set();
@@ -208,7 +210,7 @@ function traducirModificadoresSalidaSTW(modificadores) {
 
 function esRequisitoRealSTW(valor) {
     const texto = String(valor || '').trim();
-    return Boolean(texto) && !/^(none|ninguno|ninguna|ning[uú]n requisito|sin requisitos|n\/a|na|-)$/i.test(texto);
+    return Boolean(texto) && !/^(none|ninguno|ninguna|ning[uú]n requisito|sin requisitos|no requirements|n\/a|na|-)$/i.test(texto);
 }
 
 function traducirRequisitosSalidaSTW(valor) {
@@ -271,10 +273,15 @@ function formatearAlertaSTW(item, encabezado = '', mostrarDetalles = false) {
         texto += '🎁 *Recompensa:* 🪙 ' + Number(item.cantidad || item.cantidadVbucks) + ' PaVos\n';
     }
     if (mostrarDetalles) {
-        const modificadores = traducirModificadoresSalidaSTW((item.modificadores || []).filter(modificador => !/\bx[45]\b/i.test(String(modificador)))).filter(modificador => !/\bx[45]\b/i.test(modificador));
+        const modificadores = traducirModificadoresSalidaSTW((item.modificadores || []).filter(modificador =>
+            !/(?:^|\s)x[45](?:\s|$)/i.test(String(modificador)) &&
+            !/multiplicador.{0,12}x[45]|x[45].{0,12}multiplicador/i.test(String(modificador))
+        )).filter(modificador => !/(?:^|\s)x[45](?:\s|$)/i.test(modificador));
         if (modificadores.length) texto += '🧩 *Modificadores:* ' + modificadores.join(', ') + '\n';
         const requisitos = traducirRequisitosSalidaSTW(item.questReqs || item.requisitos);
-        if (requisitos) texto += '📜 *Requisitos:* ' + requisitos + '\n';
+        if (requisitos && !/^(none|ninguno|ninguna|sin requisitos|no requirements)$/i.test(requisitos.trim())) {
+            texto += '📜 *Requisitos:* ' + requisitos + '\n';
+        }
     }
     return texto + '\n';
 }
@@ -287,7 +294,12 @@ function formatearResumenAlertaSTW(item) {
 
 
 async function alertasSTW(sock, chatId, msg, categoria = 'todas', progreso = null) {
-    const informar = async texto => { if (typeof progreso === 'function') { try { await progreso(texto); } catch (_) {} } };
+    let progresoEnviado = false;
+    const informar = async () => {
+        if (typeof progreso !== 'function' || progresoEnviado) return;
+        progresoEnviado = true;
+        try { await progreso('⏳ Preparando las alertas.'); } catch (_) {}
+    };
     let datos;
     try {
         datos = await obtenerAlertasSTW(true, informar);
@@ -299,7 +311,7 @@ async function alertasSTW(sock, chatId, msg, categoria = 'todas', progreso = nul
     const fechaHoy = obtenerFechaActual();
     const lineas = ['📅 _' + fechaHoy + '_', ''];
     if (categoria === 'pavos' || categoria === 'todas') {
-        lineas.push('🎮 *ALERTAS DE PaVos*', '');
+        lineas.push('🎮 *ALERTAS DE PAVOS*', '');
         if (!datos.pavos.length) {
             lineas.push(datos.errorActualizacion
                 ? '⚠️ _No pude obtener alertas en vivo y todavía no hay caché guardado._'
@@ -358,7 +370,7 @@ async function alertasSTW(sock, chatId, msg, categoria = 'todas', progreso = nul
         }
     }
 
-    lineas.push('Support-a-Creator: *JASC13* ❤️');
+    lineas.push('Apoya a un creador: *JASC13* ❤️');
     const texto = lineas.join('\n');
     try {
         await sock.sendMessage(chatId, { text: texto }, { quoted: msg });
@@ -368,10 +380,15 @@ async function alertasSTW(sock, chatId, msg, categoria = 'todas', progreso = nul
     }
 }
 async function comandoDestacadasSTW(sock, chatId, msg, progreso = null) {
-    const informar = async (texto) => { if (typeof progreso === 'function') await progreso(texto); };
+    let progresoEnviado = false;
+    const informar = async () => {
+        if (typeof progreso !== 'function' || progresoEnviado) return;
+        progresoEnviado = true;
+        try { await progreso('⏳ Preparando las alertas destacadas.'); } catch (_) {}
+    };
     await informar('🔎 Preparando las alertas destacadas.');
     const fechaHoy = obtenerFechaActual();
-    let texto = `📅 _${fechaHoy}_\n\n🔥 *ALERTAS DESTACADAS — RECOMPENSAS BUENAS*\n\n`;
+    let texto = `📅 _${fechaHoy}_\n\n🔥 *ALERTAS DESTACADAS — BUENAS RECOMPENSAS*\n\n`;
 
     try {
         await informar('🗄️ ETAPA 1/4 — Leyendo datos guardados en MongoDB.');
@@ -382,7 +399,7 @@ async function comandoDestacadasSTW(sock, chatId, msg, progreso = null) {
         await informar('🧹 ETAPA 3/4 — Lista seleccionada; elementos a formatear=' + listaPlAltas.length + '.');
         if (listaPlAltas.length === 0) {
             texto += datos.errorActualizacion
-                ? '_No pude consultar las fuentes y no hay datos guardados para mostrar._\n\n'
+                ? '_No pude actualizar las alertas en este momento._\n\n'
                 : '_No hay alertas destacadas registradas en este momento._\n\n';
         } else {
             listaPlAltas.forEach(item => {
@@ -394,13 +411,18 @@ async function comandoDestacadasSTW(sock, chatId, msg, progreso = null) {
         texto += `_Error al cargar las alertas destacadas._\n\n`;
     }
 
-    texto += `Support-a-Creator: *JASC13* ❤️`;
+    texto += `Apoya a un creador: *JASC13* ❤️`;
     await informar('✅ ETAPA 4/4 — Respuesta de destacadas construida; enviando a WhatsApp.');
     await sock.sendMessage(chatId, { text: texto }, { quoted: msg });
 }
 
 async function comandoPreguntarAlerta(sock, chatId, msg, palabrasClave = [], progreso = null, mostrarDetalles = false) {
-    const informar = async texto => { if (typeof progreso === 'function') { try { await progreso(texto); } catch (_) {} } };
+    let progresoEnviado = false;
+    const informar = async () => {
+        if (typeof progreso !== 'function' || progresoEnviado) return;
+        progresoEnviado = true;
+        try { await progreso('⏳ Buscando alertas.'); } catch (_) {}
+    };
     const nombreComando = mostrarDetalles ? 'alertanob' : 'alerta';
     const termino = Array.isArray(palabrasClave)
         ? palabrasClave.join(' ').trim()
@@ -514,7 +536,7 @@ async function comandoPreguntarAlerta(sock, chatId, msg, palabrasClave = [], pro
         });
     }
 
-    texto += 'Support-a-Creator: *JASC13* ❤️';
+    texto += 'Apoya a un creador: *JASC13* ❤️';
     await informar('✅ Búsqueda terminada.');
     await sock.sendMessage(chatId, { text: texto }, { quoted: msg });
 }
@@ -603,13 +625,12 @@ async function enviarAlertaPavosAutomatica(sock, actualizarEnVivo = false, horaA
         }
 
         if (!seleccionadas.length && horaAlerta === '6:05 PM') {
-            // Último respaldo: conservar una sola alerta de la primera fuente
-            // disponible, sin mezclar ni duplicar listas.
-            for (const nombreFuente of ['principal', 'secundaria', 'tercera']) {
-                const primera = combinarAlertasDiarias(fuentes[nombreFuente] || [])
-                    .sort((a, b) => Number(b.pl || 0) - Number(a.pl || 0))[0];
-                if (primera) { seleccionadas = [primera]; break; }
-            }
+            // Si ninguna de las tres fuentes detectó un cambio, no mezclar
+            // ni presentar como nueva una alerta de respaldo. Se conserva
+            // como máximo la primera alerta útil de la fuente principal.
+            const primeraPrincipal = combinarAlertasDiarias(fuentes.principal || [])
+                .sort((a, b) => Number(b.pl || 0) - Number(a.pl || 0))[0];
+            if (primeraPrincipal) seleccionadas = [primeraPrincipal];
         }
         if (!seleccionadas.length) {
             console.log('🔎 Alertas diarias: sin cambios nuevos; se intentará de nuevo en el siguiente horario.');

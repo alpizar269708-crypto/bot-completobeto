@@ -46,7 +46,17 @@ function traducirNombreMisionSTW(nombreIngles) {
         'rescue survivors': 'Rescata a los supervivientes',
         'build radar grid': 'Construye la cuadrícula del radar',
         'refuel homebase': 'Reabastece la base',
-        'storm shield defense': 'Defensa del escudo antitormentas'
+        'storm shield defense': 'Defensa del escudo antitormentas',
+        'mission alert': 'Misión de alerta',
+        'alert mission': 'Misión de alerta',
+        'mission': 'Misión de alerta',
+        'destroy the encampments': 'Destruye los campamentos',
+        'eliminate and collect': 'Elimina y recoge',
+        'rescue the survivors': 'Rescata a los supervivientes',
+        'category 1 fight the storm': 'Lucha contra una tormenta de categoría 1',
+        'category 2 fight the storm': 'Lucha contra una tormenta de categoría 2',
+        'category 3 fight the storm': 'Lucha contra una tormenta de categoría 3',
+        'category 4 fight the storm': 'Lucha contra una tormenta de categoría 4'
     };
     const traduccion = misionesMap[nombre.toLowerCase()];
     if (traduccion) return traduccion;
@@ -82,7 +92,20 @@ function traducirBiomaSTW(bioma) {
     if (!limpio) return '';
     const mapa = {
         'autumn industrial park': 'Parque industrial otoñal',
+        'the industrial park': 'Parque industrial',
         'industrial park': 'Parque industrial',
+        'the swamps': 'Pantanos',
+        'swamps': 'Pantanos',
+        'haunted forest': 'Bosque embrujado',
+        'haunted woods': 'Bosque embrujado',
+        'haunted bosque': 'Bosque embrujado',
+        'the haunted forest': 'Bosque embrujado',
+        'the ghost town': 'Pueblo fantasma',
+        'the city': 'Ciudad',
+        'the suburbs': 'Suburbios',
+        'the desert': 'Desierto',
+        'the grasslands': 'Praderas',
+        'the lakeside': 'Ribera del lago',
         'thunder route 99': 'Ruta Trueno 99',
         'thunder route': 'Ruta Trueno 99',
         'ghost town': 'Pueblo fantasma',
@@ -107,6 +130,27 @@ function traducirBiomaSTW(bioma) {
     for (const [ingles, espanol] of Object.entries(mapa).sort((x, y) => y[0].length - x[0].length)) {
         limpio = limpio.replace(new RegExp('\\b' + ingles + '\\b', 'i'), espanol);
     }
+    limpio = limpio.replace(/\bthe\s+/gi, '');
+    limpio = limpio
+        .replace(/\bswamps?\b/gi, 'Pantanos')
+        .replace(/\bhaunted\s+(?:forest|woods|bosque)\b/gi, 'Bosque embrujado')
+        .replace(/\bindustrial park\b/gi, 'Parque industrial')
+        .replace(/\bghost town\b/gi, 'Pueblo fantasma')
+        .replace(/\bthunder route 99\b/gi, 'Ruta Trueno 99')
+        .replace(/\bautumn suburbs\b/gi, 'Suburbios otoñales')
+        .replace(/\bautumn city\b/gi, 'Ciudad otoñal')
+        .replace(/\bautumn foothills\b/gi, 'Colinas otoñales')
+        .replace(/\bautumn hills\b/gi, 'Colinas otoñales')
+        .replace(/\bgrasslands\b/gi, 'Praderas')
+        .replace(/\bdesert\b/gi, 'Desierto')
+        .replace(/\bcity\b/gi, 'Ciudad')
+        .replace(/\blakeside\b/gi, 'Ribera del lago')
+        .replace(/\btropical\b/gi, 'Tropical')
+        .replace(/\bforest\b/gi, 'Bosque')
+        .replace(/\bsuburbs\b/gi, 'Suburbios')
+        .replace(/\bbunkers?\b/gi, 'Búnkeres')
+        .replace(/\bthe portal\b/gi, 'El Portal')
+        .replace(/\bthe crater\b/gi, 'El Cráter');
     return limpio.replace(/\s+/g, ' ').replace(/\(\s*\)/g, '').trim();
 }
 
@@ -154,8 +198,14 @@ function traducirNombreObjetoSTW(nombre, tipo = 'other') {
         [/^scouting party lead$/i, 'Líder del equipo de exploración'],
         [/^training team lead$/i, 'Líder del equipo de entrenamiento'],
         [/^emt squad lead$/i, 'Líder del equipo médico'],
+        [/^emt lead$/i, 'Líder del equipo médico'],
         [/^fire team alpha lead$/i, 'Líder del equipo Alfa de fuego'],
         [/^close assault squad lead$/i, 'Líder del escuadrón de asalto cercano'],
+        [/^close assault lead$/i, 'Líder de asalto cercano'],
+        [/^shotgun$/i, 'Escopeta'],
+        [/^the swamps$/i, 'Pantanos'],
+        [/^haunted forest$/i, 'Bosque embrujado'],
+        [/^industrial park$/i, 'Parque industrial'],
         [/^technical support$/i, 'Apoyo técnico'],
         [/^trap durability$/i, 'Durabilidad de trampas'],
         [/^trap damage$/i, 'Daño de trampas'],
@@ -187,14 +237,25 @@ function traducirNombreObjetoSTW(nombre, tipo = 'other') {
     return limpio
         .replace(/\bScouting Party Lead\b/gi, 'Líder del equipo de exploración')
         .replace(/\bTraining Team Lead\b/gi, 'Líder del equipo de entrenamiento')
+        .replace(/\bEMT Squad Lead\b/gi, 'Líder del equipo médico')
+        .replace(/\bFire Team Alpha Lead\b/gi, 'Líder del equipo Alfa de fuego')
+        .replace(/\bClose Assault Squad Lead\b/gi, 'Líder del escuadrón de asalto cercano')
         .replace(/\bPure Drop of Rain\b/gi, 'Gota pura de lluvia')
         .replace(/\bLightning in a Bottle\b/gi, 'Relámpago en una botella')
         .replace(/\bEye of the Storm\b/gi, 'Ojo de la tormenta')
-        .replace(/\bStorm Shard\b/gi, 'Fragmento de tormenta');
+        .replace(/\bStorm Shard\b/gi, 'Fragmento de tormenta')
+        .replace(/\bSurvivor\b/gi, '')
+        .replace(/\bDefender\b/gi, '')
+        .replace(/\bHero\b/gi, '')
+        .replace(/\bSchematic\b/gi, '')
+        .replace(/\s+/g, ' ')
+        .trim();
 }
 
 function normalizarRecompensaSTW(nombre, rareza, tipo) {
     let limpio = limpiarTextoSTW(nombre);
+    tipo = String(tipo || 'other').toLowerCase();
+    rareza = String(rareza || '').toLowerCase();
     if (!limpio) return '';
 
     if (tipo === 'vbucks') {
@@ -527,20 +588,21 @@ function seleccionarAlertasSTWPorRareza(misiones, rareza) {
     for (const mision of Array.isArray(misiones) ? misiones : []) {
         const todasLasRecompensas = Array.isArray(mision.recompensas) ? mision.recompensas : [];
         const rarezasPerkUp = new Set(todasLasRecompensas
-            .filter(r => r && r.tipo === 'perkup')
-            .map(r => r.rareza));
+            .filter(r => r && String(r.tipo || '').toLowerCase() === 'perkup')
+            .map(r => String(r.rareza || '').toLowerCase()));
         const tienePerkUpDoble = rarezasPerkUp.has('epic') && rarezasPerkUp.has('legendary');
         const calificaPorRecompensaUtil = todasLasRecompensas.some(r =>
-            r && tiposPermitidos.has(r.tipo) && r.rareza === rareza && rarezasVisibles.has(r.rareza)
+            r && tiposPermitidos.has(String(r.tipo || '').toLowerCase()) &&
+            String(r.rareza || '').toLowerCase() === rareza && rarezasVisibles.has(String(r.rareza || '').toLowerCase())
         );
         const calificaPorPerkUpDoble = tienePerkUpDoble && ['epic', 'legendary'].includes(rareza);
         if (!calificaPorRecompensaUtil && !calificaPorPerkUpDoble) continue;
 
         const recompensasDeSalida = todasLasRecompensas.filter(r =>
             r && (
-                (tiposPermitidos.has(r.tipo) && rarezasVisibles.has(r.rareza)) ||
-                (r.tipo === 'perkup' && tienePerkUpDoble && ['epic', 'legendary'].includes(r.rareza)) ||
-                r.tipo === 'vbucks'
+                (tiposPermitidos.has(String(r.tipo || '').toLowerCase()) && rarezasVisibles.has(String(r.rareza || '').toLowerCase())) ||
+                (String(r.tipo || '').toLowerCase() === 'perkup' && tienePerkUpDoble && ['epic', 'legendary'].includes(String(r.rareza || '').toLowerCase())) ||
+                String(r.tipo || '').toLowerCase() === 'vbucks'
             )
         );
         const recompensa = recompensasDeSalida.map(r => r.nombre).filter(Boolean).join(' | ');
@@ -575,9 +637,16 @@ function deduplicarSTW(lista) {
 
     for (const item of Array.isArray(lista) ? lista : []) {
         if (!item) continue;
+        const fuenteMision = String(item.misionOriginal || item.mision || '').trim();
+        const partesMision = fuenteMision.split(/\s+-\s+/);
+        const nombreMisionBase = partesMision.shift() || fuenteMision;
+        const misionCanonica = traducirNombreMisionSTW(nombreMisionBase) || nombreMisionBase;
+        const ubicacionFuente = item.ubicacion || partesMision.join(' - ');
+        const ubicacionCanonica = traducirBiomaSTW(ubicacionFuente);
+        const zonaCanonica = traducirZonaSTW(item.zona);
         const clave = [
-            normalizar(item.zona), String(item.pl ?? ''),
-            normalizar(item.misionOriginal || item.mision), normalizar(item.ubicacion),
+            normalizar(zonaCanonica), String(item.pl ?? ''),
+            normalizar(misionCanonica), normalizar(ubicacionCanonica),
             item.esX4 ? 'x4' : ''
         ].join('|');
         if (!mapa.has(clave)) {

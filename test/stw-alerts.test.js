@@ -310,3 +310,10 @@ test('el nombre del superviviente no repite Survivor y queda traducido', () => {
 test('los títulos de misiones desconocidos no se envían en inglés', () => {
     assert.equal(traducirNombreMisionSTW('Unknown Future Mission'), 'Misión de alerta');
 });
+
+test('las ubicaciones y recompensas conocidas se muestran en español', () => {
+    assert.equal(traducirBiomaSTW('The Swamps'), 'Pantanos');
+    assert.equal(traducirBiomaSTW('Haunted Forest'), 'Bosque embrujado');
+    assert.equal(traducirNombreMisionSTW('Mission Alert'), 'Misión de alerta');
+    assert.equal(traducirNombreObjetoSTW('Scouting Party Lead Survivor', 'survivor'), 'Líder del equipo de exploración');
+});
