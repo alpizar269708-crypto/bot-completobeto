@@ -582,20 +582,21 @@ function seleccionarAlertasSTWPorRareza(misiones, rareza) {
     for (const mision of Array.isArray(misiones) ? misiones : []) {
         const todasLasRecompensas = Array.isArray(mision.recompensas) ? mision.recompensas : [];
         const rarezasPerkUp = new Set(todasLasRecompensas
-            .filter(r => r && r.tipo === 'perkup')
-            .map(r => r.rareza));
+            .filter(r => r && String(r.tipo || '').toLowerCase() === 'perkup')
+            .map(r => String(r.rareza || '').toLowerCase()));
         const tienePerkUpDoble = rarezasPerkUp.has('epic') && rarezasPerkUp.has('legendary');
         const calificaPorRecompensaUtil = todasLasRecompensas.some(r =>
-            r && tiposPermitidos.has(r.tipo) && r.rareza === rareza && rarezasVisibles.has(r.rareza)
+            r && tiposPermitidos.has(String(r.tipo || '').toLowerCase()) &&
+            String(r.rareza || '').toLowerCase() === rareza && rarezasVisibles.has(String(r.rareza || '').toLowerCase())
         );
         const calificaPorPerkUpDoble = tienePerkUpDoble && ['epic', 'legendary'].includes(rareza);
         if (!calificaPorRecompensaUtil && !calificaPorPerkUpDoble) continue;
 
         const recompensasDeSalida = todasLasRecompensas.filter(r =>
             r && (
-                (tiposPermitidos.has(r.tipo) && rarezasVisibles.has(r.rareza)) ||
-                (r.tipo === 'perkup' && tienePerkUpDoble && ['epic', 'legendary'].includes(r.rareza)) ||
-                r.tipo === 'vbucks'
+                (tiposPermitidos.has(String(r.tipo || '').toLowerCase()) && rarezasVisibles.has(String(r.rareza || '').toLowerCase())) ||
+                (String(r.tipo || '').toLowerCase() === 'perkup' && tienePerkUpDoble && ['epic', 'legendary'].includes(String(r.rareza || '').toLowerCase())) ||
+                String(r.tipo || '').toLowerCase() === 'vbucks'
             )
         );
         const recompensa = recompensasDeSalida.map(r => r.nombre).filter(Boolean).join(' | ');
@@ -630,9 +631,16 @@ function deduplicarSTW(lista) {
 
     for (const item of Array.isArray(lista) ? lista : []) {
         if (!item) continue;
+        const fuenteMision = String(item.misionOriginal || item.mision || '').trim();
+        const partesMision = fuenteMision.split(/\s+-\s+/);
+        const nombreMisionBase = partesMision.shift() || fuenteMision;
+        const misionCanonica = traducirNombreMisionSTW(nombreMisionBase) || nombreMisionBase;
+        const ubicacionFuente = item.ubicacion || partesMision.join(' - ');
+        const ubicacionCanonica = traducirBiomaSTW(ubicacionFuente);
+        const zonaCanonica = traducirZonaSTW(item.zona);
         const clave = [
-            normalizar(item.zona), String(item.pl ?? ''),
-            normalizar(item.misionOriginal || item.mision), normalizar(item.ubicacion),
+            normalizar(zonaCanonica), String(item.pl ?? ''),
+            normalizar(misionCanonica), normalizar(ubicacionCanonica),
             item.esX4 ? 'x4' : ''
         ].join('|');
         if (!mapa.has(clave)) {
