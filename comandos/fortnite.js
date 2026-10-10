@@ -89,16 +89,24 @@ function deduplicarPlAltasVbucks(lista) {
     return Array.from(mapa.values());
 }
 
-async function obtenerAlertasSTW(actualizarEnVivo = false, progreso = null) {
-    const informar = async (texto) => { if (typeof progreso === 'function') await progreso(texto); };
-    const inicioDiagnostico = Date.now();
-    await informar('🔬 ETAPA 1/6 — Preparando lectura de alertas STW. Actualización en vivo solicitada=' + Boolean(actualizarEnVivo) + '; raspado suspendido temporalmente.');
-    // PAUSA TEMPORAL DEL RASPADO STW PLANNER:
-    // Tanto los comandos como las alertas programadas leen solo el caché de MongoDB.
-    // No descargar páginas ni ejecutar parsers mientras se estabiliza el arranque.
-    await informar('⏸️ ETAPA 2/6 — Raspado de STW Planner temporalmente suspendido; se utilizarán únicamente datos guardados en MongoDB.');
+async function obtenerAlertasSTW(actualizarEnVivo = true, progreso = null) {
+    // Todos los comandos STW consultan STW Planner en tiempo real.
+    // El parámetro progreso se conserva por compatibilidad, pero no se envían
+    // diagnósticos al chat: únicamente se registra el error en el servidor.
+    let raspadoCorrecto = false;
+    try {
+        const { extraerAlertasAPI } = require('../webBridge');
+        const resultado = await extraerAlertasAPI();
+        raspadoCorrecto = Boolean(resultado && resultado.ok === true);
+    } catch (error) {
+        console.error('No se pudo actualizar STW Planner:', error.message);
+    }
 
-    await informar('🗄️ ETAPA 3/6 — Leyendo cuatro listas guardadas en MongoDB: PaVos, épicas, legendarias y PL altas.');
+    if (!raspadoCorrecto) {
+        console.warn('STW Planner no entregó datos válidos; no se mostrarán alertas antiguas como si fueran actuales.');
+        return { pavos: [], epicas: [], legendarias: [], plAltas: [] };
+    }
+
     const [
         scrapePavos,
         scrapeEpicas,
@@ -111,18 +119,11 @@ async function obtenerAlertasSTW(actualizarEnVivo = false, progreso = null) {
         leerConfigJSON('stw_plaltas_scrapeadas')
     ]);
 
-    await informar('📦 ETAPA 4/6 — Lectura de base de datos completa: PaVos=' + scrapePavos.length + ', épicas=' + scrapeEpicas.length + ', legendarias=' + scrapeLegendarias.length + ', PL altas=' + scrapePlAltas.length + '.');
-
-    // Desde ahora STW Planner es la única fuente de alertas automáticas.
-    // Las listas manuales antiguas ya no se mezclan para evitar duplicados.
-    const plAltasLimpias = deduplicarPlAltasVbucks(scrapePlAltas);
-    await informar('🧹 ETAPA 5/6 — Deduplicación de PL altas: ' + scrapePlAltas.length + ' → ' + plAltasLimpias.length + '.');
-    await informar('✅ ETAPA 6/6 — Datos listos para formatear; duración=' + ((Date.now() - inicioDiagnostico) / 1000).toFixed(2) + ' s.');
     return {
         pavos: scrapePavos,
         epicas: scrapeEpicas,
         legendarias: scrapeLegendarias,
-        plAltas: plAltasLimpias
+        plAltas: deduplicarPlAltasVbucks(scrapePlAltas)
     };
 }
 
