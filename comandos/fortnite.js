@@ -166,13 +166,6 @@ function obtenerRecompensasValiosasSTW(item) {
     return unicas;
 }
 
-function formatearMultiplicadorSTW(item) {
-    const multiplicador = Number(item.multiplicadorRecompensa);
-    if (multiplicador === 4) return '✖️ *Recompensa x4:* Sí\n';
-    if (multiplicador === 5) return '✖️ *Recompensa x5:* Sí\n';
-    return '';
-}
-
 function traductoresSTW() {
     try { return require('../webBridge'); } catch (_) { return {}; }
 }
@@ -243,8 +236,10 @@ function traducirRequisitosSalidaSTW(requisitos) {
         .replace(/\bcomplete one mission in a (\d+)\+? zone\b/ig, 'Completa una misión en una zona de nivel $1 o superior')
         .replace(/\bcomplete one mission\b/ig, 'Completa una misión')
         .replace(/\bcomplete\b/ig, 'completa')
-        .replace(/\bmissions?\b/ig, 'misión')
-        .replace(/\bquests?\b/ig, 'objetivo')
+        .replace(/\bmissions\b/ig, 'misiones')
+        .replace(/\bmission\b/ig, 'misión')
+        .replace(/\bquests\b/ig, 'objetivos')
+        .replace(/\bquest\b/ig, 'objetivo')
         .replace(/\bnone\b/ig, 'ninguno')
         .replace(/\bdefeat\b/ig, 'derrota')
         .replace(/\beliminate\b/ig, 'elimina')
