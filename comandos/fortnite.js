@@ -90,81 +90,61 @@ function deduplicarPlAltasVbucks(lista) {
 }
 
 async function obtenerAlertasSTW(actualizarEnVivo = true, progreso = null) {
-    // Todos los comandos STW consultan STW Planner en tiempo real.
-    // El parámetro progreso se conserva por compatibilidad, pero no se envían
-    // diagnósticos al chat: únicamente se registra el error en el servidor.
     let raspadoCorrecto = false;
     try {
         const { extraerAlertasAPI } = require('../webBridge');
-        const resultado = await extraerAlertasAPI();
+        const resultado = await extraerAlertasAPI(progreso);
         raspadoCorrecto = Boolean(resultado && resultado.ok === true);
+        if (!raspadoCorrecto) console.warn('STW: las fuentes web no entregaron datos completos; se intentará usar el último caché válido.');
     } catch (error) {
-        console.error('No se pudo actualizar STW Planner:', error.message);
+        console.error('No se pudo actualizar STW:', error.stack || error.message);
     }
 
-    if (!raspadoCorrecto) {
-        console.warn('STW Planner no entregó datos válidos; los comandos que tienen fuentes alternativas deben continuar con la siguiente fuente.');
-        return { pavos: [], epicas: [], legendarias: [], plAltas: [], errorActualizacion: true };
-    }
-
-    const [
-        scrapePavos,
-        scrapeEpicas,
-        scrapeLegendarias,
-        scrapePlAltas
-    ] = await Promise.all([
+    const [scrapePavos, scrapeEpicas, scrapeLegendarias, scrapePlAltas] = await Promise.all([
         leerConfigJSON('stw_pavos_scrapeados'),
         leerConfigJSON('stw_epicas_scrapeadas'),
         leerConfigJSON('stw_legendarias_scrapeadas'),
         leerConfigJSON('stw_plaltas_scrapeadas')
     ]);
+    const hayCache = scrapePavos.length + scrapeEpicas.length + scrapeLegendarias.length + scrapePlAltas.length > 0;
 
     return {
         pavos: scrapePavos,
         epicas: scrapeEpicas,
         legendarias: scrapeLegendarias,
-        plAltas: deduplicarPlAltasVbucks(scrapePlAltas)
+        plAltas: deduplicarPlAltasVbucks(scrapePlAltas),
+        errorActualizacion: !raspadoCorrecto && !hayCache
     };
 }
 
+
 function obtenerRecompensasValiosasSTW(item) {
     const recompensas = Array.isArray(item.recompensas) ? item.recompensas : [];
-
     const valiosas = recompensas.filter(r => {
         if (!r || !r.tipo) return false;
-
         const nombre = String(r.nombre || '').toLowerCase();
-
-        // No mostrar recompensas genéricas ni recompensas comunes.
-        if (
-            r.tipo === 'other' ||
-            r.rareza === 'common' ||
-            r.rareza === 'uncommon' ||
-            /\bcom[uú]n\b/.test(nombre) ||
-            /recompensa com[uú]n/.test(nombre)
-        ) {
-            return false;
-        }
-
+        if (r.tipo === 'vbucks') return true;
+        if (r.rareza === 'common' || r.rareza === 'uncommon' ||
+            /\bcom[uú]n\b/.test(nombre) || /recompensa com[uú]n/.test(nombre)) return false;
+        if (r.tipo === 'other') return ['mythic', 'legendary', 'epic', 'rare'].includes(r.rareza);
         if (['hero', 'survivor', 'defender', 'schematic'].includes(r.tipo)) {
             return ['mythic', 'legendary', 'epic', 'rare'].includes(r.rareza);
         }
-
-        return ['supercharger', 'evolution', 'perkup', 'elemental', 'reperk', 'ore', 'llama'].includes(r.tipo);
+        return ['supercharger', 'evolution', 'perkup', 'elemental', 'reperk', 'ore', 'llama'].includes(r.tipo)
+            || ['mythic', 'legendary', 'epic', 'rare'].includes(r.rareza);
     });
-
     const unicas = [];
     const vistos = new Set();
-
     for (const recompensa of valiosas) {
-        const clave = String(recompensa.nombre || '').trim().toLowerCase();
+        const nombre = String(recompensa.nombre || recompensa.raw || '').trim();
+        const clave = nombre.toLowerCase();
         if (!clave || vistos.has(clave)) continue;
         vistos.add(clave);
-        unicas.push(recompensa.nombre);
+        unicas.push(nombre);
     }
-
     return unicas;
 }
+
 
 function formatearMultiplicadorSTW(item) {
     const multiplicador = Number(item.multiplicadorRecompensa);
@@ -175,91 +155,82 @@ function formatearMultiplicadorSTW(item) {
 
 function formatearAlertaSTW(item, encabezado = '') {
     let texto = '';
-
     if (encabezado) texto += encabezado + '\n';
-    texto += `⚡ *PL:* ${item.pl}\n`;
-    if (item.zona) texto += `🌍 *Zona:* ${item.zona}\n`;
-
+    texto += \`⚡ *PL:* \${item.pl ?? '?'}\n\`;
+    if (item.zona) texto += \`🌍 *Zona:* \${item.zona}\n\`;
     texto += formatearMultiplicadorSTW(item);
-
-    if (item.mision) {
-        texto += `🎯 *Misión:* ${item.mision}\n`;
-    }
+    if (item.mision || item.misionOriginal) texto += \`🎯 *Misión:* \${item.mision || item.misionOriginal}\n\`;
 
     const recompensas = obtenerRecompensasValiosasSTW(item);
-    if (recompensas.length > 0) {
-        texto += `🎁 *Recompensa:* ${recompensas.join(' | ')}\n`;
-    }
+    if (recompensas.length) texto += \`🎁 *Recompensa:* \${recompensas.join(' | ')}\n\`;
+    else if (item.recompensa && item.recompensa !== 'Misión') texto += \`🎁 *Recompensa:* \${item.recompensa}\n\`;
 
-    texto += '\n';
-    return texto;
+    const modificadores = Array.isArray(item.modificadores) ? item.modificadores.filter(Boolean) : [];
+    if (modificadores.length) texto += \`🧩 *Modificadores:* \${modificadores.join(', ')}\n\`;
+    const requisitos = String(item.questReqs || item.requisitos || '').trim();
+    if (requisitos) texto += \`📜 *Requisitos:* \${/^none$/i.test(requisitos) ? 'Ninguno' : requisitos}\n\`;
+    return texto + '\n';
 }
 
+
 async function alertasSTW(sock, chatId, msg, categoria = 'todas', progreso = null) {
-    const informar = async (texto) => { if (typeof progreso === 'function') await progreso(texto); };
-    await informar('🧭 Comando alertasSTW iniciado. Categoría solicitada=' + categoria + '.');
+    const informar = async texto => { if (typeof progreso === 'function') { try { await progreso(texto); } catch (_) {} } };
     let datos;
     try {
-        datos = await obtenerAlertasSTW(categoria === 'pavos', informar);
+        datos = await obtenerAlertasSTW(true, informar);
     } catch (error) {
         console.error('Error cargando alertas STW para comando ' + categoria + ':', error.stack || error.message);
         datos = { pavos: [], epicas: [], legendarias: [], plAltas: [], errorActualizacion: true };
     }
-    await informar('🧮 ETAPA FINAL — Preparando respuesta: PaVos=' + datos.pavos.length + ', épicas=' + datos.epicas.length + ', legendarias=' + datos.legendarias.length + ', destacadas=' + (datos.plAltas || []).length + '.');
-    const fechaHoy = obtenerFechaActual();
-    const lineasPavos = [`📅 _${fechaHoy}_`, '', '🎮 *ALERTAS DE PAVOS*', ''];
 
+    const fechaHoy = obtenerFechaActual();
+    const lineas = [\`📅 _\${fechaHoy}_\`, ''];
     if (categoria === 'pavos' || categoria === 'todas') {
-        
-        if (datos.pavos.length === 0) {
-            lineasPavos.push(datos.errorActualizacion
-                ? '*STW Planner no respondió con datos válidos; se intentará la siguiente fuente compatible.* ⚠️'
-                : '*No hay alertas de pavos registradas* 💔');
-            lineasPavos.push('', '');
+        lineas.push('🎮 *ALERTAS DE PAVOS*', '');
+        if (!datos.pavos.length) {
+            lineas.push(datos.errorActualizacion
+                ? '⚠️ _No pude obtener alertas en vivo y todavía no hay caché guardado._'
+                : '😔 _No hay alertas de PaVos registradas en este momento._', '', '');
         } else {
             let totalPavos = 0;
-
-            datos.pavos.forEach(p => {
-                totalPavos += p.cantidad || 50;
-                lineasPavos.push(
-                    `⚡ *PL:* ${p.pl}`,
-                    `🎯 *Misión:* ${p.mision}`,
-                    `🪙 *PaVos:* ${p.cantidad || 50}`,
+            for (const p of datos.pavos) {
+                const cantidad = Number(p.cantidad || p.cantidadVbucks || 50);
+                totalPavos += cantidad;
+                lineas.push(
+                    \`🌍 *Zona:* \${p.zona || 'Desconocida'}\`,
+                    \`⚡ *PL:* \${p.pl ?? '?'}\`,
+                    \`🎯 *Misión:* \${p.mision || p.misionOriginal || 'Alerta de PaVos'}\`,
+                    \`🪙 *PaVos:* \${cantidad}\`,
+                    ...(Array.isArray(p.modificadores) && p.modificadores.length ? [\`🧩 *Modificadores:* \${p.modificadores.join(', ')}\`] : []),
+                    ...(p.requisitos || p.questReqs ? [\`📜 *Requisitos:* \${/^none$/i.test(String(p.requisitos || p.questReqs)) ? 'Ninguno' : (p.requisitos || p.questReqs)}\`] : []),
                     ''
                 );
-            });
-
-            lineasPavos.push(`💰 *Total del día:* ${totalPavos} paVos`, '');
+            }
+            lineas.push(\`💰 *Total del día:* \${totalPavos} PaVos\`, '');
         }
     }
 
-    let texto = lineasPavos.join('\n');
-
-    if (categoria === 'epicas' || (categoria === 'todas' && datos.epicas.length > 0)) {
-        texto += `🟣 *ALERTAS ÉPICAS*\n`;
-        if (datos.epicas.length === 0) {
-            texto += `_No hay alertas épicas registradas._\n\n`;
-        } else {
-            datos.epicas.forEach(e => {
-                texto += formatearAlertaSTW(e);
-            });
-        }
+    if (categoria === 'epicas' || categoria === 'todas') {
+        lineas.push('🟣 *ALERTAS ÉPICAS*', '');
+        if (!datos.epicas.length) lineas.push('_No hay alertas épicas disponibles en el caché actual._', '');
+        else for (const alerta of datos.epicas) lineas.push(formatearAlertaSTW(alerta));
+    }
+    if (categoria === 'legendarias' || categoria === 'todas') {
+        lineas.push('🌟 *ALERTAS LEGENDARIAS*', '');
+        if (!datos.legendarias.length) lineas.push('_No hay alertas legendarias disponibles en el caché actual._', '');
+        else for (const alerta of datos.legendarias) lineas.push(formatearAlertaSTW(alerta));
     }
 
-    if (categoria === 'legendarias' || (categoria === 'todas' && datos.legendarias.length > 0)) {
-        texto += `🌟 *ALERTAS LEGENDARIAS*\n`;
-        if (datos.legendarias.length === 0) {
-            texto += `_No hay alertas legendarias registradas._\n\n`;
-        } else {
-            datos.legendarias.forEach(L => {
-                texto += formatearAlertaSTW(L);
-            });
-        }
+    lineas.push('Support-a-Creator: *JASC13* ❤️');
+    const texto = lineas.join('\n');
+    try {
+        await sock.sendMessage(chatId, { text: texto }, { quoted: msg });
+    } catch (error) {
+        console.error('No se pudo enviar la respuesta del comando STW ' + categoria + ':', error.stack || error.message);
+        throw error;
     }
-
-    texto += `Support-a-Creator: *JASC13* ❤️`;
-    await sock.sendMessage(chatId, { text: texto }, { quoted: msg });
 }
+
 
 async function comandoDestacadasSTW(sock, chatId, msg, progreso = null) {
     const informar = async (texto) => { if (typeof progreso === 'function') await progreso(texto); };
@@ -269,7 +240,7 @@ async function comandoDestacadasSTW(sock, chatId, msg, progreso = null) {
 
     try {
         await informar('🗄️ ETAPA 1/4 — Leyendo datos guardados en MongoDB.');
-        const datos = await obtenerAlertasSTW(false, informar);
+        const datos = await obtenerAlertasSTW(true, informar);
         await informar('🔎 ETAPA 2/4 — Seleccionando alertas destacadas de PL altas. Total recibido=' + (datos.plAltas || []).length + '.');
         const listaPlAltas = datos.plAltas || [];
 
@@ -343,7 +314,10 @@ async function comandoPreguntarAlerta(sock, chatId, msg, palabrasClave = [], pro
             item.zona,
             item.nombre,
             item.recompensa,
-            ...(Array.isArray(item.recompensas) ? item.recompensas : [])
+            ...(Array.isArray(item.recompensas) ? item.recompensas.map(r => typeof r === 'string' ? r : (r.nombre || r.raw || '')) : []),
+            item.cantidad,
+            item.cantidadVbucks,
+            item.tipoAlertaTexto
         ].filter(Boolean).join(' '));
 
         return textoBusqueda.includes(clave);
