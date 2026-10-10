@@ -510,9 +510,7 @@ function formatearFuente(resultado) {
 
 const FUENTES_ALTERNATIVAS_PAVOS = [
     { nombre: 'PennyDB', url: 'https://pennydb.net/stw-missions' },
-    { nombre: 'V-Bucks Daily', url: 'https://vbucksdaily.com/' },
-    { nombre: 'STW Planner', url: 'https://savetheworldsquad20190322123154.azurewebsites.net/mission-alerts' },
-    { nombre: 'StormBook', url: 'https://stormbookstwtracker.com/app/' }
+    { nombre: 'V-Bucks Daily', url: 'https://vbucksdaily.com/' }
 ];
 
 function extraerAlertasFuenteAlternativa(html, nombreFuente) {
@@ -580,25 +578,24 @@ async function comandoRPavos(sock, chatId, msg) {
         }, { quoted: msg });
     };
 
-    await progreso('ETAPA 0 — Comando recibido. Se consultarán seis fuentes en paralelo; una fuente lenta o fallida no impedirá que las demás se intenten.');
+    await progreso('ETAPA 0 — Comando recibido. Se consultarán tres fuentes en paralelo: SeeBot.dev, PennyDB y V-Bucks Daily. FortniteDB y StormBook se retiraron; STW Planner queda omitido.');
+    await progreso('🚦 ETAPA 1 — Lanzando en paralelo SeeBot.dev, PennyDB y V-Bucks Daily.');
 
-    // Consultar todas las fuentes simultáneamente: una fuente lenta no bloquea el inicio de las demás.
-    // SeeBot mantiene su parser actual; las alternativas son sondeos independientes.
-    await progreso('🚦 ETAPA 1 — Lanzando en paralelo FortniteDB, SeeBot.dev, PennyDB, V-Bucks Daily, STW Planner y StormBook.');
     const tareas = await Promise.allSettled([
-        consultarFortniteDB(),
         consultarSeeBot(),
         ...FUENTES_ALTERNATIVAS_PAVOS.map(consultarFuenteAlternativaPavos)
     ]);
-    const fortniteDB = tareas[0].status === 'fulfilled' ? tareas[0].value : { fuente: 'FortniteDB', ok: false, alertas: [], error: tareas[0].reason?.message || 'falló la consulta' };
-    const seeBot = tareas[1].status === 'fulfilled' ? tareas[1].value : { fuente: 'SeeBot.dev', ok: false, alertas: [], error: tareas[1].reason?.message || 'falló la consulta' };
-    const alternativas = tareas.slice(2).map((t, i) => t.status === 'fulfilled' ? t.value : ({ fuente: FUENTES_ALTERNATIVAS_PAVOS[i].nombre, ok: false, alertas: [], error: t.reason?.message || 'falló la consulta' }));
+    const seeBot = tareas[0].status === 'fulfilled' ? tareas[0].value : {
+        fuente: 'SeeBot.dev', ok: false, alertas: [], error: tareas[0].reason?.message || 'falló la consulta'
+    };
+    const alternativas = tareas.slice(1).map((t, i) => t.status === 'fulfilled' ? t.value : ({
+        fuente: FUENTES_ALTERNATIVAS_PAVOS[i].nombre, ok: false, alertas: [], error: t.reason?.message || 'falló la consulta'
+    }));
 
     const lineas = [
         '🪙 *RESULTADO FINAL — RPAVOS*',
         '',
         '🧭 *Comparación de fuentes*',
-        'FortniteDB: ' + (fortniteDB.ok ? 'OK' : 'FALLÓ') + ' | alertas=' + fortniteDB.alertas.length + ' | total=' + (fortniteDB.ok ? fortniteDB.totalPavos : 'no disponible'),
         'SeeBot.dev: ' + (seeBot.ok ? 'OK' : 'FALLÓ') + ' | alertas=' + seeBot.alertas.length + ' | total=' + (seeBot.ok ? seeBot.totalPavos : 'no disponible') + (seeBot.rutaExtraccion ? ' | ruta=' + seeBot.rutaExtraccion : ''),
         '',
         '🌍 *FUENTES ALTERNATIVAS (consultadas en paralelo)*',
@@ -612,66 +609,49 @@ async function comandoRPavos(sock, chatId, msg) {
         lineas.push('*Total ' + fuente.fuente + ': ' + fuente.totalPavos + ' PaVos*', '');
     }
 
-    if (fortniteDB.ok) {
-        lineas.push('🌐 *FORTNITEDB — PA VOS EXTRAÍDOS*');
-        for (const a of fortniteDB.alertas) lineas.push('• ' + a.zona + ' | PL ' + (a.pl ?? '?') + ' | ' + a.mision + ' | ' + a.cantidad + ' PaVos');
-        lineas.push('*Total FortniteDB: ' + fortniteDB.totalPavos + ' PaVos*', '');
-    } else {
-        lineas.push('❌ *FORTNITEDB FALLÓ*', 'Último punto: ' + (fortniteDB.etapaFallo || 'no registrado'), 'Error exacto: ' + (fortniteDB.error || 'sin detalle'), '');
-    }
-
     if (seeBot.ok) {
         lineas.push('🌐 *SEEBOT.DEV — PA VOS EXTRAÍDOS*');
-        for (const a of seeBot.alertas) { lineas.push('• ' + a.zona + ' | PL ' + (a.pl ?? '?') + ' | ' + a.mision + ' | ' + a.cantidad + ' PaVos' + (a.recompensaOriginal ? ' (' + a.recompensaOriginal + ')' : '')); if (a.modificadores?.length) lineas.push('  Modificadores: ' + a.modificadores.join(', ')); if (a.requisitos && a.requisitos !== 'None') lineas.push('  Requisito: ' + a.requisitos); }
+        for (const a of seeBot.alertas) {
+            lineas.push('• ' + a.zona + ' | PL ' + (a.pl ?? '?') + ' | ' + a.mision + ' | ' + a.cantidad + ' PaVos' + (a.recompensaOriginal ? ' (' + a.recompensaOriginal + ')' : ''));
+            if (a.modificadores?.length) lineas.push('  Modificadores: ' + a.modificadores.join(', '));
+            if (a.requisitos && a.requisitos !== 'None') lineas.push('  Requisito: ' + a.requisitos);
+        }
         lineas.push('*Total SeeBot: ' + seeBot.totalPavos + ' PaVos*', '');
     } else {
         lineas.push('❌ *SEEBOT.DEV FALLÓ*', 'Último punto: ' + (seeBot.etapaFallo || 'no registrado'), 'Error exacto: ' + (seeBot.error || 'sin detalle'), '');
     }
 
-    if (fortniteDB.ok && seeBot.ok) {
-        // FortniteDB no expone el nombre de misión en su tabla de PaVos; comparamos zona, PL y cantidad.
+    const fuentesCorrectas = [seeBot, ...alternativas].filter(f => f.ok);
+    if (fuentesCorrectas.length > 1) {
         const clave = a => [String(a.zonaCodigo || a.zona || '').toLowerCase(), String(a.pl ?? ''), String(a.cantidad ?? '')].join('|');
-        const restantesSee = new Map();
-        for (const alerta of seeBot.alertas) {
-            const k = clave(alerta);
-            restantesSee.set(k, (restantesSee.get(k) || 0) + 1);
-        }
-        const soloDB = [];
+        const base = fuentesCorrectas[0];
         let coincidencias = 0;
-        for (const alerta of fortniteDB.alertas) {
-            const k = clave(alerta);
-            const disponibles = restantesSee.get(k) || 0;
-            if (disponibles > 0) {
-                coincidencias++;
-                restantesSee.set(k, disponibles - 1);
-            } else {
-                soloDB.push(alerta);
+        const conteoBase = new Map();
+        for (const a of base.alertas) {
+            const k = clave(a);
+            conteoBase.set(k, (conteoBase.get(k) || 0) + 1);
+        }
+        for (const fuente of fuentesCorrectas.slice(1)) {
+            let coincidenciasFuente = 0;
+            const disponibles = new Map(conteoBase);
+            for (const a of fuente.alertas) {
+                const k = clave(a);
+                const n = disponibles.get(k) || 0;
+                if (n > 0) {
+                    coincidenciasFuente++;
+                    disponibles.set(k, n - 1);
+                }
             }
+            coincidencias += coincidenciasFuente;
+            lineas.push('🔍 Coincidencias ' + base.fuente + ' / ' + fuente.fuente + ': ' + coincidenciasFuente);
         }
-        const restantesDB = new Map();
-        for (const alerta of fortniteDB.alertas) {
-            const k = clave(alerta);
-            restantesDB.set(k, (restantesDB.get(k) || 0) + 1);
-        }
-        const soloSee = [];
-        for (const alerta of seeBot.alertas) {
-            const k = clave(alerta);
-            const disponibles = restantesDB.get(k) || 0;
-            if (disponibles > 0) restantesDB.set(k, disponibles - 1);
-            else soloSee.push(alerta);
-        }
-        lineas.push('🔍 *COMPARACIÓN DETALLADA*',
-            'Coincidencias por zona + PL + cantidad: ' + coincidencias,
-            'Solo en FortniteDB: ' + soloDB.length + (soloDB.length ? ' — ' + soloDB.map(a => a.zona + '/PL' + (a.pl ?? '?') + '/' + a.cantidad + ' PaVos').join('; ') : ''),
-            'Solo en SeeBot: ' + soloSee.length + (soloSee.length ? ' — ' + soloSee.map(a => a.zona + '/PL' + (a.pl ?? '?') + '/' + a.cantidad + ' PaVos').join('; ') : ''),
-            'Diferencia de totales: ' + (fortniteDB.totalPavos - seeBot.totalPavos) + ' PaVos');
+        lineas.push('ℹ️ Las alertas coincidentes entre fuentes son la misma misión; no deben sumarse como misiones distintas.');
     } else {
-        lineas.push('⚠️ La comparación completa requiere que ambas fuentes extraigan datos correctamente.');
+        lineas.push('⚠️ La comparación entre fuentes requiere que al menos dos fuentes extraigan datos correctamente.');
     }
     lineas.push('', '⏱️ Tiempo total: ' + ((Date.now() - inicio) / 1000).toFixed(2) + ' s', 'Support-a-Creator: *JASC13* ❤️');
     await sock.sendMessage(chatId, { text: lineas.join('\n') }, { quoted: msg });
 }
-
 module.exports = {
     consultarFortniteDB,
     consultarSeeBot,
