@@ -168,8 +168,8 @@ async function consultarFortniteDB(progreso) {
 
 function extraerDatosSeeBot(html) {
     const patrones = [
-        /makeHtml\\s*\\(/i,
-        /makeHtml\\s*\\(\\s*(\\[)/i
+        /makeHtml\s*\(/i,
+        /makeHtml\s*\(\s*(\[)/i
     ];
     let inicioLlamada = -1;
     for (const patron of patrones) {
@@ -179,7 +179,7 @@ function extraerDatosSeeBot(html) {
     if (inicioLlamada < 0) {
         const pistas = [];
         if (/cloudflare|checking your browser|just a moment/i.test(html)) pistas.push('parece una página de protección anti-bots');
-        if (/application\\/json|__NEXT_DATA__|mission|alertRewards/i.test(html)) pistas.push('hay indicios de datos alternativos incrustados');
+        if (/application\/json|__NEXT_DATA__|mission|alertRewards/i.test(html)) pistas.push('hay indicios de datos alternativos incrustados');
         throw new Error('No encontré makeHtml(...) en SeeBot.dev' +
             (pistas.length ? ' (' + pistas.join('; ') + ')' : '') +
             '. HTML recibido: ' + String(html || '').length + ' caracteres.');
@@ -198,7 +198,7 @@ function extraerDatosSeeBot(html) {
         const ch = html[i];
         if (enString) {
             if (escape) escape = false;
-            else if (ch === '\\\\') escape = true;
+            else if (ch === '\\') escape = true;
             else if (ch === '"') enString = false;
             continue;
         }
