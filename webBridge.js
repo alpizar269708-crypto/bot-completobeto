@@ -435,7 +435,16 @@ function seleccionarAlertasSTWPorRareza(misiones, rareza) {
         );
         if (!recompensasVisibles.some(r => r.rareza === rareza)) continue;
 
-        const recompensa = recompensasVisibles.map(r => r.nombre).filter(Boolean).join(' | ');
+        // Mantener las recompensas épicas/legendarias que justifican la alerta
+        // y también los PaVos del mismo renglón. Así no desaparecen al filtrar
+        // las listas por rareza y siguen visibles en epicasstw/legendariasstw.
+        const recompensasDeSalida = todasLasRecompensas.filter(r =>
+            r && (
+                (tiposPermitidos.has(r.tipo) && rarezasVisibles.has(r.rareza)) ||
+                r.tipo === 'vbucks'
+            )
+        );
+        const recompensa = recompensasDeSalida.map(r => r.nombre).filter(Boolean).join(' | ');
         alertas.push({
             ...mision,
             id: crypto.createHash('sha1').update([
@@ -443,7 +452,7 @@ function seleccionarAlertasSTWPorRareza(misiones, rareza) {
                 mision.ubicacion || '', rareza
             ].join('|').toLowerCase()).digest('hex').slice(0, 14),
             rareza,
-            recompensas: recompensasVisibles,
+            recompensas: recompensasDeSalida,
             recompensa
         });
     }
