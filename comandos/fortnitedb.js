@@ -1,8 +1,9 @@
 const axios = require('axios');
 const cheerio = require('cheerio');
 
-const URL_FORTNITEDB = 'https://fortnitedb.com/';
-const URL_SEEBOT = 'https://seebot.dev/';
+const URL_FORTNITEDB = 'https://fortnitedb.com/index.php';
+const URL_FORTNITEDB_RESPALDO = 'https://cdn.fortnitedb.com/index.php';
+const URL_SEEBOT = 'https://seebot.dev/missions.php';
 
 const ZONAS = {
     S: 'Stonewood',
@@ -96,7 +97,16 @@ async function consultarFortniteDB(progreso) {
 
     try {
         await paso('🌐 *FortniteDB 1/4:* conectando con https://fortnitedb.com/');
-        const respuesta = await descargarPagina(URL_FORTNITEDB);
+        let respuesta;
+        try {
+            respuesta = await descargarPagina(URL_FORTNITEDB);
+        } catch (errorPrimario) {
+            const status = errorPrimario.response?.status;
+            if (status !== 403 && status !== 429) throw errorPrimario;
+            await paso('⚠️ FortniteDB rechazó la URL principal (HTTP ' + status + '); probando el espejo oficial CDN: ' + URL_FORTNITEDB_RESPALDO);
+            respuesta = await descargarPagina(URL_FORTNITEDB_RESPALDO);
+            resultado.url = URL_FORTNITEDB_RESPALDO;
+        }
         resultado.http = respuesta.status;
         await paso('📥 *FortniteDB 2/4:* respuesta HTTP ' + respuesta.status + '; recibí ' + String(respuesta.data || '').length + ' caracteres.');
 
