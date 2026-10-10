@@ -484,7 +484,7 @@ async function comandoPreguntarAlerta(sock, chatId, msg, palabrasClave = [], pro
         coincidencias.forEach(item => {
             texto += '📌 *' + (item.categorias || [item.categoria]).join(' · ') + '*\n';
             texto += formatearAlertaSTW(item, '', detallada);
-        });;
+        });
     }
 
     texto += 'Support-a-Creator: *JASC13* ❤️';
