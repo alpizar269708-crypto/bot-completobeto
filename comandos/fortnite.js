@@ -351,7 +351,7 @@ async function alertasSTW(sock, chatId, msg, categoria = 'todas', progreso = nul
         lineas.push(titulo + ' · ' + lista.length, '');
         if (!lista.length) {
             lineas.push(datos.errorActualizacion
-                ? '⚠️ _No pude consultar las fuentes de alertas en este momento._'
+                ? '⚠️ _No pude actualizar las alertas en este momento._'
                 : '_No hay recompensas de esta rareza en héroes, supervivientes, defensores o esquemas._', '');
         } else {
             for (const alerta of lista) lineas.push(formatearAlertaSTW(alerta));
