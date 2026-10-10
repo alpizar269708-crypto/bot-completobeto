@@ -561,54 +561,106 @@ function extraerAlertasPennyDB(html) {
     const $ = cheerio.load(String(html || ''));
     const alertas = [];
     const vistos = new Set();
+    let filasRecompensa = 0;
+    let filasConCantidad = 0;
+    let filasSinContexto = 0;
 
-    // PennyDB presenta las recompensas como li dentro de la sección "Alert rewards".
-    // Se toma solo V-Bucks Voucher y la cifra de .mission-figure de esa misma fila.
+    // PennyDB muestra las recompensas V-Bucks Voucher dentro de la sección
+    // "Alert rewards". No dependemos de un único tipo de contenedor exterior.
     $('h3.mission-label').each((_, encabezado) => {
         if (!/alert rewards/i.test(limpiar($(encabezado).text()))) return;
         const seccion = $(encabezado).closest('section');
         if (!seccion.length) return;
-        const lista = seccion.find('li').filter((__, li) => {
-            const item = $(li);
-            const titulo = limpiar(item.find('[title]').first().attr('title') || '');
-            const nombre = limpiar(item.find('span.block').first().text() || item.text());
-            return /v-?bucks/i.test(titulo + ' ' + nombre);
-        });
 
-        lista.each((__, li) => {
+        seccion.find('li').each((__, li) => {
             const item = $(li);
-            const titulo = limpiar(item.find('[title]').first().attr('title') || '');
+            const titulo = limpiar(item.find('[title]').map((___, el) => $(el).attr('title') || '').get().join(' '));
             const nombreRecompensa = limpiar(item.find('span.block').first().text() || item.text());
-            if (!/v-?bucks/i.test(titulo + ' ' + nombreRecompensa)) return;
-            const cantidad = Number(limpiar(item.find('.mission-figure').first().text()).match(/\d+/)?.[0]);
-            if (!Number.isFinite(cantidad) || cantidad <= 0) return;
+            if (!/v-?bucks|v-bucks voucher/i.test(titulo + ' ' + nombreRecompensa)) return;
+            filasRecompensa++;
 
-            // El fragmento de recompensas no contiene zona, PL ni misión; se localiza
-            // el contenedor de misión más cercano que también incluya esos metadatos.
-            let contenedor = seccion.parent();
-            let contexto = '';
-            for (let nivel = 0; nivel < 9 && contenedor.length; nivel++, contenedor = contenedor.parent()) {
+            const cantidadTexto = limpiar(item.find('.mission-figure').first().text() || item.text());
+            const cantidadMatch = cantidadTexto.match(/\b\d{1,4}\b/);
+            const cantidad = cantidadMatch ? Number(cantidadMatch[0]) : NaN;
+            if (!Number.isFinite(cantidad) || cantidad <= 0) return;
+            filasConCantidad++;
+
+            // Buscar primero atributos/clases de metadatos; después subir por el DOM
+            // hasta hallar un contenedor local con zona y nivel, sin usar el body entero.
+            let zona = null;
+            let pl = null;
+            let original = null;
+            let contenedor = item;
+            for (let nivel = 0; nivel < 12 && contenedor.length; nivel++, contenedor = contenedor.parent()) {
                 const texto = limpiar(contenedor.text());
-                const zonaMatch = texto.match(/\b(Stonewood|Plankerton|Canny Valley|Twine Peaks|Ventures)\b/i);
-                const plMatch = texto.match(/\b(?:PL|Power Level|Level)\s*[:#]?\s*(\d{1,3})\b/i) ||
-                    texto.match(/\b(\d{1,3})\s*(?:PL|Power Level)\b/i);
-                if (zonaMatch && plMatch) {
-                    contexto = texto;
-                    break;
+                const attrs = [
+                    contenedor.attr('data-zone'),
+                    contenedor.attr('data-region'),
+                    contenedor.attr('data-power-level'),
+                    contenedor.attr('data-pl'),
+                    contenedor.attr('aria-label'),
+                    contenedor.attr('title'),
+                    contenedor.attr('class')
+                ].filter(Boolean).join(' ') + ' ' + texto;
+
+                const zonaMatch = attrs.match(/\b(Stonewood|Plankerton|Canny Valley|Twine Peaks|Ventures)\b/i);
+                if (!zona && zonaMatch) zona = normalizarZona(zonaMatch[1]);
+
+                const plAttr = contenedor.attr('data-power-level') || contenedor.attr('data-pl');
+                const plMatch = String(plAttr || '').match(/\d{1,3}/) ||
+                    attrs.match(/\b(?:PL|Power Level|PowerLevel|Level)\s*[:#]?\s*(\d{1,3})\b/i) ||
+                    attrs.match(/\b(\d{1,3})\s*(?:PL|Power Level|PowerLevel)\b/i);
+                if (pl === null && plMatch) {
+                    const n = Number(plMatch[1] || plMatch[0]);
+                    if (n >= 1 && n <= 999) pl = n;
                 }
+
+                if (!original) {
+                    const tituloMision = contenedor.find('h1, h2, h3, h4, [data-mission-name], .mission-name, .mission-title').filter((___, el) => {
+                        const t = limpiar($(el).text());
+                        return t && !/alert rewards|base rewards/i.test(t) && !/v-?bucks/i.test(t);
+                    }).first();
+                    if (tituloMision.length) original = limpiar(tituloMision.attr('data-mission-name') || tituloMision.text());
+                }
+
+                // No subir al documento entero: cuando ya hay zona y PL, el contexto es suficiente.
+                if (zona && pl !== null) break;
+                if (contenedor.is('body') || contenedor.is('html')) break;
             }
-            if (!contexto) return;
-            const zonaMatch = contexto.match(/\b(Stonewood|Plankerton|Canny Valley|Twine Peaks|Ventures)\b/i);
-            const plMatch = contexto.match(/\b(?:PL|Power Level|Level)\s*[:#]?\s*(\d{1,3})\b/i) ||
-                contexto.match(/\b(\d{1,3})\s*(?:PL|Power Level)\b/i);
-            const zona = normalizarZona(zonaMatch?.[1]);
-            const misionMatch = contexto.match(/(Ride the Lightning|Retrieve the Data|Repair the Shelter|Fight Category \d Storm|Fight the Storm|Evacuate the Shelter|Deliver the Bomb|Rescue the Survivors|Destroy the Encampments|Build the Radar Grid|Eliminate and Collect)/i);
-            if (!zona || !plMatch) return;
-            const pl = Number(plMatch[1]);
-            const clave = [zona, pl, cantidad, contexto.slice(0, 120)].join('|');
+
+            // Si la tarjeta no expone PL como texto, probar los nodos típicos del sitio.
+            if (pl === null) {
+                const raiz = item.parents().slice(0, 12);
+                raiz.find('[data-power-level], [data-pl], .power-level, .mission-power-level, .pl, [aria-label*="Power Level" i]')
+                    .each((___, el) => {
+                        if (pl !== null) return;
+                        const nodo = $(el);
+                        const valor = nodo.attr('data-power-level') || nodo.attr('data-pl') ||
+                            nodo.attr('aria-label') || nodo.text();
+                        const m = limpiar(valor).match(/(?:PL|Power\s*Level|Level)?\s*[:#]?\s*(\d{1,3})/i);
+                        if (m) {
+                            const n = Number(m[1]);
+                            if (n >= 1 && n <= 999) pl = n;
+                        }
+                    });
+            }
+
+            if (!zona || pl === null) {
+                filasSinContexto++;
+                return;
+            }
+
+            if (!original) {
+                // Fallback a texto local solo si contiene un nombre de misión conocido.
+                const textos = item.parents().slice(0, 10).map((___, el) => limpiar($(el).text())).get();
+                const contextoMision = textos.find(t => /(Ride the Lightning|Retrieve the Data|Repair the Shelter|Fight Category \d Storm|Fight the Storm|Evacuate the Shelter|Deliver the Bomb|Rescue the Survivors|Destroy the Encampments|Build the Radar Grid|Eliminate and Collect)/i.test(t));
+                const m = contextoMision && contextoMision.match(/(Ride the Lightning|Retrieve the Data|Repair the Shelter|Fight Category \d Storm|Fight the Storm|Evacuate the Shelter|Deliver the Bomb|Rescue the Survivors|Destroy the Encampments|Build the Radar Grid|Eliminate and Collect)/i);
+                original = m ? m[1] : 'Misión de alerta';
+            }
+
+            const clave = [zona, pl, cantidad, original].join('|');
             if (vistos.has(clave)) return;
             vistos.add(clave);
-            const original = misionMatch ? misionMatch[1] : 'Misión de alerta';
             alertas.push({
                 zona,
                 zonaCodigo: ({ Stonewood: 'S', Plankerton: 'P', 'Canny Valley': 'C', 'Twine Peaks': 'T', Ventures: 'V' })[zona],
@@ -621,9 +673,12 @@ function extraerAlertasPennyDB(html) {
             });
         });
     });
+
+    // Se adjunta el diagnóstico a la lista para que el llamador pueda explicar
+    // si falló el selector, la cantidad o los metadatos de la misión.
+    alertas.diagnosticoPennyDB = { filasRecompensa, filasConCantidad, filasSinContexto };
     return alertas;
 }
-
 function extraerAlertasFuenteAlternativa(html, nombreFuente) {
     if (nombreFuente === 'V-Bucks Daily') return extraerAlertasVBucksDaily(html);
     if (nombreFuente === 'PennyDB') return extraerAlertasPennyDB(html);
