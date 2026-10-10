@@ -568,7 +568,7 @@ function extraerAlertasPennyDB(html) {
     // La página /stw-missions puede cambiar encabezados y clases entre versiones.
     // Buscar la recompensa por texto/atributos en todo el HTML y subir al contenedor de misión.
     const candidatos = new Set();
-    $('[title], img[alt], li, .mission-reward, [class*="reward"]').each((_, el) => {
+    $('[title], img[alt], li, .mission-reward').each((_, el) => {
         const nodo = $(el);
         const texto = limpiar([
             nodo.attr('title'), nodo.attr('alt'), nodo.text(),
