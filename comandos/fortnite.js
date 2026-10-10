@@ -259,8 +259,13 @@ async function alertasSTW(sock, chatId, msg, categoria = 'todas', progreso = nul
         lineas.push('⭐ *RESUMEN DE ALERTAS DESTACADAS*', '');
         const lista = (datos.plAltas || []).filter(item => {
             const recompensas = Array.isArray(item.recompensas) ? item.recompensas : [];
-            return recompensas.some(r => ['hero', 'survivor', 'defender', 'schematic', 'perkup'].includes(r.tipo)
-                && ['epic', 'legendary', 'mythic'].includes(r.rareza));
+            // Incluir filas con PaVos aunque no tengan otra recompensa rara.
+            // Esto hace que el resumen general refleje también las alertas de PaVos.
+            return recompensas.some(r => r && (
+                r.tipo === 'vbucks' ||
+                (['hero', 'survivor', 'defender', 'schematic', 'perkup'].includes(r.tipo)
+                    && ['epic', 'legendary', 'mythic'].includes(r.rareza))
+            ));
         });
         const limite = 10;
         if (!lista.length) {
