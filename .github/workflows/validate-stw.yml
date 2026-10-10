@@ -1,0 +1,32 @@
+name: Validate STW alerts
+
+on:
+  push:
+    branches:
+      - main
+      - fix/stw-html-fixture-tests
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  validate-stw:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+      - name: Check JavaScript syntax
+        run: |
+          node --check webBridge.js
+          node --check comandos/fortnite.js
+          node --check comandos/fortnitedb.js
+          node --check messageHandler.js
+      - name: Test STW source parsers and command routing
+        run: npm test

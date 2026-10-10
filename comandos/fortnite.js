@@ -163,8 +163,13 @@ function formatearAlertaSTW(item, encabezado = '') {
     if (item.mision || item.misionOriginal) texto += '🎯 *Misión:* ' + (item.mision || item.misionOriginal) + '\n';
 
     const recompensas = obtenerRecompensasValiosasSTW(item);
-    if (recompensas.length) texto += '🎁 *Recompensa:* ' + recompensas.join(' | ') + '\n';
-    else if (item.recompensa && item.recompensa !== 'Misión') texto += '🎁 *Recompensa:* ' + item.recompensa + '\n';
+    if (recompensas.length) {
+        texto += '🎁 *Recompensa:* ' + recompensas.join(' | ') + '\n';
+    } else if (Number(item.cantidad || item.cantidadVbucks) > 0 && /pavos|v-?bucks/i.test(String(item.recompensa || item.tipo || item.tipoAlertaTexto || ''))) {
+        texto += '🎁 *Recompensa:* 🪙 ' + Number(item.cantidad || item.cantidadVbucks) + ' PaVos\n';
+    } else if (item.recompensa && item.recompensa !== 'Misión') {
+        texto += '🎁 *Recompensa:* ' + item.recompensa + '\n';
+    }
 
     const modificadores = Array.isArray(item.modificadores) ? item.modificadores.filter(Boolean) : [];
     if (modificadores.length) texto += '🧩 *Modificadores:* ' + modificadores.join(', ') + '\n';
