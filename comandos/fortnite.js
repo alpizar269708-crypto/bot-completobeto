@@ -399,7 +399,19 @@ async function enviarAlertaPavosAutomatica(sock, actualizarEnVivo = false, horaA
         let mensajeAuto = `🎮 *ALERTAS DE PAVOS — ${horaAlerta}*\n\n`;
 
         datos.pavos.forEach(p => {
-            mensajeAuto += `⚡ *PL:* ${p.pl}\n🎯 *Misión:* ${p.mision}\n🪙 *PaVos:* ${p.cantidad || 50}\n\n`;
+            const cantidad = Number(p.cantidad || p.cantidadVbucks || 50);
+            mensajeAuto += '🌍 *Zona:* ' + (p.zona || 'Desconocida') + '\n';
+            mensajeAuto += '⚡ *PL:* ' + (p.pl ?? '?') + '\n';
+            mensajeAuto += '🎯 *Misión:* ' + (p.mision || p.misionOriginal || 'Alerta de PaVos') + '\n';
+            mensajeAuto += '🪙 *PaVos:* ' + cantidad + '\n';
+            if (Array.isArray(p.modificadores) && p.modificadores.length) {
+                mensajeAuto += '🧩 *Modificadores:* ' + p.modificadores.join(', ') + '\n';
+            }
+            const requisitos = p.requisitos || p.questReqs;
+            if (requisitos) {
+                mensajeAuto += '📜 *Requisitos:* ' + (/^none$/i.test(String(requisitos)) ? 'Ninguno' : requisitos) + '\n';
+            }
+            mensajeAuto += '\n';
         });
 
         mensajeAuto += `💰 *Total del día:* ${total} paVos\n\n`;
@@ -500,6 +512,27 @@ function iniciarCronAlertasDiarias(sock) {
     }
 
     console.log('🕒 Alertas de PaVos programadas a las 18:01:30, 18:02 y 18:05 (hora de Ciudad de México). El primer horario siempre envía un aviso.');
+
+    // Calentar la caché al iniciar el bot para que los comandos tengan datos
+    // recientes incluso si la primera consulta manual falla.
+    void (async () => {
+        try {
+            console.log('🌐 Actualización inicial de alertas STW: consultando STW Planner y SeeBot.');
+            const { extraerAlertasAPI } = require('../webBridge');
+            const resultado = await extraerAlertasAPI();
+            if (resultado && resultado.ok) {
+                console.log('✅ Caché STW inicial lista | misiones=' + (resultado.total || 0) +
+                    ' | PaVos=' + (resultado.pavos || 0) +
+                    ' | épicas=' + (resultado.epicas || 0) +
+                    ' | legendarias=' + (resultado.legendarias || 0) +
+                    ' | destacadas=' + (resultado.plAltas || 0));
+            } else {
+                console.warn('⚠️ No se pudo calentar la caché STW al iniciar; los comandos volverán a consultar las fuentes en vivo.');
+            }
+        } catch (error) {
+            console.error('❌ Falló la actualización inicial STW:', error.stack || error.message);
+        }
+    })();
 }
 
 async function activarAlertasDiarias(sock, chatId, msg) {

@@ -744,7 +744,10 @@ async function extraerAlertasAPI(progreso = null) {
                 zona: m.zona,
                 cantidad: m.cantidadVbucks || 50,
                 recompensa: 'PaVos',
-                tipo: 'STW Planner',
+                modificadores: Array.isArray(m.modificadores) ? m.modificadores : [],
+                questReqs: m.questReqs || 'None',
+                requisitos: m.questReqs || 'None',
+                tipo: m.source === 'https://seebot.dev/missions.php' ? 'SeeBot.dev' : 'STW Planner',
                 source: m.source || urlPrincipal,
                 extraidoEn: m.extraidoEn || new Date().toISOString()
             }));
