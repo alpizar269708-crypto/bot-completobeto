@@ -1,7 +1,6 @@
 const mongoose = require('mongoose'); 
 const { ejecutarMenu } = require('./comandos/menu');
 const { alertasSTW, comandoDestacadasSTW, comandoPreguntarAlerta, activarAlertasDiarias, desactivarAlertasDiarias } = require('./comandos/fortnite');
-const { comandoRPavos } = require('./comandos/fortnitedb');
 const { comandoTiendaMenu, comandoTiendaCategoria } = require('./comandos/tienda');
 const { comandoTiendaGG, manejarSeleccionTiendaGG } = require('./comandos/tiendagg');
 const { comandoTiendaVb } = require('./comandos/tiendaVb'); 
@@ -68,6 +67,27 @@ const comandosValidos = new Set([
         'rifa', 'rifainscripcion', 'cerrarrifa', 'rifaquitarduplicados', 'rifajasc13', 'addvarios', 'abrirrifa', 'activarrifaaqui', 'menurifajasc13', 'quitarrifajasc13', 'addcashback', 'delcashback', 'vercash', 'delvcash', 'canjecash', 'carryleader', 'carryjoin', 'carryleave', 'carryclose', 'blcarry', 'unblcarry', 'listcarrybl',
         'vertodoscomandos', 'listablanca', 'paypal', 'paypaln', 'paypali', 'desactivarbienvenida', 'activarbienvenida', 'personalizarbienvenida', 'restaurarbienvenida'
 ]);
+
+
+async function ejecutarFortniteConDiagnostico(sock, chatJid, msg, comando, ejecutar) {
+    const inicio = Date.now();
+    let numeroEtapa = 0;
+    const progreso = async (texto) => {
+        numeroEtapa++;
+        const prefijo = '🧪 *' + comando + ' — DIAGNÓSTICO DETALLADO*\n' +
+            '📍 Etapa de seguimiento: ' + numeroEtapa + '\n' +
+            '⏱️ Tiempo: ' + ((Date.now() - inicio) / 1000).toFixed(2) + ' s\n\n';
+        await sock.sendMessage(chatJid, { text: prefijo + String(texto).slice(0, 2800) }, { quoted: msg });
+    };
+    await progreso('🚦 ETAPA 0 — Comando recibido. Inicio de la ejecución y seguimiento activo.');
+    try {
+        await ejecutar(progreso);
+        await progreso('🏁 EJECUCIÓN TERMINADA. El manejador regresó sin lanzar una excepción. Duración total=' + ((Date.now() - inicio) / 1000).toFixed(2) + ' s.');
+    } catch (error) {
+        await progreso('🛑 ERROR NO CONTROLADO. Punto de fallo: manejador del comando. Error exacto: ' + String(error.stack || error.message || error).slice(0, 1800));
+        console.error('Error en diagnóstico Fortnite (' + comando + '):', error);
+    }
+}
 
 async function procesarMensaje(sock, msg) {
     const chatJid = msg.key.remoteJid;
@@ -158,24 +178,12 @@ Apoya a un creador: JASC13` });
     const comandoEscrito = normalizarComando(comandoRaw);
     // Alias públicos Fortnite: todos comienzan con R, la lógica interna se reutiliza.
     const aliasFortniteR = {
-        'rpavos': 'pavos',
         'rdestacadasstw': 'destacadasstw',
         'repicasstw': 'epicasstw',
         'rlegendariasstw': 'legendariasstw',
         'ralertasstw': 'alertasstw',
-        'rstw': 'stw',
         'ralerta': 'alerta',
-        'rdiagnostico': 'rpavos',
-        'rsetprecio': 'setprecio',
-        'rsetgrupostw': 'setgrupostw',
-        'runsetgrupostw': 'unsetgrupostw',
-        'rcarryleader': 'carryleader',
-        'rcarryjoin': 'carryjoin',
-        'rcarryleave': 'carryleave',
-        'rcarryclose': 'carryclose',
-        'rblcarry': 'blcarry',
-        'runblcarry': 'unblcarry',
-        'rlistcarrybl': 'listcarrybl'
+        'rpavos': 'pavos'
     };
     let comando = aliasFortniteR[comandoEscrito] || comandoEscrito;
     const esComandoValido = comandosValidos.has(comando);
@@ -371,18 +379,13 @@ Apoya a un creador: JASC13` });
             ['desactivarcomandos', 'Desactiva una o varias categorías en el grupo; las categorías desactivadas se van acumulando. Usa *desactivarcomandos ninguno* para volver a dejar todo activo.'],
             ['catdesa', 'Muestra las categorías desactivadas del grupo y permite volver a activar una seleccionándola por número durante 3 minutos.'],
             ['listablanca', 'Administra la lista blanca de links y dominios completos. Ejemplo: *listablanca agregar betomaster.com* permite todas las rutas y subdominios de ese dominio.'],
-            ['rdiagnostico', 'Diagnóstico profundo, etapa por etapa, de FortniteDB, SeeBot y STW Planner.'],
-            ['rsetprecio', 'Configura el precio de PaVos.'],
             ['ping', 'Comprueba que el bot esté activo.'],
-            ['rpavos', 'Muestra las misiones actuales que dan PaVos en Salvar el Mundo.'],
-            ['rdestacadasstw', 'Muestra las alertas destacadas / PL altas de Salvar el Mundo.'],
-            ['rlegendariasstw', 'Muestra misiones con recompensas legendarias.'],
-            ['repicasstw', 'Muestra misiones con recompensas épicas.'],
-            ['ralertasstw', 'Muestra el resumen general de alertas de Salvar el Mundo.'],
-            ['rstw', 'Alias del resumen general de alertas.'],
-            ['ralerta', 'Busca una recompensa específica en las alertas de Salvar el Mundo.'],
-            ['rsetgrupostw', 'Activa los reportes diarios de Salvar el Mundo en el grupo.'],
-            ['runsetgrupostw', 'Desactiva los reportes diarios de Salvar el Mundo.'],
+            ['rpavos', 'Muestra alertas de PaVos con diagnóstico detallado de descarga, extracción y guardado.'],
+            ['rdestacadasstw', 'Muestra alertas destacadas y PL altas con diagnóstico detallado.'],
+            ['rlegendariasstw', 'Muestra recompensas legendarias con diagnóstico detallado.'],
+            ['repicasstw', 'Muestra recompensas épicas con diagnóstico detallado.'],
+            ['ralertasstw', 'Muestra el resumen de alertas con diagnóstico detallado.'],
+            ['ralerta', 'Busca una recompensa y reporta cada etapa de la búsqueda.'],
             ['grupo', 'Abre o cierra el chat del grupo.'],
             ['mute', 'Silencia a un usuario del grupo.'],
             ['unmute', 'Quita el silencio a un usuario.'],
@@ -609,29 +612,31 @@ Apoya a un creador: JASC13` });
             case 'ping':
                 await sock.sendMessage(chatJid, { text: '¡Pong! 🤖 Activo.' }, { quoted: msg });
                 break;
-            case 'pavos':
-                await alertasSTW(sock, chatJid, msg, 'pavos');
+            case 'pavos': {
+                await ejecutarFortniteConDiagnostico(sock, chatJid, msg, 'rpavos — PaVos', progreso => alertasSTW(sock, chatJid, msg, 'pavos', progreso));
                 break;
-            case 'rpavos':
-                await comandoRPavos(sock, chatJid, msg);
+            }
+            case 'destacadasstw': {
+                await ejecutarFortniteConDiagnostico(sock, chatJid, msg, 'rdestacadasstw — destacadas y PL altas', progreso => comandoDestacadasSTW(sock, chatJid, msg, progreso));
                 break;
-            case 'destacadasstw':
-                await comandoDestacadasSTW(sock, chatJid, msg);
+            }
+            case 'legendariasstw': {
+                await ejecutarFortniteConDiagnostico(sock, chatJid, msg, 'rlegendariasstw — recompensas legendarias', progreso => alertasSTW(sock, chatJid, msg, 'legendarias', progreso));
                 break;
-            case 'legendariasstw':
-                await alertasSTW(sock, chatJid, msg, 'legendarias');
+            }
+            case 'epicasstw': {
+                await ejecutarFortniteConDiagnostico(sock, chatJid, msg, 'repicasstw — recompensas épicas', progreso => alertasSTW(sock, chatJid, msg, 'epicas', progreso));
                 break;
-            case 'epicasstw':
-                await alertasSTW(sock, chatJid, msg, 'epicas');
-                break;
+            }
             case 'alertasstw':
-            case 'stw':
-                await alertasSTW(sock, chatJid, msg, 'todas');
+            case 'stw': {
+                await ejecutarFortniteConDiagnostico(sock, chatJid, msg, 'ralertasstw — resumen de alertas', progreso => alertasSTW(sock, chatJid, msg, 'todas', progreso));
                 break;
-            case 'alerta':
-                if (args.length > 0) await comandoPreguntarAlerta(sock, chatJid, msg, args);
-                else await comandoPreguntarAlerta(sock, chatJid, msg);
+            }
+            case 'alerta': {
+                await ejecutarFortniteConDiagnostico(sock, chatJid, msg, 'ralerta — búsqueda de recompensa', progreso => comandoPreguntarAlerta(sock, chatJid, msg, args, progreso));
                 break;
+            }
             case 'setgrupostw':
                 await activarAlertasDiarias(sock, chatJid, msg);
                 break;
