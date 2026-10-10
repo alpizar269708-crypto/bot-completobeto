@@ -155,7 +155,29 @@ Apoya a un creador: JASC13` });
     let args = textoLimpio.split(/ +/);
     let comandoRaw = args.shift();
     argsOriginales.shift();
-    let comando = normalizarComando(comandoRaw);
+    const comandoEscrito = normalizarComando(comandoRaw);
+    // Alias públicos Fortnite: todos comienzan con R, la lógica interna se reutiliza.
+    const aliasFortniteR = {
+        'rpavos': 'pavos',
+        'rdestacadasstw': 'destacadasstw',
+        'repicasstw': 'epicasstw',
+        'rlegendariasstw': 'legendariasstw',
+        'ralertasstw': 'alertasstw',
+        'rstw': 'stw',
+        'ralerta': 'alerta',
+        'rdiagnostico': 'rpavos',
+        'rsetprecio': 'setprecio',
+        'rsetgrupostw': 'setgrupostw',
+        'runsetgrupostw': 'unsetgrupostw',
+        'rcarryleader': 'carryleader',
+        'rcarryjoin': 'carryjoin',
+        'rcarryleave': 'carryleave',
+        'rcarryclose': 'carryclose',
+        'rblcarry': 'blcarry',
+        'runblcarry': 'unblcarry',
+        'rlistcarrybl': 'listcarrybl'
+    };
+    let comando = aliasFortniteR[comandoEscrito] || comandoEscrito;
     const esComandoValido = comandosValidos.has(comando);
 
     // catdesa abre una selección temporal por grupo y usuario. Solo ese usuario
@@ -349,17 +371,18 @@ Apoya a un creador: JASC13` });
             ['desactivarcomandos', 'Desactiva una o varias categorías en el grupo; las categorías desactivadas se van acumulando. Usa *desactivarcomandos ninguno* para volver a dejar todo activo.'],
             ['catdesa', 'Muestra las categorías desactivadas del grupo y permite volver a activar una seleccionándola por número durante 3 minutos.'],
             ['listablanca', 'Administra la lista blanca de links y dominios completos. Ejemplo: *listablanca agregar betomaster.com* permite todas las rutas y subdominios de ese dominio.'],
-            ['setprecio', 'Configura el precio de los pavos.'],
+            ['rdiagnostico', 'Diagnóstico profundo, etapa por etapa, de FortniteDB, SeeBot y STW Planner.'],
+            ['rsetprecio', 'Configura el precio de PaVos.'],
             ['ping', 'Comprueba que el bot esté activo.'],
-            ['pavos', 'Muestra las misiones actuales que dan paVos en Salvar el Mundo.'],
-            ['destacadasstw', 'Muestra las alertas destacadas de Salvar el Mundo.'],
-            ['legendariasstw', 'Muestra misiones con recompensas legendarias.'],
-            ['epicasstw', 'Muestra misiones con recompensas épicas.'],
-            ['alertasstw', 'Muestra el resumen general de alertas de Salvar el Mundo.'],
-            ['stw', 'Alias de alertasstw.'],
-            ['alerta', 'Busca una recompensa específica en las alertas de Salvar el Mundo.'],
-            ['setgrupostw', 'Activa los reportes diarios de Salvar el Mundo en el grupo.'],
-            ['unsetgrupostw', 'Desactiva los reportes diarios de Salvar el Mundo.'],
+            ['rpavos', 'Muestra las misiones actuales que dan PaVos en Salvar el Mundo.'],
+            ['rdestacadasstw', 'Muestra las alertas destacadas / PL altas de Salvar el Mundo.'],
+            ['rlegendariasstw', 'Muestra misiones con recompensas legendarias.'],
+            ['repicasstw', 'Muestra misiones con recompensas épicas.'],
+            ['ralertasstw', 'Muestra el resumen general de alertas de Salvar el Mundo.'],
+            ['rstw', 'Alias del resumen general de alertas.'],
+            ['ralerta', 'Busca una recompensa específica en las alertas de Salvar el Mundo.'],
+            ['rsetgrupostw', 'Activa los reportes diarios de Salvar el Mundo en el grupo.'],
+            ['runsetgrupostw', 'Desactiva los reportes diarios de Salvar el Mundo.'],
             ['grupo', 'Abre o cierra el chat del grupo.'],
             ['mute', 'Silencia a un usuario del grupo.'],
             ['unmute', 'Quita el silencio a un usuario.'],
