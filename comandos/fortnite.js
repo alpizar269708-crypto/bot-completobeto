@@ -119,18 +119,43 @@ async function obtenerAlertasSTW(actualizarEnVivo = true, progreso = null) {
 }
 
 
+function normalizarRecompensaSalidaSTW(recompensa) {
+    if (!recompensa) return '';
+    const tipo = String(recompensa.tipo || '').toLowerCase();
+    if (tipo === 'vbucks') {
+        const cantidad = Number(recompensa.cantidad || recompensa.cantidadVbucks || 0);
+        return cantidad > 0 ? '🪙 ' + cantidad + ' PaVos' : '🪙 PaVos';
+    }
+    if (tipo === 'perkup') {
+        const rareza = String(recompensa.rareza || '').toLowerCase();
+        const icono = rareza === 'legendary' ? '🟠' : rareza === 'epic' ? '🟣' : rareza === 'mythic' ? '🟡' : '⚪';
+        const rarezaEs = rareza === 'legendary' ? 'legendario' : rareza === 'epic' ? 'épico' : rareza === 'mythic' ? 'mítico' : '';
+        const cantidad = Number(recompensa.cantidad || 0) ||
+            Number((String(recompensa.nombre || '').match(/[x×]\s*(\d+)/i) || [])[1] || 0);
+        return icono + ' Perk-Up' + (rarezaEs ? ' ' + rarezaEs : '') + (cantidad > 0 ? ' ×' + cantidad : '');
+    }
+    const traductores = traductoresSTW();
+    if (typeof traductores.normalizarRecompensaSTW === 'function') {
+        return traductores.normalizarRecompensaSTW(recompensa.raw || recompensa.nombre || '', recompensa.rareza, tipo);
+    }
+    return String(recompensa.nombre || recompensa.raw || '').trim();
+}
+
 function obtenerRecompensasValiosasSTW(item) {
     const recompensas = Array.isArray(item.recompensas) ? item.recompensas : [];
+    const rarezasPerkUp = new Set(recompensas.filter(r => r && r.tipo === 'perkup').map(r => r.rareza));
+    const tienePerkUpDoble = rarezasPerkUp.has('epic') && rarezasPerkUp.has('legendary');
     const valiosas = recompensas.filter(r => {
         if (!r || !r.tipo) return false;
         if (r.tipo === 'vbucks') return true;
-        if (!['hero', 'survivor', 'defender', 'schematic', 'perkup'].includes(r.tipo)) return false;
+        if (r.tipo === 'perkup') return tienePerkUpDoble && ['epic', 'legendary'].includes(r.rareza);
+        if (!['hero', 'survivor', 'defender', 'schematic'].includes(r.tipo)) return false;
         return ['mythic', 'legendary', 'epic', 'rare'].includes(r.rareza);
     });
     const unicas = [];
     const vistos = new Set();
     for (const recompensa of valiosas) {
-        const nombre = String(recompensa.nombre || recompensa.raw || '').trim();
+        const nombre = normalizarRecompensaSalidaSTW(recompensa);
         const clave = nombre.toLowerCase();
         if (!clave || vistos.has(clave)) continue;
         vistos.add(clave);
@@ -139,11 +164,7 @@ function obtenerRecompensasValiosasSTW(item) {
     return unicas;
 }
 
-
-function formatearMultiplicadorSTW(item) {
-    const multiplicador = Number(item.multiplicadorRecompensa);
-    if (multiplicador === 4) return '✖️ *Recompensa x4:* Sí\n';
-    if (multiplicador === 5) return '✖️ *Recompensa x5:* Sí\n';
+function formatearMultiplicadorSTW() {
     return '';
 }
 
@@ -163,10 +184,10 @@ function traducirMisionSalidaSTW(item) {
     const traducirNombre = traductores.traducirNombreMisionSTW;
     const traducirBioma = traductores.traducirBiomaSTW;
     const fuente = String(item && (item.mision || item.misionOriginal) || '').trim();
-    if (!fuente || typeof traducirNombre !== 'function') return fuente;
+    if (!fuente || typeof traducirNombre !== 'function') return 'Misión de alerta';
     const partes = fuente.split(/\s+-\s+/);
     const nombreOriginal = partes.shift();
-    const nombre = traducirNombre(nombreOriginal) || nombreOriginal;
+    const nombre = traducirNombre(nombreOriginal) || 'Misión de alerta';
     const biomaOriginal = partes.length ? partes.join(' - ') : String(item.ubicacion || '').trim();
     const bioma = biomaOriginal && typeof traducirBioma === 'function'
         ? traducirBioma(biomaOriginal)
@@ -178,35 +199,82 @@ function traducirModificadoresSalidaSTW(modificadores) {
     const traductores = traductoresSTW();
     const traducir = traductores.traducirModificadorSTW;
     const list = Array.isArray(modificadores) ? modificadores : [];
-    const traducidos = list.map(x => typeof traducir === 'function' ? traducir(x) : x).filter(Boolean);
+    const traducidos = list.map(x => typeof traducir === 'function' ? traducir(x) : 'Modificador de misión').filter(Boolean);
     return [...new Set(traducidos)];
 }
 
-function formatearAlertaSTW(item, encabezado = '') {
+function esRequisitoRealSTW(valor) {
+    const texto = String(valor || '').trim();
+    return Boolean(texto) && !/^(none|ninguno|ninguna|ning[uú]n requisito|sin requisitos|n\/a|na|-)$/i.test(texto);
+}
+
+function traducirRequisitosSalidaSTW(valor) {
+    let texto = String(valor || '').trim();
+    if (!esRequisitoRealSTW(texto)) return '';
+    const misiones = [
+        ['Ride the Lightning', 'Monta el rayo'],
+        ['Retrieve the Data', 'Recupera los datos'],
+        ['Repair the Shelter', 'Repara el refugio'],
+        ['Fight the Storm', 'Lucha contra la tormenta'],
+        ['Evacuate the Shelter', 'Evacúa el refugio'],
+        ['Deliver the Bomb', 'Entrega la bomba'],
+        ['Rescue the Survivors', 'Rescata a los supervivientes'],
+        ['Build the Radar', 'Construye el radar'],
+        ['Destroy the Encampments', 'Destruye los campamentos'],
+        ['Refuel the Homebase', 'Reabastece la base'],
+        ['Trap the Storm', 'Atrapa la tormenta'],
+        ['Resupply', 'Reabastecimiento']
+    ];
+    for (const [ingles, espanol] of misiones) texto = texto.replace(new RegExp(ingles, 'gi'), espanol);
+    const zonas = [
+        ['Hexsylvania Venture Zone', 'Zona de Aventuras de Hexsylvania'],
+        ['Stonewood', 'Bosque Pedregoso'], ['Plankerton', 'Ciudad Tablón'],
+        ['Canny Valley', 'Valle Latoso'], ['Twine Peaks', 'Cumbres Leñosas'], ['Ventures', 'Aventuras']
+    ];
+    for (const [ingles, espanol] of zonas) texto = texto.replace(new RegExp(ingles, 'gi'), espanol);
+    texto = texto
+        .replace(/\bComplete\b/gi, 'Completa')
+        .replace(/\bmissions?\b/gi, 'misiones')
+        .replace(/\bquests?\b/gi, 'objetivos')
+        .replace(/\bsurvivors?\b/gi, 'supervivientes')
+        .replace(/\bwithin\b/gi, 'en')
+        .replace(/\bzone\b/gi, 'zona')
+        .replace(/\ball\b/gi, 'todas las')
+        .replace(/\bthe\b/gi, 'la')
+        .replace(/\band\b/gi, 'y')
+        .replace(/\bwith\b/gi, 'con')
+        .replace(/\bwithout\b/gi, 'sin')
+        .replace(/\bdefend\b/gi, 'defender')
+        .replace(/\bcomplete\b/gi, 'completar')
+        .replace(/\s+/g, ' ')
+        .trim();
+    if (/\b(?:complete|mission|missions|quest|survivor|deliver|retrieve|defend|shelter|encampments|homebase|canny valley|twine peaks|stonewood|plankerton)\b/i.test(texto)) {
+        return 'Consulta los requisitos específicos de esta misión dentro del juego.';
+    }
+    return texto;
+}
+
+function formatearAlertaSTW(item, encabezado = '', mostrarDetalles = false) {
     let texto = '';
     if (encabezado) texto += encabezado + '\n';
     texto += '⚡ *PL:* ' + (item.pl ?? '?') + '\n';
     if (item.zona) texto += '🌍 *Zona:* ' + traducirZonaSalidaSTW(item.zona) + '\n';
-    texto += formatearMultiplicadorSTW(item);
     const mision = traducirMisionSalidaSTW(item);
     if (mision) texto += '🎯 *Misión:* ' + mision + '\n';
-
     const recompensas = obtenerRecompensasValiosasSTW(item);
     if (recompensas.length) {
         texto += '🎁 *Recompensa:* ' + recompensas.join(' | ') + '\n';
     } else if (Number(item.cantidad || item.cantidadVbucks) > 0 && /pavos|v-?bucks/i.test(String(item.recompensa || item.tipo || item.tipoAlertaTexto || ''))) {
         texto += '🎁 *Recompensa:* 🪙 ' + Number(item.cantidad || item.cantidadVbucks) + ' PaVos\n';
-    } else if (item.recompensa && item.recompensa !== 'Misión') {
-        texto += '🎁 *Recompensa:* ' + item.recompensa + '\n';
     }
-
-    const modificadores = traducirModificadoresSalidaSTW(item.modificadores);
-    if (modificadores.length) texto += '🧩 *Modificadores:* ' + modificadores.join(', ') + '\n';
-    const requisitos = String(item.questReqs || item.requisitos || '').trim();
-    if (requisitos) texto += '📜 *Requisitos:* ' + (/^none$/i.test(requisitos) ? 'Ninguno' : requisitos) + '\n';
+    if (mostrarDetalles) {
+        const modificadores = traducirModificadoresSalidaSTW(item.modificadores).filter(modificador => !/\bx[45]\b/i.test(modificador));
+        if (modificadores.length) texto += '🧩 *Modificadores:* ' + modificadores.join(', ') + '\n';
+        const requisitos = traducirRequisitosSalidaSTW(item.questReqs || item.requisitos);
+        if (requisitos) texto += '📜 *Requisitos:* ' + requisitos + '\n';
+    }
     return texto + '\n';
 }
-
 function formatearResumenAlertaSTW(item) {
     const recompensas = obtenerRecompensasValiosasSTW(item);
     const resumenRecompensas = recompensas.length ? ' — ' + recompensas.join(', ') : '';
@@ -243,11 +311,6 @@ async function alertasSTW(sock, chatId, msg, categoria = 'todas', progreso = nul
                     '⚡ *PL:* ' + (p.pl ?? '?'),
                     '🎯 *Misión:* ' + traducirMisionSalidaSTW(p),
                     '🪙 *PaVos:* ' + cantidad,
-                    ...(traducirModificadoresSalidaSTW(p.modificadores).length
-                        ? ['🧩 *Modificadores:* ' + traducirModificadoresSalidaSTW(p.modificadores).join(', ')] : []),
-                    ...((p.requisitos || p.questReqs)
-                        ? ['📜 *Requisitos:* ' + (/^none$/i.test(String(p.requisitos || p.questReqs))
-                            ? 'Ninguno' : (p.requisitos || p.questReqs))] : []),
                     ''
                 );
             }
@@ -259,13 +322,12 @@ async function alertasSTW(sock, chatId, msg, categoria = 'todas', progreso = nul
         lineas.push('⭐ *RESUMEN DE ALERTAS DESTACADAS*', '');
         const lista = (datos.plAltas || []).filter(item => {
             const recompensas = Array.isArray(item.recompensas) ? item.recompensas : [];
-            // Incluir filas con PaVos aunque no tengan otra recompensa rara.
-            // Esto hace que el resumen general refleje también las alertas de PaVos.
-            return recompensas.some(r => r && (
-                r.tipo === 'vbucks' ||
-                (['hero', 'survivor', 'defender', 'schematic', 'perkup'].includes(r.tipo)
-                    && ['epic', 'legendary', 'mythic'].includes(r.rareza))
-            ));
+            const conPavos = recompensas.some(r => r && r.tipo === 'vbucks');
+            const normalValida = recompensas.some(r => r && ['hero', 'survivor', 'defender', 'schematic'].includes(r.tipo)
+                && ['epic', 'legendary', 'mythic'].includes(r.rareza));
+            const rarezasPerkUp = new Set(recompensas.filter(r => r && r.tipo === 'perkup').map(r => r.rareza));
+            const perkUpDoble = rarezasPerkUp.has('epic') && rarezasPerkUp.has('legendary');
+            return conPavos || normalValida || perkUpDoble;
         });
         const limite = 10;
         if (!lista.length) {
@@ -334,14 +396,15 @@ async function comandoDestacadasSTW(sock, chatId, msg, progreso = null) {
     await sock.sendMessage(chatId, { text: texto }, { quoted: msg });
 }
 
-async function comandoPreguntarAlerta(sock, chatId, msg, palabrasClave = [], progreso = null) {
+async function comandoPreguntarAlerta(sock, chatId, msg, palabrasClave = [], progreso = null, mostrarDetalles = false) {
     const informar = async texto => { if (typeof progreso === 'function') { try { await progreso(texto); } catch (_) {} } };
+    const nombreComando = mostrarDetalles ? 'alertanob' : 'alerta';
     const termino = Array.isArray(palabrasClave)
         ? palabrasClave.join(' ').trim()
         : String(palabrasClave || '').trim();
 
     if (!termino) {
-        await sock.sendMessage(chatId, { text: '🤖 Escribe después de *alerta* una palabra o frase para buscar en las alertas.' }, { quoted: msg });
+        await sock.sendMessage(chatId, { text: '🤖 Escribe después de *' + nombreComando + '* una palabra o frase para buscar en las alertas.' }, { quoted: msg });
         return;
     }
 
@@ -375,7 +438,7 @@ async function comandoPreguntarAlerta(sock, chatId, msg, palabrasClave = [], pro
         : null;
     const clave = normalizarTexto(termino);
 
-    const coincidencias = [
+    const coincidenciasFiltradas = [
         ...datos.pavos.map(item => ({ ...item, categoria: 'PaVos' })),
         ...datos.epicas.map(item => ({ ...item, categoria: 'Épicas' })),
         ...datos.legendarias.map(item => ({ ...item, categoria: 'Legendarias' })),
@@ -385,22 +448,48 @@ async function comandoPreguntarAlerta(sock, chatId, msg, palabrasClave = [], pro
             const plItem = Number(String(item.pl || '').replace(/[^0-9]/g, ''));
             return plItem >= Math.min(plMinimo, plMaximo) && plItem <= Math.max(plMinimo, plMaximo);
         }
-
         const textoBusqueda = normalizarTexto([
-            item.mision,
-            item.misionOriginal,
-            item.zona,
-            item.nombre,
-            item.recompensa,
+            item.mision, item.misionOriginal, item.zona, item.nombre, item.recompensa,
             ...(Array.isArray(item.recompensas) ? item.recompensas.map(r => typeof r === 'string' ? r : (r.nombre || r.raw || '')) : []),
-            item.cantidad,
-            item.cantidadVbucks,
-            item.tipoAlertaTexto
+            item.cantidad, item.cantidadVbucks, item.tipoAlertaTexto
         ].filter(Boolean).join(' '));
-
         return textoBusqueda.includes(clave);
     });
 
+    const mapaCoincidencias = new Map();
+    for (const item of coincidenciasFiltradas) {
+        const normalizarClave = valor => normalizarTexto(valor).replace(/\s+/g, ' ').trim();
+        const traductores = traductoresSTW();
+        const original = String(item.misionOriginal || '').trim();
+        const nombreBase = original && typeof traductores.traducirNombreMisionSTW === 'function'
+            ? traductores.traducirNombreMisionSTW(original)
+            : String(item.mision || '').split(/\s+-\s+/)[0].trim();
+        const claveMision = [normalizarClave(item.zona), Number(item.pl || 0), normalizarClave(nombreBase)].join('|');
+        const anterior = mapaCoincidencias.get(claveMision);
+        if (!anterior) {
+            mapaCoincidencias.set(claveMision, {
+                ...item, categoria: [item.categoria],
+                recompensas: [...(item.recompensas || [])],
+                modificadores: [...(item.modificadores || [])]
+            });
+            continue;
+        }
+        const categorias = [...new Set([...(Array.isArray(anterior.categoria) ? anterior.categoria : [anterior.categoria]), item.categoria])];
+        const recompensas = [...(anterior.recompensas || [])];
+        const claveRecompensa = r => typeof r === 'string' ? r.toLowerCase() : [r.tipo, r.rareza, r.raw || r.nombre].join('|').toLowerCase();
+        const clavesRecompensa = new Set(recompensas.map(claveRecompensa));
+        for (const recompensa of (item.recompensas || [])) {
+            const k = claveRecompensa(recompensa);
+            if (!clavesRecompensa.has(k)) { clavesRecompensa.add(k); recompensas.push(recompensa); }
+        }
+        const modificadores = [...new Set([...(anterior.modificadores || []), ...(item.modificadores || [])])];
+        mapaCoincidencias.set(claveMision, {
+            ...anterior, ...item, categoria: categorias, recompensas, modificadores,
+            recompensa: recompensas.map(r => typeof r === 'string' ? r : r.nombre).filter(Boolean).join(' | ') || item.recompensa || anterior.recompensa,
+            questReqs: anterior.questReqs || item.questReqs, requisitos: anterior.requisitos || item.requisitos
+        });
+    }
+    const coincidencias = Array.from(mapaCoincidencias.values());
     const etiquetaPL = plMinimo === plMaximo
         ? String(plMinimo)
         : Math.min(plMinimo, plMaximo) + '-' + Math.max(plMinimo, plMaximo);
@@ -416,8 +505,9 @@ async function comandoPreguntarAlerta(sock, chatId, msg, palabrasClave = [], pro
             : '_No encontré alertas que contengan esa palabra o frase._\n\n';
     } else {
         coincidencias.forEach(item => {
-            texto += '📌 *' + item.categoria + '*\n';
-            texto += formatearAlertaSTW(item);
+            const categorias = Array.isArray(item.categoria) ? item.categoria : [item.categoria];
+            texto += '📌 *' + [...new Set(categorias)].join(' / ') + '*\n';
+            texto += formatearAlertaSTW(item, '', mostrarDetalles);
         });
     }
 
@@ -469,13 +559,6 @@ async function enviarAlertaPavosAutomatica(sock, actualizarEnVivo = false, horaA
             mensajeAuto += '⚡ *PL:* ' + (p.pl ?? '?') + '\n';
             mensajeAuto += '🎯 *Misión:* ' + (p.mision || p.misionOriginal || 'Alerta de PaVos') + '\n';
             mensajeAuto += '🪙 *PaVos:* ' + cantidad + '\n';
-            if (Array.isArray(p.modificadores) && p.modificadores.length) {
-                mensajeAuto += '🧩 *Modificadores:* ' + p.modificadores.join(', ') + '\n';
-            }
-            const requisitos = p.requisitos || p.questReqs;
-            if (requisitos) {
-                mensajeAuto += '📜 *Requisitos:* ' + (/^none$/i.test(String(requisitos)) ? 'Ninguno' : requisitos) + '\n';
-            }
             mensajeAuto += '\n';
         });
 

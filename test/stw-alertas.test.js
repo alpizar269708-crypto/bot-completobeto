@@ -58,7 +58,7 @@ test('SeeBot extrae zona, PL, misión, modificadores, recompensa épica y requis
     assert.equal(mision.zona, 'Hexsylvania Venture Zone');
     assert.equal(mision.pl, 124);
     assert.ok(mision.modificadores.length >= 5);
-    assert.ok(mision.modificadores.some(x => /short range/i.test(x)));
+    assert.ok(mision.modificadores.some(x => /alcance corto/i.test(x)));
     assert.equal(mision.questReqs, 'None');
     const recompensa = mision.recompensas.find(r => r.raw === 'Deadly Blade Crash');
     assert.ok(recompensa, 'debe conservar Deadly Blade Crash como recompensa');
@@ -84,7 +84,8 @@ test('SeeBot clasifica recompensas legendarias por su clase e icono', () => {
     assert.equal(mision.zona, 'Canny Valley');
     assert.ok(mision.recompensas.some(r =>
         r.tipo === 'survivor' && r.rareza === 'legendary' &&
-        /Training Team Lead Survivor/i.test(r.raw)
+        /Training Team Lead Survivor/i.test(r.raw) &&
+        /Líder del equipo de entrenamiento/i.test(r.nombre)
     ));
     assert.ok(seleccionarAlertasSTWPorRareza(misiones, 'legendary').some(m =>
         m.misionOriginal === 'Resupply'

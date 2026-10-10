@@ -34,9 +34,25 @@ function traducirNombreMisionSTW(nombreIngles) {
         'category 1 fight the storm': 'Lucha contra una tormenta de categoría 1',
         'category 2 fight the storm': 'Lucha contra una tormenta de categoría 2',
         'category 3 fight the storm': 'Lucha contra una tormenta de categoría 3',
-        'category 4 fight the storm': 'Lucha contra una tormenta de categoría 4'
+        'category 4 fight the storm': 'Lucha contra una tormenta de categoría 4',
+        'launch the rocket': 'Lanza el cohete',
+        'defend the launch site': 'Defiende el lugar de lanzamiento',
+        'defend the shelter': 'Defiende el refugio',
+        'defend the van': 'Defiende la camioneta',
+        'fight category 1 storm': 'Lucha contra una tormenta de categoría 1',
+        'fight category 2 storm': 'Lucha contra una tormenta de categoría 2',
+        'fight category 3 storm': 'Lucha contra una tormenta de categoría 3',
+        'fight category 4 storm': 'Lucha contra una tormenta de categoría 4',
+        'rescue survivors': 'Rescata a los supervivientes',
+        'build radar grid': 'Construye la cuadrícula del radar',
+        'refuel homebase': 'Reabastece la base',
+        'storm shield defense': 'Defensa del escudo antitormentas'
     };
-    return misionesMap[nombre.toLowerCase()] || nombre;
+    const traduccion = misionesMap[nombre.toLowerCase()];
+    if (traduccion) return traduccion;
+    if (Object.values(misionesMap).some(valor => valor.toLowerCase() === nombre.toLowerCase())) return nombre;
+    if (/^(atlas|misión de alerta|lucha|recupera|repara|monta|evacúa|entrega|reabastecimiento|elimina|rescata|construye|destruye|reabastece|atrapa|lanza|defiende|en la carretera)\b/i.test(nombre)) return nombre;
+    return 'Misión de alerta';
 }
 
 function traducirZonaSTW(zona) {
@@ -123,6 +139,60 @@ async function descargarSTW(url) {
 }
 
 
+function traducirNombreObjetoSTW(nombre, tipo = 'other') {
+    let limpio = limpiarTextoSTW(nombre)
+        .replace(/\s*\((?:Mythic|Legendary|Epic|Rare|Uncommon|Common)\)\s*$/i, '')
+        .replace(/^\s*(?:mythic|legendary|epic|rare|uncommon|common)\s+/i, '')
+        .trim();
+    const tipoFinal = String(tipo || '').toLowerCase();
+    if (tipoFinal === 'survivor') limpio = limpio.replace(/\s+survivor$/i, '').trim();
+    if (tipoFinal === 'defender') limpio = limpio.replace(/\s+defender$/i, '').trim();
+    if (tipoFinal === 'hero') limpio = limpio.replace(/\s+hero$/i, '').trim();
+    if (tipoFinal === 'schematic') limpio = limpio.replace(/\s+schematic$/i, '').trim();
+
+    const traducciones = [
+        [/^scouting party lead$/i, 'Líder del equipo de exploración'],
+        [/^training team lead$/i, 'Líder del equipo de entrenamiento'],
+        [/^emt squad lead$/i, 'Líder del equipo médico'],
+        [/^fire team alpha lead$/i, 'Líder del equipo Alfa de fuego'],
+        [/^close assault squad lead$/i, 'Líder del escuadrón de asalto cercano'],
+        [/^technical support$/i, 'Apoyo técnico'],
+        [/^trap durability$/i, 'Durabilidad de trampas'],
+        [/^trap damage$/i, 'Daño de trampas'],
+        [/^weapon damage$/i, 'Daño de armas'],
+        [/^weapon critical rating$/i, 'Probabilidad crítica de armas'],
+        [/^pure drop of rain$/i, 'Gota pura de lluvia'],
+        [/^lightning in a bottle$/i, 'Relámpago en una botella'],
+        [/^eye of the storm$/i, 'Ojo de la tormenta'],
+        [/^storm shard$/i, 'Fragmento de tormenta'],
+        [/^training manual$/i, 'Manual de entrenamiento'],
+        [/^v-bucks(?: or x-ray)?$/i, 'PaVos'],
+        [/^deadly blade crash$/i, 'Crash de hoja mortal'],
+        [/^ride the lightning$/i, 'Monta el rayo'],
+        [/^retrieve the data$/i, 'Recupera los datos'],
+        [/^repair the shelter$/i, 'Repara el refugio'],
+        [/^rescue the survivors$/i, 'Rescata a los supervivientes'],
+        [/^deliver the bomb$/i, 'Entrega la bomba'],
+        [/^evacuate the shelter$/i, 'Evacúa el refugio'],
+        [/^destroy the encampments$/i, 'Destruye los campamentos'],
+        [/^build the radar grid$/i, 'Construye la cuadrícula del radar'],
+        [/^refuel the homebase$/i, 'Reabastece la base'],
+        [/^trap the storm$/i, 'Atrapa la tormenta'],
+        [/^fight the storm$/i, 'Lucha contra la tormenta'],
+        [/^eliminate and collect$/i, 'Elimina y recoge']
+    ];
+    for (const [patron, traducido] of traducciones) {
+        if (patron.test(limpio)) return traducido;
+    }
+    return limpio
+        .replace(/\bScouting Party Lead\b/gi, 'Líder del equipo de exploración')
+        .replace(/\bTraining Team Lead\b/gi, 'Líder del equipo de entrenamiento')
+        .replace(/\bPure Drop of Rain\b/gi, 'Gota pura de lluvia')
+        .replace(/\bLightning in a Bottle\b/gi, 'Relámpago en una botella')
+        .replace(/\bEye of the Storm\b/gi, 'Ojo de la tormenta')
+        .replace(/\bStorm Shard\b/gi, 'Fragmento de tormenta');
+}
+
 function normalizarRecompensaSTW(nombre, rareza, tipo) {
     let limpio = limpiarTextoSTW(nombre);
     if (!limpio) return '';
@@ -150,7 +220,6 @@ function normalizarRecompensaSTW(nombre, rareza, tipo) {
         defender: 'Defensor',
         schematic: 'Esquema',
         supercharger: 'Supercargador',
-        x4: 'Recompensa x4',
         evolution: 'Material de evolución',
         perkup: 'Perk-Up',
         elemental: 'Perk-Up elemental',
@@ -161,14 +230,7 @@ function normalizarRecompensaSTW(nombre, rareza, tipo) {
         other: 'Recompensa'
     }[tipo] || 'Recompensa';
 
-    limpio = limpio
-        .replace(/^(legendary|epic|rare|uncommon|common)\s+/i, '')
-        .trim();
-
-    if (tipo === 'hero') limpio = limpio.replace(/^hero\s*:?\s*/i, '').trim();
-    if (tipo === 'survivor') limpio = limpio.replace(/^survivor\s*:?\s*/i, '').trim();
-    if (tipo === 'defender') limpio = limpio.replace(/^defender\s*:?\s*/i, '').trim();
-    if (tipo === 'schematic') limpio = limpio.replace(/^schematic\s*:?\s*/i, '').trim();
+    limpio = traducirNombreObjetoSTW(limpio, tipo);
 
     if (!limpio || /^(survivor|defender|hero|schematic)$/i.test(limpio)) {
         return icono + ' ' + tipoEs + ' ' + rarezaEs;
@@ -178,6 +240,7 @@ function normalizarRecompensaSTW(nombre, rareza, tipo) {
         return icono + ' ' + tipoEs + ' ' + rarezaEs + ' x' + limpio;
     }
 
+    if (tipo === 'perkup' && /^(perk-?up!?|perkup!?)$/i.test(limpio)) return icono + ' Perk-Up ' + rarezaEs;
     return icono + ' ' + tipoEs + ' ' + rarezaEs + ': ' + limpio;
 }
 function detectarTipoRecompensaSTW(iconClasses, dataFilter, rawName) {
@@ -335,7 +398,41 @@ function traducirModificadorSTW(nombre) {
         'Epic Mini Boss': 'Minijefe épico'
     };
     const coincidencia = Object.entries(mapa).find(([ingles]) => ingles.toLowerCase() === titulo.toLowerCase());
-    return coincidencia ? coincidencia[1] : titulo;
+    if (coincidencia) return coincidencia[1];
+
+    // Para títulos nuevos se traducen los términos reconocibles. Si aun así
+    // queda un título inglés, se usa una etiqueta española en lugar de filtrarlo.
+    let fallback = titulo;
+    const terminos = [
+        [/\bPowerful\b/gi, 'Poderosos'], [/\bAttacks?\b/gi, 'ataques'],
+        [/\bLeaping\b/gi, 'saltadores'], [/\bNinjas?\b/gi, 'ninjas'],
+        [/\bOutlanders?\b/gi, 'forasteros'], [/\bSoldiers?\b/gi, 'soldados'],
+        [/\bConstructors?\b/gi, 'constructores'], [/\bStorm\b/gi, 'tormenta'],
+        [/\bFire\b/gi, 'fuego'], [/\bIce\b/gi, 'hielo'], [/\bNature\b/gi, 'naturaleza'],
+        [/\bWater\b/gi, 'agua'], [/\bLightning\b/gi, 'relámpago'],
+        [/\bMelee\b/gi, 'cuerpo a cuerpo'], [/\bRanged\b/gi, 'a distancia'],
+        [/\bWeapons?\b/gi, 'armas'], [/\bTraps?\b/gi, 'trampas'],
+        [/\bShotguns?\b/gi, 'escopetas'], [/\bSwords?\b/gi, 'espadas'],
+        [/\bSpears?\b/gi, 'lanzas'], [/\bAxes?\b/gi, 'hachas'],
+        [/\bScythes?\b/gi, 'guadañas'], [/\bExplosives?\b/gi, 'explosivos'],
+        [/\bSmoke Screens?\b/gi, 'cortinas de humo'], [/\bShort Range\b/gi, 'alcance corto'],
+        [/\bHealing\b/gi, 'curativo'], [/\bDeathburst\b/gi, 'estallido al morir'],
+        [/\bAcid Pools?\b/gi, 'charcos de ácido'], [/\bMetal Corrosion\b/gi, 'corrosión metálica'],
+        [/\bUncharted Enemies\b/gi, 'enemigos no detectados'], [/\bSlowing\b/gi, 'ralentización'],
+        [/\bVulnerability\b/gi, 'vulnerabilidad'], [/\bBuilding\b/gi, 'estructuras'],
+        [/\bHealth\b/gi, 'salud'], [/\bDamage\b/gi, 'daño'],
+        [/\bRicochet\b/gi, 'rebote'], [/\bBerserker\b/gi, 'frenético'],
+        [/\bVampiric\b/gi, 'vampírico'], [/\bMini[- ]?Boss\b/gi, 'minijefe'],
+        [/\bHeadshot\b/gi, 'disparo a la cabeza'], [/\bKnockback\b/gi, 'retroceso'],
+        [/\bConcussive\b/gi, 'conmoción'], [/\bShieldbreak\b/gi, 'ruptura de escudo'],
+        [/\bAdept\b/gi, 'experto'], [/\bFocused\b/gi, 'concentrados'],
+        [/\bUpgraded\b/gi, 'mejorados'], [/\bWell Drilled\b/gi, 'bien entrenados'],
+        [/\band\b/gi, 'y'], [/\bthe\b/gi, ''], [/\bwith\b/gi, 'con']
+    ];
+    for (const [patron, traduccion] of terminos) fallback = fallback.replace(patron, traduccion);
+    fallback = fallback.replace(/\s+/g, ' ').trim();
+    const palabrasInglesas = /\b(?:powerful|attacks?|leaping|outlanders?|soldiers?|constructors?|storm|fire|ice|nature|water|lightning|melee|ranged|weapons?|traps?|shotguns?|swords?|spears?|axes?|scythes?|explosives?|healing|deathburst|vulnerability|building|health|damage|ricochet|berserker|vampiric|headshot|knockback|concussive|shieldbreak|adept|focused|upgraded|enemies|enemy|reward|mission|zone|defend|survivor|schematic)\b/i;
+    return fallback && !palabrasInglesas.test(fallback) ? fallback : 'Modificador de misión';
 }
 
 function extraerModificadoresMissionEntrySTW($, missionEntry) {
@@ -422,25 +519,27 @@ function extraerMisionEntrySTW($, missionEntry, zona, tipoAlerta) {
 }
 
 function seleccionarAlertasSTWPorRareza(misiones, rareza) {
-    // Un listado representa misiones, no recompensas individuales. Una misión
-    // con premio épico y legendario aparece una sola vez en cada categoría y
-    // conserva juntas ambas recompensas.
-    const tiposPermitidos = new Set(['hero', 'survivor', 'defender', 'schematic', 'perkup']);
+    // El conteo se basa en misiones útiles, no en cada premio por separado.
+    // Perk-Up solo califica cuando una misma misión contiene las rarezas épica y legendaria.
+    const tiposPermitidos = new Set(['hero', 'survivor', 'defender', 'schematic']);
     const rarezasVisibles = new Set(['mythic', 'legendary', 'epic']);
     const alertas = [];
     for (const mision of Array.isArray(misiones) ? misiones : []) {
-        const todasLasRecompensas = (Array.isArray(mision.recompensas) ? mision.recompensas : []);
-        const recompensasVisibles = todasLasRecompensas.filter(r =>
-            r && tiposPermitidos.has(r.tipo) && rarezasVisibles.has(r.rareza)
+        const todasLasRecompensas = Array.isArray(mision.recompensas) ? mision.recompensas : [];
+        const rarezasPerkUp = new Set(todasLasRecompensas
+            .filter(r => r && r.tipo === 'perkup')
+            .map(r => r.rareza));
+        const tienePerkUpDoble = rarezasPerkUp.has('epic') && rarezasPerkUp.has('legendary');
+        const calificaPorRecompensaUtil = todasLasRecompensas.some(r =>
+            r && tiposPermitidos.has(r.tipo) && r.rareza === rareza && rarezasVisibles.has(r.rareza)
         );
-        if (!recompensasVisibles.some(r => r.rareza === rareza)) continue;
+        const calificaPorPerkUpDoble = tienePerkUpDoble && ['epic', 'legendary'].includes(rareza);
+        if (!calificaPorRecompensaUtil && !calificaPorPerkUpDoble) continue;
 
-        // Mantener las recompensas épicas/legendarias que justifican la alerta
-        // y también los PaVos del mismo renglón. Así no desaparecen al filtrar
-        // las listas por rareza y siguen visibles en epicasstw/legendariasstw.
         const recompensasDeSalida = todasLasRecompensas.filter(r =>
             r && (
                 (tiposPermitidos.has(r.tipo) && rarezasVisibles.has(r.rareza)) ||
+                (r.tipo === 'perkup' && tienePerkUpDoble && ['epic', 'legendary'].includes(r.rareza)) ||
                 r.tipo === 'vbucks'
             )
         );
@@ -462,8 +561,6 @@ function seleccionarAlertasSTWPorRareza(misiones, rareza) {
         String(a.mision || '').localeCompare(String(b.mision || ''))
     );
 }
-
-
 function deduplicarSTW(lista) {
     const mapa = new Map();
 
@@ -1327,7 +1424,7 @@ async function extraerAlertasAPI(progreso = null) {
                 ]
             }
         });
-        const tiposBuenos = ['hero', 'survivor', 'defender', 'schematic', 'perkup'];
+        const tiposBuenos = ['hero', 'survivor', 'defender', 'schematic'];
         const plannerTraeRecompensas = todasPlanner.some(m =>
             (m.recompensas || []).some(r => ['epic', 'legendary', 'mythic'].includes(r.rareza))
         );
@@ -1371,6 +1468,11 @@ async function extraerAlertasAPI(progreso = null) {
         function evaluarAlertaChida(mision) {
             // Una alerta de PaVos también debe estar disponible en destacadas.
             const contienePavos = Boolean(mision.vbucks || mision.recompensas.some(r => r.tipo === 'vbucks'));
+            const recompensasPerkUp = mision.recompensas.filter(r => r.tipo === 'perkup' && ['epic', 'legendary'].includes(r.rareza));
+            const rarezasPerkUp = new Set(recompensasPerkUp.map(r => r.rareza));
+            if (rarezasPerkUp.has('epic') && rarezasPerkUp.has('legendary')) {
+                return { mostrar: true, nivel: 96, motivo: 'Recompensas dobles de Perk-Up', destacadas: recompensasPerkUp };
+            }
             const buenas = mision.recompensas.filter(r => tiposBuenos.includes(r.tipo));
             const legendarias = buenas.filter(r => r.rareza === 'legendary');
             const epicas = buenas.filter(r => r.rareza === 'epic');
@@ -1505,4 +1607,4 @@ function vincularChatWhatsApp(chatId) {
     chatWhatsAppActivo = chatId;
 }
 
-module.exports = { iniciarPuenteDiscord, vincularChatWhatsApp, extraerAlertasAPI, parsearTablaSeeBotSTW, parsearJSONSeeBotSTW, parsearVBucksDailySTW, traducirNombreMisionSTW, traducirZonaSTW, traducirBiomaSTW, traducirModificadorSTW, seleccionarAlertasSTWPorRareza };
+module.exports = { iniciarPuenteDiscord, vincularChatWhatsApp, extraerAlertasAPI, parsearTablaSeeBotSTW, parsearJSONSeeBotSTW, parsearVBucksDailySTW, traducirNombreMisionSTW, traducirNombreObjetoSTW, normalizarRecompensaSTW, traducirZonaSTW, traducirBiomaSTW, traducirModificadorSTW, seleccionarAlertasSTWPorRareza };
