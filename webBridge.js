@@ -1557,4 +1557,4 @@ function vincularChatWhatsApp(chatId) {
     chatWhatsAppActivo = chatId;
 }
 
-module.exports = { iniciarPuenteDiscord, vincularChatWhatsApp, extraerAlertasAPI, parsearTablaSeeBotSTW, parsearJSONSeeBotSTW, parsearVBucksDailySTW, traducirNombreMisionSTW, traducirZonaSTW, traducirBiomaSTW, traducirModificadorSTW, seleccionarAlertasSTWPorRareza };
+module.exports = { iniciarPuenteDiscord, vincularChatWhatsApp, extraerAlertasAPI, parsearTablaSeeBotSTW, parsearJSONSeeBotSTW, parsearVBucksDailySTW, deduplicarSTW, traducirNombreMisionSTW, traducirZonaSTW, traducirBiomaSTW, traducirModificadorSTW, seleccionarAlertasSTWPorRareza };
