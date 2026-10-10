@@ -604,7 +604,7 @@ function combinarAlertasDiarias(lista) {
     return Array.from(mapa.values());
 }
 
-async function enviarAlertaPavosAutomatica(sock, actualizarEnVivo = false, horaAlerta = '6:01:20 PM', avisarSinPavos = false) {
+async function enviarAlertaPavosAutomatica(sock, actualizarEnVivo = false, horaAlerta = '6:01:20 PM', avisarSinPavos = false, marcarEnviadaSiNoHayPavos = true) {
     try {
         const configChat = await Config.findOne({ clave: 'chat_alertas_diarias' });
         if (!configChat || !configChat.valor) return false;
@@ -630,7 +630,7 @@ async function enviarAlertaPavosAutomatica(sock, actualizarEnVivo = false, horaA
                     console.error('Error enviando aviso de alertas vacías:', e.message);
                 }
             }
-            if (avisoEnviado) await guardarAlertaPavosEnviada(fechaCDMX(), horaAlerta, {});
+            if (avisoEnviado && marcarEnviadaSiNoHayPavos) await guardarAlertaPavosEnviada(fechaCDMX(), horaAlerta, {});
             return avisoEnviado;
         }
 
@@ -780,8 +780,13 @@ function iniciarCronAlertasDiarias(sock) {
                 const hayPavos = resultado && resultado.ok === true &&
                     pavos.some(p => Number(p.cantidad || p.cantidadVbucks || 0) > 0);
                 if (!hayPavos) {
-                    console.warn('⚠️ ' + horario.etiqueta + ': no hay alertas de PaVos válidas guardadas; se esperará al siguiente intento.');
-                    if (horario.ultimo) await enviarAlertaPavosAutomatica(sock, false, horario.etiqueta, true);
+                    console.warn('⚠️ ' + horario.etiqueta + ': no hay alertas de PaVos válidas guardadas; se enviará aviso según el horario y se conservarán los reintentos.');
+                    if (horario.etiqueta === '6:01:20 PM') {
+                        // El primer horario siempre informa si encontró PaVos o no, pero no bloquea los reintentos.
+                        await enviarAlertaPavosAutomatica(sock, false, horario.etiqueta, true, false);
+                    } else if (horario.ultimo) {
+                        await enviarAlertaPavosAutomatica(sock, false, horario.etiqueta, true);
+                    }
                     return;
                 }
                 const enviada = await enviarAlertaPavosAutomatica(sock, false, horario.etiqueta, false);
