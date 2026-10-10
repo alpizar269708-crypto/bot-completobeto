@@ -321,27 +321,17 @@ async function diagnosticarMenuFortnite(progreso) {
     ];
     const comandos = ['rpavos', 'rdestacadasstw', 'repicasstw', 'rlegendariasstw', 'ralertasstw', 'ralerta', 'rdiagnostico', 'rsetprecio', 'rsetgrupostw', 'runsetgrupostw', 'rcarryleader', 'rcarryjoin', 'rcarryleave', 'rcarryclose', 'rblcarry', 'runblcarry', 'rlistcarrybl'];
     await paso('🧭 *Menú Fortnite:* comprobando raspado en vivo, cachés y cobertura de todos los comandos del menú (incluidos PL altas y carry).');
+    // El raspado de STW Planner está suspendido temporalmente, incluso en diagnósticos.
+    // Solo leemos la marca de la última actualización ya guardada, sin hacer peticiones web.
     let marcaAnterior = null;
     try {
         const anterior = await Config.findOne({ clave: 'stw_ultima_actualizacion' }).lean();
         if (anterior?.valor) { try { marcaAnterior = JSON.parse(anterior.valor).actualizadoEn || null; } catch (e) {} }
-        const { extraerAlertasAPI } = require('../webBridge');
-        await paso('🌐 STW Planner: iniciando una extracción real de las páginas de alertas y misiones de PaVos.');
-        await extraerAlertasAPI();
-        const actual = await Config.findOne({ clave: 'stw_ultima_actualizacion' }).lean();
-        let marcaNueva = null;
-        if (actual?.valor) { try { marcaNueva = JSON.parse(actual.valor).actualizadoEn || null; } catch (e) {} }
-        if (marcaNueva && marcaNueva !== marcaAnterior) {
-            await paso('✅ STW Planner: se guardó una actualización nueva (' + marcaNueva + ').');
-        } else {
-            resultado.ok = false;
-            resultado.errores.push('STW Planner: no se confirmó una actualización nueva; el raspado pudo fallar o devolver 0 misiones.');
-            await paso('❌ STW Planner: no se confirmó una actualización nueva; revisar logs del servicio y conectividad de stw-planner.com.');
-        }
+        await paso('⏸️ STW Planner: raspado suspendido temporalmente; no se hará una extracción web. Última actualización guardada=' + (marcaAnterior || 'sin registro') + '.');
     } catch (error) {
         resultado.ok = false;
-        resultado.errores.push('STW Planner en vivo: ' + error.message);
-        await paso('❌ STW Planner en vivo: ' + error.message + '.');
+        resultado.errores.push('No se pudo leer la marca guardada de STW Planner: ' + error.message);
+        await paso('❌ No se pudo leer la marca guardada de STW Planner: ' + error.message + '.');
     }
     for (const item of claves) {
         try {
