@@ -1386,7 +1386,7 @@ async function extraerAlertasAPI(progreso = null, opciones = {}) {
             } catch (_) { firmasPreviasDiarias = {}; }
         }
         const normalizarClaveDiaria = valor => String(valor || '').toLowerCase().normalize('NFD')
-            .replace(/[\\u0300-\\u036f]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
+            .replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
         const fuenteTieneCambiosDiarios = (misiones, nombreFuente) => {
             if (!compararCambiosDiarios) return false;
             const firmasFuente = firmasPreviasDiarias[nombreFuente] || {};
