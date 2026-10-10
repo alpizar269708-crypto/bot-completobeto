@@ -518,7 +518,15 @@ async function extraerAlertasAPI(progreso = null) {
         const urlPrincipal = 'https://stw-planner.com/mission-alerts';
         const urlPavos = 'https://stw-planner.com/mission-alerts/v-buck-missions';
         await etapaDiagnostico('STW ETAPA 1/5: descargando páginas principal y de PaVos.');
-        const [htmlPrincipal, htmlPavos] = await Promise.all([descargarSTW(urlPrincipal), descargarSTW(urlPavos)]);
+        const [htmlPrincipal, htmlPavos] = await Promise.all([
+            descargarSTW(urlPrincipal),
+            // Esta ruta secundaria puede devolver 404 aunque /mission-alerts siga funcionando.
+            // No debemos cancelar todo el raspado: la página principal también incluye misiones de PaVos.
+            descargarSTW(urlPavos).catch(error => {
+                console.warn('⚠️ No se pudo cargar la página secundaria de PaVos de STW Planner; se usarán los datos de la página principal:', error.message);
+                return '';
+            })
+        ]);
         await etapaDiagnostico('STW ETAPA 2/5: descarga terminada; HTML principal=' + String(htmlPrincipal || '').length + ' caracteres; HTML PaVos=' + String(htmlPavos || '').length + ' caracteres.');
 
         await etapaDiagnostico('STW ETAPA 3/8: entrando a parsearPaginaSTW(htmlPrincipal, all). Si se detiene aquí, el bloqueo está en el HTML principal.');
