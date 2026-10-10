@@ -327,7 +327,11 @@ test('la consulta STW no recupera cachés antiguos si falla el raspado', () => {
     assert.doesNotMatch(codigo, /primeraPrincipal/);
 });
 
-test('las consultas STW no envían el aviso genérico de espera eliminado', () => {
+test('las consultas STW no envían avisos previos antes de ejecutar los comandos', () => {
     const codigo = fs.readFileSync(path.join(__dirname, '..', 'messageHandler.js'), 'utf8');
-    assert.doesNotMatch(codigo, /Consultando, esto puede tardar unos segundos\. No hace falta repetir el comando\./);
+    const inicio = codigo.indexOf("            case 'pavos':");
+    const fin = codigo.indexOf("            case 'setgrupostw':", inicio);
+    assert.notEqual(inicio, -1);
+    assert.notEqual(fin, -1);
+    assert.doesNotMatch(codigo.slice(inicio, fin), /await sock\.sendMessage/);
 });
