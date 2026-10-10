@@ -108,6 +108,44 @@ function localizarTablaFortniteDB($) {
     return $();
 }
 
+async function consultarFortniteDBConNavegador(progreso) {
+    // Se ejecuta únicamente bajo demanda, después de que Axios falle; no afecta al arranque del bot.
+    // Usa un navegador normal, sin técnicas para ocultar la automatización ni evadir desafíos anti-bot.
+    let browser;
+    try {
+        await reportar(progreso, '🌐 FortniteDB: los accesos HTTP directos fallaron; probando una carga normal con Puppeteer en la página pública.');
+        const puppeteer = require('puppeteer');
+        browser = await puppeteer.launch({
+            headless: true,
+            args: ['--no-sandbox', '--disable-setuid-sandbox']
+        });
+        const page = await browser.newPage();
+        page.setDefaultNavigationTimeout(15000);
+        await page.setUserAgent('Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36');
+        const url = 'https://dev.fortnitedb.com/';
+        const response = await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 15000 });
+        const status = response ? response.status() : 0;
+        const html = await page.content();
+        const titulo = await page.title();
+        const texto = await page.locator('body').innerText().catch(() => '');
+        if (/just a moment|checking your browser|verify you are human|attention required/i.test(titulo + ' ' + texto.slice(0, 1200))) {
+            throw new Error('El navegador también recibió una pantalla de protección anti-bot de Cloudflare; no se intentará evadirla.');
+        }
+        if (status >= 400) throw new Error('La navegación normal respondió HTTP ' + status + '.');
+        if (!/v-bucks missions/i.test(texto) && !/v-bucks missions/i.test(html)) {
+            throw new Error('La página cargó, pero no se encontró la sección pública “V-Bucks Missions”. Título=' + titulo);
+        }
+        return {
+            status: status || 200,
+            headers: { 'content-type': 'text/html; charset=UTF-8' },
+            data: html,
+            request: { res: { responseUrl: page.url() } }
+        };
+    } finally {
+        if (browser) await browser.close().catch(() => {});
+    }
+}
+
 async function consultarFortniteDB(progreso) {
     const resultado = { fuente: 'FortniteDB', url: URL_FORTNITEDB, alertas: [], error: null, etapas: [] };
     const inicio = Date.now();
@@ -140,8 +178,19 @@ async function consultarFortniteDB(progreso) {
             }
         }
         if (!respuesta) {
-            throw new Error('No se pudo descargar ninguna ruta de FortniteDB. Detalles: ' + fallos.join(' | ') +
-                '. Un HTTP 403 significa que el servidor/CDN bloqueó la petición; cambiar el parser no lo soluciona.');
+            await paso('🧭 FortniteDB: los intentos HTTP directos fallaron; iniciando comprobación de navegador normal como última alternativa.');
+            try {
+                respuesta = await consultarFortniteDBConNavegador(progreso);
+                resultado.url = 'https://dev.fortnitedb.com/';
+                await paso('✅ FortniteDB: el navegador pudo cargar la página pública; ahora se intentará extraer la tabla con el mismo parser.');
+            } catch (errorNavegador) {
+                fallos.push('navegador Puppeteer: ' + (errorNavegador.message || String(errorNavegador)));
+                await paso('⚠️ FortniteDB: la alternativa de navegador tampoco pudo obtener datos — ' + (errorNavegador.message || String(errorNavegador)) + '.');
+            }
+        }
+        if (!respuesta) {
+            throw new Error('No se pudo leer FortniteDB por HTTP ni mediante una carga normal de navegador. Detalles: ' + fallos.join(' | ') +
+                '. Si todos los hosts devuelven 403 y el navegador muestra Cloudflare, se requiere una vía de acceso autorizada o una fuente alternativa; no se evadirá el desafío anti-bot.');
         }
         resultado.http = respuesta.status;
         resultado.contentType = respuesta.headers?.['content-type'] || 'desconocido';
