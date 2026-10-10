@@ -398,7 +398,41 @@ function traducirModificadorSTW(nombre) {
         'Epic Mini Boss': 'Minijefe épico'
     };
     const coincidencia = Object.entries(mapa).find(([ingles]) => ingles.toLowerCase() === titulo.toLowerCase());
-    return coincidencia ? coincidencia[1] : titulo;
+    if (coincidencia) return coincidencia[1];
+
+    // Para títulos nuevos se traducen los términos reconocibles. Si aun así
+    // queda un título inglés, se usa una etiqueta española en lugar de filtrarlo.
+    let fallback = titulo;
+    const terminos = [
+        [/\bPowerful\b/gi, 'Poderosos'], [/\bAttacks?\b/gi, 'ataques'],
+        [/\bLeaping\b/gi, 'saltadores'], [/\bNinjas?\b/gi, 'ninjas'],
+        [/\bOutlanders?\b/gi, 'forasteros'], [/\bSoldiers?\b/gi, 'soldados'],
+        [/\bConstructors?\b/gi, 'constructores'], [/\bStorm\b/gi, 'tormenta'],
+        [/\bFire\b/gi, 'fuego'], [/\bIce\b/gi, 'hielo'], [/\bNature\b/gi, 'naturaleza'],
+        [/\bWater\b/gi, 'agua'], [/\bLightning\b/gi, 'relámpago'],
+        [/\bMelee\b/gi, 'cuerpo a cuerpo'], [/\bRanged\b/gi, 'a distancia'],
+        [/\bWeapons?\b/gi, 'armas'], [/\bTraps?\b/gi, 'trampas'],
+        [/\bShotguns?\b/gi, 'escopetas'], [/\bSwords?\b/gi, 'espadas'],
+        [/\bSpears?\b/gi, 'lanzas'], [/\bAxes?\b/gi, 'hachas'],
+        [/\bScythes?\b/gi, 'guadañas'], [/\bExplosives?\b/gi, 'explosivos'],
+        [/\bSmoke Screens?\b/gi, 'cortinas de humo'], [/\bShort Range\b/gi, 'alcance corto'],
+        [/\bHealing\b/gi, 'curativo'], [/\bDeathburst\b/gi, 'estallido al morir'],
+        [/\bAcid Pools?\b/gi, 'charcos de ácido'], [/\bMetal Corrosion\b/gi, 'corrosión metálica'],
+        [/\bUncharted Enemies\b/gi, 'enemigos no detectados'], [/\bSlowing\b/gi, 'ralentización'],
+        [/\bVulnerability\b/gi, 'vulnerabilidad'], [/\bBuilding\b/gi, 'estructuras'],
+        [/\bHealth\b/gi, 'salud'], [/\bDamage\b/gi, 'daño'],
+        [/\bRicochet\b/gi, 'rebote'], [/\bBerserker\b/gi, 'frenético'],
+        [/\bVampiric\b/gi, 'vampírico'], [/\bMini[- ]?Boss\b/gi, 'minijefe'],
+        [/\bHeadshot\b/gi, 'disparo a la cabeza'], [/\bKnockback\b/gi, 'retroceso'],
+        [/\bConcussive\b/gi, 'conmoción'], [/\bShieldbreak\b/gi, 'ruptura de escudo'],
+        [/\bAdept\b/gi, 'experto'], [/\bFocused\b/gi, 'concentrados'],
+        [/\bUpgraded\b/gi, 'mejorados'], [/\bWell Drilled\b/gi, 'bien entrenados'],
+        [/\band\b/gi, 'y'], [/\bthe\b/gi, ''], [/\bwith\b/gi, 'con']
+    ];
+    for (const [patron, traduccion] of terminos) fallback = fallback.replace(patron, traduccion);
+    fallback = fallback.replace(/\s+/g, ' ').trim();
+    const palabrasInglesas = /\b(?:powerful|attacks?|leaping|outlanders?|soldiers?|constructors?|storm|fire|ice|nature|water|lightning|melee|ranged|weapons?|traps?|shotguns?|swords?|spears?|axes?|scythes?|explosives?|healing|deathburst|vulnerability|building|health|damage|ricochet|berserker|vampiric|headshot|knockback|concussive|shieldbreak|adept|focused|upgraded|enemies|enemy|reward|mission|zone|defend|survivor|schematic)\b/i;
+    return fallback && !palabrasInglesas.test(fallback) ? fallback : 'Modificador de misión';
 }
 
 function extraerModificadoresMissionEntrySTW($, missionEntry) {
