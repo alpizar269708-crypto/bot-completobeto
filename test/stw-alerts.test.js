@@ -4,7 +4,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const { parsearTablaSeeBotSTW, parsearJSONSeeBotSTW, parsearVBucksDailySTW, seleccionarAlertasSTWPorRareza, traducirNombreMisionSTW, traducirZonaSTW, traducirBiomaSTW, traducirModificadorSTW } = require('../webBridge');
+const { parsearTablaSeeBotSTW, parsearJSONSeeBotSTW, parsearVBucksDailySTW, seleccionarAlertasSTWPorRareza, traducirNombreMisionSTW, traducirNombreObjetoSTW, traducirZonaSTW, traducirBiomaSTW, traducirModificadorSTW } = require('../webBridge');
 
 const htmlSeeBot = [
 '<table id="miniRwdTbl">',
@@ -46,7 +46,8 @@ test('SeeBot #miniRwdTbl extrae zona, PL, misión, modificadores, rareza y requi
     assert.equal(epica.recompensas.length, 1);
     assert.equal(epica.recompensas[0].tipo, 'hero');
     assert.equal(epica.recompensas[0].rareza, 'epic');
-    assert.match(epica.recompensas[0].nombre, /Deadly Blade Crash/);
+    assert.match(epica.recompensas[0].nombre, /Crash de hoja mortal/);
+    assert.doesNotMatch(epica.recompensas[0].nombre, /Deadly Blade Crash/i);
     assert.equal(epica.modificadores.length, 5);
     assert.ok(epica.modificadores.includes('Alcance corto'));
     assert.ok(epica.modificadores.includes('Tormenta de fuego'));
@@ -180,6 +181,8 @@ test('V-Bucks Daily extrae alertas de PaVos como respaldo', () => {
 test('los textos de alerta de STW se traducen al español', () => {
     assert.equal(traducirNombreMisionSTW('Category 3 Fight the Storm'), 'Lucha contra una tormenta de categoría 3');
     assert.equal(traducirNombreMisionSTW('Ride the Lightning'), 'Monta el rayo');
+    assert.equal(traducirNombreMisionSTW('A future untranslated mission'), 'Misión de alerta');
+    assert.equal(traducirNombreObjetoSTW('Scouting Party Lead Survivor', 'survivor'), 'Líder del equipo de exploración');
     assert.equal(traducirZonaSTW('Stonewood'), 'Bosque Pedregoso');
     assert.equal(traducirZonaSTW('Hexsylvania Venture Zone'), 'Zona de Aventuras de Hexsylvania');
     assert.equal(traducirBiomaSTW('Industrial Park (Arid)'), 'Parque industrial (árido)');
@@ -188,7 +191,7 @@ test('los textos de alerta de STW se traducen al español', () => {
 
 test('los comandos STW están registrados en el manejador', () => {
     const handler = fs.readFileSync(path.join(__dirname, '..', 'messageHandler.js'), 'utf8');
-    for (const comando of ['pavos', 'rpavos', 'destacadasstw', 'legendariasstw', 'epicasstw', 'alertasstw', 'stw', 'alerta', 'setgrupostw', 'unsetgrupostw']) {
+    for (const comando of ['pavos', 'rpavos', 'destacadasstw', 'legendariasstw', 'epicasstw', 'alertasstw', 'stw', 'alerta', 'alertanob', 'setgrupostw', 'unsetgrupostw']) {
         assert.ok(handler.includes("'" + comando + "'"), 'falta registrar ' + comando);
         assert.ok(handler.includes("case '" + comando + "'"), 'falta ejecutar ' + comando);
     }
@@ -222,6 +225,29 @@ test('V-Bucks Daily agrupa recompensas épicas y legendarias en una sola misión
     assert.equal(legendarias.length, 1);
     for (const lista of [epicas, legendarias]) {
         assert.equal(lista[0].recompensas.length, 2, 'ambas categorías conservan las recompensas épica y legendaria');
+        assert.match(lista[0].recompensa, /Perk-Up épico/);
+        assert.match(lista[0].recompensa, /Perk-Up legendario/);
+    }
+});
+
+test('Perk-Up épico/legendario de una misma misión no duplica filas y excluye recompensas aisladas', () => {
+    const doble = {
+        zona: 'Twine Peaks', pl: 88, mision: 'Monta el rayo', misionOriginal: 'Ride the Lightning',
+        recompensas: [
+            { nombre: 'Perk-Up épico ×80', raw: 'Epic PERK-UP!', rareza: 'epic', tipo: 'perkup', cantidad: 80 },
+            { nombre: 'Perk-Up legendario ×80', raw: 'Legendary PERK-UP!', rareza: 'legendary', tipo: 'perkup', cantidad: 80 }
+        ]
+    };
+    const soloEpica = {
+        zona: 'Twine Peaks', pl: 70, mision: 'Recupera los datos', misionOriginal: 'Retrieve the Data',
+        recompensas: [{ nombre: 'Perk-Up épico ×80', raw: 'Epic PERK-UP!', rareza: 'epic', tipo: 'perkup', cantidad: 80 }]
+    };
+    const epicas = seleccionarAlertasSTWPorRareza([doble, soloEpica], 'epic');
+    const legendarias = seleccionarAlertasSTWPorRareza([doble, soloEpica], 'legendary');
+    assert.equal(epicas.length, 1);
+    assert.equal(legendarias.length, 1);
+    for (const lista of [epicas, legendarias]) {
+        assert.equal(lista[0].recompensas.length, 2);
         assert.match(lista[0].recompensa, /Perk-Up épico/);
         assert.match(lista[0].recompensa, /Perk-Up legendario/);
     }
