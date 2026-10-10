@@ -278,8 +278,30 @@ async function diagnosticarMenuFortnite(progreso) {
         { clave: 'stw_legendarias_scrapeadas', nombre: 'legendarias', comando: 'legendariasstw' },
         { clave: 'stw_plaltas_scrapeadas', nombre: 'PL altas/destacadas', comando: 'destacadasstw' }
     ];
-    const comandos = ['pavos', 'destacadasstw', 'epicasstw', 'legendariasstw', 'alertasstw', 'alerta', 'setgrupostw', 'unsetgrupostw'];
-    await paso('🧭 *Menú Fortnite:* comprobando los datos guardados y la cobertura de comandos.');
+    const comandos = ['pavos', 'destacadasstw', 'epicasstw', 'legendariasstw', 'alertasstw', 'alerta', 'setprecio', 'setgrupostw', 'unsetgrupostw', 'carryleader', 'carryjoin', 'carryleave', 'carryclose', 'blcarry', 'unblcarry', 'listcarrybl'];
+    await paso('🧭 *Menú Fortnite:* comprobando raspado en vivo, cachés y cobertura de todos los comandos del menú (incluidos PL altas y carry).');
+    let marcaAnterior = null;
+    try {
+        const anterior = await Config.findOne({ clave: 'stw_ultima_actualizacion' }).lean();
+        if (anterior?.valor) { try { marcaAnterior = JSON.parse(anterior.valor).actualizadoEn || null; } catch (e) {} }
+        const { extraerAlertasAPI } = require('../webBridge');
+        await paso('🌐 STW Planner: iniciando una extracción real de las páginas de alertas y misiones de PaVos.');
+        await extraerAlertasAPI();
+        const actual = await Config.findOne({ clave: 'stw_ultima_actualizacion' }).lean();
+        let marcaNueva = null;
+        if (actual?.valor) { try { marcaNueva = JSON.parse(actual.valor).actualizadoEn || null; } catch (e) {} }
+        if (marcaNueva && marcaNueva !== marcaAnterior) {
+            await paso('✅ STW Planner: se guardó una actualización nueva (' + marcaNueva + ').');
+        } else {
+            resultado.ok = false;
+            resultado.errores.push('STW Planner: no se confirmó una actualización nueva; el raspado pudo fallar o devolver 0 misiones.');
+            await paso('❌ STW Planner: no se confirmó una actualización nueva; revisar logs del servicio y conectividad de stw-planner.com.');
+        }
+    } catch (error) {
+        resultado.ok = false;
+        resultado.errores.push('STW Planner en vivo: ' + error.message);
+        await paso('❌ STW Planner en vivo: ' + error.message + '.');
+    }
     for (const item of claves) {
         try {
             const doc = await Config.findOne({ clave: item.clave }).lean();
