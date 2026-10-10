@@ -89,19 +89,29 @@ function deduplicarPlAltasVbucks(lista) {
     return Array.from(mapa.values());
 }
 
-async function obtenerAlertasSTW(actualizarEnVivo = false) {
+async function obtenerAlertasSTW(actualizarEnVivo = false, progreso = null) {
+    const informar = async (texto) => { if (typeof progreso === 'function') await progreso(texto); };
+    const inicioDiagnostico = Date.now();
+    await informar('🔬 ETAPA 1/6 — Preparando lectura de alertas STW. Actualización en vivo=' + Boolean(actualizarEnVivo) + '.');
     // Solo el comando pavos y los tres horarios automáticos deben hacer raspado.
     // El resto de comandos de consulta usa los datos guardados para evitar
     // solicitudes adicionales a STW Planner.
     if (actualizarEnVivo) {
         try {
             const { extraerAlertasAPI } = require('../webBridge');
-            await extraerAlertasAPI();
+            await informar('🌐 ETAPA 2/6 — Iniciando extracción de STW Planner: descarga de páginas, parseo HTML y guardado en base de datos.');
+            const resultadoExtraccion = await extraerAlertasAPI(informar);
+            if (resultadoExtraccion && resultadoExtraccion.ok === false) await informar('⚠️ ETAPA 2/6 — El extractor reportó fallo; continuaré leyendo el caché anterior para no perder la respuesta. Error=' + (resultadoExtraccion.error || 'sin detalle'));
+            else await informar('✅ ETAPA 2/6 — Extracción de STW Planner terminó sin lanzar excepción (' + ((Date.now() - inicioDiagnostico) / 1000).toFixed(2) + ' s).');
         } catch (e) {
             console.error('⚠️ No se pudo refrescar STW Planner en vivo:', e.message);
+            await informar('❌ ETAPA 2/6 — Falló la extracción en vivo: ' + String(e.stack || e.message || e).slice(0, 900));
         }
+    } else {
+        await informar('ℹ️ ETAPA 2/6 — Este comando consultará el caché existente; no hará un raspado nuevo.');
     }
 
+    await informar('🗄️ ETAPA 3/6 — Leyendo cuatro listas guardadas en MongoDB: PaVos, épicas, legendarias y PL altas.');
     const [
         scrapePavos,
         scrapeEpicas,
@@ -114,13 +124,18 @@ async function obtenerAlertasSTW(actualizarEnVivo = false) {
         leerConfigJSON('stw_plaltas_scrapeadas')
     ]);
 
+    await informar('📦 ETAPA 4/6 — Lectura de base de datos completa: PaVos=' + scrapePavos.length + ', épicas=' + scrapeEpicas.length + ', legendarias=' + scrapeLegendarias.length + ', PL altas=' + scrapePlAltas.length + '.');
+
     // Desde ahora STW Planner es la única fuente de alertas automáticas.
     // Las listas manuales antiguas ya no se mezclan para evitar duplicados.
+    const plAltasLimpias = deduplicarPlAltasVbucks(scrapePlAltas);
+    await informar('🧹 ETAPA 5/6 — Deduplicación de PL altas: ' + scrapePlAltas.length + ' → ' + plAltasLimpias.length + '.');
+    await informar('✅ ETAPA 6/6 — Datos listos para formatear; duración=' + ((Date.now() - inicioDiagnostico) / 1000).toFixed(2) + ' s.');
     return {
         pavos: scrapePavos,
         epicas: scrapeEpicas,
         legendarias: scrapeLegendarias,
-        plAltas: deduplicarPlAltasVbucks(scrapePlAltas)
+        plAltas: plAltasLimpias
     };
 }
 
@@ -192,8 +207,11 @@ function formatearAlertaSTW(item, encabezado = '') {
     return texto;
 }
 
-async function alertasSTW(sock, chatId, msg, categoria = 'todas') {
-    const datos = await obtenerAlertasSTW(categoria === 'pavos');
+async function alertasSTW(sock, chatId, msg, categoria = 'todas', progreso = null) {
+    const informar = async (texto) => { if (typeof progreso === 'function') await progreso(texto); };
+    await informar('🧭 Comando alertasSTW iniciado. Categoría solicitada=' + categoria + '.');
+    const datos = await obtenerAlertasSTW(categoria === 'pavos', informar);
+    await informar('🧮 ETAPA FINAL — Preparando respuesta: PaVos=' + datos.pavos.length + ', épicas=' + datos.epicas.length + ', legendarias=' + datos.legendarias.length + ', destacadas=' + (datos.plAltas || []).length + '.');
     const fechaHoy = obtenerFechaActual();
     const lineasPavos = [`📅 _${fechaHoy}_`, '', '🎮 *ALERTAS DE PAVOS*', ''];
 
@@ -247,14 +265,19 @@ async function alertasSTW(sock, chatId, msg, categoria = 'todas') {
     await sock.sendMessage(chatId, { text: texto }, { quoted: msg });
 }
 
-async function comandoDestacadasSTW(sock, chatId, msg) {
+async function comandoDestacadasSTW(sock, chatId, msg, progreso = null) {
+    const informar = async (texto) => { if (typeof progreso === 'function') await progreso(texto); };
+    await informar('🧭 Comando de destacadas iniciado; consultará caché STW Planner y filtrará PL altas.');
     const fechaHoy = obtenerFechaActual();
     let texto = `📅 _${fechaHoy}_\n\n🔥 *ALERTAS DESTACADAS — RECOMPENSAS BUENAS*\n\n`;
 
     try {
-        const datos = await obtenerAlertasSTW(false);
+        await informar('🗄️ ETAPA 1/4 — Leyendo datos guardados en MongoDB.');
+        const datos = await obtenerAlertasSTW(false, informar);
+        await informar('🔎 ETAPA 2/4 — Seleccionando alertas destacadas de PL altas. Total recibido=' + (datos.plAltas || []).length + '.');
         const listaPlAltas = datos.plAltas || [];
 
+        await informar('🧹 ETAPA 3/4 — Lista seleccionada; elementos a formatear=' + listaPlAltas.length + '.');
         if (listaPlAltas.length === 0) {
             texto += `_No hay alertas destacadas registradas en este momento._\n\n`;
         } else {
@@ -263,15 +286,20 @@ async function comandoDestacadasSTW(sock, chatId, msg) {
             });
         }
     } catch (e) {
+        await informar('❌ FALLÓ comandoDestacadasSTW: ' + String(e.stack || e.message || e).slice(0, 900));
         texto += `_Error al cargar las alertas destacadas._\n\n`;
     }
 
     texto += `Support-a-Creator: *JASC13* ❤️`;
+    await informar('✅ ETAPA 4/4 — Respuesta de destacadas construida; enviando a WhatsApp.');
     await sock.sendMessage(chatId, { text: texto }, { quoted: msg });
 }
 
-async function comandoPreguntarAlerta(sock, chatId, msg, palabrasClave = []) {
-    const datos = await obtenerAlertasSTW(false);
+async function comandoPreguntarAlerta(sock, chatId, msg, palabrasClave = [], progreso = null) {
+    const informar = async (texto) => { if (typeof progreso === 'function') await progreso(texto); };
+    await informar('🧭 Búsqueda de recompensa iniciada; término=' + (Array.isArray(palabrasClave) ? palabrasClave.join(' ') : String(palabrasClave || '')) + '.');
+    const datos = await obtenerAlertasSTW(false, informar);
+    await informar('🔎 ETAPA 1/3 — Datos cargados; combinando PaVos, épicas, legendarias y destacadas para buscar coincidencias.');
     const termino = Array.isArray(palabrasClave)
         ? palabrasClave.join(' ').trim()
         : String(palabrasClave || '').trim();
@@ -333,6 +361,7 @@ async function comandoPreguntarAlerta(sock, chatId, msg, palabrasClave = []) {
         ? '🔎 *ALERTAS CON PL ' + etiquetaPL + '*\n\n'
         : '🔎 *ALERTAS QUE CONTIENEN:* ' + termino + '\n\n';
 
+    await informar('🧮 ETAPA 2/3 — Búsqueda terminada; coincidencias=' + coincidencias.length + '.');
     if (coincidencias.length === 0) {
         texto += esBusquedaPL
             ? '_No encontré alertas con PL ' + etiquetaPL + '._\n\n'
@@ -345,6 +374,7 @@ async function comandoPreguntarAlerta(sock, chatId, msg, palabrasClave = []) {
     }
 
     texto += 'Support-a-Creator: *JASC13* ❤️';
+    await informar('✅ ETAPA 3/3 — Resultado construido; enviando respuesta a WhatsApp.');
     await sock.sendMessage(chatId, { text: texto }, { quoted: msg });
 }
 async function enviarAlertaPavosAutomatica(sock, actualizarEnVivo = false, horaAlerta = '6:01:30 PM', avisarSinPavos = false) {
