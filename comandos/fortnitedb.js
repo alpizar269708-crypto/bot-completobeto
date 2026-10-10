@@ -2,7 +2,8 @@ const axios = require('axios');
 const cheerio = require('cheerio');
 const { Config } = require('../database/modelos');
 
-const URL_FORTNITEDB = 'https://fortnitedb.com/index.php';
+const URL_FORTNITEDB = 'https://v2.fortnitedb.com/index.php';
+const URL_FORTNITEDB_PRINCIPAL = 'https://fortnitedb.com/index.php';
 const URL_FORTNITEDB_RESPALDO = 'https://cdn.fortnitedb.com/index.php';
 const URL_FORTNITEDB_ALTERNATIVA = 'https://fortnitedb.com/';
 const URL_FORTNITEDB_STATUS = 'https://status.fortnitedb.com/index.php';
@@ -61,7 +62,7 @@ async function reportar(progreso, texto) {
 
 async function descargarPagina(url) {
     const respuesta = await axios.get(url, {
-        timeout: 25000,
+        timeout: 12000,
         maxRedirects: 5,
         headers: {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/153.0.0.0 Safari/537.36',
@@ -117,14 +118,13 @@ async function consultarFortniteDB(progreso) {
     };
 
     try {
-        await paso('🔬 *FortniteDB ETAPA 1 — CONEXIÓN:* preparando solicitud HTTP con timeout de 25 s, redirecciones máximas 5 y User-Agent de navegador.');
+        await paso('🔬 *FortniteDB ETAPA 1 — CONEXIÓN:* preparando solicitud HTTP con timeout de 12 s, redirecciones máximas 5 y User-Agent de navegador.');
         let respuesta;
         const intentos = [
-            { url: URL_FORTNITEDB, nombre: 'página principal' },
-            { url: URL_FORTNITEDB_RESPALDO, nombre: 'CDN oficial' },
-            { url: URL_FORTNITEDB_STATUS, nombre: 'host status' },
-            { url: URL_FORTNITEDB_DEV, nombre: 'host dev' },
-            { url: URL_FORTNITEDB_ALTERNATIVA, nombre: 'ruta raíz' }
+            // El host v2 está sirviendo actualmente la página de misiones y se prueba primero.
+            { url: URL_FORTNITEDB, nombre: 'host v2 (principal)' },
+            { url: URL_FORTNITEDB_PRINCIPAL, nombre: 'host principal alternativo' },
+            { url: URL_FORTNITEDB_DEV, nombre: 'host dev' }
         ];
         const fallos = [];
         for (const intento of intentos) {
