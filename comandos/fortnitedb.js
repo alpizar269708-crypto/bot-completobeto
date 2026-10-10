@@ -690,17 +690,32 @@ async function consultarFuenteAlternativaPavos(fuente) {
         }
         resultado.alertas = extraerAlertasFuenteAlternativa(html, fuente.nombre);
         if (fuente.nombre === 'PennyDB' && !resultado.alertas.length) {
-            const textoPenny = limpiar(cheerio.load(html)('body').text() || html.replace(/<[^>]*>/g, ' '));
-            // Si la página indica explícitamente cero alertas V-Bucks, es un resultado válido.
-            const ceroVBucks = /V-?Bucks\s+in\s+alerts\s*0\b/i.test(textoPenny);
-            if (ceroVBucks && !/v-?bucks\s+voucher/i.test(html)) {
+            const $penny = cheerio.load(html);
+            const textoPenny = limpiar($penny('body').text() || html.replace(/<[^>]*>/g, ' '));
+            // El contador está en tarjetas separadas; limitar la búsqueda al texto entre
+            // "V-Bucks in alerts" y el siguiente indicador evita confundir otros ceros.
+            const bloqueContador = textoPenny.match(/V-?Bucks\s+in\s+alerts([\s\S]{0,80}?)(?=Mission alerts|Missions on the board|New board in|$)/i);
+            const contadorVBucks = bloqueContador ? limpiar(bloqueContador[1]) : '(contador no localizado)';
+            const ceroVBucks = Boolean(bloqueContador && /\b0\b/.test(bloqueContador[1]));
+            const tieneVoucher = /v-?bucks\s+voucher/i.test(html);
+            if (ceroVBucks && !tieneVoucher) {
                 resultado.ok = true;
                 resultado.totalPavos = 0;
                 resultado.alertas.diagnosticoPennyDB = resultado.alertas.diagnosticoPennyDB || {
                     filasRecompensa: 0, filasConCantidad: 0, filasSinContexto: 0
                 };
+                resultado.diagnosticoHTML = {
+                    ...(resultado.diagnosticoHTML || {}),
+                    contadorVBucks,
+                    ceroVBucksDetectado: true
+                };
                 return resultado;
             }
+            resultado.diagnosticoHTML = {
+                ...(resultado.diagnosticoHTML || {}),
+                contadorVBucks,
+                ceroVBucksDetectado: ceroVBucks
+            };
         }
         if (!resultado.alertas.length) {
             const d = resultado.alertas.diagnosticoPennyDB;
