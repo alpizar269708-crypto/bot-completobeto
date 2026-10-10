@@ -319,6 +319,43 @@ function extraerDatosSeeBot(html) {
     return misiones;
 }
 
+
+function extraerAlertasSeeBotTabla(html) {
+    const $ = cheerio.load(String(html || ''));
+    const tabla = $('#miniRwdTbl');
+    if (!tabla.length) return [];
+    const alertas = [];
+    tabla.find('tr.missionRow').each((_, fila) => {
+        const celdas = $(fila).children('td');
+        if (celdas.length < 6) return;
+        const zona = limpiar($(celdas[0]).text());
+        const poder = limpiar($(celdas[1]).text()).match(/\\d+/);
+        const misionImg = $(celdas[2]).find('img').first();
+        const nombreOriginal = limpiar(misionImg.attr('title') || misionImg.attr('alt') || $(celdas[2]).text());
+        const textoRecompensa = limpiar($(celdas[4]).text());
+        const coincide = textoRecompensa.match(/(?:V-?Bucks|V\\s*Bucks)[^0-9]{0,50}(\\d+)/i);
+        if (!coincide) return;
+        const cantidad = Number(coincide[1]);
+        if (!Number.isFinite(cantidad) || cantidad <= 0) return;
+        const modificadores = $(celdas[3]).find('img').map((__, img) =>
+            limpiar($(img).attr('title') || $(img).attr('alt')).split(':')[0]
+        ).get().filter(Boolean);
+        alertas.push({
+            zona,
+            zonaCodigo: ({ Stonewood: 'S', Plankerton: 'P', 'Canny Valley': 'C', 'Twine Peaks': 'T', Ventures: 'V' })[zona] || null,
+            pl: poder ? Number(poder[0]) : null,
+            mision: nombreMisionSeeBot(nombreOriginal),
+            misionOriginal: nombreOriginal,
+            cantidad,
+            recompensaOriginal: textoRecompensa,
+            tipoRecompensa: /or\\s+X-Ray/i.test(textoRecompensa) ? 'V-Bucks or X-Ray' : 'V-Bucks',
+            modificadores,
+            requisitos: limpiar($(celdas[5]).text()) || 'None'
+        });
+    });
+    return alertas;
+}
+
 async function consultarSeeBot(progreso) {
     const resultado = { fuente: 'SeeBot.dev', url: URL_SEEBOT, alertas: [], error: null, etapas: [] };
     const inicio = Date.now();
@@ -339,32 +376,39 @@ async function consultarSeeBot(progreso) {
 
         const $see = cheerio.load(html);
         await paso('🧩 *SeeBot ETAPA 3 — HTML:* título=' + (limpiar($see('title').first().text()) || '(sin title)') + '; scripts=' + $see('script').length + '; contiene makeHtml=' + /makeHtml\s*\(/i.test(html) + '; señales anti-bot=' + /cloudflare|checking your browser|just a moment/i.test(html) + '.');
-        await paso('🔎 *SeeBot ETAPA 4 — PARSER:* localizando y validando el arreglo JSON de makeHtml(...).');
-        const misiones = extraerDatosSeeBot(html);
-        await paso('📋 *SeeBot ETAPA 5 — DATOS:* JSON válido; misiones leídas=' + misiones.length + '; filtrando recompensas de PaVos.');
-
-        for (const mision of misiones) {
-            const zona = String(mision.zone || '').trim();
-            if (!['Stonewood', 'Plankerton', 'Canny Valley', 'Twine Peaks', 'Ventures'].includes(zona)) continue;
-            const recompensas = Array.isArray(mision.alertRewards) ? mision.alertRewards : [];
-            const recompensaPavos = recompensas.find(r => /v-?bucks|v\s*bucks|currency_mtxswap|mtxswap/i.test(String(r.itemType || '') + ' ' + String(r.name || '') + ' ' + String(r.id || '')));
-            if (!recompensaPavos) continue;
-            const cantidad = Number(recompensaPavos.quantity);
-            if (!Number.isFinite(cantidad) || cantidad <= 0) continue;
-
-            resultado.alertas.push({
-                zona,
-                zonaCodigo: ({ Stonewood: 'S', Plankerton: 'P', 'Canny Valley': 'C', 'Twine Peaks': 'T', Ventures: 'V' })[zona],
-                pl: Number(mision.powerLevel) || null,
-                mision: nombreMisionSeeBot(mision.name),
-                cantidad
-            });
+        await paso('🔎 *SeeBot ETAPA 4 — RUTA A:* leyendo la tabla HTML #miniRwdTbl, especialmente td.missionAlerts.');
+        const alertasTabla = extraerAlertasSeeBotTabla(html);
+        if (alertasTabla.length > 0) {
+            resultado.alertas = alertasTabla;
+            resultado.rutaExtraccion = 'HTML #miniRwdTbl';
+            await paso('📋 *SeeBot ETAPA 5 — TABLA HTML:* alertas V-Bucks encontradas=' + alertasTabla.length + '; se conservaron misión, modificadores, requisitos y texto de recompensa.');
+        } else {
+            await paso('↪️ SeeBot: la tabla #miniRwdTbl no produjo alertas; se intenta la ruta B, el arreglo JSON makeHtml(...).');
+            const misiones = extraerDatosSeeBot(html);
+            resultado.rutaExtraccion = 'JSON makeHtml';
+            await paso('📋 *SeeBot ETAPA 5 — DATOS JSON:* lista válida; misiones leídas=' + misiones.length + '; filtrando recompensas de PaVos.');
+            for (const mision of misiones) {
+                const zona = String(mision.zone || '').trim();
+                if (!['Stonewood', 'Plankerton', 'Canny Valley', 'Twine Peaks', 'Ventures'].includes(zona)) continue;
+                const recompensas = Array.isArray(mision.alertRewards) ? mision.alertRewards : [];
+                const recompensaPavos = recompensas.find(r => /v-?bucks|v\\s*bucks|currency_mtxswap|mtxswap/i.test(String(r.itemType || '') + ' ' + String(r.name || '') + ' ' + String(r.id || '')));
+                if (!recompensaPavos) continue;
+                const cantidad = Number(recompensaPavos.quantity);
+                if (!Number.isFinite(cantidad) || cantidad <= 0) continue;
+                resultado.alertas.push({
+                    zona,
+                    zonaCodigo: ({ Stonewood: 'S', Plankerton: 'P', 'Canny Valley': 'C', 'Twine Peaks': 'T', Ventures: 'V' })[zona],
+                    pl: Number(mision.powerLevel) || null,
+                    mision: nombreMisionSeeBot(mision.name),
+                    cantidad,
+                    tipoRecompensa: 'V-Bucks'
+                });
+            }
         }
 
-        await paso('🧮 *SeeBot ETAPA 6 — FILTRO:* misiones procesadas=' + misiones.length + '; zonas válidas=' + misiones.filter(m => ['Stonewood', 'Plankerton', 'Canny Valley', 'Twine Peaks'].includes(String(m.zone || '').trim())).length + '; alertas con PaVos=' + resultado.alertas.length + '.');
+        await paso('🧮 *SeeBot ETAPA 6 — FILTRO:* ruta=' + (resultado.rutaExtraccion || 'sin ruta') + '; alertas con recompensa V-Bucks=' + resultado.alertas.length + '.');
         if (resultado.alertas.length === 0) {
-            const muestra = misiones.slice(0, 3).map(m => 'zona=' + (m.zone || '?') + ', PL=' + (m.powerLevel ?? '?') + ', recompensas=' + (Array.isArray(m.alertRewards) ? m.alertRewards.map(r => r.itemType + ':' + r.quantity).join(',') : 'sin alertRewards')).join(' || ');
-            throw new Error('ETAPA 6/7 FILTRO: JSON leído (' + misiones.length + ' misiones), pero 0 alertas con V-Bucks en alertRewards. Muestra=' + (muestra || '(lista vacía)'));
+            throw new Error('ETAPA 6/7 FILTRO: no se encontraron alertas V-Bucks ni en #miniRwdTbl ni en el arreglo JSON makeHtml(...). La página respondió, pero ambas rutas quedaron sin resultados.');
         }
         resultado.totalPavos = resultado.alertas.reduce((suma, alerta) => suma + alerta.cantidad, 0);
         resultado.ok = true;
@@ -487,7 +531,7 @@ async function comandoRPavos(sock, chatId, msg) {
         '',
         '🧭 *Comparación de fuentes*',
         'FortniteDB: ' + (fortniteDB.ok ? 'OK' : 'FALLÓ') + ' | alertas=' + fortniteDB.alertas.length + ' | total=' + (fortniteDB.ok ? fortniteDB.totalPavos : 'no disponible'),
-        'SeeBot.dev: ' + (seeBot.ok ? 'OK' : 'FALLÓ') + ' | alertas=' + seeBot.alertas.length + ' | total=' + (seeBot.ok ? seeBot.totalPavos : 'no disponible'),
+        'SeeBot.dev: ' + (seeBot.ok ? 'OK' : 'FALLÓ') + ' | alertas=' + seeBot.alertas.length + ' | total=' + (seeBot.ok ? seeBot.totalPavos : 'no disponible') + (seeBot.rutaExtraccion ? ' | ruta=' + seeBot.rutaExtraccion : ''),
         ''
     ];
 
@@ -501,7 +545,7 @@ async function comandoRPavos(sock, chatId, msg) {
 
     if (seeBot.ok) {
         lineas.push('🌐 *SEEBOT.DEV — PA VOS EXTRAÍDOS*');
-        for (const a of seeBot.alertas) lineas.push('• ' + a.zona + ' | PL ' + (a.pl ?? '?') + ' | ' + a.mision + ' | ' + a.cantidad + ' PaVos');
+        for (const a of seeBot.alertas) { lineas.push('• ' + a.zona + ' | PL ' + (a.pl ?? '?') + ' | ' + a.mision + ' | ' + a.cantidad + ' PaVos' + (a.recompensaOriginal ? ' (' + a.recompensaOriginal + ')' : '')); if (a.modificadores?.length) lineas.push('  Modificadores: ' + a.modificadores.join(', ')); if (a.requisitos && a.requisitos !== 'None') lineas.push('  Requisito: ' + a.requisitos); }
         lineas.push('*Total SeeBot: ' + seeBot.totalPavos + ' PaVos*', '');
     } else {
         lineas.push('❌ *SEEBOT.DEV FALLÓ*', 'Último punto: ' + (seeBot.etapaFallo || 'no registrado'), 'Error exacto: ' + (seeBot.error || 'sin detalle'), '');
