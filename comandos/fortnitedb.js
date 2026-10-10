@@ -538,7 +538,9 @@ function normalizarZona(nombre) {
         plankerton: 'Plankerton',
         'canny valley': 'Canny Valley',
         'twine peaks': 'Twine Peaks',
-        ventures: 'Ventures'
+        ventures: 'Ventures',
+        'hexsylvania venture zone': 'Hexsylvania Venture Zone',
+        hexsylvania: 'Hexsylvania Venture Zone'
     };
     return zonas[String(nombre || '').trim().toLowerCase()] || null;
 }
@@ -921,7 +923,16 @@ function normalizarAlertasPavos(alertas, fuente) {
             mision: nombreMisionSeeBot(misionOriginal),
             misionOriginal,
             cantidad,
-            fuente
+            fuente,
+            // El comando oficial debe conservar los datos de contexto extraídos
+            // de la tabla o del JSON de SeeBot, no solo la cantidad de PaVos.
+            modificadores: Array.isArray(alerta.modificadores)
+                ? [...new Set(alerta.modificadores.map(x => String(x || '').trim()).filter(Boolean))]
+                : [],
+            questReqs: String(alerta.questReqs || alerta.requisitos || '').trim(),
+            requisitos: String(alerta.requisitos || alerta.questReqs || '').trim(),
+            tipoRecompensa: alerta.tipoRecompensa || '',
+            source: alerta.source || ''
         });
     }
     const unicas = new Map();
