@@ -177,16 +177,9 @@ Apoya a un creador: JASC13` });
     let comandoRaw = args.shift();
     argsOriginales.shift();
     const comandoEscrito = normalizarComando(comandoRaw);
-    // Alias públicos Fortnite: todos comienzan con R, la lógica interna se reutiliza.
-    const aliasFortniteR = {
-        'rdestacadasstw': 'destacadasstw',
-        'repicasstw': 'epicasstw',
-        'rlegendariasstw': 'legendariasstw',
-        'ralertasstw': 'alertasstw',
-        'ralerta': 'alerta',
-        'rpavos': 'pavos'
-    };
-    let comando = aliasFortniteR[comandoEscrito] || comandoEscrito;
+    // Los comandos R son independientes: por ahora solo rpavos está implementado.
+    // Los comandos públicos originales conservan su comportamiento anterior.
+    let comando = comandoEscrito;
     const esComandoValido = comandosValidos.has(comando);
 
     // catdesa abre una selección temporal por grupo y usuario. Solo ese usuario
@@ -613,31 +606,28 @@ Apoya a un creador: JASC13` });
             case 'ping':
                 await sock.sendMessage(chatJid, { text: '¡Pong! 🤖 Activo.' }, { quoted: msg });
                 break;
-            case 'pavos': {
+            case 'pavos':
+                await alertasSTW(sock, chatJid, msg, 'pavos');
+                break;
+            case 'rpavos':
                 await comandoRPavos(sock, chatJid, msg);
                 break;
-            }
-            case 'destacadasstw': {
-                await ejecutarFortniteConDiagnostico(sock, chatJid, msg, 'rdestacadasstw — destacadas y PL altas', progreso => comandoDestacadasSTW(sock, chatJid, msg, progreso));
+            case 'destacadasstw':
+                await comandoDestacadasSTW(sock, chatJid, msg);
                 break;
-            }
-            case 'legendariasstw': {
-                await ejecutarFortniteConDiagnostico(sock, chatJid, msg, 'rlegendariasstw — recompensas legendarias', progreso => alertasSTW(sock, chatJid, msg, 'legendarias', progreso));
+            case 'legendariasstw':
+                await alertasSTW(sock, chatJid, msg, 'legendarias');
                 break;
-            }
-            case 'epicasstw': {
-                await ejecutarFortniteConDiagnostico(sock, chatJid, msg, 'repicasstw — recompensas épicas', progreso => alertasSTW(sock, chatJid, msg, 'epicas', progreso));
+            case 'epicasstw':
+                await alertasSTW(sock, chatJid, msg, 'epicas');
                 break;
-            }
             case 'alertasstw':
-            case 'stw': {
-                await ejecutarFortniteConDiagnostico(sock, chatJid, msg, 'ralertasstw — resumen de alertas', progreso => alertasSTW(sock, chatJid, msg, 'todas', progreso));
+            case 'stw':
+                await alertasSTW(sock, chatJid, msg, 'todas');
                 break;
-            }
-            case 'alerta': {
-                await ejecutarFortniteConDiagnostico(sock, chatJid, msg, 'ralerta — búsqueda de recompensa', progreso => comandoPreguntarAlerta(sock, chatJid, msg, args, progreso));
+            case 'alerta':
+                await comandoPreguntarAlerta(sock, chatJid, msg, args);
                 break;
-            }
             case 'setgrupostw':
                 await activarAlertasDiarias(sock, chatJid, msg);
                 break;
