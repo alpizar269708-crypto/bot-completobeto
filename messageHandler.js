@@ -1,7 +1,7 @@
 const mongoose = require('mongoose'); 
 const { ejecutarMenu } = require('./comandos/menu');
 const { alertasSTW, comandoDestacadasSTW, comandoPreguntarAlerta, activarAlertasDiarias, desactivarAlertasDiarias } = require('./comandos/fortnite');
-const { comandoRPavos } = require('./comandos/fortnitedb');
+const { comandoPavosOficial } = require('./comandos/fortnitedb');
 const { comandoTiendaMenu, comandoTiendaCategoria } = require('./comandos/tienda');
 const { comandoTiendaGG, manejarSeleccionTiendaGG } = require('./comandos/tiendagg');
 const { comandoTiendaVb } = require('./comandos/tiendaVb'); 
@@ -587,10 +587,8 @@ Apoya a un creador: JASC13` });
                 await sock.sendMessage(chatJid, { text: '¡Pong! 🤖 Activo.' }, { quoted: msg });
                 break;
             case 'pavos':
-                await alertasSTW(sock, chatJid, msg, 'pavos');
-                break;
             case 'rpavos':
-                await comandoRPavos(sock, chatJid, msg);
+                await comandoPavosOficial(sock, chatJid, msg);
                 break;
             case 'destacadasstw':
                 await comandoDestacadasSTW(sock, chatJid, msg);
