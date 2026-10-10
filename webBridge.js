@@ -527,6 +527,136 @@ function parsearTablaSeeBotSTW(html) {
     return deduplicarSTW(filas);
 }
 
+function extraerArrayMakeHtmlSTW(html) {
+    const coincidencia = /makeHtml\s*\(\s*\[/i.exec(String(html || ''));
+    if (!coincidencia) return [];
+    const inicioJson = String(html).indexOf('[', coincidencia.index);
+    const cierreScript = String(html).indexOf('</script>', inicioJson);
+    let profundidad = 0, enString = false, escape = false, finJson = -1;
+    for (let i = inicioJson; i < String(html).length; i++) {
+        if (cierreScript >= 0 && i >= cierreScript) break;
+        const ch = String(html)[i];
+        if (enString) {
+            if (escape) escape = false;
+            else if (ch === '\\') escape = true;
+            else if (ch === '"') enString = false;
+            continue;
+        }
+        if (ch === '"') { enString = true; continue; }
+        if (ch === '[') profundidad++;
+        if (ch === ']') {
+            profundidad--;
+            if (profundidad === 0) { finJson = i + 1; break; }
+        }
+    }
+    if (inicioJson < 0 || finJson < 0) return [];
+    try {
+        const parsed = JSON.parse(String(html).slice(inicioJson, finJson));
+        return Array.isArray(parsed) ? parsed : [];
+    } catch (error) {
+        console.warn('SeeBot: el arreglo makeHtml no es JSON válido:', error.message);
+        return [];
+    }
+}
+
+function parsearJSONSeeBotSTW(html) {
+    const datos = extraerArrayMakeHtmlSTW(html);
+    const misiones = [];
+    const rarezas = ['mythic', 'legendary', 'epic', 'rare', 'uncommon', 'common'];
+    const obtenerRasgo = (valor, claves) => {
+        for (const clave of claves) {
+            const dato = valor && valor[clave];
+            if (dato !== undefined && dato !== null && String(dato).trim()) {
+                if (typeof dato === 'object') return limpiarTextoSTW(dato.name || dato.title || dato.value || dato.id || '');
+                return limpiarTextoSTW(dato);
+            }
+        }
+        return '';
+    };
+    const textoDeLista = valor => {
+        if (Array.isArray(valor)) return valor.map(x => typeof x === 'string' ? x : (x.name || x.title || x.modifier || x.value || x.id || '')).map(limpiarTextoSTW).filter(Boolean);
+        if (typeof valor === 'string' && valor.trim()) return [limpiarTextoSTW(valor)];
+        return [];
+    };
+
+    for (const m of datos) {
+        if (!m || typeof m !== 'object') continue;
+        const zona = limpiarTextoSTW(m.zone || m.missionZone || m.zoneName || m.missionZoneName || '');
+        const pl = Number(m.powerLevel ?? m.pl ?? m.power ?? m.missionPowerLevel);
+        const misionOriginal = limpiarTextoSTW(m.name || m.missionName || m.mission || m.missionType || '');
+        if (!zona || !Number.isInteger(pl) || pl < 1 || pl > 160 || !misionOriginal) continue;
+
+        const rewardData = Array.isArray(m.alertRewards) ? m.alertRewards
+            : Array.isArray(m.rewards) ? m.rewards
+            : Array.isArray(m.missionRewards) ? m.missionRewards : [];
+        const recompensas = [];
+        for (const reward of rewardData) {
+            if (!reward || typeof reward !== 'object') continue;
+            const campos = [
+                reward.name, reward.itemName, reward.displayName, reward.localizedName, reward.itemType,
+                reward.type, reward.id, reward.templateId, reward.itemId
+            ].map(x => typeof x === 'string' ? x : '').join(' ');
+            const rarezaCampo = obtenerRasgo(reward, ['rarity', 'itemRarity', 'rarityName', 'quality', 'tier', 'rarityType']);
+            let rareza = rarezas.find(x => new RegExp('(^|[^a-z])' + x + '([^a-z]|$)', 'i').test(rarezaCampo));
+            if (!rareza) rareza = rarezas.find(x => new RegExp('\\(' + x + '\\)', 'i').test(campos)) || null;
+            const nombreRaw = obtenerRasgo(reward, ['name', 'itemName', 'displayName', 'localizedName', 'title', 'itemType', 'id', 'templateId', 'itemId']);
+            if (!nombreRaw && !campos.trim()) continue;
+            const nombreSinRareza = (nombreRaw || campos.trim())
+                .replace(/\s*\((Mythic|Legendary|Epic|Rare|Uncommon|Common)\)\s*$/i, '')
+                .replace(/[,;]+$/g, '').trim();
+            const identidad = [
+                reward.itemType, reward.type, reward.id, reward.templateId, reward.itemId,
+                reward.name, reward.itemName, reward.displayName
+            ].filter(Boolean).join(' ').toLowerCase();
+            const vbucks = /v-?bucks|v\s*bucks|currency_mtxswap|mtxswap/.test(identidad);
+            const cantidad = Number(reward.quantity ?? reward.count ?? reward.amount ?? 0);
+            const tipo = vbucks ? 'vbucks'
+                : /hero|character/i.test(identidad) ? 'hero'
+                : /survivor|worker/i.test(identidad) ? 'survivor'
+                : /defender/i.test(identidad) ? 'defender'
+                : /schematic|weapon|trap/i.test(identidad) ? 'schematic'
+                : 'other';
+            if (vbucks) {
+                recompensas.push({
+                    nombre: '🪙 ' + (cantidad > 0 ? cantidad : 50) + ' PaVos',
+                    raw: nombreSinRareza || 'V-Bucks',
+                    rareza: null, tipo: 'vbucks', cantidad: cantidad > 0 ? cantidad : 50,
+                    iconClasses: 'currency_mtxswap'
+                });
+            } else {
+                const nombre = tipo === 'other'
+                    ? (rareza === 'legendary' ? '🟠 ' : rareza === 'epic' ? '🟣 ' : '') + nombreSinRareza
+                    : normalizarRecompensaSTW(nombreSinRareza, rareza, tipo);
+                recompensas.push({ nombre, raw: nombreSinRareza, rareza, tipo, cantidad: cantidad || null, iconClasses: identidad });
+            }
+        }
+        const modifiersRaw = m.modifiers || m.missionModifiers || m.missionAlertModifiers || m.modifierNames || m.modifier || [];
+        const modifiers = textoDeLista(modifiersRaw).map(x => traducirModificadorSTW(x));
+        const questReqs = obtenerRasgo(m, ['missionQuestReqs', 'questReqs', 'questRequirements', 'questRequirement', 'questReq', 'requiredQuest']) || 'None';
+        const tienePavos = recompensas.some(r => r.tipo === 'vbucks');
+        if (recompensas.length === 0 && Array.isArray(m.alertRewards) && m.alertRewards.length === 0) continue;
+        const tipoAlerta = modifiers.some(x => /mini-boss|mini-jefe/i.test(x)) ? 'mini-boss' : 'normal';
+        const recompensaTexto = recompensas.map(r => r.nombre).filter(Boolean).join(' | ') || 'Misión';
+        misiones.push({
+            id: crypto.createHash('sha1').update(['seebot-json', zona, pl, misionOriginal, recompensaTexto].join('|')).digest('hex').slice(0, 14),
+            zona, pl, mision: misionOriginal, misionOriginal,
+            ubicacion: limpiarTextoSTW(m.location || m.biome || m.missionLocation || ''),
+            categoria: /\bgroup\b/i.test(misionOriginal) ? ['group'] : [],
+            tipoAlerta, tipoAlertaTexto: obtenerNombreTipoAlertaSTW(tipoAlerta),
+            vbucks: tienePavos,
+            cantidadVbucks: tienePavos ? (recompensas.find(r => r.tipo === 'vbucks')?.cantidad || 50) : null,
+            esX4: /\bgroup\b|\bx4\b/i.test(misionOriginal + ' ' + recompensaTexto),
+            multiplicadorRecompensa: /\bgroup\b/i.test(misionOriginal) ? 4 : null,
+            recompensas, modificadores: modifiers, questReqs,
+            rareza: recompensas.find(r => r.rareza === 'mythic')?.rareza || recompensas.find(r => r.rareza === 'legendary')?.rareza || recompensas.find(r => r.rareza === 'epic')?.rareza || null,
+            recompensa: recompensaTexto,
+            source: 'https://seebot.dev/missions.php',
+            extraidoEn: new Date().toISOString()
+        });
+    }
+    return deduplicarSTW(misiones);
+}
+
 function parsearVBucksDailySTW(html) {
     const $ = cheerio.load(String(html || ''));
     const alertas = [];
@@ -728,13 +858,22 @@ async function extraerAlertasAPI(progreso = null) {
         let todasSeeBot = htmlSeeBot ? parsearTablaSeeBotSTW(htmlSeeBot) : [];
         let filasSeeBotHTML = 0;
         try { filasSeeBotHTML = htmlSeeBot ? cheerio.load(htmlSeeBot)('#miniRwdTbl tr.missionRow').length : 0; } catch (_) {}
+        let todasSeeBotJSON = [];
+        if (todasSeeBot.length === 0 && htmlSeeBot) {
+            todasSeeBotJSON = parsearJSONSeeBotSTW(htmlSeeBot);
+            if (todasSeeBotJSON.length) {
+                todasSeeBot = todasSeeBotJSON;
+                console.log('✅ SeeBot JSON makeHtml: misiones extraídas=' + todasSeeBotJSON.length + '.');
+            }
+        }
         console.log('🔎 STW fuentes recibidas | Planner HTML=' + String(htmlPrincipal || '').length +
             ' chars / misiones=' + todasPlanner.length +
             ' | SeeBot HTML=' + String(htmlSeeBot || '').length + ' chars / filas #miniRwdTbl=' +
-            filasSeeBotHTML + ' / misiones válidas=' + todasSeeBot.length + '.');
+            filasSeeBotHTML + ' / misiones válidas=' + todasSeeBot.length +
+            ' / por tabla=' + (todasSeeBot.length - todasSeeBotJSON.length) + ' / por JSON=' + todasSeeBotJSON.length + '.');
 
-        // La tabla de SeeBot puede montarse con JavaScript. Si el HTML HTTP no
-        // trae filas utilizables, pedir la página pública en un navegador normal.
+        // Si no hay filas ni JSON en la respuesta directa, pedir la página pública
+        // en un navegador normal como última alternativa.
         if (todasSeeBot.length === 0) {
             try {
                 const renderizada = await descargarSTWRenderizada(urlSeeBot);
@@ -874,7 +1013,10 @@ async function extraerAlertasAPI(progreso = null) {
         // Solo marcamos cobertura completa cuando hay una tabla general con
         // suficientes misiones, no cuando la página está refrescando y solo
         // se pudo recuperar el subconjunto de PaVos.
-        const coberturaCompleta = todasSeeBot.length >= 5 ||
+        const seebotTraeRarezas = todasSeeBot.some(m =>
+            (m.recompensas || []).some(r => ['epic', 'legendary', 'mythic'].includes(r.rareza))
+        );
+        const coberturaCompleta = (todasSeeBot.length >= 5 && seebotTraeRarezas) ||
             (todasPlanner.length >= 5 && plannerTraeRecompensas);
 
         let epicas = todas
