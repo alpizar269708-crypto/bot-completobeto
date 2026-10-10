@@ -5,6 +5,8 @@ const { Config } = require('../database/modelos');
 const URL_FORTNITEDB = 'https://fortnitedb.com/index.php';
 const URL_FORTNITEDB_RESPALDO = 'https://cdn.fortnitedb.com/index.php';
 const URL_FORTNITEDB_ALTERNATIVA = 'https://fortnitedb.com/';
+const URL_FORTNITEDB_STATUS = 'https://status.fortnitedb.com/index.php';
+const URL_FORTNITEDB_DEV = 'https://dev.fortnitedb.com/index.php';
 const URL_SEEBOT = 'https://seebot.dev/missions.php';
 
 const ZONAS = {
@@ -70,6 +72,21 @@ async function descargarPagina(url) {
     return respuesta;
 }
 
+function detalleErrorHTTP(error) {
+    const status = error?.response?.status;
+    const headers = error?.response?.headers || {};
+    const cuerpo = typeof error?.response?.data === 'string' ? error.response.data : '';
+    const pista = limpiar(cuerpo.replace(/<[^>]*>/g, ' ')).slice(0, 180);
+    return [
+        status ? 'HTTP ' + status : null,
+        error?.code || null,
+        headers['content-type'] ? 'content-type=' + headers['content-type'] : null,
+        headers.server ? 'server=' + headers.server : null,
+        pista ? 'respuesta=' + pista : null,
+        !status && error?.message ? error.message : null
+    ].filter(Boolean).join(' | ') || 'error sin detalle';
+}
+
 function localizarTablaFortniteDB($) {
     const encabezado = $('h1, h2, h3, h4, h5, h6, .title, .block-title')
         .filter((_, el) => limpiar($(el).text()).toLowerCase().includes('v-bucks missions'))
@@ -92,17 +109,21 @@ function localizarTablaFortniteDB($) {
 
 async function consultarFortniteDB(progreso) {
     const resultado = { fuente: 'FortniteDB', url: URL_FORTNITEDB, alertas: [], error: null, etapas: [] };
+    const inicio = Date.now();
     const paso = async (texto) => {
-        resultado.etapas.push(texto);
-        await reportar(progreso, texto);
+        const marcado = '[' + ((Date.now() - inicio) / 1000).toFixed(2) + ' s] ' + texto;
+        resultado.etapas.push(marcado);
+        await reportar(progreso, marcado);
     };
 
     try {
-        await paso('🌐 *FortniteDB 1/4:* conectando con https://fortnitedb.com/');
+        await paso('🔬 *FortniteDB ETAPA 1 — CONEXIÓN:* preparando solicitud HTTP con timeout de 25 s, redirecciones máximas 5 y User-Agent de navegador.');
         let respuesta;
         const intentos = [
             { url: URL_FORTNITEDB, nombre: 'página principal' },
-            { url: URL_FORTNITEDB_RESPALDO, nombre: 'espejo CDN' },
+            { url: URL_FORTNITEDB_RESPALDO, nombre: 'CDN oficial' },
+            { url: URL_FORTNITEDB_STATUS, nombre: 'host status' },
+            { url: URL_FORTNITEDB_DEV, nombre: 'host dev' },
             { url: URL_FORTNITEDB_ALTERNATIVA, nombre: 'ruta raíz' }
         ];
         const fallos = [];
@@ -113,8 +134,7 @@ async function consultarFortniteDB(progreso) {
                 resultado.url = intento.url;
                 break;
             } catch (errorIntento) {
-                const status = errorIntento.response?.status;
-                const detalle = status ? 'HTTP ' + status : (errorIntento.code || errorIntento.message || 'error desconocido');
+                const detalle = detalleErrorHTTP(errorIntento);
                 fallos.push(intento.nombre + ': ' + detalle);
                 await paso('⚠️ FortniteDB: falló ' + intento.nombre + ' — ' + detalle + '.');
             }
@@ -124,15 +144,19 @@ async function consultarFortniteDB(progreso) {
                 '. Un HTTP 403 significa que el servidor/CDN bloqueó la petición; cambiar el parser no lo soluciona.');
         }
         resultado.http = respuesta.status;
-        await paso('📥 *FortniteDB 2/4:* respuesta HTTP ' + respuesta.status + '; recibí ' + String(respuesta.data || '').length + ' caracteres.');
+        resultado.contentType = respuesta.headers?.['content-type'] || 'desconocido';
+        resultado.responseUrl = respuesta.request?.res?.responseUrl || resultado.url;
+        await paso('📥 *FortniteDB ETAPA 2 — RESPUESTA:* HTTP ' + respuesta.status + '; URL final ' + resultado.responseUrl + '; content-type ' + resultado.contentType + '; ' + String(respuesta.data || '').length + ' caracteres.');
 
         const $ = cheerio.load(respuesta.data);
-        await paso('🔎 *FortniteDB 3/4:* buscando la sección y tabla “V-Bucks Missions”.');
+        const titulo = limpiar($('title').first().text()) || '(sin title)';
+        await paso('🧩 *FortniteDB ETAPA 3 — HTML:* HTML parseado con Cheerio; título detectado: ' + titulo + '; tablas=' + $('table').length + '; filas totales=' + $('tr').length + '.');
+        await paso('🔎 *FortniteDB ETAPA 4 — SELECTOR:* buscando encabezado “V-Bucks Missions” y tabla asociada.');
         const tabla = localizarTablaFortniteDB($);
-        if (!tabla.length) throw new Error('La página respondió, pero no encontré la tabla “V-Bucks Missions”.');
+        if (!tabla.length) throw new Error('ETAPA 4/7 SELECTOR: la página respondió, pero no encontré la tabla “V-Bucks Missions”. Título=' + titulo + '; tablas=' + $('table').length + '; HTML inicial=' + limpiar(String(respuesta.data || '').replace(/<[^>]*>/g, ' ')).slice(0, 220));
 
         const filas = tabla.find('tr');
-        await paso('📋 *FortniteDB 4/4:* encontré la tabla; revisando ' + filas.length + ' filas.');
+        await paso('📋 *FortniteDB ETAPA 5 — FILAS:* selector correcto; filas en tabla=' + filas.length + '.');
         filas.each((_, fila) => {
             const celdas = $(fila).find('td');
             if (celdas.length < 4) return;
@@ -152,16 +176,19 @@ async function consultarFortniteDB(progreso) {
             });
         });
 
+        await paso('🧮 *FortniteDB ETAPA 6 — EXTRACCIÓN:* filas revisadas=' + filas.length + '; alertas de PaVos válidas=' + resultado.alertas.length + '.');
         if (resultado.alertas.length === 0) {
-            throw new Error('Encontré la tabla, pero no pude extraer ninguna alerta válida de PaVos. Puede haber cambiado el formato de sus filas.');
+            const muestra = filas.slice(0, 4).map((_, fila) => limpiar($(fila).text())).get().join(' || ').slice(0, 260);
+            throw new Error('ETAPA 6/7 EXTRACCIÓN: tabla encontrada, pero 0 filas válidas. Se esperaba zona (S/P/C/T/V), PL y recompensa V-Bucks. Muestra de filas=' + (muestra || '(vacías)'));
         }
         resultado.totalPavos = resultado.alertas.reduce((suma, alerta) => suma + alerta.cantidad, 0);
         resultado.ok = true;
-        await paso('✅ *FortniteDB:* extracción terminada; ' + resultado.alertas.length + ' alertas, total detectado: ' + resultado.totalPavos + ' PaVos.');
+        await paso('✅ *FortniteDB ETAPA 7 — VALIDACIÓN FINAL:* extracción completa; ' + resultado.alertas.length + ' alertas, total ' + resultado.totalPavos + ' PaVos; duración ' + ((Date.now() - inicio) / 1000).toFixed(2) + ' s.');
     } catch (error) {
         resultado.error = error.message || String(error);
         resultado.ok = false;
-        await paso('❌ *FortniteDB se trabó:* ' + resultado.error);
+        resultado.etapaFallo = resultado.etapas.length ? resultado.etapas[resultado.etapas.length - 1] : 'inicio';
+        await paso('❌ *FORTNITEDB FALLÓ:* último punto registrado=' + resultado.etapaFallo + ' | causa=' + resultado.error + ' | duración=' + ((Date.now() - inicio) / 1000).toFixed(2) + ' s.');
     }
     return resultado;
 }
@@ -223,21 +250,27 @@ function extraerDatosSeeBot(html) {
 
 async function consultarSeeBot(progreso) {
     const resultado = { fuente: 'SeeBot.dev', url: URL_SEEBOT, alertas: [], error: null, etapas: [] };
+    const inicio = Date.now();
     const paso = async (texto) => {
-        resultado.etapas.push(texto);
-        await reportar(progreso, texto);
+        const marcado = '[' + ((Date.now() - inicio) / 1000).toFixed(2) + ' s] ' + texto;
+        resultado.etapas.push(marcado);
+        await reportar(progreso, marcado);
     };
 
     try {
-        await paso('🌐 *SeeBot 1/4:* conectando con https://seebot.dev/');
+        await paso('🔬 *SeeBot ETAPA 1 — CONEXIÓN:* GET ' + URL_SEEBOT + '; timeout 25 s; redirecciones máximas 5.');
         const respuesta = await descargarPagina(URL_SEEBOT);
         resultado.http = respuesta.status;
+        resultado.contentType = respuesta.headers?.['content-type'] || 'desconocido';
+        resultado.responseUrl = respuesta.request?.res?.responseUrl || URL_SEEBOT;
         const html = String(respuesta.data || '');
-        await paso('📥 *SeeBot 2/4:* respuesta HTTP ' + respuesta.status + '; recibí ' + html.length + ' caracteres.');
+        await paso('📥 *SeeBot ETAPA 2 — RESPUESTA:* HTTP ' + respuesta.status + '; URL final=' + resultado.responseUrl + '; content-type=' + resultado.contentType + '; bytes/caracteres=' + html.length + '.');
 
-        await paso('🔎 *SeeBot 3/4:* buscando el bloque de datos de misiones dentro del HTML.');
+        const $see = cheerio.load(html);
+        await paso('🧩 *SeeBot ETAPA 3 — HTML:* título=' + (limpiar($see('title').first().text()) || '(sin title)') + '; scripts=' + $see('script').length + '; contiene makeHtml=' + /makeHtml\s*\(/i.test(html) + '; señales anti-bot=' + /cloudflare|checking your browser|just a moment/i.test(html) + '.');
+        await paso('🔎 *SeeBot ETAPA 4 — PARSER:* localizando y validando el arreglo JSON de makeHtml(...).');
         const misiones = extraerDatosSeeBot(html);
-        await paso('📋 *SeeBot 4/4:* encontré ' + misiones.length + ' misiones; filtrando recompensas de PaVos.');
+        await paso('📋 *SeeBot ETAPA 5 — DATOS:* JSON válido; misiones leídas=' + misiones.length + '; filtrando recompensas de PaVos.');
 
         for (const mision of misiones) {
             const zona = String(mision.zone || '').trim();
@@ -255,16 +288,19 @@ async function consultarSeeBot(progreso) {
             });
         }
 
+        await paso('🧮 *SeeBot ETAPA 6 — FILTRO:* misiones procesadas=' + misiones.length + '; zonas válidas=' + misiones.filter(m => ['Stonewood', 'Plankerton', 'Canny Valley', 'Twine Peaks'].includes(String(m.zone || '').trim())).length + '; alertas con PaVos=' + resultado.alertas.length + '.');
         if (resultado.alertas.length === 0) {
-            throw new Error('Leí las misiones, pero no encontré recompensas cuyo nombre contenga “V-Bucks” en alertRewards.');
+            const muestra = misiones.slice(0, 3).map(m => 'zona=' + (m.zone || '?') + ', PL=' + (m.powerLevel ?? '?') + ', recompensas=' + (Array.isArray(m.alertRewards) ? m.alertRewards.map(r => r.itemType + ':' + r.quantity).join(',') : 'sin alertRewards')).join(' || ');
+            throw new Error('ETAPA 6/7 FILTRO: JSON leído (' + misiones.length + ' misiones), pero 0 alertas con V-Bucks en alertRewards. Muestra=' + (muestra || '(lista vacía)'));
         }
         resultado.totalPavos = resultado.alertas.reduce((suma, alerta) => suma + alerta.cantidad, 0);
         resultado.ok = true;
-        await paso('✅ *SeeBot.dev:* extracción terminada; ' + resultado.alertas.length + ' alertas, total detectado: ' + resultado.totalPavos + ' PaVos.');
+        await paso('✅ *SeeBot ETAPA 7 — VALIDACIÓN FINAL:* extracción completa; ' + resultado.alertas.length + ' alertas, total ' + resultado.totalPavos + ' PaVos; duración ' + ((Date.now() - inicio) / 1000).toFixed(2) + ' s.');
     } catch (error) {
         resultado.error = error.message || String(error);
         resultado.ok = false;
-        await paso('❌ *SeeBot.dev se trabó:* ' + resultado.error);
+        resultado.etapaFallo = resultado.etapas.length ? resultado.etapas[resultado.etapas.length - 1] : 'inicio';
+        await paso('❌ *SEEBOT.DEV FALLÓ:* último punto registrado=' + resultado.etapaFallo + ' | causa=' + detalleErrorHTTP(error) + ' | duración=' + ((Date.now() - inicio) / 1000).toFixed(2) + ' s.');
     }
     return resultado;
 }
@@ -278,7 +314,7 @@ async function diagnosticarMenuFortnite(progreso) {
         { clave: 'stw_legendarias_scrapeadas', nombre: 'legendarias', comando: 'legendariasstw' },
         { clave: 'stw_plaltas_scrapeadas', nombre: 'PL altas/destacadas', comando: 'destacadasstw' }
     ];
-    const comandos = ['pavos', 'destacadasstw', 'epicasstw', 'legendariasstw', 'alertasstw', 'alerta', 'setprecio', 'setgrupostw', 'unsetgrupostw', 'carryleader', 'carryjoin', 'carryleave', 'carryclose', 'blcarry', 'unblcarry', 'listcarrybl'];
+    const comandos = ['rpavos', 'rdestacadasstw', 'repicasstw', 'rlegendariasstw', 'ralertasstw', 'ralerta', 'rdiagnostico', 'rsetprecio', 'rsetgrupostw', 'runsetgrupostw', 'rcarryleader', 'rcarryjoin', 'rcarryleave', 'rcarryclose', 'rblcarry', 'runblcarry', 'rlistcarrybl'];
     await paso('🧭 *Menú Fortnite:* comprobando raspado en vivo, cachés y cobertura de todos los comandos del menú (incluidos PL altas y carry).');
     let marcaAnterior = null;
     try {
@@ -332,10 +368,10 @@ async function diagnosticarMenuFortnite(progreso) {
         const handler = fs.readFileSync(path.join(__dirname, '..', 'messageHandler.js'), 'utf8');
         const menu = fs.readFileSync(path.join(__dirname, 'menu.js'), 'utf8');
         for (const comando of comandos) {
-            const registrado = new RegExp("['\\\"]" + comando + "['\\\"]").test(handler);
+            const registrado = handler.includes("'" + comando + "'") || handler.includes('"' + comando + '"');
             const anunciado = menu.includes(comando);
             const correcto = registrado && anunciado;
-            await paso((correcto ? '✅ ' : '❌ ') + 'Comando ' + comando + ': ' +
+            await paso((correcto ? '✅ ' : '❌ ') + 'Comando R ' + comando + ': ' +
                 (registrado ? 'registrado en el manejador' : 'NO aparece registrado') + '; ' +
                 (anunciado ? 'mencionado en el menú' : 'NO aparece en el texto del menú') + '.');
             if (!correcto) {
@@ -380,7 +416,7 @@ async function comandoRPavos(sock, chatId, msg) {
     ]);
 
     const lineas = [
-        '🧪 *RESULTADO FINAL DEL DIAGNÓSTICO RPAVOS*',
+        '🧪 *RESULTADO FINAL DEL DIAGNÓSTICO RDIAGNOSTICO*',
         '',
         formatearFuente(fortniteDB),
         '',
