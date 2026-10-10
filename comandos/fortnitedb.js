@@ -509,7 +509,7 @@ function formatearFuente(resultado) {
 
 
 const FUENTES_ALTERNATIVAS_PAVOS = [
-    { nombre: 'PennyDB', url: 'https://pennydb.net/stw-missions' },
+    { nombre: 'PennyDB', url: 'https://pennydb.net/stw/vbucks' },
     { nombre: 'V-Bucks Daily', url: 'https://vbucksdaily.com/' }
 ];
 
