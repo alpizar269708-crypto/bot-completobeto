@@ -565,6 +565,48 @@ function extraerAlertasPennyDB(html) {
     let filasConCantidad = 0;
     let filasSinContexto = 0;
 
+    // Primero, leer la tarjeta compacta de la misión: reúne recompensa, zona, PL y título.
+    // Es la estructura .mission-brief que aparece en /stw-missions.
+    $('.mission-brief').each((_, briefEl) => {
+        const brief = $(briefEl);
+        const bay = brief.find('.mission-bay').first();
+        const recompensa = limpiar(bay.find('[title]').map((__, n) => $(n).attr('title') || '').get().join(' '));
+        if (!/v-?bucks\s+voucher|v-?bucks/i.test(recompensa)) return;
+
+        const cantidadTexto = limpiar(bay.find('.mission-payload-figure').first().text() || bay.find('.mission-figure').first().text());
+        const cantidadMatch = cantidadTexto.match(/\b(\d{1,4})\b/);
+        const cantidad = cantidadMatch ? Number(cantidadMatch[1]) : NaN;
+        const zonaTexto = limpiar(brief.find('[aria-label]').map((__, n) => $(n).attr('aria-label') || '').get().join(' '));
+        const zonaMatch = zonaTexto.match(/\b(Stonewood|Plankerton|Canny Valley|Twine Peaks|Ventures)\b/i);
+        const zona = zonaMatch ? normalizarZona(zonaMatch[1]) : null;
+        const plTexto = limpiar(brief.find('.mission-power-figure').first().text() || brief.find('.mission-power').text());
+        const plMatch = plTexto.match(/\b(\d{1,3})\b/);
+        const misionOriginal = limpiar(brief.find('.mission-job [title]').first().attr('title') ||
+            brief.find('.mission-job').first().text()).replace(/\s+/g, ' ');
+
+        if (!zona || !plMatch || !Number.isFinite(cantidad) || cantidad <= 0) {
+            filasRecompensa++;
+            if (Number.isFinite(cantidad) && cantidad > 0) filasConCantidad++;
+            filasSinContexto++;
+            return;
+        }
+        filasRecompensa++;
+        filasConCantidad++;
+        const clave = [zona, Number(plMatch[1]), cantidad, misionOriginal || 'Misión de alerta'].join('|');
+        if (vistos.has(clave)) return;
+        vistos.add(clave);
+        alertas.push({
+            zona,
+            zonaCodigo: ({ Stonewood: 'S', Plankerton: 'P', 'Canny Valley': 'C', 'Twine Peaks': 'T', Ventures: 'V' })[zona],
+            pl: Number(plMatch[1]),
+            mision: nombreMisionSeeBot(misionOriginal || 'Misión de alerta'),
+            misionOriginal: misionOriginal || 'Misión de alerta',
+            cantidad,
+            recompensaOriginal: recompensa,
+            fuenteAlternativa: 'PennyDB'
+        });
+    });
+
     // La página /stw-missions puede cambiar encabezados y clases entre versiones.
     // Buscar la recompensa por texto/atributos en todo el HTML y subir al contenedor de misión.
     const candidatos = new Set();
