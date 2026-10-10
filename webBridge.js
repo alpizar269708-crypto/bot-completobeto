@@ -105,12 +105,14 @@ function normalizarRecompensaSTW(nombre, rareza, tipo) {
         return '🪙 ' + cantidad + ' PaVos';
     }
 
-    const icono = rareza === 'legendary' ? '🟠' :
+    const icono = rareza === 'mythic' ? '🟡' :
+        rareza === 'legendary' ? '🟠' :
         rareza === 'epic' ? '🟣' :
         rareza === 'rare' ? '🔵' :
         rareza === 'uncommon' ? '🟢' : '⚪';
 
-    const rarezaEs = rareza === 'legendary' ? 'legendario' :
+    const rarezaEs = rareza === 'mythic' ? 'mítico' :
+        rareza === 'legendary' ? 'legendario' :
         rareza === 'epic' ? 'épico' :
         rareza === 'rare' ? 'raro' :
         rareza === 'uncommon' ? 'poco común' : 'común';
@@ -476,7 +478,7 @@ function parsearTablaSeeBotSTW(html) {
         filas.push({
             id: crypto.createHash('sha1').update(['seebot', zona, pl, misionOriginal, recompensaTexto].join('|')).digest('hex').slice(0, 14),
             zona, pl, mision: misionOriginal, misionOriginal, ubicacion: '',
-            categoria: [/\(Group\)$/i.test(misionOriginal) ? 'group' : ''],
+            categoria: /\(Group\)$/i.test(misionOriginal) ? ['group'] : [],
             tipoAlerta, tipoAlertaTexto: obtenerNombreTipoAlertaSTW(tipoAlerta),
             vbucks, cantidadVbucks: vbucks ? cantidadVbucks : null,
             esX4: /\(Group\)$/i.test(misionOriginal) || /(?:\bx4\b|x4\s)/i.test(recompensaTexto),
@@ -807,14 +809,36 @@ async function extraerAlertasAPI(progreso = null) {
             }
         });
         const tiposBuenos = ['hero', 'survivor', 'defender', 'schematic'];
+        const coberturaCompleta = todasPlanner.length > 0 || todasSeeBot.length > 0;
 
-        const epicas = todas
-            .filter(m => m.recompensas.some(r => r.rareza === 'epic'))
+        let epicas = todas
+            .filter(m => (m.recompensas || []).some(r => r.rareza === 'epic'))
             .map(m => ({ pl: m.pl, mision: m.mision, ubicacion: m.ubicacion, zona: m.zona, recompensa: m.recompensa, recompensas: m.recompensas, multiplicadorRecompensa: m.multiplicadorRecompensa, esX4: m.esX4, rareza: 'epic', tipoAlerta: m.tipoAlerta, tipoAlertaTexto: m.tipoAlertaTexto, modificadores: m.modificadores, questReqs: m.questReqs, source: m.source }));
 
-        const legendarias = todas
-            .filter(m => m.recompensas.some(r => r.rareza === 'legendary'))
+        let legendarias = todas
+            .filter(m => (m.recompensas || []).some(r => r.rareza === 'legendary'))
             .map(m => ({ pl: m.pl, mision: m.mision, ubicacion: m.ubicacion, zona: m.zona, recompensa: m.recompensa, recompensas: m.recompensas, multiplicadorRecompensa: m.multiplicadorRecompensa, esX4: m.esX4, rareza: 'legendary', tipoAlerta: m.tipoAlerta, tipoAlertaTexto: m.tipoAlertaTexto, modificadores: m.modificadores, questReqs: m.questReqs, source: m.source }));
+
+        // Si solo respondió la fuente exclusiva de PaVos, no borrar las últimas
+        // alertas épicas/legendarias/destacadas guardadas desde una fuente completa.
+        const leerCacheSTW = async clave => {
+            try {
+                const doc = await Config.findOne({ clave });
+                const parsed = doc?.valor ? JSON.parse(doc.valor) : [];
+                return Array.isArray(parsed) ? parsed : [];
+            } catch (_) { return []; }
+        };
+        let destacadasCacheAnterior = [];
+        if (!coberturaCompleta) {
+            const [epicasAnteriores, legendariasAnteriores, destacadasAnteriores] = await Promise.all([
+                leerCacheSTW('stw_epicas_scrapeadas'),
+                leerCacheSTW('stw_legendarias_scrapeadas'),
+                leerCacheSTW('stw_plaltas_scrapeadas')
+            ]);
+            if (!epicas.length) epicas = epicasAnteriores;
+            if (!legendarias.length) legendarias = legendariasAnteriores;
+            destacadasCacheAnterior = destacadasAnteriores;
+        }
 
         function evaluarAlertaChida(mision) {
             // Una alerta de PaVos también debe estar disponible en destacadas.
@@ -886,12 +910,21 @@ async function extraerAlertasAPI(progreso = null) {
         for (const item of todas.map(prepararAlertaChida).filter(Boolean)) {
             const clave = [item.zona || '', item.pl || '', item.mision || '', item.ubicacion || ''].join('|').toLowerCase();
             const anterior = mapaPlAltas.get(clave);
-            if (!anterior || (String(item.motivo || '').includes('PaVos') && !String(anterior.motivo || '').includes('PaVos')) || (!String(anterior.motivo || '').includes('PaVos') && item.nivelAlerta > anterior.nivelAlerta)) {
+            if (!anterior || Number(item.nivelAlerta || 0) > Number(anterior.nivelAlerta || 0)) {
                 mapaPlAltas.set(clave, item);
             }
         }
 
         let plAltas = Array.from(mapaPlAltas.values());
+        if (!coberturaCompleta && destacadasCacheAnterior.length) {
+            const merged = new Map();
+            for (const item of [...destacadasCacheAnterior, ...plAltas]) {
+                const key = [item.zona || '', item.pl || '', item.mision || '', item.motivo || ''].join('|').toLowerCase();
+                const previo = merged.get(key);
+                if (!previo || Number(item.nivelAlerta || 0) > Number(previo.nivelAlerta || 0)) merged.set(key, item);
+            }
+            plAltas = Array.from(merged.values());
+        }
         plAltas.sort((a, b) => b.nivelAlerta - a.nivelAlerta || Number(b.pl) - Number(a.pl) || String(a.zona).localeCompare(String(b.zona)));
 
         await etapaDiagnostico('STW ETAPA 8/8: escribiendo resultados en MongoDB. Si se detiene aquí, revisar permisos/conexión de base de datos.');
