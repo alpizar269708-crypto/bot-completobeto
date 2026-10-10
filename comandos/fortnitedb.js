@@ -46,12 +46,14 @@ function nombreMisionSeeBot(nombre) {
     return traducirNombreMisionSTW(nombre) || nombre || 'Misión de alerta';
 }
 
+let progresoGeneralReportado = false;
 async function reportar(progreso, texto) {
-    if (typeof progreso !== 'function') return;
+    if (typeof progreso !== 'function' || progresoGeneralReportado) return;
+    progresoGeneralReportado = true;
     try {
-        await progreso(texto);
+        await progreso('⏳ Consultando las alertas. Esto puede tardar unos segundos.');
     } catch (e) {
-        console.error('No se pudo enviar una actualización del diagnóstico:', e.message);
+        console.error('No se pudo enviar una actualización:', e.message);
     }
 }
 
@@ -1065,11 +1067,6 @@ async function comandoPavosOficial(sock, chatId, msg) {
                 '⚡ *PL:* ' + (alerta.pl ?? '?'),
                 '🎯 *Misión:* ' + nombreMisionSeeBot(alerta.mision || alerta.misionOriginal || 'Alerta de PaVos'),
                 '🪙 *PaVos:* ' + alerta.cantidad,
-                ...(Array.isArray(alerta.modificadores) && alerta.modificadores.length
-                    ? ['🧩 *Modificadores:* ' + [...new Set(alerta.modificadores.map(traducirModificadorSTW))].join(', ')] : []),
-                ...((alerta.requisitos || alerta.questReqs)
-                    ? ['📜 *Requisitos:* ' + (/^none$/i.test(String(alerta.requisitos || alerta.questReqs))
-                        ? 'Ninguno' : (alerta.requisitos || alerta.questReqs))] : []),
                 ''
             );
         }
