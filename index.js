@@ -6,7 +6,7 @@ const pino = require('pino');
 const QRCode = require('qrcode');
 const { procesarMensaje } = require('./messageHandler');
 const { verificarNuevoMiembro } = require('./comandos/moderacion');
-const { iniciarCronAlertasDiarias } = require('./comandos/fortnite');
+const { iniciarCronAlertasDiarias, reanudarAlertaPavosPendiente } = require('./comandos/fortnite');
 const { iniciarVerificacionTarifasPaypal } = require('./comandos/paypal');
 const { limpiarEconomiaAlSalir } = require('./comandos/economia');
 const { iniciarPuenteDiscord, vincularChatWhatsApp } = require('./webBridge');
@@ -423,6 +423,12 @@ async function arrancarSocket(metodo, numeroTelefono, onCodeReady = null) {
             }
             
             iniciarCronAlertasDiarias(sock);
+            // Si WhatsApp estuvo desconectado durante la ventana diaria, recuperar el envío pendiente al volver en línea.
+            setTimeout(() => {
+                reanudarAlertaPavosPendiente(socketActual || sock).catch(error =>
+                    console.error('❌ No se pudo recuperar la alerta diaria al reconectar:', error.stack || error.message)
+                );
+            }, 5000);
 
             // El raspado STW ya se inició al conectar MongoDB; aquí solo se registra el puente.
             iniciarPuenteDiscord(sock);
