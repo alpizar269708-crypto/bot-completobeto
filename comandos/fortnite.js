@@ -645,21 +645,31 @@ async function enviarAlertaPavosAutomatica(sock, actualizarEnVivo = false, horaA
                 '🪙 *PaVos:* ' + cantidad + '\n\n';
         }
         mensaje += '💰 *Total del día:* ' + total + ' PaVos\n\n🔎 Usa *pavos* para consultar la información guardada.';
-        let enviada = false;
-        for (const grupo of grupos) {
+        const hoy = fechaCDMX();
+        const estadoDoc = await Config.findOne({ clave: CLAVE_ESTADO_ALERTA_PAVOS });
+        let gruposEnviados = new Set();
+        try {
+            const estado = estadoDoc?.valor ? JSON.parse(estadoDoc.valor) : null;
+            if (estado?.fecha === hoy && Array.isArray(estado.gruposEnviados)) {
+                gruposEnviados = new Set(estado.gruposEnviados.filter(id => grupos.includes(id)));
+            }
+        } catch (_) {}
+        const pendientes = grupos.filter(grupo => !gruposEnviados.has(grupo));
+        if (!pendientes.length) return true;
+        const firmas = {};
+        for (const item of alertas) firmas[claveMisionAlertaDiaria(item)] = firmaMisionAlertaDiaria(item);
+        for (const grupo of pendientes) {
             try {
-                await sock.sendMessage(grupo, { text: mensaje });
-                enviada = true;
+                const socketEnvio = socketAlertasDiariasActivo || sock;
+                await socketEnvio.sendMessage(grupo, { text: mensaje });
+                gruposEnviados.add(grupo);
+                await guardarAlertaPavosEnviada(hoy, horaAlerta, { snapshot: firmas }, [...gruposEnviados], grupos.length);
+                console.log('✅ Alerta diaria de PaVos aceptada por WhatsApp para el grupo ' + grupo + '.');
             } catch (e) {
-                console.error('Error enviando alerta diaria al grupo:', e.message);
+                console.error('Error enviando alerta diaria al grupo ' + grupo + ':', e.message);
             }
         }
-        if (enviada) {
-            const firmas = {};
-            for (const item of alertas) firmas[claveMisionAlertaDiaria(item)] = firmaMisionAlertaDiaria(item);
-            await guardarAlertaPavosEnviada(fechaCDMX(), horaAlerta, { snapshot: firmas });
-        }
-        return enviada;
+        return grupos.every(grupo => gruposEnviados.has(grupo));
     } catch (error) {
         console.error('Error en alerta diaria:', error.stack || error.message);
         return false;
@@ -693,10 +703,12 @@ async function yaSeEnvioAlertaPavosHoy(hoy) {
     }
 }
 
-async function guardarAlertaPavosEnviada(hoy, horario, firmasPorFuente = {}) {
+async function guardarAlertaPavosEnviada(hoy, horario, firmasPorFuente = {}, gruposEnviados = [], totalGrupos = gruposEnviados.length) {
+    const enviados = [...new Set(gruposEnviados)];
+    const completa = totalGrupos > 0 && enviados.length >= totalGrupos;
     await Config.findOneAndUpdate(
         { clave: CLAVE_ESTADO_ALERTA_PAVOS },
-        { valor: JSON.stringify({ fecha: hoy, enviada: true, horario, firmasPorFuente, actualizadoEn: new Date().toISOString() }) },
+        { valor: JSON.stringify({ fecha: hoy, enviada: completa, horario, firmasPorFuente, gruposEnviados: enviados, totalGrupos, actualizadoEn: new Date().toISOString() }) },
         { upsert: true }
     );
 }
