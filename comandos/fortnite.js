@@ -506,9 +506,9 @@ async function comandoPreguntarAlerta(sock, chatId, msg, palabrasClave = [], pro
     });
 
     const mapaCoincidencias = new Map();
-    const normalizarClave = valor => normalizarTexto(valor).replace(/\\s+/g, ' ').trim();
+    const normalizarClave = valor => normalizarTexto(valor).replace(/\s+/g, ' ').trim();
     const zonaEsDesconocida = zona => !String(zona || '').trim() ||
-        /^(desconocida|zona desconocida|unknown|n\\/?a)$/i.test(String(zona || '').trim());
+        /^(desconocida|zona desconocida|unknown|n\/?a)$/i.test(String(zona || '').trim());
     for (const item of coincidenciasFiltradas) {
         // La zona no forma parte de la clave: una de las fuentes suele traerla
         // como "Desconocida" aunque la otra ya tenga la zona correcta.
