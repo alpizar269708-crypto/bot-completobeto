@@ -618,7 +618,30 @@ async function enviarAlertaPavosAutomatica(sock, actualizarEnVivo = false, horaA
 
         // Nunca raspar desde el envío: se usa exclusivamente el snapshot ya guardado.
         const pavos = await leerConfigJSON('stw_pavos_scrapeados');
-        const alertas = pavos.filter(item => Number(item.cantidad || item.cantidadVbucks || 0) > 0);
+        // STW Planner puede guardar la misma misión dos veces: una sin zona y otra
+        // con la zona resuelta. Para el aviso diario, agrupar por PL + misión
+        // traducida (que incluye el bioma) e preferir siempre el registro con zona.
+        const mapaPavosUnicos = new Map();
+        const normalizarClavePavos = valor => String(valor || '').toLowerCase()
+            .normalize('NFD').replace(/[\\u0300-\\u036f]/g, '')
+            .replace(/[^a-z0-9]+/g, ' ').trim();
+        for (const item of pavos.filter(x => Number(x.cantidad || x.cantidadVbucks || 0) > 0)) {
+            const clave = [
+                String(item.pl ?? ''),
+                normalizarClavePavos(traducirMisionSalidaSTW(item))
+            ].join('|');
+            const anterior = mapaPavosUnicos.get(clave);
+            if (!anterior) {
+                mapaPavosUnicos.set(clave, item);
+                continue;
+            }
+            const zonaAnterior = String(anterior.zona || '').trim();
+            const zonaActual = String(item.zona || '').trim();
+            const anteriorDesconocida = !zonaAnterior || /^(desconocida|zona desconocida|unknown|n\\/?a)$/i.test(zonaAnterior);
+            const actualDesconocida = !zonaActual || /^(desconocida|zona desconocida|unknown|n\\/?a)$/i.test(zonaActual);
+            if (anteriorDesconocida && !actualDesconocida) mapaPavosUnicos.set(clave, item);
+        }
+        const alertas = Array.from(mapaPavosUnicos.values());
         if (!alertas.length) {
             if (!avisarSinPavos) return false;
             let avisoEnviado = false;
