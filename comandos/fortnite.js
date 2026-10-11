@@ -800,6 +800,36 @@ function iniciarCronAlertasDiarias(sock) {
             }
         }, { scheduled: true, timezone: zonaHoraria });
     }
+    // Reintento liviano cada 30 segundos después de las 18:01:20 hasta que TODOS los grupos reciban la alerta.
+    // Usa la caché ya guardada: no vuelve a raspar la web ni repite mensajes a grupos que ya confirmaron envío.
+    cron.schedule('*/30 * * * * *', async () => {
+        try {
+            const partes = new Intl.DateTimeFormat('en-GB', {
+                timeZone: zonaHoraria,
+                hour: '2-digit',
+                minute: '2-digit',
+                hourCycle: 'h23'
+            }).formatToParts(new Date());
+            const hora = Number(partes.find(p => p.type === 'hour')?.value);
+            const minuto = Number(partes.find(p => p.type === 'minute')?.value);
+            if (hora < 18 || (hora === 18 && minuto < 1)) return;
+            if (raspadoEnCurso || !socketAlertasDiariasActivo) return;
+            const hoy = fechaCDMX();
+            if (await yaSeEnvioAlertaPavosHoy(hoy)) return;
+            const pavos = await leerConfigJSON('stw_pavos_scrapeados');
+            if (!pavos.some(p => Number(p.cantidad || p.cantidadVbucks || 0) > 0)) return;
+            const enviada = await enviarAlertaPavosAutomatica(
+                socketAlertasDiariasActivo,
+                false,
+                'reintento automático',
+                false
+            );
+            if (enviada) console.log('✅ Reintento automático: la alerta diaria quedó enviada a todos los grupos configurados.');
+        } catch (error) {
+            console.error('⚠️ Error en reintento automático de alerta diaria:', error.message);
+        }
+    }, { scheduled: true, timezone: zonaHoraria });
+
     console.log('🕒 STW: borrado de caché 17:59:40; raspado 18:01:20 y reintentos 18:02:00/18:05:00 si faltan PaVos (hora CDMX).');
 }
 
