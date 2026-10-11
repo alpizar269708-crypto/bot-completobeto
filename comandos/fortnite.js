@@ -637,8 +637,8 @@ async function enviarAlertaPavosAutomatica(sock, actualizarEnVivo = false, horaA
             }
             const zonaAnterior = String(anterior.zona || '').trim();
             const zonaActual = String(item.zona || '').trim();
-            const anteriorDesconocida = !zonaAnterior || /^(desconocida|zona desconocida|unknown|n\\/?a)$/i.test(zonaAnterior);
-            const actualDesconocida = !zonaActual || /^(desconocida|zona desconocida|unknown|n\\/?a)$/i.test(zonaActual);
+            const anteriorDesconocida = !zonaAnterior || /^(desconocida|zona desconocida|unknown|n\/?a)$/i.test(zonaAnterior);
+            const actualDesconocida = !zonaActual || /^(desconocida|zona desconocida|unknown|n\/?a)$/i.test(zonaActual);
             if (anteriorDesconocida && !actualDesconocida) mapaPavosUnicos.set(clave, item);
         }
         const alertas = Array.from(mapaPavosUnicos.values());
