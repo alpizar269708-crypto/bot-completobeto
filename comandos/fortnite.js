@@ -623,7 +623,7 @@ async function enviarAlertaPavosAutomatica(sock, actualizarEnVivo = false, horaA
         // traducida (que incluye el bioma) e preferir siempre el registro con zona.
         const mapaPavosUnicos = new Map();
         const normalizarClavePavos = valor => String(valor || '').toLowerCase()
-            .normalize('NFD').replace(/[\\u0300-\\u036f]/g, '')
+            .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
             .replace(/[^a-z0-9]+/g, ' ').trim();
         for (const item of pavos.filter(x => Number(x.cantidad || x.cantidadVbucks || 0) > 0)) {
             const clave = [
