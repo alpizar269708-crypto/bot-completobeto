@@ -160,7 +160,7 @@ function obtenerRecompensasValiosasSTW(item) {
     const recompensas = Array.isArray(item.recompensas) ? item.recompensas : [];
     const rarezasPerkUp = new Set(recompensas.filter(r => r && String(r.tipo || '').toLowerCase() === 'perkup').map(r => String(r.rareza || '').toLowerCase()));
     const tienePerkUpDoble = rarezasPerkUp.has('epic') && rarezasPerkUp.has('legendary');
-    const valiosas = recompensas.filter(r => {
+    let valiosas = recompensas.filter(r => {
         if (!r || !r.tipo) return false;
         const tipo = String(r.tipo || '').toLowerCase();
         const rareza = String(r.rareza || '').toLowerCase();
@@ -169,6 +169,17 @@ function obtenerRecompensasValiosasSTW(item) {
         if (!['hero', 'survivor', 'defender', 'schematic'].includes(tipo)) return false;
         return ['mythic', 'legendary', 'epic', 'rare'].includes(rareza);
     });
+    // La misma misión puede llegar desde dos representaciones del scraper
+    // (por ejemplo 50 y 100 PaVos). Una misión solo debe mostrar una cantidad:
+    // conservamos la mayor para no anunciar la recompensa como si se sumara.
+    const recompensasPavos = valiosas.filter(r => String(r.tipo || '').toLowerCase() === 'vbucks');
+    if (recompensasPavos.length > 1) {
+        const mayor = recompensasPavos.reduce((a, b) =>
+            Number(b.cantidad || b.cantidadVbucks || 0) > Number(a.cantidad || a.cantidadVbucks || 0) ? b : a
+        );
+        valiosas = valiosas.filter(r => String(r.tipo || '').toLowerCase() !== 'vbucks');
+        valiosas.unshift(mayor);
+    }
     const unicas = [];
     const vistos = new Set();
     for (const recompensa of valiosas) {
@@ -495,14 +506,16 @@ async function comandoPreguntarAlerta(sock, chatId, msg, palabrasClave = [], pro
     });
 
     const mapaCoincidencias = new Map();
+    const normalizarClave = valor => normalizarTexto(valor).replace(/\\s+/g, ' ').trim();
+    const zonaEsDesconocida = zona => !String(zona || '').trim() ||
+        /^(desconocida|zona desconocida|unknown|n\\/?a)$/i.test(String(zona || '').trim());
     for (const item of coincidenciasFiltradas) {
-        const normalizarClave = valor => normalizarTexto(valor).replace(/\s+/g, ' ').trim();
-        const traductores = traductoresSTW();
-        const original = String(item.misionOriginal || '').trim();
-        const nombreBase = original && typeof traductores.traducirNombreMisionSTW === 'function'
-            ? traductores.traducirNombreMisionSTW(original)
-            : String(item.mision || '').split(/\s+-\s+/)[0].trim();
-        const claveMision = [normalizarClave(item.zona), Number(item.pl || 0), normalizarClave(nombreBase)].join('|');
+        // La zona no forma parte de la clave: una de las fuentes suele traerla
+        // como "Desconocida" aunque la otra ya tenga la zona correcta.
+        const claveMision = [
+            Number(item.pl || 0),
+            normalizarClave(traducirMisionSalidaSTW(item))
+        ].join('|');
         const anterior = mapaCoincidencias.get(claveMision);
         if (!anterior) {
             mapaCoincidencias.set(claveMision, {
@@ -512,19 +525,31 @@ async function comandoPreguntarAlerta(sock, chatId, msg, palabrasClave = [], pro
             });
             continue;
         }
-        const categorias = [...new Set([...(Array.isArray(anterior.categoria) ? anterior.categoria : [anterior.categoria]), item.categoria])];
-        const recompensas = [...(anterior.recompensas || [])];
-        const claveRecompensa = r => typeof r === 'string' ? r.toLowerCase() : [r.tipo, r.rareza, r.raw || r.nombre].join('|').toLowerCase();
-        const clavesRecompensa = new Set(recompensas.map(claveRecompensa));
-        for (const recompensa of (item.recompensas || [])) {
-            const k = claveRecompensa(recompensa);
-            if (!clavesRecompensa.has(k)) { clavesRecompensa.add(k); recompensas.push(recompensa); }
-        }
-        const modificadores = [...new Set([...(anterior.modificadores || []), ...(item.modificadores || [])])];
+        const categorias = [...new Set([
+            ...(Array.isArray(anterior.categoria) ? anterior.categoria : [anterior.categoria]),
+            item.categoria
+        ])];
+        const anteriorZonaMala = zonaEsDesconocida(anterior.zona);
+        const itemZonaMala = zonaEsDesconocida(item.zona);
+        const anteriorDestacada = (Array.isArray(anterior.categoria) ? anterior.categoria : [anterior.categoria]).includes('Destacadas');
+        const itemDestacada = item.categoria === 'Destacadas';
+        // Preferir el registro con zona real; en empate, el de Destacadas.
+        const conservarItem = (anteriorZonaMala && !itemZonaMala) ||
+            (anteriorZonaMala === itemZonaMala && !anteriorDestacada && itemDestacada);
+        const elegido = conservarItem ? item : anterior;
+        const otro = conservarItem ? anterior : item;
+        const modificadores = [...new Set([
+            ...(elegido.modificadores || []),
+            ...(otro.modificadores || [])
+        ])];
         mapaCoincidencias.set(claveMision, {
-            ...anterior, ...item, categoria: categorias, recompensas, modificadores,
-            recompensa: recompensas.map(r => typeof r === 'string' ? r : r.nombre).filter(Boolean).join(' | ') || item.recompensa || anterior.recompensa,
-            questReqs: anterior.questReqs || item.questReqs, requisitos: anterior.requisitos || item.requisitos
+            ...otro, ...elegido,
+            categoria: categorias,
+            // No concatenar recompensas entre representaciones duplicadas.
+            recompensas: [...(elegido.recompensas || [])],
+            modificadores,
+            questReqs: elegido.questReqs || otro.questReqs,
+            requisitos: elegido.requisitos || otro.requisitos
         });
     }
     const coincidencias = Array.from(mapaCoincidencias.values());
