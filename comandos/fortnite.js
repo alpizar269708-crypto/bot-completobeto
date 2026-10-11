@@ -669,6 +669,8 @@ async function enviarAlertaPavosAutomatica(sock, actualizarEnVivo = false, horaA
 const CLAVE_ESTADO_ALERTA_PAVOS = 'stw_pavos_alerta_diaria_estado';
 let cronAlertasDiariasIniciado = false;
 let raspadoEnCurso = false;
+let socketAlertasDiariasActivo = null;
+let recuperacionAlertaPavosEnCurso = false;
 
 function fechaCDMX() {
     return new Intl.DateTimeFormat('en-CA', {
@@ -700,6 +702,9 @@ async function guardarAlertaPavosEnviada(hoy, horario, firmasPorFuente = {}) {
 }
 
 function iniciarCronAlertasDiarias(sock) {
+    // El cron vive durante toda la vida del proceso, pero Baileys reemplaza el socket
+    // al reconectar. Actualizamos siempre la referencia para no enviar con un socket muerto.
+    if (sock) socketAlertasDiariasActivo = sock;
     if (cronAlertasDiariasIniciado) {
         console.log('ℹ️ El cron diario de STW ya estaba iniciado; no se duplicarán horarios.');
         return;
@@ -751,11 +756,12 @@ function iniciarCronAlertasDiarias(sock) {
                     console.warn('⚠️ ' + horario.etiqueta + ': no hay alertas de PaVos válidas guardadas; se enviará aviso según el horario y se conservarán los reintentos.');
                     if (horario.etiqueta === '6:01:20 PM') {
                         // Solo el primer raspado envía el mensaje de que no hay alertas; los reintentos silencian resultados vacíos.
-                        await enviarAlertaPavosAutomatica(sock, false, horario.etiqueta, true, false);
+                        await enviarAlertaPavosAutomatica(socketAlertasDiariasActivo || sock, false, horario.etiqueta, true, false);
                     }
                     return;
                 }
-                const enviada = await enviarAlertaPavosAutomatica(sock, false, horario.etiqueta, false);
+                const socketEnvio = socketAlertasDiariasActivo || sock;
+                const enviada = await enviarAlertaPavosAutomatica(socketEnvio, false, horario.etiqueta, false);
                 if (enviada) {
                     console.log('✅ Snapshot STW guardado en MongoDB y alerta enviada a las ' + horario.etiqueta + '.');
                 } else {
@@ -769,6 +775,50 @@ function iniciarCronAlertasDiarias(sock) {
         }, { scheduled: true, timezone: zonaHoraria });
     }
     console.log('🕒 STW: borrado de caché 17:59:40; raspado 18:01:20 y reintentos 18:02:00/18:05:00 si faltan PaVos (hora CDMX).');
+}
+
+async function reanudarAlertaPavosPendiente(sock) {
+    if (sock) socketAlertasDiariasActivo = sock;
+    const partes = new Intl.DateTimeFormat('en-GB', {
+        timeZone: 'America/Mexico_City',
+        hour: '2-digit',
+        minute: '2-digit',
+        hourCycle: 'h23'
+    }).formatToParts(new Date());
+    const hora = Number(partes.find(p => p.type === 'hour')?.value);
+    const minuto = Number(partes.find(p => p.type === 'minute')?.value);
+    if (hora < 18 || (hora === 18 && minuto < 1)) return false;
+    if (await yaSeEnvioAlertaPavosHoy(fechaCDMX())) return true;
+    if (recuperacionAlertaPavosEnCurso) return false;
+    if (raspadoEnCurso) {
+        // Si el raspado del horario aún está terminando, volver a revisar tras unos segundos.
+        setTimeout(() => reanudarAlertaPavosPendiente(socketAlertasDiariasActivo || sock).catch(e =>
+            console.error('❌ Error reintentando la recuperación de alertas STW:', e.message)
+        ), 15000);
+        return false;
+    }
+    recuperacionAlertaPavosEnCurso = true;
+    raspadoEnCurso = true;
+    try {
+        console.log('🔁 WhatsApp reconectado después de las 6:01 PM: recuperando la alerta diaria pendiente.');
+        const { extraerAlertasAPI } = require('../webBridge');
+        const resultado = await extraerAlertasAPI();
+        if (!resultado || resultado.ok !== true) {
+            console.warn('⚠️ No se pudo actualizar STW durante la recuperación; se conserva la caché para el próximo intento.');
+            return false;
+        }
+        const socketEnvio = socketAlertasDiariasActivo || sock;
+        const enviada = await enviarAlertaPavosAutomatica(socketEnvio, false, 'recuperación tras reconexión', false);
+        if (enviada) console.log('✅ Alerta diaria pendiente enviada tras reconectar WhatsApp.');
+        else console.warn('⚠️ La recuperación terminó, pero no se confirmó el envío a todos los grupos configurados.');
+        return enviada;
+    } catch (error) {
+        console.error('❌ Error recuperando la alerta diaria tras reconectar:', error.stack || error.message);
+        return false;
+    } finally {
+        raspadoEnCurso = false;
+        recuperacionAlertaPavosEnCurso = false;
+    }
 }
 
 async function activarAlertasDiarias(sock, chatId, msg) {
@@ -828,5 +878,5 @@ async function desactivarAlertasDiarias(sock, chatId, msg) {
 
 module.exports = { 
     obtenerAlertasSTW, alertasSTW, comandoDestacadasSTW, comandoPreguntarAlerta, formatearAlertaSTW, 
-    iniciarCronAlertasDiarias, activarAlertasDiarias, desactivarAlertasDiarias
+    iniciarCronAlertasDiarias, reanudarAlertaPavosPendiente, activarAlertasDiarias, desactivarAlertasDiarias
 };
