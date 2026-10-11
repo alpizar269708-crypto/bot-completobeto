@@ -693,10 +693,24 @@ function fechaCDMX() {
 
 async function yaSeEnvioAlertaPavosHoy(hoy) {
     try {
-        const doc = await Config.findOne({ clave: CLAVE_ESTADO_ALERTA_PAVOS });
-        if (!doc?.valor) return false;
+        const [doc, configChat] = await Promise.all([
+            Config.findOne({ clave: CLAVE_ESTADO_ALERTA_PAVOS }),
+            Config.findOne({ clave: 'chat_alertas_diarias' })
+        ]);
+        if (!doc?.valor || !configChat?.valor) return false;
         const estado = JSON.parse(doc.valor);
-        return estado?.fecha === hoy && estado?.enviada === true;
+        let grupos = [];
+        try {
+            const parsed = JSON.parse(configChat.valor);
+            grupos = Array.isArray(parsed) ? parsed : [configChat.valor];
+        } catch (_) {
+            grupos = [configChat.valor];
+        }
+        grupos = [...new Set(grupos.filter(id => typeof id === 'string' && id.endsWith('@g.us')))];
+        if (!grupos.length || estado?.fecha !== hoy || estado?.enviada !== true) return false;
+        // No aceptar estados antiguos que marcaban todo como enviado con que un solo grupo tuviera éxito.
+        return Array.isArray(estado.gruposEnviados) &&
+            grupos.every(grupo => estado.gruposEnviados.includes(grupo));
     } catch (e) {
         console.error('⚠️ No se pudo leer el estado diario de PaVos:', e.message);
         return false;
