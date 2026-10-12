@@ -831,7 +831,11 @@ function parsearTablaSeeBotSTW(html) {
                 : /(^|\s)uncommon(\s|$)/.test(clases) ? 'uncommon'
                 : /(^|\s)common(\s|$)/.test(clases) ? 'common'
                 : (rarezaEnNombre ? rarezaEnNombre[1].toLowerCase() : null);
-            const rawName = nombreConRareza.replace(/\s*\((Mythic|Legendary|Epic|Rare|Uncommon|Common)\)\s*$/i, '').replace(/[,;]+$/g, '').trim();
+            const cantidadMaterial = extraerCantidadExplicitaSTW(texto);
+            const rawName = nombreConRareza.replace(/\s*\((Mythic|Legendary|Epic|Rare|Uncommon|Common)\)\s*$/i, '')
+                .replace(/(?:^|[\\s(])(?:x|×)\\s*\\d{1,6}\\b/ig, ' ')
+                .replace(/\\b\\d{1,6}\\s*(?:x|×)(?:\\s|$)/ig, ' ')
+                .replace(/[,;]+$/g, '').replace(/\\s+/g, ' ').trim();
             const tipo = /\/heroes\//.test(iconUrl) ? 'hero'
                 : /\/workers\//.test(iconUrl) ? 'survivor'
                 : /\/defenders\//.test(iconUrl) ? 'defender'
@@ -840,7 +844,7 @@ function parsearTablaSeeBotSTW(html) {
             const nombre = tipo === 'other'
                 ? (rareza === 'legendary' ? '🟠 ' : rareza === 'epic' ? '🟣 ' : '') + rawName
                 : normalizarRecompensaSTW(rawName, rareza, tipo);
-            recompensas.push({ nombre, raw: rawName, rareza, tipo, cantidad: null, iconClasses: iconUrl });
+            recompensas.push({ nombre, raw: rawName, rareza, tipo, cantidad: cantidadMaterial, iconClasses: iconUrl });
         });
 
         const esMiniBoss = modificadores.some(x => /mini-jefe épico/i.test(x));
@@ -950,7 +954,10 @@ function parsearJSONSeeBotSTW(html) {
                 reward.name, reward.itemName, reward.displayName
             ].filter(Boolean).join(' ').toLowerCase();
             const vbucks = /v-?bucks|v\s*bucks|currency_mtxswap|mtxswap/.test(identidad);
-            const cantidad = cantidadPavosValidaSTW(reward.quantity ?? reward.count ?? reward.amount ?? null);
+            const cantidadCruda = Number(reward.quantity ?? reward.count ?? reward.amount ?? null);
+            const cantidad = vbucks
+                ? cantidadPavosValidaSTW(cantidadCruda)
+                : (Number.isInteger(cantidadCruda) && cantidadCruda > 0 && cantidadCruda <= 100000 ? cantidadCruda : null);
             const tipo = vbucks ? 'vbucks'
                 : /hero|character/i.test(identidad) ? 'hero'
                 : /survivor|worker/i.test(identidad) ? 'survivor'
