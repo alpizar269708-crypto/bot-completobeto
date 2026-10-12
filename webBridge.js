@@ -1216,14 +1216,13 @@ async function extraerAlertasAPI(progreso = null, opciones = {}) {
     const tiempoDiagnostico = Date.now();
     let progresoGeneralEnviado = false;
     const etapaDiagnostico = async (texto) => {
-        console.log('[' + ((Date.now() - tiempoDiagnostico) / 1000).toFixed(2) + ' s] ' + texto);
+        // Los detalles de cada etapa se mantienen fuera de los logs para evitar ruido.
         if (!progresoGeneralEnviado) {
             progresoGeneralEnviado = true;
             await informarDiagnostico('⏳ Actualizando las alertas. Esto puede tardar unos segundos.');
         }
     };
     try {
-        console.log('\n--- 🌐 RASPADO STW PLANNER ---');
         const urlPrincipal = 'https://stw-planner.com/mission-alerts';
         const urlPavos = 'https://stw-planner.com/mission-alerts/v-buck-missions';
         const urlSeeBot = 'https://seebot.dev/missions.php';
@@ -1236,7 +1235,6 @@ async function extraerAlertasAPI(progreso = null, opciones = {}) {
         const descargarFuente = async (nombre, url) => {
             try {
                 const html = await descargarSTW(url);
-                await etapaDiagnostico(nombre + ': HTML recibido (' + String(html || '').length + ' caracteres).');
                 return html;
             } catch (error) {
                 console.warn('No se pudo cargar ' + nombre + ':', error.message);
@@ -1259,7 +1257,6 @@ async function extraerAlertasAPI(progreso = null, opciones = {}) {
                 json = parsearJSONSeeBotSTW(htmlSeeBot);
                 if (json.length) {
                     misiones = json;
-                    console.log('✅ STW JSON alternativo: misiones extraídas=' + json.length + '.');
                 }
             }
             // Solo HTTP/HTML: no iniciar navegador si SeeBot no entrega filas.
@@ -1323,7 +1320,6 @@ async function extraerAlertasAPI(progreso = null, opciones = {}) {
         );
         const plannerTieneCambioDiario = fuenteTieneCambiosDiarios(todasPlanner, 'principal');
         const segundaTieneCambioDiario = fuenteTieneCambiosDiarios(todasVBucksDaily, 'secundaria');
-        console.log('⚡ STW: las cuatro solicitudes HTTP (dos Planner y una por cada respaldo) terminaron; fuentes analizadas en paralelo.');
         console.log('🔎 STW fuentes recibidas | fuente 1=' + todasPlanner.length +
             ' | fuente 2=' + todasVBucksDaily.length +
             ' | fuente 3=' + todasSeeBot.length +
@@ -1395,13 +1391,11 @@ async function extraerAlertasAPI(progreso = null, opciones = {}) {
         let todas = Array.from(mapaTodas.values());
         // pavosPagina ya se obtuvo junto con la fuente 1.
         const pavosDaily = todasVBucksDaily.filter(m => m.vbucks || m.tipoAlerta === 'vbucks');
-        await etapaDiagnostico('STW ETAPA 2: resultados: Planner=' + todasPlanner.length + ', V-Bucks Daily=' + todasVBucksDaily.length + ', SeeBot=' + todasSeeBot.length + ', combinadas=' + todas.length + ', PaVos URL secundaria=' + pavosPagina.length + ', PaVos Daily=' + pavosDaily.length + '.');
 
         // STW Planner actualmente muestra la misión de PaVos también en la
         // página principal de Mission Alerts. Conservamos ambas fuentes para
         // evitar que un cambio de estructura en /v-buck-missions deje los
         // PaVos en cero.
-        await etapaDiagnostico('STW ETAPA 7/8: iniciando filtros de recompensas, clasificación de rareza, deduplicación y PL altas.');
         let pavosDesdePrincipal = todas
             .filter(m => m.vbucks || m.tipoAlerta === 'vbucks')
             .map(m => ({
@@ -1580,7 +1574,6 @@ async function extraerAlertasAPI(progreso = null, opciones = {}) {
         let plAltas = Array.from(mapaPlAltas.values());
         plAltas.sort((a, b) => b.nivelAlerta - a.nivelAlerta || Number(b.pl) - Number(a.pl) || String(a.zona).localeCompare(String(b.zona)));
 
-        await etapaDiagnostico('STW ETAPA 8/8: escribiendo resultados en MongoDB. Si se detiene aquí, revisar permisos/conexión de base de datos.');
         await Config.findOneAndUpdate({ clave: 'stw_pavos_scrapeados' }, { valor: JSON.stringify(pavosFinal) }, { upsert: true });
         await Config.findOneAndUpdate({ clave: 'stw_epicas_scrapeadas' }, { valor: JSON.stringify(deduplicarSTW(epicas)) }, { upsert: true });
         await Config.findOneAndUpdate({ clave: 'stw_legendarias_scrapeadas' }, { valor: JSON.stringify(deduplicarSTW(legendarias)) }, { upsert: true });
@@ -1600,18 +1593,8 @@ async function extraerAlertasAPI(progreso = null, opciones = {}) {
             legendarias: legendarias.length,
             plAltas: plAltas.length
         }) }, { upsert: true });
-        await etapaDiagnostico('STW ETAPA 4/5: guardado MongoDB completado; PaVos=' + pavosFinal.length + ', épicas=' + epicas.length + ', legendarias=' + legendarias.length + ', PL altas=' + plAltas.length + '.');
 
-        console.log((coberturaCompleta ? '✅' : '⚠️') + ' STW guardado | cobertura=' + (coberturaCompleta ? 'COMPLETA' : 'PARCIAL (se conservó caché anterior de épicas/legendarias)') +
-            ' | total unificado=' + todas.length +
-            ' | Planner=' + todasPlanner.length +
-            ' | V-Bucks Daily=' + todasVBucksDaily.length +
-            ' | SeeBot=' + todasSeeBot.length +
-            ' | PaVos=' + pavosFinal.length +
-            ' | épicas=' + epicas.length +
-            ' | legendarias=' + legendarias.length +
-            ' | destacadas=' + plAltas.length);
-        await etapaDiagnostico('STW FINAL: proceso terminado correctamente en ' + ((Date.now() - tiempoDiagnostico) / 1000).toFixed(2) + ' s.');
+        console.log('✅ STW actualizado: ' + pavosFinal.length + ' alertas de PaVos, ' + epicas.length + ' épicas, ' + legendarias.length + ' legendarias y ' + plAltas.length + ' destacadas (' + ((Date.now() - tiempoDiagnostico) / 1000).toFixed(1) + ' s).');
         return {
             ok: true, total: todas.length, pavos: pavosFinal.length,
             epicas: epicas.length, legendarias: legendarias.length, plAltas: plAltas.length,
@@ -1619,7 +1602,6 @@ async function extraerAlertasAPI(progreso = null, opciones = {}) {
         };
     } catch (e) {
         console.error('❌ Error en la extracción STW Planner:', e.stack || e.message);
-        await etapaDiagnostico('STW FALLÓ: ' + String(e.stack || e.message || e).slice(0, 900));
         return { ok: false, error: e.message || String(e) };
     }
 }
