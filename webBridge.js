@@ -1320,10 +1320,6 @@ async function extraerAlertasAPI(progreso = null, opciones = {}) {
         );
         const plannerTieneCambioDiario = fuenteTieneCambiosDiarios(todasPlanner, 'principal');
         const segundaTieneCambioDiario = fuenteTieneCambiosDiarios(todasVBucksDaily, 'secundaria');
-        console.log('🔎 STW fuentes recibidas | fuente 1=' + todasPlanner.length +
-            ' | fuente 2=' + todasVBucksDaily.length +
-            ' | fuente 3=' + todasSeeBot.length +
-            ' | filas tabla=' + filasSeeBotHTML + ' | JSON=' + todasSeeBotJSON.length + '.');
 
         const mapaTodas = new Map();
         for (const m of [...todasPlanner, ...todasVBucksDaily, ...todasSeeBot]) {
