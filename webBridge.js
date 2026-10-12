@@ -287,8 +287,28 @@ function traducirNombreObjetoSTW(nombre, tipo = 'other') {
 function cantidadPavosValidaSTW(valor) {
     const cantidad = Number(valor);
     // No confundir números de XP, multiplicadores u otros campos con PaVos.
-    // Si la fuente no confirma una cantidad plausible, se descarta la alerta.
     return Number.isInteger(cantidad) && cantidad >= 1 && cantidad <= 100 ? cantidad : null;
+}
+
+// Solo extrae cantidades escritas explícitamente como x50, ×50 o 50x,
+// o en un nodo específico de cantidad. Nunca usa el primer número del nombre.
+function extraerCantidadExplicitaSTW(texto) {
+    const valor = limpiarTextoSTW(texto);
+    const match = valor.match(/(?:^|[\\s(])(?:x|×)\\s*(\\d{1,6})\\b|\\b(\\d{1,6})\\s*(?:x|×)(?:\\s|$)/i);
+    const cantidad = Number(match && (match[1] || match[2]));
+    return Number.isInteger(cantidad) && cantidad > 0 && cantidad <= 100000 ? cantidad : null;
+}
+
+function obtenerCantidadNodoSTW($, rewardEl) {
+    const nodos = $(rewardEl).find('.mission-reward-quantity, .reward-quantity, [class*="quantity"], [class*="amount"], [data-quantity]').toArray();
+    for (const nodo of nodos) {
+        const valor = $(nodo).attr('data-quantity') || $(nodo).attr('title') ||
+            $(nodo).attr('aria-label') || $(nodo).text();
+        const cantidad = extraerCantidadExplicitaSTW(valor) ||
+            (/^\\s*\\d{1,6}\\s*$/.test(String(valor || '')) ? Number(valor) : null);
+        if (Number.isInteger(cantidad) && cantidad > 0 && cantidad <= 100000) return cantidad;
+    }
+    return null;
 }
 
 function normalizarRecompensaSTW(nombre, rareza, tipo) {
@@ -405,10 +425,10 @@ function extraerRecompensasMissionEntrySTW($, missionEntry) {
 
         const tipo = detectarTipoRecompensaSTW(iconClasses, '', rewardName);
         const rareza = detectarRarezaSTW(iconClasses, rewardTypeTexto);
-        const cantidadMatch = rewardName.match(/\b\d{1,3}\b/);
+        const cantidadMatch = rewardName.match(/\b(\d{1,3})\b/);
         const cantidad = tipo === 'vbucks'
-            ? cantidadPavosValidaSTW(cantidadMatch ? Number(cantidadMatch[0]) : null)
-            : (cantidadMatch ? Number(cantidadMatch[0]) : null);
+            ? cantidadPavosValidaSTW(cantidadMatch ? Number(cantidadMatch[1]) : null)
+            : (obtenerCantidadNodoSTW($, rewardEl) || extraerCantidadExplicitaSTW(rewardName));
 
         const nombre = normalizarRecompensaSTW(rewardName, rareza, tipo);
         if (!nombre || (tipo === 'vbucks' && !cantidad)) return;
@@ -1021,8 +1041,10 @@ function parsearVBucksDailySTW(html) {
             if (!textoFuerte) return;
 
             const esPavos = /v-?bucks|v\s*bucks|currency_mtxswap/i.test(clases + ' ' + iconSrc + ' ' + textoFuerte);
-            const cantidadMatch = textoFuerte.match(/(?:[x×]\s*(\d{1,4})\b|\b(\d{1,4})\s*x\b)/i);
-            const cantidadEncontrada = cantidadPavosValidaSTW(cantidadMatch ? Number(cantidadMatch[1] || cantidadMatch[2]) : null);
+            const cantidadMatch = textoFuerte.match(/(?:[x×]\s*(\d{1,6})\b|\b(\d{1,6})\s*x\b)/i);
+            const cantidadEncontrada = esPavos
+                ? cantidadPavosValidaSTW(cantidadMatch ? Number(cantidadMatch[1] || cantidadMatch[2]) : null)
+                : extraerCantidadExplicitaSTW(textoFuerte);
 
             if (esPavos) {
                 const cantidad = cantidadEncontrada;
