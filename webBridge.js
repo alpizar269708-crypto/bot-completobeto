@@ -430,7 +430,11 @@ function extraerRecompensasMissionEntrySTW($, missionEntry) {
             ? cantidadPavosValidaSTW(cantidadMatch ? Number(cantidadMatch[1]) : null)
             : (obtenerCantidadNodoSTW($, rewardEl) || extraerCantidadExplicitaSTW(rewardName));
 
-        const nombre = normalizarRecompensaSTW(rewardName, rareza, tipo);
+        const nombreSinCantidad = tipo === 'vbucks' ? rewardName : rewardName
+            .replace(/(?:^|[\\s(])(?:x|×)\\s*\\d{1,6}\\b/ig, ' ')
+            .replace(/\\b\\d{1,6}\\s*(?:x|×)(?:\\s|$)/ig, ' ')
+            .replace(/\\s+/g, ' ').trim();
+        const nombre = normalizarRecompensaSTW(nombreSinCantidad, rareza, tipo);
         if (!nombre || (tipo === 'vbucks' && !cantidad)) return;
 
         recompensas.push({
