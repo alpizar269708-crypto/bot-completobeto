@@ -368,7 +368,7 @@ async function alertasSTW(sock, chatId, msg, categoria = 'todas', progreso = nul
         datos = await obtenerAlertasSTW(false, informar);
     } catch (error) {
         console.error('Error cargando alertas STW para comando ' + categoria + ':', error.stack || error.message);
-        datos = { pavos: [], epicas: [], legendarias: [], plAltas: [], errorActualizacion: true };
+        datos = { pavos: [], epicas: [], legendarias: [], plAltas: [], materiales: [], errorActualizacion: true };
     }
 
     const fechaHoy = obtenerFechaActual();
@@ -418,6 +418,15 @@ async function alertasSTW(sock, chatId, msg, categoria = 'todas', progreso = nul
             if (lista.length > limite) lineas.push('', '➕ _Hay ' + (lista.length - limite) + ' destacadas más; usa *destacadasstw* para verlas todas._');
         }
         lineas.push('', '📚 _Para ver listas completas por rareza, usa *epicasstw* o *legendariasstw*._', '');
+
+        const materiales = datos.materiales || [];
+        lineas.push('🌧️ *MATERIALES DE EVOLUCIÓN* · ' + materiales.length, '');
+        if (!materiales.length) {
+            lineas.push('_No se detectaron misiones de materiales de evolución en la última consulta._', '');
+        } else {
+            for (const item of materiales.slice(0, 12)) lineas.push(formatearAlertaSTW(item));
+            if (materiales.length > 12) lineas.push('_Hay ' + (materiales.length - 12) + ' misiones más; búscalas con *alertanov* y el nombre del material._', '');
+        }
     }
 
     if (categoria === 'epicas' || categoria === 'legendarias') {
@@ -829,6 +838,7 @@ function iniciarCronAlertasDiarias(sock) {
         'stw_epicas_scrapeadas',
         'stw_legendarias_scrapeadas',
         'stw_plaltas_scrapeadas',
+        'stw_materiales_evolucion_scrapeadas',
         'stw_ultima_actualizacion'
     ];
 
