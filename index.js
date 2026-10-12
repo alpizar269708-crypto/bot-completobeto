@@ -195,21 +195,33 @@ async function inicializarBase() {
     }
     iniciarVerificacionTarifasPaypal();
 
-    // Actualiza el snapshot STW cada vez que Render inicia el proceso.
-    // Se ejecuta en segundo plano para no retrasar la conexión de WhatsApp.
+    // En cada arranque/deploy se eliminan los snapshots anteriores antes de raspar.
+    // Así, si una fuente falla, no se presentan misiones de días anteriores como actuales.
+    // El raspado se ejecuta en segundo plano para no retrasar la conexión de WhatsApp.
     void (async () => {
         try {
+            const { Config } = require('./database/modelos');
+            const clavesSTW = [
+                'stw_pavos_scrapeados',
+                'stw_epicas_scrapeadas',
+                'stw_legendarias_scrapeadas',
+                'stw_plaltas_scrapeadas',
+                'stw_ultima_actualizacion'
+            ];
+            await Config.deleteMany({ clave: { $in: clavesSTW } });
+            console.log('🧹 Caché anterior de alertas STW eliminado; iniciando raspado nuevo.');
+
             const { extraerAlertasAPI } = require('./webBridge');
             const resultado = await extraerAlertasAPI();
             if (resultado && resultado.ok) {
-                console.log('✅ Snapshot STW de arranque guardado en MongoDB | PaVos=' + (resultado.pavos || 0) +
-                    ' | épicas=' + (resultado.epicas || 0) + ' | legendarias=' + (resultado.legendarias || 0) +
-                    ' | destacadas=' + (resultado.plAltas || 0));
+                console.log('✅ Raspado STW listo: PaVos=' + (resultado.pavos || 0) +
+                    ', épicas=' + (resultado.epicas || 0) + ', legendarias=' + (resultado.legendarias || 0) +
+                    ', destacadas=' + (resultado.plAltas || 0) + '.');
             } else {
-                console.warn('⚠️ Raspado STW de arranque sin datos válidos; no se marcará como actualizado.');
+                console.warn('⚠️ Raspado STW sin datos válidos; el caché queda vacío para evitar alertas antiguas.');
             }
         } catch (error) {
-            console.error('❌ Error en el raspado STW de arranque:', error.stack || error.message);
+            console.error('❌ Error en raspado STW de arranque:', error.message || error);
         }
     })();
 
