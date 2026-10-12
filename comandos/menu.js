@@ -4,7 +4,7 @@ const { Config } = require('../database/modelos');
 const categoriasMap = {
     fortnite: ['pavos', 'destacadasstw', 'legendariasstw', 'epicasstw', 'alertasstw', 'stw', 'alerta', 'alertanov', 'setgrupostw', 'unsetgrupostw', 'setprecio'],
     tienda: ['tienda', 'tiendavb'],
-    carry: ['carryleader', 'carryjoin', 'carryleave', 'carryclose', 'blcarry', 'unblcarry', 'listcarrybl'],
+    carry: ['carryleader', 'carryjoin', 'carryleave', 'carryclose', 'buscocarry', 'doycarry', 'x2busco', 'blcarry', 'unblcarry', 'listcarrybl'],
     rifas: ['rifa', 'rifainscripcion', 'cerrarrifa', 'rifajasc13', 'addvarios', 'abrirrifa', 'activarrifaaqui', 'menurifajasc13'],
     cashback: ['addcashback', 'delcashback', 'vercash', 'delvcash', 'canjecash'],
     economia: ['cartera', 'bal', 'banco', 'pay', 'pagar', 'top', 'topdinero', 'daily', 'weekly', 'farmear', 'work', 'crime', 'mendigar', 'pescar', 'minar', 'cazar', 'explorar', 'ruleta', 'cf', 'slots', 'dados', 'adivina', 'buscaminas', 'rob', 'ppt', 'pelea', 'carrera', 'hackear', 'shop', 'buy', 'inventario', 'mochila', 'vender', 'use', 'regalar'],
@@ -93,6 +93,9 @@ async function ejecutarMenu(sock, chatId, msg, args) {
         `*${prefijo}carryjoin* - Únete al escuadrón activo.\n` +
         `*${prefijo}carryleave* - Sal del escuadrón actual.\n` +
         `*${prefijo}carryclose* - Cierra tu escuadrón.\n` +
+        `*${prefijo}buscocarry on [1-3] [motivo]* - Busca carry y menciona a todos de forma oculta.\n` +
+        `*${prefijo}doycarry* - Se une para ofrecer el carry.\n` +
+        `*${prefijo}x2busco* - Se une como otro jugador que también busca carry.\n` +
         `*${prefijo}blcarry [@user / número / cita]* - Bloquea a alguien del carry (Admins).\n` +
         `*${prefijo}unblcarry [@user / número / cita]* - Quita a alguien de la lista negra (Admins).\n` +
         `*${prefijo}listcarrybl* - Muestra la lista negra de carry (Admins).\n`;
@@ -145,7 +148,10 @@ async function ejecutarMenu(sock, chatId, msg, args) {
                  `*${prefijo}carryleader [espacios] [motivo]* - Abre un nuevo escuadrón (Notifica a todos).\n` +
                  `*${prefijo}carryjoin* - Únete al escuadrón activo (Notifica a todos).\n` +
                  `*${prefijo}carryleave* - Sal del escuadrón en el que estás.\n` +
-                 `*${prefijo}carryclose* - Cierra el escuadrón (Solo el líder).\n`,
+                 `*${prefijo}carryclose* - Cierra el escuadrón (Solo el líder).\n` +
+                 `*${prefijo}buscocarry on [1-3] [motivo]* - Busca carry y notifica a todos con mención oculta.\n` +
+                 `*${prefijo}doycarry* - Entra a ofrecer el carry.\n` +
+                 `*${prefijo}x2busco* - Entra como otro jugador que busca carry.\n`,
 
         'rifas': `🎟️ *MENÚ RIFAS* 🎟️\n\n` +
                  `*${prefijo}rifainscripcion* - Únete a la rifa activa (1 vez por persona).\n\n` +
