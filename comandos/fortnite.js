@@ -883,6 +883,7 @@ function iniciarCronAlertasDiarias(sock) {
         'stw_legendarias_scrapeadas',
         'stw_plaltas_scrapeadas',
         'stw_materiales_evolucion_scrapeadas',
+        'stw_todas_alertas_scrapeadas',
         'stw_ultima_actualizacion'
     ];
 
@@ -893,6 +894,32 @@ function iniciarCronAlertasDiarias(sock) {
             console.log('🧹 5:59:40 PM: caché de alertas STW limpiada en MongoDB.');
         } catch (error) {
             console.error('❌ No se pudo limpiar la caché STW:', error.message);
+        }
+    }, { scheduled: true, timezone: zonaHoraria });
+
+    // Raspado de respaldo de todas las recompensas después de las alertas de PaVos.
+    // Se ejecuta una vez al día y comparte el bloqueo para no duplicar peticiones.
+    cron.schedule('0 10 18 * * *', async () => {
+        if (raspadoEnCurso) {
+            console.log('⏭️ 6:10 PM: se omite el raspado completo STW porque ya hay otro raspado en curso.');
+            return;
+        }
+        raspadoEnCurso = true;
+        try {
+            console.log('🌐 6:10 PM: reconstruyendo la caché completa de alertas y recompensas STW.');
+            const { extraerAlertasAPI } = require('../webBridge');
+            const resultado = await extraerAlertasAPI();
+            if (resultado && resultado.ok === true) {
+                const todas = await leerConfigJSON('stw_todas_alertas_scrapeadas');
+                const materiales = await leerConfigJSON('stw_materiales_evolucion_scrapeadas');
+                console.log('✅ 6:10 PM: caché STW reconstruida. Fuentes completas=' + todas.length + ', alertas con materiales=' + materiales.length + '.');
+            } else {
+                console.warn('⚠️ 6:10 PM: el raspado completo STW no confirmó éxito; se revisarán los logs de las fuentes.');
+            }
+        } catch (error) {
+            console.error('❌ Error en el raspado completo STW de las 6:10 PM:', error.stack || error.message);
+        } finally {
+            raspadoEnCurso = false;
         }
     }, { scheduled: true, timezone: zonaHoraria });
 
