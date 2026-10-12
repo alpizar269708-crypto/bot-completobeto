@@ -576,7 +576,7 @@ async function comandoPreguntarAlerta(sock, chatId, msg, palabrasClave = [], pro
 
     // Una cantidad solo es confiable si coincide exactamente en dos fuentes independientes.
     const canonMaterial = valor => {
-        const s = normalizarTexto(valor).replace(/[^a-z0-9]+/g, ' ').replace(/\\s+/g, ' ').trim();
+        const s = normalizarTexto(valor).replace(/[^a-z0-9]+/g, ' ').replace(/\s+/g, ' ').trim();
         if (/pure drop of rain|drop of rain|gotas? pura? de lluvia/.test(s)) return 'Gota pura de lluvia';
         if (/lightning in a bottle|relampago en una botella/.test(s)) return 'Relámpago en una botella';
         if (/eye of the storm|ojo de la tormenta/.test(s)) return 'Ojo de la tormenta';
@@ -590,7 +590,7 @@ async function comandoPreguntarAlerta(sock, chatId, msg, palabrasClave = [], pro
     const normalizarMisionCantidad = item => [
         normalizarTexto(item.zona || '').replace(/[^a-z0-9]+/g, ' ').trim(),
         String(item.pl ?? ''),
-        normalizarTexto(item.misionOriginal || item.mision || '').split(/\\s+-\\s+/)[0].replace(/[^a-z0-9]+/g, ' ').trim(),
+        normalizarTexto(item.misionOriginal || item.mision || '').split(/\s+-\s+/)[0].replace(/[^a-z0-9]+/g, ' ').trim(),
         normalizarTexto(item.ubicacion || '').replace(/[^a-z0-9]+/g, ' ').trim()
     ].join('|');
     const observacionesCantidad = new Map();
