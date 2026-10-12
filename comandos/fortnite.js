@@ -353,7 +353,7 @@ function deduplicarAlertasPavos(lista) {
     return Array.from(mapa.values());
 }
 
-async function alertasSTWasync function alertasSTW(sock, chatId, msg, categoria = 'todas', progreso = null) {
+async function alertasSTW(sock, chatId, msg, categoria = 'todas', progreso = null) {
     let progresoEnviado = false;
     const informar = async () => {
         if (typeof progreso !== 'function' || progresoEnviado) return;
