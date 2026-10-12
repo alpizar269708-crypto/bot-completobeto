@@ -104,13 +104,20 @@ async function comandoCarry(sock, chatId, msg, comando, args = []) {
     }
 
     // Sistema paralelo para buscar carry: doycarry ofrece el carry y x2busco se suma como otro jugador.
-    if (['buscocarry', 'doycarry', 'x2busco'].includes(comando)) {
+    if (['buscocarry', 'buscooff', 'doycarry', 'x2busco'].includes(comando)) {
         if (!chatId.endsWith('@g.us')) return await sock.sendMessage(chatId, { text: '❌ Este comando solo funciona en grupos.' }, { quoted: msg });
         let busqueda = buscoCarryActivos.get(chatId);
+        if (comando === 'buscooff') {
+            if (!busqueda) return await sock.sendMessage(chatId, { text: '❌ No hay una búsqueda de carry activa para cerrar.' }, { quoted: msg });
+            if (busqueda.solicitanteId !== sender && !(await esAdminValido(sock, chatId, msg))) {
+                return await sock.sendMessage(chatId, { text: '❌ Solo quien abrió el buscocarry o un administrador puede cerrarlo.' }, { quoted: msg });
+            }
+            buscoCarryActivos.delete(chatId);
+            return await sock.sendMessage(chatId, { text: '🔒 *BUSCO CARRY CERRADO*\\nLa búsqueda se cerró y ya nadie puede unirse.' }, { quoted: msg });
+        }
         if (comando === 'buscocarry') {
             if (busqueda) return await sock.sendMessage(chatId, { text: '❌ Ya hay una búsqueda de carry activa. Únete con *doycarry* o *x2busco*.' }, { quoted: msg });
-            if (args[0]?.toLowerCase() === 'on') args = args.slice(1);
-            if (args.length < 1 || !/^[1-3]$/.test(String(args[0]).trim())) return await sock.sendMessage(chatId, { text: '❌ *Formato:* buscocarry on [1-3] [motivo]\n\nIndica cuántos jugadores faltan (de 1 a 3). El aviso menciona a todos de forma oculta.' }, { quoted: msg });
+            if (args.length < 1 || !/^[1-3]$/.test(String(args[0]).trim())) return await sock.sendMessage(chatId, { text: '❌ *Formato:* buscocarry [1-3] [motivo]\n\nIndica cuántos jugadores faltan (de 1 a 3). El aviso menciona a todos de forma oculta.' }, { quoted: msg });
             const espacios = Number(args[0]);
             const motivo = args.slice(1).join(' ').trim() || 'Carry por coordinar';
             busqueda = { solicitanteId: sender, solicitanteNombre: pushName, motivo, maxEspacios: espacios, miembros: [] };
@@ -118,7 +125,7 @@ async function comandoCarry(sock, chatId, msg, comando, args = []) {
             await sock.sendMessage(chatId, { text: `🔎 *BUSCO CARRY*\n🙋 *${pushName}* está buscando carry.\n🎯 *Objetivo:* ${motivo}\n\nFaltan *${espacios}* espacios.\n🛟 Para ofrecer el carry: *doycarry*\n🎮 Para unirse como otro jugador que busca carry: *x2busco*`, mentions: participantesGrupo }, { quoted: msg });
             return;
         }
-        if (!busqueda) return await sock.sendMessage(chatId, { text: '❌ No hay una búsqueda activa. Usa *buscocarry on [1-3] [motivo]* primero.' }, { quoted: msg });
+        if (!busqueda) return await sock.sendMessage(chatId, { text: '❌ No hay una búsqueda activa. Usa *buscocarry [1-3] [motivo]* primero.' }, { quoted: msg });
         if (busqueda.solicitanteId === sender) return await sock.sendMessage(chatId, { text: '❌ Tú abriste la búsqueda; no puedes unirte a ella.' }, { quoted: msg });
         if (busqueda.miembros.some(m => m.id === sender)) return await sock.sendMessage(chatId, { text: '❌ Ya estás dentro de esta búsqueda de carry.' }, { quoted: msg });
         if (busqueda.miembros.length >= busqueda.maxEspacios) return await sock.sendMessage(chatId, { text: '❌ El escuadrón ya está completo.' }, { quoted: msg });
