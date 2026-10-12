@@ -291,14 +291,16 @@ function traducirRequisitosSalidaSTW(valor) {
     return texto;
 }
 
-function formatearAlertaSTW(item, encabezado = '', mostrarDetalles = false) {
+function formatearAlertaSTW(item, encabezado = '', mostrarDetalles = false, mostrarTodasRecompensas = false) {
     let texto = '';
     if (encabezado) texto += encabezado + '\n';
     texto += '⚡ *PL:* ' + (item.pl ?? '?') + '\n';
     if (item.zona) texto += '🌍 *Zona:* ' + traducirZonaSalidaSTW(item.zona) + '\n';
     const mision = traducirMisionSalidaSTW(item);
     if (mision) texto += '🎯 *Misión:* ' + mision + '\n';
-    const recompensas = obtenerRecompensasValiosasSTW(item);
+    const recompensas = mostrarTodasRecompensas
+        ? [...new Set((Array.isArray(item.recompensas) ? item.recompensas : []).map(r => typeof r === 'string' ? r : normalizarRecompensaSalidaSTW(r)).filter(Boolean))]
+        : obtenerRecompensasValiosasSTW(item);
     if (recompensas.length) {
         texto += '🎁 *Recompensa:* ' + recompensas.join(' | ') + '\n';
     } else if (Number(item.cantidad || item.cantidadVbucks) > 0 && /pavos|v-?bucks/i.test(String(item.recompensa || item.tipo || item.tipoAlertaTexto || ''))) {
@@ -494,14 +496,14 @@ async function comandoDestacadasSTW(sock, chatId, msg, progreso = null) {
     await sock.sendMessage(chatId, { text: texto }, { quoted: msg });
 }
 
-async function comandoPreguntarAlerta(sock, chatId, msg, palabrasClave = [], progreso = null, mostrarDetalles = false) {
+async function comandoPreguntarAlerta(sock, chatId, msg, palabrasClave = [], progreso = null, mostrarDetalles = false, modoRecompensa = false) {
     let progresoEnviado = false;
     const informar = async () => {
         if (typeof progreso !== 'function' || progresoEnviado) return;
         progresoEnviado = true;
         try { await progreso('⏳ Buscando alertas.'); } catch (_) {}
     };
-    const nombreComando = mostrarDetalles ? 'alertanov' : 'alerta';
+    const nombreComando = modoRecompensa ? (mostrarDetalles ? 'recompensanov' : 'recompensa') : (mostrarDetalles ? 'alertanov' : 'alerta');
     const termino = Array.isArray(palabrasClave)
         ? palabrasClave.join(' ').trim()
         : String(palabrasClave || '').trim();
@@ -523,6 +525,32 @@ async function comandoPreguntarAlerta(sock, chatId, msg, palabrasClave = [], pro
         .toLowerCase()
         .normalize('NFD')
         .replace(/[\u0300-\u036f]/g, '');
+
+    const normalizarBusquedaRecompensa = valor => normalizarTexto(valor)
+        .replace(/[^a-z0-9]+/g, ' ').replace(/\s+/g, ' ').trim()
+        .replace(/\bgotas\b/g, 'gota')
+        .replace(/\bpuras?\b/g, ' ')
+        .replace(/\bde\b/g, ' ')
+        .replace(/\s+/g, ' ').trim();
+    const distanciaEdicion = (a, b) => {
+        if (a === b) return 0;
+        if (Math.abs(a.length - b.length) > 1) return 2;
+        let prev = Array.from({ length: b.length + 1 }, (_, i) => i);
+        for (let i = 1; i <= a.length; i++) {
+            const curr = [i];
+            for (let j = 1; j <= b.length; j++) curr[j] = Math.min(curr[j - 1] + 1, prev[j] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+            prev = curr;
+        }
+        return prev[b.length];
+    };
+    const coincideRecompensaTolerante = (consulta, textoRecompensas) => {
+        const q = normalizarBusquedaRecompensa(consulta).split(' ').filter(p => p.length > 1);
+        const tokens = normalizarBusquedaRecompensa(textoRecompensas).split(' ').filter(p => p.length > 1);
+        if (!q.length || !tokens.length) return false;
+        const aciertos = q.filter(p => tokens.some(t => t.includes(p) || p.includes(t) || (Math.min(p.length, t.length) >= 4 && distanciaEdicion(p, t) <= 1))).length;
+        const requeridos = q.length <= 2 ? q.length : Math.max(2, Math.ceil(q.length * 0.65));
+        return aciertos >= requeridos;
+    };
 
     const partesBusqueda = termino.split(/\s+/).filter(Boolean);
     const terminoPL = partesBusqueda.join('').toLowerCase();
@@ -558,9 +586,14 @@ async function comandoPreguntarAlerta(sock, chatId, msg, palabrasClave = [], pro
             const plItem = Number(String(item.pl || '').replace(/[^0-9]/g, ''));
             return plItem >= Math.min(plMinimo, plMaximo) && plItem <= Math.max(plMinimo, plMaximo);
         }
+        const listaRecompensas = Array.isArray(item.recompensas) ? item.recompensas : [];
+        if (modoRecompensa) {
+            const textoRecompensas = [item.recompensa, ...listaRecompensas.map(r => typeof r === 'string' ? r : [r.nombre, r.raw, r.tipo, r.iconClasses].filter(Boolean).join(' '))].filter(Boolean).join(' ');
+            return coincideRecompensaTolerante(termino, textoRecompensas);
+        }
         const textoBusqueda = normalizarTexto([
             item.mision, item.misionOriginal, item.zona, item.nombre, item.recompensa,
-            ...(Array.isArray(item.recompensas) ? item.recompensas.map(r => typeof r === 'string' ? r : [r.nombre, r.raw, r.tipo, r.iconClasses].filter(Boolean).join(' ')) : []),
+            ...listaRecompensas.map(r => typeof r === 'string' ? r : [r.nombre, r.raw, r.tipo, r.iconClasses].filter(Boolean).join(' ')),
             item.cantidad, item.cantidadVbucks, item.tipoAlertaTexto
         ].filter(Boolean).join(' '));
         return textoBusqueda.includes(clave);
@@ -648,7 +681,7 @@ async function comandoPreguntarAlerta(sock, chatId, msg, palabrasClave = [], pro
         coincidencias.forEach(item => {
             const categorias = Array.isArray(item.categoria) ? item.categoria : [item.categoria];
             texto += '📌 *' + [...new Set(categorias)].join(' / ') + '*\n';
-            texto += formatearAlertaSTW(item, '', mostrarDetalles);
+            texto += formatearAlertaSTW(item, '', mostrarDetalles, modoRecompensa);
         });
     }
 
