@@ -321,54 +321,39 @@ function formatearResumenAlertaSTW(item) {
 // Si coinciden zona y PL y el nombre normalizado es equivalente, conservamos
 // la descripción más completa para que la recompensa solo cuente una vez.
 function deduplicarAlertasPavos(lista) {
-    const resultado = [];
-    const normalizar = (valor) => String(valor || '')
-        .split(/\s+-\s+/)[0] // El bioma se compara por separado; no debe impedir detectar duplicados.
+    const normalizarTexto = valor => String(valor || '')
+        .split(/\s+-\s+/)[0]
         .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
         .toLowerCase()
         .replace(/\b(?:category|categoria)\s*\d+\b/g, ' ')
-        .replace(/\b(?:a|an|the|la|el|las|los|una|uno|un|de|del)\b/g, ' ')
         .replace(/[^a-z0-9]+/g, ' ')
-        .trim().split(/\s+/).filter(Boolean);
-    const normalizarZona = (item) => normalizarTextoZona(
-        traducirZonaSalidaSTW(item.zona || 'Desconocida')
-    );
-    const normalizarTextoZona = (valor) => String(valor || '')
-        .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-        .toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
-    const tokensMision = (item) => new Set(normalizar(traducirMisionSalidaSTW(item)));
-    const similitud = (a, b) => {
-        if (!a.size || !b.size) return 0;
-        let comunes = 0;
-        for (const token of a) if (b.has(token)) comunes++;
-        return comunes / Math.min(a.size, b.size);
+        .replace(/\b(?:a|an|the|la|el|las|los|una|uno|un|de|del)\b/g, ' ')
+        .replace(/\s+/g, ' ').trim();
+    const normalizarMision = item => {
+        const nombre = normalizarTexto(item.misionOriginal || item.mision || traducirMisionSalidaSTW(item));
+        if (/\blucha\b/.test(nombre) && /\btormenta\b/.test(nombre)) return 'lucha contra tormenta';
+        if (/\bfight\b/.test(nombre) && /\bstorm\b/.test(nombre)) return 'fight storm';
+        return nombre;
     };
-    const puntuacion = (item) => {
-        const original = String(item.misionOriginal || item.mision || '');
-        return traducirMisionSalidaSTW(item).length * 2 + original.length;
-    };
+    const normalizarZona = item => normalizarTexto(traducirZonaSalidaSTW(item.zona || 'Desconocida'));
+    const mapa = new Map();
     for (const item of (Array.isArray(lista) ? lista : [])) {
-        const zona = normalizarZona(item);
-        const pl = String(item.pl ?? '').trim();
-        const tokens = tokensMision(item);
-        const nombreNormalizado = [...tokens].sort().join(' ');
-        const duplicado = resultado.findIndex(prev => {
-            if (normalizarZona(prev) !== zona || String(prev.pl ?? '').trim() !== pl) return false;
-            const tokensPrevios = tokensMision(prev);
-            const nombrePrevio = [...tokensPrevios].sort().join(' ');
-            // Caso conocido: Planner publica "Lucha contra una tormenta de categoría N"
-            // y otra fuente la llama "Lucha contra la tormenta". Son la misma misión.
-            const ambasLuchaTormenta = tokens.has('lucha') && tokens.has('tormenta') &&
-                tokensPrevios.has('lucha') && tokensPrevios.has('tormenta');
-            return nombreNormalizado === nombrePrevio || ambasLuchaTormenta || similitud(tokensPrevios, tokens) >= 0.8;
-        });
-        if (duplicado < 0) resultado.push(item);
-        else if (puntuacion(item) > puntuacion(resultado[duplicado])) resultado[duplicado] = item;
+        const clave = [normalizarZona(item), String(item.pl ?? '').trim(), normalizarMision(item)].join('|');
+        const anterior = mapa.get(clave);
+        if (!anterior) {
+            mapa.set(clave, item);
+            continue;
+        }
+        const cantidadActual = Number(item.cantidad || item.cantidadVbucks || 0);
+        const cantidadAnterior = Number(anterior.cantidad || anterior.cantidadVbucks || 0);
+        const calidad = x => String(x.misionOriginal || x.mision || '').length;
+        if (cantidadActual > cantidadAnterior ||
+            (cantidadActual === cantidadAnterior && calidad(item) > calidad(anterior))) mapa.set(clave, item);
     }
-    return resultado;
+    return Array.from(mapa.values());
 }
 
-async function alertasSTW(sock, chatId, msg, categoria = 'todas', progreso = null) {
+async function alertasSTWasync function alertasSTW(sock, chatId, msg, categoria = 'todas', progreso = null) {
     let progresoEnviado = false;
     const informar = async () => {
         if (typeof progreso !== 'function' || progresoEnviado) return;
