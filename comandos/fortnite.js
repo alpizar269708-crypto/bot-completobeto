@@ -317,6 +317,46 @@ function formatearResumenAlertaSTW(item) {
 }
 
 
+// El scraper puede devolver la misma misión con nombres ligeramente distintos.
+// Si coinciden zona y PL y el nombre normalizado es equivalente, conservamos
+// la descripción más completa para que la recompensa solo cuente una vez.
+function deduplicarAlertasPavos(lista) {
+    const resultado = [];
+    const normalizar = (valor) => String(valor || '')
+        .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase()
+        .replace(/\b(?:category|categoria)\s*\d+\b/g, '')
+        .replace(/\b(?:a|an|the|la|el|las|los|una|uno|un)\b/g, ' ')
+        .replace(/[^a-z0-9]+/g, ' ')
+        .trim().split(/\s+/).filter(Boolean);
+    const similitud = (a, b) => {
+        const aa = new Set(normalizar(a));
+        const bb = new Set(normalizar(b));
+        if (!aa.size || !bb.size) return 0;
+        let comunes = 0;
+        for (const token of aa) if (bb.has(token)) comunes++;
+        return comunes / Math.min(aa.size, bb.size);
+    };
+    const puntuacion = (item) => {
+        const original = String(item.misionOriginal || item.mision || '');
+        const visible = traducirMisionSalidaSTW(item);
+        return visible.length * 2 + original.length;
+    };
+    for (const item of (Array.isArray(lista) ? lista : [])) {
+        const zona = String(item.zona || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+        const pl = String(item.pl ?? '').trim();
+        const mision = traducirMisionSalidaSTW(item);
+        const duplicado = resultado.findIndex(prev => {
+            const zonaPrev = String(prev.zona || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+            if (zonaPrev !== zona || String(prev.pl ?? '').trim() !== pl) return false;
+            return similitud(traducirMisionSalidaSTW(prev), mision) >= 0.8;
+        });
+        if (duplicado < 0) resultado.push(item);
+        else if (puntuacion(item) > puntuacion(resultado[duplicado])) resultado[duplicado] = item;
+    }
+    return resultado;
+}
+
 async function alertasSTW(sock, chatId, msg, categoria = 'todas', progreso = null) {
     let progresoEnviado = false;
     const informar = async () => {
@@ -342,7 +382,8 @@ async function alertasSTW(sock, chatId, msg, categoria = 'todas', progreso = nul
                 : '😔 _No hay alertas de PaVos registradas en este momento._', '', '');
         } else {
             let totalPavos = 0;
-            for (const p of datos.pavos) {
+            const pavosUnicos = deduplicarAlertasPavos(datos.pavos);
+            for (const p of pavosUnicos) {
                 const cantidad = Number(p.cantidad || p.cantidadVbucks || 50);
                 totalPavos += cantidad;
                 lineas.push(
