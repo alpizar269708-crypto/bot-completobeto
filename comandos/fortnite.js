@@ -536,12 +536,18 @@ async function comandoPreguntarAlerta(sock, chatId, msg, palabrasClave = [], pro
         : null;
     const clave = normalizarTexto(termino);
 
+    // Buscar también en las tres fuentes originales: los materiales pueden venir
+    // dentro de recompensas normales y no aparecer en las listas filtradas/caché.
+    const fuentesOriginales = datos.fuentes || {};
     const coincidenciasFiltradas = [
         ...datos.pavos.map(item => ({ ...item, categoria: 'PaVos' })),
         ...datos.epicas.map(item => ({ ...item, categoria: 'Épicas' })),
         ...datos.legendarias.map(item => ({ ...item, categoria: 'Legendarias' })),
         ...(datos.plAltas || []).map(item => ({ ...item, categoria: 'Destacadas' })),
-        ...(datos.materiales || []).map(item => ({ ...item, categoria: 'Materiales de evolución' }))
+        ...(datos.materiales || []).map(item => ({ ...item, categoria: 'Materiales de evolución' })),
+        ...(Array.isArray(fuentesOriginales.principal) ? fuentesOriginales.principal : []).map(item => ({ ...item, categoria: 'Alertas' })),
+        ...(Array.isArray(fuentesOriginales.secundaria) ? fuentesOriginales.secundaria : []).map(item => ({ ...item, categoria: 'Alertas' })),
+        ...(Array.isArray(fuentesOriginales.tercera) ? fuentesOriginales.tercera : []).map(item => ({ ...item, categoria: 'Alertas' }))
     ].filter(item => {
         if (esBusquedaPL) {
             const plItem = Number(String(item.pl || '').replace(/[^0-9]/g, ''));
@@ -549,7 +555,7 @@ async function comandoPreguntarAlerta(sock, chatId, msg, palabrasClave = [], pro
         }
         const textoBusqueda = normalizarTexto([
             item.mision, item.misionOriginal, item.zona, item.nombre, item.recompensa,
-            ...(Array.isArray(item.recompensas) ? item.recompensas.map(r => typeof r === 'string' ? r : (r.nombre || r.raw || '')) : []),
+            ...(Array.isArray(item.recompensas) ? item.recompensas.map(r => typeof r === 'string' ? r : [r.nombre, r.raw, r.tipo, r.iconClasses].filter(Boolean).join(' ')) : []),
             item.cantidad, item.cantidadVbucks, item.tipoAlertaTexto
         ].filter(Boolean).join(' '));
         return textoBusqueda.includes(clave);
