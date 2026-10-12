@@ -111,23 +111,26 @@ async function obtenerAlertasSTW(actualizarEnVivo = false, progreso = null, opci
             epicas: [],
             legendarias: [],
             plAltas: [],
+            materiales: [],
             errorActualizacion: true,
             fuentes: fuentes || { principal: [], secundaria: [], tercera: [] }
         };
     }
 
-    const [scrapePavos, scrapeEpicas, scrapeLegendarias, scrapePlAltas] = await Promise.all([
+    const [scrapePavos, scrapeEpicas, scrapeLegendarias, scrapePlAltas, scrapeMateriales] = await Promise.all([
         leerConfigJSON('stw_pavos_scrapeados'),
         leerConfigJSON('stw_epicas_scrapeadas'),
         leerConfigJSON('stw_legendarias_scrapeadas'),
-        leerConfigJSON('stw_plaltas_scrapeadas')
+        leerConfigJSON('stw_plaltas_scrapeadas'),
+        leerConfigJSON('stw_materiales_evolucion_scrapeadas')
     ]);
-    const hayCache = scrapePavos.length + scrapeEpicas.length + scrapeLegendarias.length + scrapePlAltas.length > 0;
+    const hayCache = scrapePavos.length + scrapeEpicas.length + scrapeLegendarias.length + scrapePlAltas.length + scrapeMateriales.length > 0;
     return {
         pavos: scrapePavos,
         epicas: scrapeEpicas,
         legendarias: scrapeLegendarias,
         plAltas: deduplicarPlAltasVbucks(scrapePlAltas),
+        materiales: scrapeMateriales,
         errorActualizacion: actualizarEnVivo && !raspadoCorrecto && !hayCache,
         fuentes
     };
@@ -497,7 +500,7 @@ async function comandoPreguntarAlerta(sock, chatId, msg, palabrasClave = [], pro
     await informar('🔎 Iniciando búsqueda de alertas.');
     const datos = await obtenerAlertasSTW(false, informar, mostrarDetalles ? { exhaustivo: true } : {});
     await informar('🔎 Datos de alertas cargados; buscando coincidencias.');
-    const hayDatosDisponibles = datos.pavos.length + datos.epicas.length + datos.legendarias.length + (datos.plAltas || []).length > 0;
+    const hayDatosDisponibles = datos.pavos.length + datos.epicas.length + datos.legendarias.length + (datos.plAltas || []).length + (datos.materiales || []).length > 0;
     if (datos.errorActualizacion && !hayDatosDisponibles) {
         await sock.sendMessage(chatId, { text: '⚠️ No pude actualizar las alertas y no hay datos guardados para buscar. Inténtalo de nuevo en un momento.' }, { quoted: msg });
         return;
@@ -528,7 +531,8 @@ async function comandoPreguntarAlerta(sock, chatId, msg, palabrasClave = [], pro
         ...datos.pavos.map(item => ({ ...item, categoria: 'PaVos' })),
         ...datos.epicas.map(item => ({ ...item, categoria: 'Épicas' })),
         ...datos.legendarias.map(item => ({ ...item, categoria: 'Legendarias' })),
-        ...(datos.plAltas || []).map(item => ({ ...item, categoria: 'Destacadas' }))
+        ...(datos.plAltas || []).map(item => ({ ...item, categoria: 'Destacadas' })),
+        ...(datos.materiales || []).map(item => ({ ...item, categoria: 'Materiales de evolución' }))
     ].filter(item => {
         if (esBusquedaPL) {
             const plItem = Number(String(item.pl || '').replace(/[^0-9]/g, ''));
