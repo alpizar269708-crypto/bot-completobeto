@@ -630,7 +630,7 @@ function extraerMisionEntrySTW($, missionEntry, zona, tipoAlerta) {
 function seleccionarAlertasSTWMateriales(misiones) {
     // Materiales de evolución: no dependen de que la misión también dé PaVos
     // ni de que la recompensa sea un héroe/esquema épico o legendario.
-    const patronMaterial = /pure\\s*drop\\s*of\\s*rain|drop\\s*of\\s*rain|lightning\\s*in\\s*a\\s*bottle|eye\\s*of\\s*the\\s*storm|storm\\s*shard|hero\\s*xp|survivor\\s*xp|schematic\\s*xp|defender\\s*xp|gotas?\\s+de\\s+lluvia(?:\\s+pura)?|rel[aá]mpago\\s+en\\s+(?:una\\s+)?botella|ojo\\s+de\\s+la\\s+tormenta|fragmento\\s+de\\s+tormenta|experiencia\\s+de\\s+(?:h[eé]roe|superviviente|esquema|defensor)/i;
+    const patronMaterial = /pure\s*drop\s*of\s*rain|drop\s*of\s*rain|lightning\s*in\s*a\s*bottle|eye\s*of\s*the\s*storm|storm\s*shard|hero\s*xp|survivor\s*xp|schematic\s*xp|defender\s*xp|gotas?\s+de\s+lluvia(?:\s+pura)?|rel[aá]mpago\s+en\s+(?:una\s+)?botella|ojo\s+de\s+la\s+tormenta|fragmento\s+de\s+tormenta|experiencia\s+de\s+(?:h[eé]roe|superviviente|esquema|defensor)/i;
     const resultado = [];
     for (const mision of Array.isArray(misiones) ? misiones : []) {
         const recompensas = Array.isArray(mision.recompensas) ? mision.recompensas : [];
