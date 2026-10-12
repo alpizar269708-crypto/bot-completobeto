@@ -294,7 +294,7 @@ function cantidadPavosValidaSTW(valor) {
 // o en un nodo específico de cantidad. Nunca usa el primer número del nombre.
 function extraerCantidadExplicitaSTW(texto) {
     const valor = limpiarTextoSTW(texto);
-    const match = valor.match(/(?:^|[\\s(])(?:x|×)\\s*(\\d{1,6})\\b|\\b(\\d{1,6})\\s*(?:x|×)(?:\\s|$)/i);
+    const match = valor.match(/(?:^|[\s(])(?:x|×)\s*(\d{1,6})\b|\b(\d{1,6})\s*(?:x|×)(?:\s|$)/i);
     const cantidad = Number(match && (match[1] || match[2]));
     return Number.isInteger(cantidad) && cantidad > 0 && cantidad <= 100000 ? cantidad : null;
 }
@@ -305,7 +305,7 @@ function obtenerCantidadNodoSTW($, rewardEl) {
         const valor = $(nodo).attr('data-quantity') || $(nodo).attr('title') ||
             $(nodo).attr('aria-label') || $(nodo).text();
         const cantidad = extraerCantidadExplicitaSTW(valor) ||
-            (/^\\s*\\d{1,6}\\s*$/.test(String(valor || '')) ? Number(valor) : null);
+            (/^\s*\d{1,6}\s*$/.test(String(valor || '')) ? Number(valor) : null);
         if (Number.isInteger(cantidad) && cantidad > 0 && cantidad <= 100000) return cantidad;
     }
     return null;
@@ -431,9 +431,9 @@ function extraerRecompensasMissionEntrySTW($, missionEntry) {
             : (obtenerCantidadNodoSTW($, rewardEl) || extraerCantidadExplicitaSTW(rewardName));
 
         const nombreSinCantidad = tipo === 'vbucks' ? rewardName : rewardName
-            .replace(/(?:^|[\\s(])(?:x|×)\\s*\\d{1,6}\\b/ig, ' ')
-            .replace(/\\b\\d{1,6}\\s*(?:x|×)(?:\\s|$)/ig, ' ')
-            .replace(/\\s+/g, ' ').trim();
+            .replace(/(?:^|[\s(])(?:x|×)\s*\d{1,6}\b/ig, ' ')
+            .replace(/\b\d{1,6}\s*(?:x|×)(?:\s|$)/ig, ' ')
+            .replace(/\s+/g, ' ').trim();
         const nombre = normalizarRecompensaSTW(nombreSinCantidad, rareza, tipo);
         if (!nombre || (tipo === 'vbucks' && !cantidad)) return;
 
@@ -833,9 +833,9 @@ function parsearTablaSeeBotSTW(html) {
                 : (rarezaEnNombre ? rarezaEnNombre[1].toLowerCase() : null);
             const cantidadMaterial = extraerCantidadExplicitaSTW(texto);
             const rawName = nombreConRareza.replace(/\s*\((Mythic|Legendary|Epic|Rare|Uncommon|Common)\)\s*$/i, '')
-                .replace(/(?:^|[\\s(])(?:x|×)\\s*\\d{1,6}\\b/ig, ' ')
-                .replace(/\\b\\d{1,6}\\s*(?:x|×)(?:\\s|$)/ig, ' ')
-                .replace(/[,;]+$/g, '').replace(/\\s+/g, ' ').trim();
+                .replace(/(?:^|[\s(])(?:x|×)\s*\d{1,6}\b/ig, ' ')
+                .replace(/\b\d{1,6}\s*(?:x|×)(?:\s|$)/ig, ' ')
+                .replace(/[,;]+$/g, '').replace(/\s+/g, ' ').trim();
             const tipo = /\/heroes\//.test(iconUrl) ? 'hero'
                 : /\/workers\//.test(iconUrl) ? 'survivor'
                 : /\/defenders\//.test(iconUrl) ? 'defender'
