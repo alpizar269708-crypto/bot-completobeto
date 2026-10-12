@@ -323,33 +323,44 @@ function formatearResumenAlertaSTW(item) {
 function deduplicarAlertasPavos(lista) {
     const resultado = [];
     const normalizar = (valor) => String(valor || '')
+        .split(/\s+-\s+/)[0] // El bioma se compara por separado; no debe impedir detectar duplicados.
         .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
         .toLowerCase()
-        .replace(/\b(?:category|categoria)\s*\d+\b/g, '')
-        .replace(/\b(?:a|an|the|la|el|las|los|una|uno|un)\b/g, ' ')
+        .replace(/\b(?:category|categoria)\s*\d+\b/g, ' ')
+        .replace(/\b(?:a|an|the|la|el|las|los|una|uno|un|de|del)\b/g, ' ')
         .replace(/[^a-z0-9]+/g, ' ')
         .trim().split(/\s+/).filter(Boolean);
+    const normalizarZona = (item) => normalizarTextoZona(
+        traducirZonaSalidaSTW(item.zona || 'Desconocida')
+    );
+    const normalizarTextoZona = (valor) => String(valor || '')
+        .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+    const tokensMision = (item) => new Set(normalizar(traducirMisionSalidaSTW(item)));
     const similitud = (a, b) => {
-        const aa = new Set(normalizar(a));
-        const bb = new Set(normalizar(b));
-        if (!aa.size || !bb.size) return 0;
+        if (!a.size || !b.size) return 0;
         let comunes = 0;
-        for (const token of aa) if (bb.has(token)) comunes++;
-        return comunes / Math.min(aa.size, bb.size);
+        for (const token of a) if (b.has(token)) comunes++;
+        return comunes / Math.min(a.size, b.size);
     };
     const puntuacion = (item) => {
         const original = String(item.misionOriginal || item.mision || '');
-        const visible = traducirMisionSalidaSTW(item);
-        return visible.length * 2 + original.length;
+        return traducirMisionSalidaSTW(item).length * 2 + original.length;
     };
     for (const item of (Array.isArray(lista) ? lista : [])) {
-        const zona = String(item.zona || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+        const zona = normalizarZona(item);
         const pl = String(item.pl ?? '').trim();
-        const mision = traducirMisionSalidaSTW(item);
+        const tokens = tokensMision(item);
+        const nombreNormalizado = [...tokens].sort().join(' ');
         const duplicado = resultado.findIndex(prev => {
-            const zonaPrev = String(prev.zona || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
-            if (zonaPrev !== zona || String(prev.pl ?? '').trim() !== pl) return false;
-            return similitud(traducirMisionSalidaSTW(prev), mision) >= 0.8;
+            if (normalizarZona(prev) !== zona || String(prev.pl ?? '').trim() !== pl) return false;
+            const tokensPrevios = tokensMision(prev);
+            const nombrePrevio = [...tokensPrevios].sort().join(' ');
+            // Caso conocido: Planner publica "Lucha contra una tormenta de categoría N"
+            // y otra fuente la llama "Lucha contra la tormenta". Son la misma misión.
+            const ambasLuchaTormenta = tokens.has('lucha') && tokens.has('tormenta') &&
+                tokensPrevios.has('lucha') && tokensPrevios.has('tormenta');
+            return nombreNormalizado === nombrePrevio || ambasLuchaTormenta || similitud(tokensPrevios, tokens) >= 0.8;
         });
         if (duplicado < 0) resultado.push(item);
         else if (puntuacion(item) > puntuacion(resultado[duplicado])) resultado[duplicado] = item;
