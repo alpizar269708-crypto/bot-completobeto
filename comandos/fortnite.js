@@ -590,8 +590,7 @@ async function comandoPreguntarAlerta(sock, chatId, msg, palabrasClave = [], pro
     const normalizarMisionCantidad = item => [
         normalizarTexto(item.zona || '').replace(/[^a-z0-9]+/g, ' ').trim(),
         String(item.pl ?? ''),
-        normalizarTexto(item.misionOriginal || item.mision || '').split(/\s+-\s+/)[0].replace(/[^a-z0-9]+/g, ' ').trim(),
-        normalizarTexto(item.ubicacion || '').replace(/[^a-z0-9]+/g, ' ').trim()
+        normalizarTexto(item.misionOriginal || item.mision || '').split(/\s+-\s+/)[0].replace(/[^a-z0-9]+/g, ' ').trim()
     ].join('|');
     const observacionesCantidad = new Map();
     const fuentesNombres = { principal: 'STW Planner', secundaria: 'V-Bucks Daily', tercera: 'SeeBot.dev' };
