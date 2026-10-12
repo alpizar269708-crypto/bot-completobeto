@@ -357,6 +357,7 @@ function detectarTipoRecompensaSTW(iconClasses, dataFilter, rawName) {
     if (/survivor|workerbasic|managerengineer/.test(icon)) return 'survivor';
     if (/defender-?|\bdefender\b/.test(icon)) return 'defender';
     if (/schematic/.test(icon)) return 'schematic';
+    if (/evolution|pure-drop|drop-of-rain|lightning-in-a-bottle|eye-of-the-storm|storm-shard/.test(icon)) return 'evolution';
     if (/reagent_alteration_ele_/.test(icon)) return 'elemental';
     if (/reagent_alteration_generic/.test(icon)) return 'reperk';
     if (/perkup/.test(icon)) return 'perkup';
@@ -364,6 +365,7 @@ function detectarTipoRecompensaSTW(iconClasses, dataFilter, rawName) {
     if (/llama/.test(icon)) return 'llama';
     if (/fulfillment/.test(icon)) return 'fulfillment';
 
+    if (/pure\s*drop\s*of\s*rain|drop\s*of\s*rain|lightning\s*in\s*a\s*bottle|eye\s*of\s*the\s*storm|storm\s*shard|gotas?\s+de\s+lluvia|rel[aá]mpago\s+en\s+(?:una\s+)?botella|ojo\s+de\s+la\s+tormenta|fragmento\s+de\s+tormenta/.test(nombre)) return 'evolution';
     if (/supercharger|supercargador/.test(nombre)) return 'supercharger';
     if (/\bhero\b|\bh[eé]roe\b/.test(nombre)) return 'hero';
     if (/survivor|superviviente/.test(nombre)) return 'survivor';
@@ -390,8 +392,7 @@ function extraerRecompensasMissionEntrySTW($, missionEntry) {
     const recompensas = [];
 
     $(missionEntry).find('.mission-rewards > .mission-reward-item').each((index, rewardEl) => {
-        if ($(rewardEl).closest('.mission-reward-item--generic').length) return;
-
+        // No descartar recompensas genéricas: aquí pueden venir materiales de evolución.
         const icon = $(rewardEl).find('.mission-reward-icon').first();
         const iconClasses = icon.attr('class') || '';
         const rewardType = $(rewardEl).find('.reward-type').first();
