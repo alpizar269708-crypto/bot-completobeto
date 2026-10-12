@@ -291,7 +291,13 @@ function normalizarRecompensaSTW(nombre, rareza, tipo) {
     if (!limpio) return '';
 
     if (tipo === 'vbucks') {
-        const cantidad = (limpio.match(/\d{1,4}/) || [limpio])[0];
+        // En el HTML del planner a veces el primer número pertenece a otro
+        // campo de recompensa (por ejemplo XP o un multiplicador), no a PaVos.
+        // Las alertas de PaVos no entregan 200 en una sola misión: si el dato
+        // es ausente o imposible, no lo anunciamos como real.
+        const match = limpio.match(/\b(\d{1,3})\b/);
+        let cantidad = match ? Number(match[1]) : 50;
+        if (!Number.isFinite(cantidad) || cantidad < 1 || cantidad > 100) cantidad = 50;
         return '🪙 ' + cantidad + ' PaVos';
     }
 
@@ -392,8 +398,11 @@ function extraerRecompensasMissionEntrySTW($, missionEntry) {
 
         const tipo = detectarTipoRecompensaSTW(iconClasses, '', rewardName);
         const rareza = detectarRarezaSTW(iconClasses, rewardTypeTexto);
-        const cantidadMatch = rewardName.match(/\b\d{1,4}\b/);
-        const cantidad = cantidadMatch ? Number(cantidadMatch[0]) : null;
+        const cantidadMatch = rewardName.match(/\b\d{1,3}\b/);
+        let cantidad = cantidadMatch ? Number(cantidadMatch[0]) : null;
+        if (tipo === 'vbucks' && (!Number.isFinite(cantidad) || cantidad < 1 || cantidad > 100)) {
+            cantidad = 50;
+        }
 
         const nombre = normalizarRecompensaSTW(rewardName, rareza, tipo);
         if (!nombre) return;
@@ -599,7 +608,9 @@ function extraerMisionEntrySTW($, missionEntry, zona, tipoAlerta) {
         tipoAlerta: tipoAlertaReal,
         tipoAlertaTexto: obtenerNombreTipoAlertaSTW(tipoAlertaReal),
         vbucks: esVbucks,
-        cantidadVbucks: esVbucks ? (recompensaVbucks?.cantidad || Number($(missionEntry).find('.mission-reward-name').first().text().trim()) || 50) : null,
+        // No usar el primer .mission-reward-name como respaldo: puede ser
+        // una cantidad ajena a PaVos y terminar mostrando falsos 200 PaVos.
+        cantidadVbucks: esVbucks ? (Number(recompensaVbucks?.cantidad) > 0 && Number(recompensaVbucks?.cantidad) <= 100 ? Number(recompensaVbucks.cantidad) : 50) : null,
         esX4,
         multiplicadorRecompensa,
         recompensas,
