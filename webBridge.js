@@ -972,10 +972,14 @@ function parsearJSONSeeBotSTW(html) {
                     iconClasses: 'currency_mtxswap'
                 });
             } else {
+                const nombreSinCantidad = nombreSinRareza
+                    .replace(/(?:^|[\\s(])(?:x|×)\\s*\\d{1,6}\\b/ig, ' ')
+                    .replace(/\\b\\d{1,6}\\s*(?:x|×)(?:\\s|$)/ig, ' ')
+                    .replace(/\\s+/g, ' ').trim();
                 const nombre = tipo === 'other'
-                    ? (rareza === 'legendary' ? '🟠 ' : rareza === 'epic' ? '🟣 ' : '') + nombreSinRareza
-                    : normalizarRecompensaSTW(nombreSinRareza, rareza, tipo);
-                recompensas.push({ nombre, raw: nombreSinRareza, rareza, tipo, cantidad: cantidad || null, iconClasses: identidad });
+                    ? (rareza === 'legendary' ? '🟠 ' : rareza === 'epic' ? '🟣 ' : '') + nombreSinCantidad
+                    : normalizarRecompensaSTW(nombreSinCantidad, rareza, tipo);
+                recompensas.push({ nombre, raw: nombreSinCantidad, rareza, tipo, cantidad: cantidad || null, iconClasses: identidad });
             }
         }
         const modifiersRaw = m.modifiers || m.missionModifiers || m.missionAlertModifiers || m.modifierNames || m.modifier || [];
@@ -1092,9 +1096,8 @@ function parsearVBucksDailySTW(html) {
                 if (cantidadEncontrada && cantidadEncontrada > 1) nombreRecompensa += ' ×' + cantidadEncontrada;
             } else {
                 nombreRecompensa = normalizarRecompensaSTW(nombreRaw, rareza, tipo);
-                if (cantidadEncontrada && cantidadEncontrada > 1 && tipo !== 'hero' && tipo !== 'survivor' && tipo !== 'defender' && tipo !== 'schematic') {
-                    nombreRecompensa += ' ×' + cantidadEncontrada;
-                }
+                // La cantidad se guarda para compararla entre fuentes, pero no se
+                // muestra desde una sola página sin verificación independiente.
             }
             recompensas.push({
                 nombre: nombreRecompensa,
