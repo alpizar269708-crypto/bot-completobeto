@@ -28,7 +28,7 @@ const { comandoCarry } = require('./comandos/carry');
 const { comandoPaypal, comandoCalculadoraPaypal } = require('./comandos/paypal');
 
 const categoriasMap = {
-    'fortnite': ['pavos', 'rpavos', 'destacadasstw', 'legendariasstw', 'epicasstw', 'alertasstw', 'stw', 'alerta', 'alertanov', 'setgrupostw', 'unsetgrupostw', 'setprecio', 'redeploy',
+    'fortnite': ['pavos', 'rpavos', 'destacadasstw', 'legendariasstw', 'epicasstw', 'alertasstw', 'stw', 'alerta', 'alertanov', 'setgrupostw', 'unsetgrupostw', 'setprecio',
     'economia': ['cartera', 'bal', 'banco', 'pay', 'pagar', 'top', 'topdinero', 'daily', 'weekly', 'farmear', 'work', 'crime', 'mendigar', 'pescar', 'minar', 'cazar', 'explorar', 'ruleta', 'cf', 'slots', 'dados', 'adivina', 'buscaminas', 'rob', 'ppt', 'pelea', 'carrera', 'hackear', 'shop', 'buy', 'inventario', 'mochila', 'vender', 'use', 'regalar'],
     'utilidades': ['s', 'sticker', 'recup1vez', 'tiktok', 'instagram', 'traduce', 'skin', 'stats', 'tiendastats', 'tiendavb', 'contacto', 'ping'],
     'paypal': ['paypal', 'paypaln', 'paypali'],
@@ -38,6 +38,7 @@ const categoriasMap = {
     'carry': ['carryleader', 'carryjoin', 'carryleave', 'carryclose', 'blcarry', 'unblcarry', 'listcarrybl'],
     'rifas': ['rifa', 'rifainscripcion', 'cerrarrifa', 'rifaquitarduplicados', 'rifajasc13', 'addvarios', 'abrirrifa', 'activarrifaaqui', 'menurifajasc13'],
     'cashback': ['addcashback', 'delcashback', 'vercash', 'delvcash', 'canjecash'],
+    'administracion': ['redeploy'],
     'menu': ['menu', 'menusecreto']
 };
 
