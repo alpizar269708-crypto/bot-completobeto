@@ -284,6 +284,13 @@ function traducirNombreObjetoSTW(nombre, tipo = 'other') {
     return resultado || 'Recompensa de misión';
 }
 
+function cantidadPavosValidaSTW(valor) {
+    const cantidad = Number(valor);
+    // No confundir números de XP, multiplicadores u otros campos con PaVos.
+    // Si la fuente no confirma una cantidad plausible, se descarta la alerta.
+    return Number.isInteger(cantidad) && cantidad >= 1 && cantidad <= 100 ? cantidad : null;
+}
+
 function normalizarRecompensaSTW(nombre, rareza, tipo) {
     let limpio = limpiarTextoSTW(nombre);
     tipo = String(tipo || 'other').toLowerCase();
@@ -296,9 +303,8 @@ function normalizarRecompensaSTW(nombre, rareza, tipo) {
         // Las alertas de PaVos no entregan 200 en una sola misión: si el dato
         // es ausente o imposible, no lo anunciamos como real.
         const match = limpio.match(/\b(\d{1,3})\b/);
-        let cantidad = match ? Number(match[1]) : 50;
-        if (!Number.isFinite(cantidad) || cantidad < 1 || cantidad > 100) cantidad = 50;
-        return '🪙 ' + cantidad + ' PaVos';
+        const cantidad = cantidadPavosValidaSTW(match ? Number(match[1]) : null);
+        return cantidad ? '🪙 ' + cantidad + ' PaVos' : '';
     }
 
     const icono = rareza === 'mythic' ? '🟡' :
@@ -399,13 +405,12 @@ function extraerRecompensasMissionEntrySTW($, missionEntry) {
         const tipo = detectarTipoRecompensaSTW(iconClasses, '', rewardName);
         const rareza = detectarRarezaSTW(iconClasses, rewardTypeTexto);
         const cantidadMatch = rewardName.match(/\b\d{1,3}\b/);
-        let cantidad = cantidadMatch ? Number(cantidadMatch[0]) : null;
-        if (tipo === 'vbucks' && (!Number.isFinite(cantidad) || cantidad < 1 || cantidad > 100)) {
-            cantidad = 50;
-        }
+        const cantidad = tipo === 'vbucks'
+            ? cantidadPavosValidaSTW(cantidadMatch ? Number(cantidadMatch[0]) : null)
+            : (cantidadMatch ? Number(cantidadMatch[0]) : null);
 
         const nombre = normalizarRecompensaSTW(rewardName, rareza, tipo);
-        if (!nombre) return;
+        if (!nombre || (tipo === 'vbucks' && !cantidad)) return;
 
         recompensas.push({
             nombre,
@@ -587,7 +592,7 @@ function extraerMisionEntrySTW($, missionEntry, zona, tipoAlerta) {
 
     const recompensas = extraerRecompensasMissionEntrySTW($, missionEntry);
     const modificadores = extraerModificadoresMissionEntrySTW($, missionEntry);
-    const esVbucks = recompensas.some(r => r.tipo === 'vbucks') || /\bvbucks\b|v-bucks|v bucks|currency_mtxswap/i.test(atributos);
+    const esVbucks = recompensas.some(r => r.tipo === 'vbucks' && cantidadPavosValidaSTW(r.cantidad));
     const multiplicadorRecompensa = detectarMultiplicadorRecompensaSTW($, missionEntry, dataFilter, title);
     const esX4 = multiplicadorRecompensa === 4;
     const tipoAlertaReal = detectarTipoAlertaSTW(tipoAlerta);
@@ -610,7 +615,7 @@ function extraerMisionEntrySTW($, missionEntry, zona, tipoAlerta) {
         vbucks: esVbucks,
         // No usar el primer .mission-reward-name como respaldo: puede ser
         // una cantidad ajena a PaVos y terminar mostrando falsos 200 PaVos.
-        cantidadVbucks: esVbucks ? (Number(recompensaVbucks?.cantidad) > 0 && Number(recompensaVbucks?.cantidad) <= 100 ? Number(recompensaVbucks.cantidad) : 50) : null,
+        cantidadVbucks: esVbucks ? cantidadPavosValidaSTW(recompensaVbucks?.cantidad) : null,
         esX4,
         multiplicadorRecompensa,
         recompensas,
@@ -743,7 +748,7 @@ function parsearTablaSeeBotSTW(html) {
 
         const recompensas = [];
         let vbucks = false;
-        let cantidadVbucks = 50;
+        let cantidadVbucks = null;
         $(td[4]).find('span').each((__, span) => {
             const s = $(span);
             const clases = String(s.attr('class') || '').toLowerCase();
@@ -753,7 +758,8 @@ function parsearTablaSeeBotSTW(html) {
             if (/v-bucks|v\s*bucks|v-bucks or x-ray|v-bucks or x ray/i.test(texto)) {
                 vbucks = true;
                 const cantidad = texto.match(/\bx\s*(\d{1,4})\b/i) || texto.match(/\b(\d{1,4})\s*x?\s*(?:v-?bucks|v\s*bucks)\b/i);
-                cantidadVbucks = cantidad ? Number(cantidad[1]) : 50;
+                cantidadVbucks = cantidadPavosValidaSTW(cantidad ? Number(cantidad[1]) : null);
+                if (!cantidadVbucks) return;
                 recompensas.push({
                     nombre: '🪙 ' + cantidadVbucks + ' PaVos',
                     raw: texto,
@@ -896,7 +902,7 @@ function parsearJSONSeeBotSTW(html) {
                 reward.name, reward.itemName, reward.displayName
             ].filter(Boolean).join(' ').toLowerCase();
             const vbucks = /v-?bucks|v\s*bucks|currency_mtxswap|mtxswap/.test(identidad);
-            const cantidad = Number(reward.quantity ?? reward.count ?? reward.amount ?? 0);
+            const cantidad = cantidadPavosValidaSTW(reward.quantity ?? reward.count ?? reward.amount ?? null);
             const tipo = vbucks ? 'vbucks'
                 : /hero|character/i.test(identidad) ? 'hero'
                 : /survivor|worker/i.test(identidad) ? 'survivor'
@@ -905,9 +911,9 @@ function parsearJSONSeeBotSTW(html) {
                 : 'other';
             if (vbucks) {
                 recompensas.push({
-                    nombre: '🪙 ' + (cantidad > 0 ? cantidad : 50) + ' PaVos',
+                    nombre: cantidad ? '🪙 ' + cantidad + ' PaVos' : '',
                     raw: nombreSinRareza || 'V-Bucks',
-                    rareza: null, tipo: 'vbucks', cantidad: cantidad > 0 ? cantidad : 50,
+                    rareza: null, tipo: 'vbucks', cantidad,
                     iconClasses: 'currency_mtxswap'
                 });
             } else {
@@ -920,7 +926,10 @@ function parsearJSONSeeBotSTW(html) {
         const modifiersRaw = m.modifiers || m.missionModifiers || m.missionAlertModifiers || m.modifierNames || m.modifier || [];
         const modifiers = textoDeLista(modifiersRaw).map(x => traducirModificadorSTW(x));
         const questReqs = obtenerRasgo(m, ['missionQuestReqs', 'questReqs', 'questRequirements', 'questRequirement', 'questReq', 'requiredQuest']) || 'None';
-        const tienePavos = recompensas.some(r => r.tipo === 'vbucks');
+        for (let i = recompensas.length - 1; i >= 0; i--) {
+            if (recompensas[i].tipo === 'vbucks' && !cantidadPavosValidaSTW(recompensas[i].cantidad)) recompensas.splice(i, 1);
+        }
+        const tienePavos = recompensas.some(r => r.tipo === 'vbucks' && cantidadPavosValidaSTW(r.cantidad));
         if (recompensas.length === 0 && Array.isArray(m.alertRewards) && m.alertRewards.length === 0) continue;
         const tipoAlerta = modifiers.some(x => /mini-boss|mini-jefe/i.test(x)) ? 'mini-boss' : 'normal';
         const recompensaTexto = recompensas.map(r => r.nombre).filter(Boolean).join(' | ') || 'Misión';
@@ -931,7 +940,7 @@ function parsearJSONSeeBotSTW(html) {
             categoria: /\bgroup\b/i.test(misionOriginal) ? ['group'] : [],
             tipoAlerta, tipoAlertaTexto: obtenerNombreTipoAlertaSTW(tipoAlerta),
             vbucks: tienePavos,
-            cantidadVbucks: tienePavos ? (recompensas.find(r => r.tipo === 'vbucks')?.cantidad || 50) : null,
+            cantidadVbucks: tienePavos ? cantidadPavosValidaSTW(recompensas.find(r => r.tipo === 'vbucks')?.cantidad) : null,
             esX4: /\bgroup\b|\bx4\b/i.test(misionOriginal + ' ' + recompensaTexto),
             multiplicadorRecompensa: /\bgroup\b/i.test(misionOriginal) ? 4 : null,
             recompensas, modificadores: modifiers, questReqs,
@@ -989,10 +998,11 @@ function parsearVBucksDailySTW(html) {
 
             const esPavos = /v-?bucks|v\s*bucks|currency_mtxswap/i.test(clases + ' ' + iconSrc + ' ' + textoFuerte);
             const cantidadMatch = textoFuerte.match(/(?:[x×]\s*(\d{1,4})\b|\b(\d{1,4})\s*x\b)/i);
-            const cantidadEncontrada = cantidadMatch ? Number(cantidadMatch[1] || cantidadMatch[2]) : null;
+            const cantidadEncontrada = cantidadPavosValidaSTW(cantidadMatch ? Number(cantidadMatch[1] || cantidadMatch[2]) : null);
 
             if (esPavos) {
-                const cantidad = Number.isFinite(cantidadEncontrada) && cantidadEncontrada > 0 ? cantidadEncontrada : 50;
+                const cantidad = cantidadEncontrada;
+                if (!cantidad) return;
                 recompensas.push({
                     nombre: '🪙 ' + cantidad + ' PaVos',
                     raw: 'V-Bucks',
@@ -1070,7 +1080,7 @@ function parsearVBucksDailySTW(html) {
             tipoAlerta: hayPavos ? 'vbucks' : 'normal',
             tipoAlertaTexto: hayPavos ? 'PaVos' : 'Alerta',
             vbucks: hayPavos,
-            cantidadVbucks: hayPavos ? (recompensasUnicas.find(r => r.tipo === 'vbucks')?.cantidad || 50) : null,
+            cantidadVbucks: hayPavos ? cantidadPavosValidaSTW(recompensasUnicas.find(r => r.tipo === 'vbucks')?.cantidad) : null,
             esX4: /\bgroup\b|\bx4\b/i.test(nombre),
             multiplicadorRecompensa: /\bx4\b/i.test(nombre) ? 4 : null,
             recompensas: recompensasUnicas,
@@ -1154,10 +1164,10 @@ function parsearPaginaSTW(html, fuente = 'all') {
         const nombre = separada ? separada[1].trim() : completo;
         const ubicacion = separada ? separada[2].trim() : '';
         const zona = partes[0] || 'Desconocida';
-        const cantidadMatch = titulo.match(/\d{1,4}/);
-        const cantidad = cantidadMatch ? Number(cantidadMatch[0]) : 50;
+        const cantidadMatch = titulo.match(/\d{1,3}/);
+        const cantidad = cantidadPavosValidaSTW(cantidadMatch ? Number(cantidadMatch[0]) : null);
 
-        if (Number.isInteger(pl) && pl >= 1 && pl <= 160) {
+        if (Number.isInteger(pl) && pl >= 1 && pl <= 160 && cantidad) {
             misiones.push({
                 id: crypto.createHash('sha1')
                     .update(['vbucks', zona, pl, nombre, ubicacion, cantidad].join('|'))
@@ -1199,7 +1209,7 @@ function parsearPavosSTW(html) {
     const mapa = new Map();
 
     for (const m of misiones) {
-        if (!(m.vbucks || m.tipoAlerta === 'vbucks')) continue;
+        if (!(m.vbucks || m.tipoAlerta === 'vbucks') || !cantidadPavosValidaSTW(m.cantidadVbucks)) continue;
 
         const clave = [m.pl, m.mision, m.ubicacion].join('|').toLowerCase();
 
@@ -1210,7 +1220,7 @@ function parsearPavosSTW(html) {
                 misionOriginal: m.misionOriginal,
                 ubicacion: m.ubicacion,
                 zona: m.zona,
-                cantidad: m.cantidadVbucks || 50,
+                cantidad: cantidadPavosValidaSTW(m.cantidadVbucks),
                 recompensa: 'PaVos',
                 tipo: 'STW Planner',
                 source: 'https://stw-planner.com/mission-alerts/v-buck-missions',
@@ -1404,14 +1414,14 @@ async function extraerAlertasAPI(progreso = null, opciones = {}) {
         // evitar que un cambio de estructura en /v-buck-missions deje los
         // PaVos en cero.
         let pavosDesdePrincipal = todas
-            .filter(m => m.vbucks || m.tipoAlerta === 'vbucks')
+            .filter(m => (m.vbucks || m.tipoAlerta === 'vbucks') && cantidadPavosValidaSTW(m.cantidadVbucks))
             .map(m => ({
                 pl: m.pl,
                 mision: m.mision,
                 misionOriginal: m.misionOriginal,
                 ubicacion: m.ubicacion,
                 zona: m.zona,
-                cantidad: m.cantidadVbucks || 50,
+                cantidad: cantidadPavosValidaSTW(m.cantidadVbucks),
                 recompensa: 'PaVos',
                 modificadores: Array.isArray(m.modificadores) ? m.modificadores : [],
                 questReqs: m.questReqs || 'None',
@@ -1428,7 +1438,7 @@ async function extraerAlertasAPI(progreso = null, opciones = {}) {
         if (pavosPagina.length === 0 && pavosDesdePrincipal.length === 0 && pavosDaily.length) {
             pavosDesdePrincipal = pavosDaily.map(m => ({
                 pl: m.pl, mision: m.mision, misionOriginal: m.misionOriginal, ubicacion: m.ubicacion,
-                zona: m.zona, cantidad: m.cantidadVbucks || 50, recompensa: 'PaVos',
+                zona: m.zona, cantidad: cantidadPavosValidaSTW(m.cantidadVbucks), recompensa: 'PaVos',
                 tipo: 'V-Bucks Daily', source: m.source, extraidoEn: m.extraidoEn
             }));
         }
@@ -1454,12 +1464,12 @@ async function extraerAlertasAPI(progreso = null, opciones = {}) {
 
             // Conserva la versión con cantidad válida y la fuente más directa.
             const anterior = mapaPavos.get(clave);
-            if ((!anterior.cantidad || anterior.cantidad <= 0) && p.cantidad > 0) {
+            if (!cantidadPavosValidaSTW(anterior.cantidad) && cantidadPavosValidaSTW(p.cantidad)) {
                 mapaPavos.set(clave, p);
             }
         }
 
-        const pavosFinal = Array.from(mapaPavos.values());
+        const pavosFinal = Array.from(mapaPavos.values()).filter(p => cantidadPavosValidaSTW(p.cantidad));
 
         // Elimina registros de las configuraciones manuales antiguas.
         // STW Planner es ahora la única fuente de alertas de Save the World.
