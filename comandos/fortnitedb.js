@@ -481,8 +481,6 @@ function normalizarAlertasPavos(alertas, fuente) {
     );
 }
 
-function firmaAlertasPavos}
-
 function firmaAlertasPavos(alertas) {
     const normalizar = valor => String(valor || '')
         .toLowerCase()
