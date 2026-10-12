@@ -456,15 +456,32 @@ function normalizarAlertasPavos(alertas, fuente) {
             source: alerta.source || ''
         });
     }
+    // Unifica nombres equivalentes entre fuentes y no cuenta la misma misión dos veces.
+    const normalizarMisionClave = valor => {
+        let nombre = String(valor || '').split(/\s+-\s+/)[0]
+            .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+            .toLowerCase()
+            .replace(/\b(?:category|categoria)\s*\d+\b/g, ' ')
+            .replace(/[^a-z0-9]+/g, ' ')
+            .replace(/\b(?:a|an|the|la|el|las|los|una|uno|un|de|del)\b/g, ' ')
+            .replace(/\s+/g, ' ').trim();
+        if (/\blucha\b/.test(nombre) && /\btormenta\b/.test(nombre)) return 'lucha contra tormenta';
+        if (/\bfight\b/.test(nombre) && /\bstorm\b/.test(nombre)) return 'fight storm';
+        return nombre;
+    };
     const unicas = new Map();
     for (const a of salida) {
-        const clave = [a.zona, a.pl, a.mision, a.cantidad].join('|').toLowerCase();
-        if (!unicas.has(clave)) unicas.set(clave, a);
+        const zona = String(a.zona || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+        const clave = [zona, String(a.pl ?? ''), normalizarMisionClave(a.misionOriginal || a.mision)].join('|');
+        const anterior = unicas.get(clave);
+        if (!anterior || Number(a.cantidad || 0) > Number(anterior.cantidad || 0)) unicas.set(clave, a);
     }
     return Array.from(unicas.values()).sort((a, b) =>
         String(a.zona).localeCompare(String(b.zona)) || Number(a.pl || 0) - Number(b.pl || 0)
     );
 }
+
+function firmaAlertasPavos}
 
 function firmaAlertasPavos(alertas) {
     const normalizar = valor => String(valor || '')
