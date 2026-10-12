@@ -134,9 +134,9 @@ async function obtenerAlertasSTW(actualizarEnVivo = false, progreso = null, opci
         materiales: scrapeMateriales,
         errorActualizacion: actualizarEnVivo && !raspadoCorrecto && !hayCache,
         fuentes: fuentes || {
-            principal: Array.isArray(scrapeTodas[0]?.principal) ? scrapeTodas[0].principal : [],
-            secundaria: Array.isArray(scrapeTodas[0]?.secundaria) ? scrapeTodas[0].secundaria : [],
-            tercera: Array.isArray(scrapeTodas[0]?.tercera) ? scrapeTodas[0].tercera : []
+            principal: scrapeTodas.filter(item => item && item._fuenteSTW === 'principal'),
+            secundaria: scrapeTodas.filter(item => item && item._fuenteSTW === 'secundaria'),
+            tercera: scrapeTodas.filter(item => item && item._fuenteSTW === 'tercera')
         }
     };
 }
