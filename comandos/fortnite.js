@@ -573,6 +573,60 @@ async function comandoPreguntarAlerta(sock, chatId, msg, palabrasClave = [], pro
     // Buscar también en las tres fuentes originales: los materiales pueden venir
     // dentro de recompensas normales y no aparecer en las listas filtradas/caché.
     const fuentesOriginales = datos.fuentes || {};
+
+    // Una cantidad solo es confiable si coincide exactamente en dos fuentes independientes.
+    const canonMaterial = valor => {
+        const s = normalizarTexto(valor).replace(/[^a-z0-9]+/g, ' ').replace(/\\s+/g, ' ').trim();
+        if (/pure drop of rain|drop of rain|gotas? pura? de lluvia/.test(s)) return 'Gota pura de lluvia';
+        if (/lightning in a bottle|relampago en una botella/.test(s)) return 'Relámpago en una botella';
+        if (/eye of the storm|ojo de la tormenta/.test(s)) return 'Ojo de la tormenta';
+        if (/storm shard|fragmento de tormenta/.test(s)) return 'Fragmento de tormenta';
+        if (/hero xp|xp de heroe|experiencia de heroe/.test(s)) return 'XP de héroe';
+        if (/survivor xp|xp de superviviente|experiencia de superviviente/.test(s)) return 'XP de superviviente';
+        if (/schematic xp|xp de esquema|experiencia de esquema/.test(s)) return 'XP de esquema';
+        if (/defender xp|xp de defensor|experiencia de defensor/.test(s)) return 'XP de defensor';
+        return '';
+    };
+    const normalizarMisionCantidad = item => [
+        normalizarTexto(item.zona || '').replace(/[^a-z0-9]+/g, ' ').trim(),
+        String(item.pl ?? ''),
+        normalizarTexto(item.misionOriginal || item.mision || '').split(/\\s+-\\s+/)[0].replace(/[^a-z0-9]+/g, ' ').trim(),
+        normalizarTexto(item.ubicacion || '').replace(/[^a-z0-9]+/g, ' ').trim()
+    ].join('|');
+    const observacionesCantidad = new Map();
+    const fuentesNombres = { principal: 'STW Planner', secundaria: 'V-Bucks Daily', tercera: 'SeeBot.dev' };
+    for (const [claveFuente, listaFuente] of Object.entries(fuentesOriginales)) {
+        if (!Array.isArray(listaFuente)) continue;
+        for (const item of listaFuente) {
+            const misionKey = normalizarMisionCantidad(item);
+            for (const r of (Array.isArray(item.recompensas) ? item.recompensas : [])) {
+                if (!r || typeof r === 'string') continue;
+                const material = canonMaterial([r.raw, r.nombre, r.tipo, r.iconClasses].filter(Boolean).join(' '));
+                const cantidad = Number(r.cantidad);
+                if (!material || !Number.isInteger(cantidad) || cantidad <= 0 || cantidad > 100000) continue;
+                const key = misionKey + '|' + material;
+                if (!observacionesCantidad.has(key)) observacionesCantidad.set(key, { material, misionKey, cantidades: new Map() });
+                const registro = observacionesCantidad.get(key);
+                if (!registro.cantidades.has(cantidad)) registro.cantidades.set(cantidad, new Set());
+                registro.cantidades.get(cantidad).add(fuentesNombres[claveFuente] || claveFuente);
+            }
+        }
+    }
+    const cantidadesVerificadas = [];
+    for (const registro of observacionesCantidad.values()) {
+        const validas = [...registro.cantidades.entries()].filter(([, fuentes]) => fuentes.size >= 2);
+        if (validas.length !== 1) continue;
+        const [cantidad, fuentes] = validas[0];
+        cantidadesVerificadas.push({ material: registro.material, misionKey: registro.misionKey, cantidad, fuentes: [...fuentes] });
+    }
+    const totalesMaterialVerificados = new Map();
+    for (const registro of cantidadesVerificadas) {
+        const actual = totalesMaterialVerificados.get(registro.material) || { total: 0, misiones: 0 };
+        actual.total += registro.cantidad;
+        actual.misiones += 1;
+        totalesMaterialVerificados.set(registro.material, actual);
+    }
+
     const coincidenciasFiltradas = [
         ...datos.pavos.map(item => ({ ...item, categoria: 'PaVos' })),
         ...datos.epicas.map(item => ({ ...item, categoria: 'Épicas' })),
@@ -672,6 +726,20 @@ async function comandoPreguntarAlerta(sock, chatId, msg, palabrasClave = [], pro
     let texto = esBusquedaPL
         ? '🔎 *ALERTAS CON PL ' + etiquetaPL + '*\n\n'
         : '🔎 *ALERTAS QUE CONTIENEN:* ' + termino + '\n\n';
+    if (modoRecompensa) {
+        const resumen = [...totalesMaterialVerificados.entries()]
+            .filter(([material]) => coincideRecompensaTolerante(termino, material))
+            .sort((a, b) => a[0].localeCompare(b[0]));
+        if (resumen.length) {
+            texto += '📊 *TOTALES VERIFICADOS EN 2 O MÁS PÁGINAS*\n';
+            for (const [material, dato] of resumen) {
+                texto += '• *' + material + ':* ' + dato.total + ' en ' + dato.misiones + ' misiones\n';
+            }
+            texto += '_Solo sumo cantidades iguales confirmadas por dos fuentes; si discrepan o no se verifican, no las cuento._\n\n';
+        } else {
+            texto += '📊 _No hay cantidades de este material confirmadas por dos páginas con la misma cifra. No mostraré un total estimado._\n\n';
+        }
+    }
 
     await informar('🔎 Búsqueda terminada; coincidencias=' + coincidencias.length + '.');
     if (coincidencias.length === 0) {
