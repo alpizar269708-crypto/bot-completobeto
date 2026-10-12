@@ -603,7 +603,7 @@ Apoya a un creador: JASC13` });
                     const respuesta = await fetch(hook, { method: 'POST' });
                     if (!respuesta.ok) throw new Error('La solicitud fue rechazada (HTTP ' + respuesta.status + ').');
                     await sock.sendMessage(chatJid, {
-                        text: '🚀 *REDEPLOY SOLICITADO*\n\nSe solicitó actualizar el bot. Puede tardar unos minutos y la conexión de WhatsApp podría reiniciarse.'
+                        text: '🚀 *ACTUALIZACIÓN SOLICITADA*\n\nSe solicitó actualizar el bot. Puede tardar unos minutos y la conexión de WhatsApp podría reiniciarse.'
                     }, { quoted: msg });
                     console.log('🚀 Comando de actualización: solicitud enviada.');
                 } catch (error) {
