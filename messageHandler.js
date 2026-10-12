@@ -28,7 +28,7 @@ const { comandoCarry } = require('./comandos/carry');
 const { comandoPaypal, comandoCalculadoraPaypal } = require('./comandos/paypal');
 
 const categoriasMap = {
-    'fortnite': ['pavos', 'rpavos', 'destacadasstw', 'legendariasstw', 'epicasstw', 'alertasstw', 'stw', 'alerta', 'alertanov', 'setgrupostw', 'unsetgrupostw', 'setprecio'],
+    'fortnite': ['pavos', 'rpavos', 'destacadasstw', 'legendariasstw', 'epicasstw', 'alertasstw', 'stw', 'alerta', 'alertanov', 'setgrupostw', 'unsetgrupostw', 'setprecio', 'redeploy',
     'economia': ['cartera', 'bal', 'banco', 'pay', 'pagar', 'top', 'topdinero', 'daily', 'weekly', 'farmear', 'work', 'crime', 'mendigar', 'pescar', 'minar', 'cazar', 'explorar', 'ruleta', 'cf', 'slots', 'dados', 'adivina', 'buscaminas', 'rob', 'ppt', 'pelea', 'carrera', 'hackear', 'shop', 'buy', 'inventario', 'mochila', 'vender', 'use', 'regalar'],
     'utilidades': ['s', 'sticker', 'recup1vez', 'tiktok', 'instagram', 'traduce', 'skin', 'stats', 'tiendastats', 'tiendavb', 'contacto', 'ping'],
     'paypal': ['paypal', 'paypaln', 'paypali'],
@@ -66,7 +66,7 @@ const comandosValidos = new Set([
         'ruleta', 'cf', 'slots', 'dados', 'adivina', 'buscaminas', 'rob', 'ppt', 'pelea',
         'carrera', 'hackear', 'shop', 'buy', 'inventario', 'mochila', 'vender', 'use', 'regalar',
         'rifa', 'rifainscripcion', 'cerrarrifa', 'rifaquitarduplicados', 'rifajasc13', 'addvarios', 'abrirrifa', 'activarrifaaqui', 'menurifajasc13', 'quitarrifajasc13', 'addcashback', 'delcashback', 'vercash', 'delvcash', 'canjecash', 'carryleader', 'carryjoin', 'carryleave', 'carryclose', 'blcarry', 'unblcarry', 'listcarrybl',
-        'vertodoscomandos', 'listablanca', 'paypal', 'paypaln', 'paypali', 'desactivarbienvenida', 'activarbienvenida', 'personalizarbienvenida', 'restaurarbienvenida'
+        'vertodoscomandos', 'listablanca', 'paypal', 'paypaln', 'paypali', 'desactivarbienvenida', 'activarbienvenida', 'personalizarbienvenida', 'restaurarbienvenida', 'redeploy'
 ]);
 
 
@@ -92,7 +92,7 @@ async function procesarMensaje(sock, msg) {
         'ban', 'unban', 'listanegra', 'banlist', 'unbanlist',
         'listablanca',
         'desactivarbienvenida', 'activarbienvenida',
-        'personalizarbienvenida', 'restaurarbienvenida'
+        'personalizarbienvenida', 'restaurarbienvenida', 'redeploy'
     ]);
 
     // Los mensajes enviados por el propio número del bot normalmente se ignoran.
@@ -586,6 +586,33 @@ Apoya a un creador: JASC13` });
             case 'ping':
                 await sock.sendMessage(chatJid, { text: '¡Pong! 🤖 Activo.' }, { quoted: msg });
                 break;
+            case 'redeploy': {
+                if (!tienePrivilegiosTotales && !msg.key.fromMe) {
+                    await sock.sendMessage(chatJid, { text: '❌ Este comando es exclusivo del propietario del bot.' }, { quoted: msg });
+                    return;
+                }
+                const hook = String(process.env.RENDER_DEPLOY_HOOK_URL || '').trim();
+                if (!hook) {
+                    await sock.sendMessage(chatJid, {
+                        text: '⚠️ Falta configurar *RENDER_DEPLOY_HOOK_URL* en las variables de entorno de Render. Crea un Deploy Hook para este servicio y guarda su URL con ese nombre.'
+                    }, { quoted: msg });
+                    return;
+                }
+                try {
+                    const respuesta = await fetch(hook, { method: 'POST' });
+                    if (!respuesta.ok) throw new Error('Render respondió HTTP ' + respuesta.status);
+                    await sock.sendMessage(chatJid, {
+                        text: '🚀 *REDEPLOY SOLICITADO*\n\nRender recibió la solicitud para volver a desplegar el bot. Puede tardar unos minutos y la conexión de WhatsApp podría reiniciarse.'
+                    }, { quoted: msg });
+                    console.log('🚀 Comando redeploy: solicitud enviada a Render.');
+                } catch (error) {
+                    console.error('❌ Error ejecutando redeploy:', error.stack || error.message);
+                    await sock.sendMessage(chatJid, {
+                        text: '❌ No pude solicitar el redeploy a Render: ' + String(error.message || error).slice(0, 250)
+                    }, { quoted: msg });
+                }
+                return;
+            }
             case 'pavos':
             case 'rpavos':
                 await comandoPavosOficial(sock, chatJid, msg);
