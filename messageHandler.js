@@ -595,21 +595,21 @@ Apoya a un creador: JASC13` });
                 const hook = String(process.env.RENDER_DEPLOY_HOOK_URL || '').trim();
                 if (!hook) {
                     await sock.sendMessage(chatJid, {
-                        text: '⚠️ Falta configurar *RENDER_DEPLOY_HOOK_URL* en las variables de entorno de Render. Crea un Deploy Hook para este servicio y guarda su URL con ese nombre.'
+                        text: '⚠️ El comando de actualización todavía no está configurado. Avísale al administrador del bot.'
                     }, { quoted: msg });
                     return;
                 }
                 try {
                     const respuesta = await fetch(hook, { method: 'POST' });
-                    if (!respuesta.ok) throw new Error('Render respondió HTTP ' + respuesta.status);
+                    if (!respuesta.ok) throw new Error('La solicitud fue rechazada (HTTP ' + respuesta.status + ').');
                     await sock.sendMessage(chatJid, {
-                        text: '🚀 *REDEPLOY SOLICITADO*\n\nRender recibió la solicitud para volver a desplegar el bot. Puede tardar unos minutos y la conexión de WhatsApp podría reiniciarse.'
+                        text: '🚀 *REDEPLOY SOLICITADO*\n\nSe solicitó actualizar el bot. Puede tardar unos minutos y la conexión de WhatsApp podría reiniciarse.'
                     }, { quoted: msg });
-                    console.log('🚀 Comando redeploy: solicitud enviada a Render.');
+                    console.log('🚀 Comando de actualización: solicitud enviada.');
                 } catch (error) {
                     console.error('❌ Error ejecutando redeploy:', error.stack || error.message);
                     await sock.sendMessage(chatJid, {
-                        text: '❌ No pude solicitar el redeploy a Render: ' + String(error.message || error).slice(0, 250)
+                        text: '❌ No pude solicitar la actualización: ' + String(error.message || error).slice(0, 250)
                     }, { quoted: msg });
                 }
                 return;
