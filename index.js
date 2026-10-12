@@ -206,6 +206,8 @@ async function inicializarBase() {
                 'stw_epicas_scrapeadas',
                 'stw_legendarias_scrapeadas',
                 'stw_plaltas_scrapeadas',
+                'stw_materiales_evolucion_scrapeadas',
+                'stw_todas_alertas_scrapeadas',
                 'stw_ultima_actualizacion'
             ];
             await Config.deleteMany({ clave: { $in: clavesSTW } });
