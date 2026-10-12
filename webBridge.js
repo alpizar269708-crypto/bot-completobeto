@@ -1622,11 +1622,11 @@ async function extraerAlertasAPI(progreso = null, opciones = {}) {
         await Config.findOneAndUpdate({ clave: 'stw_materiales_evolucion_scrapeadas' }, { valor: JSON.stringify(seleccionarAlertasSTWMateriales(todas)) }, { upsert: true });
         // Conservar todas las misiones para que alertanov pueda buscar recompensas
         // que no pertenecen a las listas filtradas (PaVos/rareza/materiales).
-        await Config.findOneAndUpdate({ clave: 'stw_todas_alertas_scrapeadas' }, { valor: JSON.stringify({
-            principal: todasPlanner,
-            secundaria: todasVBucksDaily,
-            tercera: todasSeeBot
-        }) }, { upsert: true });
+        await Config.findOneAndUpdate({ clave: 'stw_todas_alertas_scrapeadas' }, { valor: JSON.stringify([
+            ...todasPlanner.map(item => ({ ...item, _fuenteSTW: 'principal' })),
+            ...todasVBucksDaily.map(item => ({ ...item, _fuenteSTW: 'secundaria' })),
+            ...todasSeeBot.map(item => ({ ...item, _fuenteSTW: 'tercera' }))
+        ]) }, { upsert: true });
         await Config.findOneAndUpdate({ clave: 'stw_ultima_actualizacion' }, { valor: JSON.stringify({
             fuente: coberturaCompleta
                 ? (todasPlanner.length >= 5 ? 'STW Planner + V-Bucks Daily + SeeBot' : todasVBucksDaily.length >= 5 ? 'V-Bucks Daily + SeeBot' : 'SeeBot + STW Planner')
