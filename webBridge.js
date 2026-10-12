@@ -627,6 +627,29 @@ function extraerMisionEntrySTW($, missionEntry, zona, tipoAlerta) {
     };
 }
 
+function seleccionarAlertasSTWMateriales(misiones) {
+    // Materiales de evolución: no dependen de que la misión también dé PaVos
+    // ni de que la recompensa sea un héroe/esquema épico o legendario.
+    const patronMaterial = /pure\\s*drop\\s*of\\s*rain|drop\\s*of\\s*rain|lightning\\s*in\\s*a\\s*bottle|eye\\s*of\\s*the\\s*storm|storm\\s*shard|hero\\s*xp|survivor\\s*xp|schematic\\s*xp|defender\\s*xp|gotas?\\s+de\\s+lluvia(?:\\s+pura)?|rel[aá]mpago\\s+en\\s+(?:una\\s+)?botella|ojo\\s+de\\s+la\\s+tormenta|fragmento\\s+de\\s+tormenta|experiencia\\s+de\\s+(?:h[eé]roe|superviviente|esquema|defensor)/i;
+    const resultado = [];
+    for (const mision of Array.isArray(misiones) ? misiones : []) {
+        const recompensas = Array.isArray(mision.recompensas) ? mision.recompensas : [];
+        const textoRecompensas = recompensas.map(r => typeof r === 'string' ? r : [r.nombre, r.raw, r.tipo].filter(Boolean).join(' ')).join(' ');
+        const texto = [mision.recompensa, textoRecompensas].filter(Boolean).join(' ');
+        if (!patronMaterial.test(texto)) continue;
+        resultado.push({
+            ...mision,
+            id: crypto.createHash('sha1').update([
+                mision.zona || '', mision.pl || '', mision.misionOriginal || mision.mision || '',
+                mision.ubicacion || '', texto
+            ].join('|').toLowerCase()).digest('hex').slice(0, 14),
+            recompensas,
+            recompensa: recompensas.map(r => typeof r === 'string' ? r : r.nombre).filter(Boolean).join(' | ') || mision.recompensa
+        });
+    }
+    return deduplicarSTW(resultado);
+}
+
 function seleccionarAlertasSTWPorRareza(misiones, rareza) {
     // El conteo se basa en misiones útiles, no en cada premio por separado.
     // Perk-Up solo califica cuando una misma misión contiene las rarezas épica y legendaria.
@@ -1595,6 +1618,7 @@ async function extraerAlertasAPI(progreso = null, opciones = {}) {
         await Config.findOneAndUpdate({ clave: 'stw_epicas_scrapeadas' }, { valor: JSON.stringify(deduplicarSTW(epicas)) }, { upsert: true });
         await Config.findOneAndUpdate({ clave: 'stw_legendarias_scrapeadas' }, { valor: JSON.stringify(deduplicarSTW(legendarias)) }, { upsert: true });
         await Config.findOneAndUpdate({ clave: 'stw_plaltas_scrapeadas' }, { valor: JSON.stringify(plAltas) }, { upsert: true });
+        await Config.findOneAndUpdate({ clave: 'stw_materiales_evolucion_scrapeadas' }, { valor: JSON.stringify(seleccionarAlertasSTWMateriales(todas)) }, { upsert: true });
         await Config.findOneAndUpdate({ clave: 'stw_ultima_actualizacion' }, { valor: JSON.stringify({
             fuente: coberturaCompleta
                 ? (todasPlanner.length >= 5 ? 'STW Planner + V-Bucks Daily + SeeBot' : todasVBucksDaily.length >= 5 ? 'V-Bucks Daily + SeeBot' : 'SeeBot + STW Planner')
@@ -1632,4 +1656,4 @@ function vincularChatWhatsApp(chatId) {
     chatWhatsAppActivo = chatId;
 }
 
-module.exports = { iniciarPuenteDiscord, vincularChatWhatsApp, extraerAlertasAPI, parsearTablaSeeBotSTW, parsearJSONSeeBotSTW, parsearVBucksDailySTW, deduplicarSTW, traducirNombreMisionSTW, traducirNombreObjetoSTW, normalizarRecompensaSTW, traducirZonaSTW, traducirBiomaSTW, traducirModificadorSTW, seleccionarAlertasSTWPorRareza };
+module.exports = { iniciarPuenteDiscord, vincularChatWhatsApp, extraerAlertasAPI, parsearTablaSeeBotSTW, parsearJSONSeeBotSTW, parsearVBucksDailySTW, deduplicarSTW, traducirNombreMisionSTW, traducirNombreObjetoSTW, normalizarRecompensaSTW, traducirZonaSTW, traducirBiomaSTW, traducirModificadorSTW, seleccionarAlertasSTWPorRareza, seleccionarAlertasSTWMateriales };
