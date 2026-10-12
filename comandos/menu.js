@@ -93,7 +93,8 @@ async function ejecutarMenu(sock, chatId, msg, args) {
         `*${prefijo}carryjoin* - Únete al escuadrón activo.\n` +
         `*${prefijo}carryleave* - Sal del escuadrón actual.\n` +
         `*${prefijo}carryclose* - Cierra tu escuadrón.\n` +
-        `*${prefijo}buscocarry on [1-3] [motivo]* - Busca carry y menciona a todos de forma oculta.\n` +
+        `*${prefijo}buscocarry [1-3] [motivo]* - Busca carry y menciona a todos de forma oculta.\n` +
+        `*${prefijo}buscooff* - Cierra la búsqueda de carry (quien la abrió o admin).\\n` +
         `*${prefijo}doycarry* - Se une para ofrecer el carry.\n` +
         `*${prefijo}x2busco* - Se une como otro jugador que también busca carry.\n` +
         `*${prefijo}blcarry [@user / número / cita]* - Bloquea a alguien del carry (Admins).\n` +
@@ -149,7 +150,8 @@ async function ejecutarMenu(sock, chatId, msg, args) {
                  `*${prefijo}carryjoin* - Únete al escuadrón activo (Notifica a todos).\n` +
                  `*${prefijo}carryleave* - Sal del escuadrón en el que estás.\n` +
                  `*${prefijo}carryclose* - Cierra el escuadrón (Solo el líder).\n` +
-                 `*${prefijo}buscocarry on [1-3] [motivo]* - Busca carry y notifica a todos con mención oculta.\n` +
+                 `*${prefijo}buscocarry [1-3] [motivo]* - Busca carry y notifica a todos con mención oculta.\n` +
+                 `*${prefijo}buscooff* - Cierra la búsqueda activa (quien la abrió o admin).\\n` +
                  `*${prefijo}doycarry* - Entra a ofrecer el carry.\n` +
                  `*${prefijo}x2busco* - Entra como otro jugador que busca carry.\n`,
 
