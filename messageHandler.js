@@ -58,7 +58,7 @@ const comandosConUsuarioBD = new Set([
 ]);
 
 const comandosValidos = new Set([
-        'desactivarcomandos', 'catdesa', 'setprecio', 'ping', 'pavos', 'rpavos', 'destacadasstw', 'legendariasstw', 'epicasstw', 'alertasstw', 'stw', 'alerta', 'alertanov', 
+        'desactivarcomandos', 'catdesa', 'setprecio', 'ping', 'pavos', 'rpavos', 'destacadasstw', 'legendariasstw', 'epicasstw', 'alertasstw', 'stw', 'alerta', 'alertanov', 'recompensa', 'recompensanov', 
         'setgrupostw', 'unsetgrupostw', 'grupo', 'mute', 'unmute', 'inactivos', 'tienda', 'tiendastats', 'tiendavb', 'ia', 'menu', 'menusecreto',
         's', 'sticker', 'recup1vez', 'tiktok', 'instagram', 'traduce', 'skin', 'stats', 'contacto',
         'warn', 'advertir', 'verwarns', 'limpiarwarns', 'ban', 'unban', 'listanegra', 'banlist', 'unbanlist', 
