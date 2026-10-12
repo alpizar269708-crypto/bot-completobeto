@@ -301,6 +301,7 @@ function formatearAlertaSTW(item, encabezado = '', mostrarDetalles = false, most
     const recompensas = mostrarTodasRecompensas
         ? [...new Set((Array.isArray(item.recompensas) ? item.recompensas : []).map(r => typeof r === 'string' ? r : normalizarRecompensaSalidaSTW(r)).filter(Boolean))]
         : obtenerRecompensasValiosasSTW(item);
+    if (mostrarTodasRecompensas && !recompensas.length && item.recompensa) recompensas.push(String(item.recompensa));
     if (recompensas.length) {
         texto += '🎁 *Recompensa:* ' + recompensas.join(' | ') + '\n';
     } else if (Number(item.cantidad || item.cantidadVbucks) > 0 && /pavos|v-?bucks/i.test(String(item.recompensa || item.tipo || item.tipoAlertaTexto || ''))) {
@@ -527,11 +528,11 @@ async function comandoPreguntarAlerta(sock, chatId, msg, palabrasClave = [], pro
         .replace(/[\u0300-\u036f]/g, '');
 
     const normalizarBusquedaRecompensa = valor => normalizarTexto(valor)
-        .replace(/[^a-z0-9]+/g, ' ').replace(/\s+/g, ' ').trim()
-        .replace(/\bgotas\b/g, 'gota')
-        .replace(/\bpuras?\b/g, ' ')
-        .replace(/\bde\b/g, ' ')
-        .replace(/\s+/g, ' ').trim();
+        .replace(/gotas?\s+de\s+lluvia(?:\s+pura)?|pure\s*drop\s*of\s*rain|drop\s*of\s*rain/g, ' pure drop of rain ')
+        .replace(/relampago\s+en\s+(?:una\s+)?botella|lightning\s+in\s+a\s+bottle/g, ' lightning in a bottle ')
+        .replace(/ojo\s+de\s+la\s+tormenta|eye\s+of\s+the\s+storm/g, ' eye of the storm ')
+        .replace(/fragmento\s+de\s+tormenta|storm\s+shard/g, ' storm shard ')
+        .replace(/[^a-z0-9]+/g, ' ').replace(/\s+/g, ' ').trim();
     const distanciaEdicion = (a, b) => {
         if (a === b) return 0;
         if (Math.abs(a.length - b.length) > 1) return 2;
