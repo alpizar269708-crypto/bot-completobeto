@@ -117,12 +117,13 @@ async function obtenerAlertasSTW(actualizarEnVivo = false, progreso = null, opci
         };
     }
 
-    const [scrapePavos, scrapeEpicas, scrapeLegendarias, scrapePlAltas, scrapeMateriales] = await Promise.all([
+    const [scrapePavos, scrapeEpicas, scrapeLegendarias, scrapePlAltas, scrapeMateriales, scrapeTodas] = await Promise.all([
         leerConfigJSON('stw_pavos_scrapeados'),
         leerConfigJSON('stw_epicas_scrapeadas'),
         leerConfigJSON('stw_legendarias_scrapeadas'),
         leerConfigJSON('stw_plaltas_scrapeadas'),
-        leerConfigJSON('stw_materiales_evolucion_scrapeadas')
+        leerConfigJSON('stw_materiales_evolucion_scrapeadas'),
+        leerConfigJSON('stw_todas_alertas_scrapeadas')
     ]);
     const hayCache = scrapePavos.length + scrapeEpicas.length + scrapeLegendarias.length + scrapePlAltas.length + scrapeMateriales.length > 0;
     return {
@@ -132,7 +133,11 @@ async function obtenerAlertasSTW(actualizarEnVivo = false, progreso = null, opci
         plAltas: deduplicarPlAltasVbucks(scrapePlAltas),
         materiales: scrapeMateriales,
         errorActualizacion: actualizarEnVivo && !raspadoCorrecto && !hayCache,
-        fuentes
+        fuentes: fuentes || {
+            principal: Array.isArray(scrapeTodas[0]?.principal) ? scrapeTodas[0].principal : [],
+            secundaria: Array.isArray(scrapeTodas[0]?.secundaria) ? scrapeTodas[0].secundaria : [],
+            tercera: Array.isArray(scrapeTodas[0]?.tercera) ? scrapeTodas[0].tercera : []
+        }
     };
 }
 
