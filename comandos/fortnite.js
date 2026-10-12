@@ -542,26 +542,44 @@ async function comandoPreguntarAlerta(sock, chatId, msg, palabrasClave = [], pro
         return textoBusqueda.includes(clave);
     });
 
-    const mapaCoincidencias = new Map();
+    const coincidenciasUnicas = [];
     const normalizarClave = valor => normalizarTexto(valor).replace(/\s+/g, ' ').trim();
+    const normalizarMisionBusqueda = item => {
+        // El sufijo tras " - " suele ser bioma/modificador, no otra misión.
+        let nombre = normalizarClave(traducirMisionSalidaSTW(item)).split(/\s+-\s+/)[0];
+        nombre = nombre
+            .replace(/\b(?:category|categoria)\s*\d+\b/g, ' ')
+            .replace(/\b(?:a|an|the|la|el|las|los|una|uno|un|de|del)\b/g, ' ')
+            .replace(/\s+/g, ' ').trim();
+        if (/\blucha\b/.test(nombre) && /\btormenta\b/.test(nombre)) return 'lucha contra tormenta';
+        if (/\bfight\b/.test(nombre) && /\bstorm\b/.test(nombre)) return 'fight storm';
+        return nombre;
+    };
+    const normalizarZonaBusqueda = zona => normalizarClave(zona).replace(/[^a-z0-9]+/g, ' ').trim();
     const zonaEsDesconocida = zona => !String(zona || '').trim() ||
         /^(desconocida|zona desconocida|unknown|n\/?a)$/i.test(String(zona || '').trim());
+
     for (const item of coincidenciasFiltradas) {
-        // La zona no forma parte de la clave: una de las fuentes suele traerla
-        // como "Desconocida" aunque la otra ya tenga la zona correcta.
-        const claveMision = [
-            Number(item.pl || 0),
-            normalizarClave(traducirMisionSalidaSTW(item))
-        ].join('|');
-        const anterior = mapaCoincidencias.get(claveMision);
-        if (!anterior) {
-            mapaCoincidencias.set(claveMision, {
-                ...item, categoria: [item.categoria],
+        const zona = normalizarZonaBusqueda(item.zona);
+        const mision = normalizarMisionBusqueda(item);
+        const pl = Number(item.pl || 0);
+        const indice = coincidenciasUnicas.findIndex(prev =>
+            Number(prev.pl || 0) === pl &&
+            normalizarMisionBusqueda(prev) === mision &&
+            (normalizarZonaBusqueda(prev.zona) === zona ||
+                zonaEsDesconocida(prev.zona) || zonaEsDesconocida(item.zona))
+        );
+        if (indice < 0) {
+            coincidenciasUnicas.push({
+                ...item,
+                categoria: [item.categoria],
                 recompensas: [...(item.recompensas || [])],
                 modificadores: [...(item.modificadores || [])]
             });
             continue;
         }
+
+        const anterior = coincidenciasUnicas[indice];
         const categorias = [...new Set([
             ...(Array.isArray(anterior.categoria) ? anterior.categoria : [anterior.categoria]),
             item.categoria
@@ -570,26 +588,25 @@ async function comandoPreguntarAlerta(sock, chatId, msg, palabrasClave = [], pro
         const itemZonaMala = zonaEsDesconocida(item.zona);
         const anteriorDestacada = (Array.isArray(anterior.categoria) ? anterior.categoria : [anterior.categoria]).includes('Destacadas');
         const itemDestacada = item.categoria === 'Destacadas';
-        // Preferir el registro con zona real; en empate, el de Destacadas.
+        // Conservar zona real y, si empatan, la alerta destacada que trae el premio mayor.
         const conservarItem = (anteriorZonaMala && !itemZonaMala) ||
-            (anteriorZonaMala === itemZonaMala && !anteriorDestacada && itemDestacada);
+            (anteriorZonaMala === itemZonaMala &&
+                ((!anteriorDestacada && itemDestacada) ||
+                 (anteriorDestacada === itemDestacada &&
+                  Number(item.cantidad || item.cantidadVbucks || 0) > Number(anterior.cantidad || anterior.cantidadVbucks || 0))));
         const elegido = conservarItem ? item : anterior;
         const otro = conservarItem ? anterior : item;
-        const modificadores = [...new Set([
-            ...(elegido.modificadores || []),
-            ...(otro.modificadores || [])
-        ])];
-        mapaCoincidencias.set(claveMision, {
+        coincidenciasUnicas[indice] = {
             ...otro, ...elegido,
             categoria: categorias,
-            // No concatenar recompensas entre representaciones duplicadas.
+            // No sumar recompensas de dos representaciones de la misma misión.
             recompensas: [...(elegido.recompensas || [])],
-            modificadores,
+            modificadores: [...new Set([...(elegido.modificadores || []), ...(otro.modificadores || [])])],
             questReqs: elegido.questReqs || otro.questReqs,
             requisitos: elegido.requisitos || otro.requisitos
-        });
+        };
     }
-    const coincidencias = Array.from(mapaCoincidencias.values());
+    const coincidencias = coincidenciasUnicas;
     const etiquetaPL = plMinimo === plMaximo
         ? String(plMinimo)
         : Math.min(plMinimo, plMaximo) + '-' + Math.max(plMinimo, plMaximo);
