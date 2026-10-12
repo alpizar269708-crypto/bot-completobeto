@@ -35,7 +35,7 @@ const categoriasMap = {
     'ia': ['ia'],
     'moderacion': ['warn', 'advertir', 'verwarns', 'limpiarwarns', 'ban', 'unban', 'listanegra', 'banlist', 'unbanlist', 'grupo', 'mute', 'unmute', 'inactivos', 'listablanca', 'desactivarbienvenida', 'activarbienvenida', 'personalizarbienvenida', 'restaurarbienvenida'],
     'tienda': ['tienda', 'tiendavb'],
-    'carry': ['carryleader', 'carryjoin', 'carryleave', 'carryclose', 'blcarry', 'unblcarry', 'listcarrybl'],
+    'carry': ['carryleader', 'carryjoin', 'carryleave', 'carryclose', 'buscocarry', 'doycarry', 'x2busco', 'blcarry', 'unblcarry', 'listcarrybl'],
     'rifas': ['rifa', 'rifainscripcion', 'cerrarrifa', 'rifaquitarduplicados', 'rifajasc13', 'addvarios', 'abrirrifa', 'activarrifaaqui', 'menurifajasc13'],
     'cashback': ['addcashback', 'delcashback', 'vercash', 'delvcash', 'canjecash'],
     'administracion': ['redeploy'],
@@ -66,7 +66,7 @@ const comandosValidos = new Set([
         'farmear', 'work', 'crime', 'mendigar', 'pescar', 'minar', 'cazar', 'explorar',
         'ruleta', 'cf', 'slots', 'dados', 'adivina', 'buscaminas', 'rob', 'ppt', 'pelea',
         'carrera', 'hackear', 'shop', 'buy', 'inventario', 'mochila', 'vender', 'use', 'regalar',
-        'rifa', 'rifainscripcion', 'cerrarrifa', 'rifaquitarduplicados', 'rifajasc13', 'addvarios', 'abrirrifa', 'activarrifaaqui', 'menurifajasc13', 'quitarrifajasc13', 'addcashback', 'delcashback', 'vercash', 'delvcash', 'canjecash', 'carryleader', 'carryjoin', 'carryleave', 'carryclose', 'blcarry', 'unblcarry', 'listcarrybl',
+        'rifa', 'rifainscripcion', 'cerrarrifa', 'rifaquitarduplicados', 'rifajasc13', 'addvarios', 'abrirrifa', 'activarrifaaqui', 'menurifajasc13', 'quitarrifajasc13', 'addcashback', 'delcashback', 'vercash', 'delvcash', 'canjecash', 'carryleader', 'carryjoin', 'carryleave', 'carryclose', 'buscocarry', 'doycarry', 'x2busco', 'blcarry', 'unblcarry', 'listcarrybl',
         'vertodoscomandos', 'listablanca', 'paypal', 'paypaln', 'paypali', 'desactivarbienvenida', 'activarbienvenida', 'personalizarbienvenida', 'restaurarbienvenida', 'redeploy'
 ]);
 
@@ -420,6 +420,9 @@ Apoya a un creador: JASC13` });
             ['abrirrifa', 'Inicia una rifa; en grupos la puede iniciar un administrador.'],
             ['activarrifaaqui', 'Activa la rifa en el grupo para permitir inscripciones.'],
             ['carryleader', 'Crea un escuadrón de carry y define sus espacios.'],
+            ['buscocarry', 'Abre una búsqueda de carry y menciona a todos de forma oculta.'],
+            ['doycarry', 'Se une a una búsqueda activa para ofrecer el carry.'],
+            ['x2busco', 'Se une a una búsqueda activa como otro jugador que también busca carry.'], 
             ['carryjoin', 'Se une al escuadrón de carry activo.'],
             ['carryleave', 'Sale del escuadrón de carry actual.'],
             ['carryclose', 'Cierra el escuadrón de carry.'],
@@ -825,6 +828,9 @@ Apoya a un creador: JASC13` });
                 await comandoMenuRifaJasc13(sock, chatJid, msg);
                 break;
             case 'carryleader':
+            case 'buscocarry':
+            case 'doycarry':
+            case 'x2busco':
             case 'carryjoin':
             case 'carryleave':
             case 'carryclose':
