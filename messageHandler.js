@@ -74,11 +74,31 @@ const comandosValidos = new Set([
 async function procesarMensaje(sock, msg) {
     const chatJid = msg.key.remoteJid;
     const textoOriginal = msg.message?.conversation || msg.message?.extendedTextMessage?.text || msg.message?.imageMessage?.caption || msg.message?.videoMessage?.caption || '';
-    if (!textoOriginal) return;
 
     // Baileys v7 puede identificar al remitente con @lid y proporcionar
     // el número telefónico en participantAlt/participantPn.
     registrarMapeoLidPn(msg.key);
+
+    // Los mensajes multimedia sin texto también deben respetar el mute:
+    // stickers, fotos, videos, audios, documentos, GIF, notas de voz, etc.
+    // Antes se retornaba aquí si no había caption, por lo que nunca llegaban
+    // al filtro de mute que borra mensajes escritos.
+    if (!textoOriginal) {
+        const remitente = msg.key.participant || chatJid;
+        if (
+            chatJid.endsWith('@g.us') &&
+            !msg.key.fromMe &&
+            !(await esPrivilegiadoTotalAsync(sock, remitente)) &&
+            verificarMute(chatJid, remitente)
+        ) {
+            try {
+                await sock.sendMessage(chatJid, { delete: msg.key });
+            } catch (error) {
+                console.error('No se pudo borrar un mensaje multimedia de un usuario muteado:', error?.message || error);
+            }
+        }
+        return;
+    }
 
     const normalizarComando = (texto) => (texto || '')
         .trim()
