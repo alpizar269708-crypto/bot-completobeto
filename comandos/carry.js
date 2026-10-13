@@ -113,7 +113,7 @@ async function comandoCarry(sock, chatId, msg, comando, args = []) {
                 return await sock.sendMessage(chatId, { text: '❌ Solo quien abrió el buscocarry o un administrador puede cerrarlo.' }, { quoted: msg });
             }
             buscoCarryActivos.delete(chatId);
-            return await sock.sendMessage(chatId, { text: '🔒 *BUSCO CARRY CERRADO*\\nLa búsqueda se cerró y ya nadie puede unirse.' }, { quoted: msg });
+            return await sock.sendMessage(chatId, { text: '🔒 *BUSCO CARRY CERRADO*\nLa búsqueda se cerró y ya nadie puede unirse.' }, { quoted: msg });
         }
         if (comando === 'buscocarry') {
             if (busqueda) return await sock.sendMessage(chatId, { text: '❌ Ya hay una búsqueda de carry activa. Únete con *doycarry* o *x2busco*.' }, { quoted: msg });
