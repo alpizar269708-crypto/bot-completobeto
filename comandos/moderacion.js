@@ -789,7 +789,16 @@ async function comandoMute(sock, chatId, msg, args) {
         await sock.sendMessage(chatId, { text: '⚠️ Debes mencionar o responder al usuario que deseas mutear.' }, { quoted: msg });
         return;
     }
-    const tiempoMinutos = parseInt(args[1]) || 30;
+    // Acepta "mute 1" al responder al usuario y "mute @usuario 1".
+    // Solo toma como duración un argumento numérico corto independiente,
+    // para no confundir el teléfono del usuario con los minutos.
+    const duracionIndicada = (args || [])
+        .map(arg => String(arg).trim())
+        .filter(arg => /^\d{1,4}$/.test(arg))
+        .map(Number)
+        .filter(n => Number.isInteger(n) && n >= 1 && n <= 1440)
+        .pop();
+    const tiempoMinutos = duracionIndicada ?? 30;
     const expira = Date.now() + (tiempoMinutos * 60 * 1000);
     mutesActivos.set(`${chatId}_${objetivo}`, expira);
     await sock.sendMessage(chatId, { text: `🔇 Usuario muteado durante ${tiempoMinutos} minutos.` }, { quoted: msg });
