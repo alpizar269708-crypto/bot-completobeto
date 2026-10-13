@@ -789,19 +789,34 @@ async function comandoMute(sock, chatId, msg, args) {
         await sock.sendMessage(chatId, { text: '⚠️ Debes mencionar o responder al usuario que deseas mutear.' }, { quoted: msg });
         return;
     }
-    // Acepta "mute 1" al responder al usuario y "mute @usuario 1".
-    // Solo toma como duración un argumento numérico corto independiente,
-    // para no confundir el teléfono del usuario con los minutos.
-    const duracionIndicada = (args || [])
-        .map(arg => String(arg).trim())
-        .filter(arg => /^\d{1,4}$/.test(arg))
-        .map(Number)
-        .filter(n => Number.isInteger(n) && n >= 1 && n <= 1440)
-        .pop();
-    const tiempoMinutos = duracionIndicada ?? 30;
+    // Acepta "mute 1" (minutos) y "mute 1 hora"/"mute 2 horas".
+    // También funciona con mención: "mute @usuario 1 hora".
+    // Se ignoran números largos para no confundir el teléfono con la duración.
+    const argumentos = (args || []).map(arg => String(arg).trim().toLowerCase());
+    const indiceNumero = argumentos.findIndex(arg => /^\d{1,4}$/.test(arg));
+    const numeroDuracion = indiceNumero >= 0 ? Number(argumentos[indiceNumero]) : NaN;
+    const unidad = indiceNumero >= 0
+        ? (argumentos.slice(indiceNumero + 1).find(arg => /^(?:h|hr|hrs|hora|horas|min|minuto|minutos|m)$/.test(arg)) || '')
+        : '';
+    const usaHoras = /^(?:h|hr|hrs|hora|horas)$/.test(unidad);
+    const duracionValida = Number.isInteger(numeroDuracion)
+        && numeroDuracion >= 1
+        && numeroDuracion <= (usaHoras ? 24 : 1440);
+    const tiempoMinutos = duracionValida
+        ? numeroDuracion * (usaHoras ? 60 : 1)
+        : (indiceNumero >= 0 ? null : 30);
+
+    if (tiempoMinutos === null) {
+        await sock.sendMessage(chatId, { text: '❌ Duración no válida. Usa *mute 1* (1 minuto), *mute 1 hora* o *mute 2 horas*. Máximo: 24 horas.' }, { quoted: msg });
+        return;
+    }
+
     const expira = Date.now() + (tiempoMinutos * 60 * 1000);
     mutesActivos.set(`${chatId}_${objetivo}`, expira);
-    await sock.sendMessage(chatId, { text: `🔇 Usuario muteado durante ${tiempoMinutos} minutos.` }, { quoted: msg });
+    const duracionTexto = tiempoMinutos % 60 === 0
+        ? `${tiempoMinutos / 60} ${tiempoMinutos / 60 === 1 ? 'hora' : 'horas'}`
+        : `${tiempoMinutos} ${tiempoMinutos === 1 ? 'minuto' : 'minutos'}`;
+    await sock.sendMessage(chatId, { text: `🔇 Usuario muteado durante ${duracionTexto}.` }, { quoted: msg });
 }
 
 async function comandoUnmute(sock, chatId, msg, args) {
