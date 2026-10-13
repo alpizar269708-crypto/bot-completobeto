@@ -72,13 +72,6 @@ async function ejecutarMenu(sock, chatId, msg, args) {
     `📂 *CATEGORÍAS DISPONIBLES:*\n` +
     categoriasActivas.map(cat => descripcionCategorias[cat]).join('\n') + '\n';
 
-    if (isAdmin && isGroup) {
-        menuGeneral += `\n⚙️ *CONFIGURACIÓN DEL GRUPO (Solo Admins):*\n` +
-        `*${prefijo}desactivarcomandos [cat1] [cat2]* - Desactiva una o varias categorías; se van acumulando.\n` +
-        `*${prefijo}desactivarcomandos todos* - Desactiva todas las categorías.\n` +
-        `*${prefijo}desactivarcomandos ninguno* - Vuelve a activar todo el bot.\n` +
-        `*${prefijo}catdesa* - Muestra las categorías desactivadas y permite reactivar una por número durante 3 minutos.\n`;
-    }
 
     let menuFortnite = `🎮 *MENÚ FORTNITE (STW)* 🎮\n\n` +
     `*${prefijo}pavos* - Muestra misiones de pavos actuales.\n` +
