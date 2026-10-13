@@ -789,6 +789,14 @@ async function comandoMute(sock, chatId, msg, args) {
         await sock.sendMessage(chatId, { text: '⚠️ Debes mencionar o responder al usuario que deseas mutear.' }, { quoted: msg });
         return;
     }
+
+    // Los propietarios del bot están protegidos: no se pueden mutear,
+    // aunque quien ejecute el comando sea administrador del grupo.
+    if (await esPrivilegiadoTotalAsync(sock, objetivo)) {
+        await sock.sendMessage(chatId, { text: '🛡️ No puedes silenciar a un propietario del bot.' }, { quoted: msg });
+        return;
+    }
+
     // Acepta "mute 1" (minutos) y "mute 1 hora"/"mute 2 horas".
     // También funciona con mención: "mute @usuario 1 hora".
     // Se ignoran números largos para no confundir el teléfono con la duración.
