@@ -193,8 +193,7 @@ async function ejecutarMenu(sock, chatId, msg, args) {
               `*${prefijo}ia [pregunta]* - Habla de forma natural con el bot.\n`,
               
         'secreto': `🕵️‍♂️ *MENÚ SECRETO (Solo Owner)* 🕵️‍♂️\n\n` +
-                   `*cerrarsesionauth* - (Sin prefijo) Cierra la sesión y reinicia el sistema para escanear un nuevo código de vinculación en la web.\n` +
-
+                   `*cerrarsesionauth* - (Sin prefijo) Cierra la sesión y reinicia el sistema para escanear un nuevo código de vinculación en la web.\n`
     };
 
     let textoEnviar = menuGeneral;
