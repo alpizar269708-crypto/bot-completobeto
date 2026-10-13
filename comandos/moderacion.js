@@ -71,12 +71,13 @@ function obtenerObjetivo(msg, args = []) {
 }
 
 // Banear, guardar motivo y expulsar de todos los grupos
-async function banearYExpulsar(sock, userId, motivo = 'Baneado por un administrador') {
+async function banearYExpulsar(sock, userId, motivo = 'Baneado por un administrador', actor = {}) {
     const cleanId = userId.includes('@') ? userId : `${userId.replace(/[^0-9]/g, '')}@s.whatsapp.net`;
-    
+    const banPor = String(actor.nombre || 'Sistema automático');
+    const banNumero = String(actor.numero || 'Sistema');
     await User.findOneAndUpdate(
-        { numero: cleanId }, 
-        { baneado: true, banMotivo: motivo }, 
+        { numero: cleanId },
+        { baneado: true, banMotivo: motivo, banPor, banNumero, banFecha: new Date() },
         { upsert: true }
     );
 
@@ -560,13 +561,17 @@ async function comandoWarn(sock, numero, msg, args = []) {
     }
 
     const citado = msg.message?.extendedTextMessage?.contextInfo;
-    let motivo = 'Sin motivo especificado';
-    if (citado?.mentionedJid?.[0]) {
-        const motivoArgs = args.slice(1).join(' ');
-        if (motivoArgs) motivo = motivoArgs;
-    } else if (args && args.length > 0) {
-        motivo = args.join(' ');
+    let motivo = '';
+    if (citado?.mentionedJid?.[0]) motivo = args.slice(1).join(' ').trim();
+    else if (citado?.participant) motivo = args.join(' ').trim();
+    else if (args && args.length > 1) motivo = args.slice(1).join(' ').trim();
+    if (!motivo) {
+        await sock.sendMessage(chatJid, { text: '❌ El motivo es obligatorio. Ejemplo: *warn @usuario spam repetido*. Si respondes al mensaje, usa *warn motivo*.' }, { quoted: msg });
+        return;
     }
+    const moderadorJid = msg.key.participant || (msg.key.fromMe ? (sock.user?.id || 'bot') : chatJid);
+    const moderadorNumero = String(moderadorJid).split('@')[0].split(':')[0];
+    const registroModerador = { moderador: msg.key.fromMe ? 'Bot/propietario' : moderadorNumero, moderadorNumero, moderadorJid };
 
     let usuarioBD = await User.findOne({ numero: objetivo });
     if (!usuarioBD) {
@@ -575,7 +580,7 @@ async function comandoWarn(sock, numero, msg, args = []) {
 
     if (!Array.isArray(usuarioBD.warns)) usuarioBD.warns = [];
 
-    usuarioBD.warns.push({ motivo, fecha: new Date() });
+    usuarioBD.warns.push({ motivo, fecha: new Date(), ...registroModerador });
     usuarioBD.markModified('warns');
     const totalWarns = usuarioBD.warns.length;
 
@@ -585,7 +590,7 @@ async function comandoWarn(sock, numero, msg, args = []) {
                     `📌 Total: ${totalWarns}/3`;
 
     if (totalWarns >= 3) {
-        await banearYExpulsar(sock, objetivo, `Acumulación de 3 warns (Última razón: ${motivo})`);
+        await banearYExpulsar(sock, objetivo, `Acumulación de 3 warns (Última razón: ${motivo})`, { nombre: registroModerador.moderador, numero: registroModerador.moderadorNumero });
         respuesta += `\n\n🚨 *Límite alcanzado:* El usuario alcanzó los 3 warns, fue baneado y expulsado de los grupos.`;
     }
 
@@ -651,19 +656,20 @@ async function comandoBan(sock, numero, msg, args = []) {
         return;
     }
 
-    let motivo = 'Baneado por un administrador';
+    let motivo = '';
     const citado = msg.message?.extendedTextMessage?.contextInfo;
-    if (citado?.mentionedJid?.[0]) {
-        const motivoArgs = args.slice(1).join(' ');
-        if (motivoArgs) motivo = motivoArgs;
-    } else if (citado?.participant && args.length > 0) {
-        motivo = args.join(' ');
-    } else if (!citado && args.length > 1) {
-        motivo = args.slice(1).join(' ');
+    if (citado?.mentionedJid?.[0]) motivo = args.slice(1).join(' ').trim();
+    else if (citado?.participant) motivo = args.join(' ').trim();
+    else if (args.length > 1) motivo = args.slice(1).join(' ').trim();
+    if (!motivo) {
+        await sock.sendMessage(chatJid, { text: '❌ El motivo es obligatorio. Ejemplo: *ban @usuario spam o conducta peligrosa*. Si respondes al mensaje, usa *ban motivo*.' }, { quoted: msg });
+        return;
     }
-
-    await banearYExpulsar(sock, objetivo, motivo);
-    await sock.sendMessage(chatJid, { text: `🚫 El usuario @${objetivo.split('@')[0]} fue agregado a la lista negra.\n📝 Motivo: _${motivo}_`, mentions: [objetivo] }, { quoted: msg });
+    const moderadorJid = msg.key.participant || (msg.key.fromMe ? (sock.user?.id || 'bot') : chatJid);
+    const moderadorNumero = String(moderadorJid).split('@')[0].split(':')[0];
+    const registroModerador = { nombre: msg.key.fromMe ? 'Bot/propietario' : moderadorNumero, numero: moderadorNumero };
+    await banearYExpulsar(sock, objetivo, motivo, registroModerador);
+    await sock.sendMessage(chatJid, { text: `🚫 El usuario @${objetivo.split('@')[0]} fue agregado a la lista negra.\n📝 Motivo: _${motivo}_\n👮 Baneado por: ${registroModerador.nombre} (${registroModerador.numero})`, mentions: [objetivo] }, { quoted: msg });
 }
 
 async function comandoUnban(sock, numero, msg, args = []) {
@@ -705,7 +711,9 @@ async function comandoListaNegra(sock, numero, msg) {
     baneados.forEach((b, index) => {
         const numeroLimpio = b.numero.split('@')[0];
         const motivo = b.banMotivo || 'Sin motivo especificado';
-        texto += `*${index + 1}.* @${numeroLimpio}\n   📝 Motivo: _${motivo}_y\n\n`;
+        const autorBan = b.banNumero || b.banPor || 'No registrado (baneo anterior)';
+        const fechaBan = b.banFecha ? `\n   📅 Fecha: ${new Date(b.banFecha).toLocaleString('es-MX')}` : '';
+        texto += `*${index + 1}.* @${numeroLimpio}\n   📝 Motivo: _${motivo}_\n   👮 Baneado por: ${autorBan}${fechaBan}\n\n`;
         mentions.push(b.numero);
     });
 
