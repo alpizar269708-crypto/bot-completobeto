@@ -25,9 +25,6 @@ jobs:
         run: npm install --ignore-scripts --no-audit --no-fund
       - name: Check JavaScript syntax
         run: |
-          node --check webBridge.js
-          node --check comandos/fortnite.js
-          node --check comandos/fortnitedb.js
-          node --check messageHandler.js
+          find . -type f -name '*.js' -not -path './node_modules/*' -print0 | xargs -0 -n1 node --check
       - name: Test STW source parsers and command routing
         run: npm test
