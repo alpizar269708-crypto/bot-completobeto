@@ -876,7 +876,7 @@ async function enviarAlertaPavosAutomatica(sock, actualizarEnVivo = false, horaA
             let avisoEnviado = false;
             for (const grupo of grupos) {
                 try {
-                    await sock.sendMessage(grupo, { text: '🎮 *ALERTAS DE PAVOS — 6:02 PM*\\n\\n_No hay alertas de pavos registradas._\\n\\nSupport-a-Creator: *JASC13* ❤️' });
+                    await sock.sendMessage(grupo, { text: '🎮 *ALERTAS DE PAVOS — 6:02 PM*\n\n_No hay alertas de pavos registradas._\n\nSupport-a-Creator: *JASC13* ❤️' });
                     avisoEnviado = true;
                 } catch (e) {
                     console.error('Error enviando aviso de alertas vacías:', e.message);
