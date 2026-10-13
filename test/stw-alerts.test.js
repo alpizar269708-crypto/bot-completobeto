@@ -323,7 +323,8 @@ test('las ubicaciones y recompensas se muestran en español sin filtrar nombres 
 test('la consulta STW no recupera cachés antiguos si falla el raspado', () => {
     const codigo = fs.readFileSync(path.join(__dirname, '..', 'comandos', 'fortnite.js'), 'utf8');
     assert.match(codigo, /actualizarEnVivo\s*&&\s*!raspadoCorrecto/);
-    assert.match(codigo, /No hay alertas de PaVos hoy/);
+    assert.match(codigo, /💔 No hay alertas de PaVos hoy\. 😔/);
+    assert.match(codigo, /No hay alertas de PaVos hoy[^\n]*, ''\);/);
     assert.doesNotMatch(codigo, /primeraPrincipal/);
 });
 
