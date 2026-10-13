@@ -510,7 +510,7 @@ async function comandoPreguntarAlerta(sock, chatId, msg, palabrasClave = [], pro
         : String(palabrasClave || '').trim();
 
     if (!termino) {
-        await sock.sendMessage(chatId, { text: '🤖 Escribe después de *' + nombreComando + '* una palabra o frase para buscar en las alertas.' }, { quoted: msg });
+        await sock.sendMessage(chatId, { text: '🤖 Escribe una recompensa o combina tipo y rareza. Ejemplos: *recompensa defensor legendario*, *recompensa héroe épico*, *recompensanov superviviente legendario*.' }, { quoted: msg });
         return;
     }
 
@@ -554,6 +554,41 @@ async function comandoPreguntarAlerta(sock, chatId, msg, palabrasClave = [], pro
     };
 
     const partesBusqueda = termino.split(/\s+/).filter(Boolean);
+    const tokensConsulta = normalizarTexto(termino).replace(/[^a-z0-9]+/g, ' ').split(/\s+/).filter(Boolean);
+    const filtrosTipo = {
+        heroe: ['hero', 'heroe', 'heroes'],
+        defensor: ['defender', 'defensor', 'defensores'],
+        superviviente: ['survivor', 'superviviente', 'supervivientes'],
+        esquema: ['schematic', 'esquema', 'esquemas'],
+        perkup: ['perkup', 'perk', 'up']
+    };
+    const filtrosRareza = {
+        legendary: ['legendario', 'legendaria', 'legendarios', 'legendarias', 'legendary'],
+        epic: ['epico', 'epica', 'epicos', 'epicas', 'epic'],
+        mythic: ['mitico', 'mitica', 'miticos', 'miticas', 'mythic'],
+        rare: ['raro', 'rara', 'raros', 'raras', 'rare']
+    };
+    const tipoBuscado = Object.keys(filtrosTipo).find(k => filtrosTipo[k].some(alias => tokensConsulta.includes(alias))) || '';
+    const rarezaBuscada = Object.keys(filtrosRareza).find(k => filtrosRareza[k].some(alias => tokensConsulta.includes(alias))) || '';
+    const palabrasFiltro = new Set([...Object.values(filtrosTipo).flat(), ...Object.values(filtrosRareza).flat()]);
+    const terminoRestante = tokensConsulta.filter(t => !palabrasFiltro.has(t)).join(' ').trim();
+    const hayFiltroTipoRareza = Boolean(tipoBuscado || rarezaBuscada);
+    const coincideFiltroRecompensa = r => {
+        if (!r || typeof r === 'string') return false;
+        const tipo = normalizarTexto(r.tipo || '').replace(/[^a-z0-9]+/g, '');
+        const rareza = normalizarTexto(r.rareza || '').replace(/[^a-z0-9]+/g, '');
+        const tiposCanonicos = {
+            heroe: ['hero', 'heroes', 'heroe'],
+            defensor: ['defender', 'defensor'],
+            superviviente: ['survivor', 'superviviente'],
+            esquema: ['schematic', 'esquema'],
+            perkup: ['perkup']
+        };
+        if (tipoBuscado && !(tiposCanonicos[tipoBuscado] || [tipoBuscado]).some(t => tipo === t || tipo.includes(t))) return false;
+        if (rarezaBuscada && !(rareza === rarezaBuscada || rareza.includes(rarezaBuscada))) return false;
+        return true;
+    };
+    const terminoBusquedaLibre = terminoRestante || (hayFiltroTipoRareza ? '' : termino);
     const terminoPL = partesBusqueda.join('').toLowerCase();
     const rangoPL = terminoPL.match(/^pl(\d+)-(\d+)$/);
     const plSeparado = partesBusqueda.length === 2
@@ -642,8 +677,14 @@ async function comandoPreguntarAlerta(sock, chatId, msg, palabrasClave = [], pro
         }
         const listaRecompensas = Array.isArray(item.recompensas) ? item.recompensas : [];
         if (modoRecompensa) {
-            const textoRecompensas = [item.recompensa, ...listaRecompensas.map(r => typeof r === 'string' ? r : [r.nombre, r.raw, r.tipo, r.iconClasses].filter(Boolean).join(' '))].filter(Boolean).join(' ');
-            return coincideRecompensaTolerante(termino, textoRecompensas);
+            const textoRecompensas = [item.recompensa, ...listaRecompensas.map(r => typeof r === 'string' ? r : [r.nombre, r.raw, r.tipo, r.rareza, r.iconClasses].filter(Boolean).join(' '))].filter(Boolean).join(' ');
+            if (hayFiltroTipoRareza) {
+                const recompensasCoincidentes = listaRecompensas.filter(coincideFiltroRecompensa);
+                if (!recompensasCoincidentes.length) return false;
+                item._recompensasFiltradas = recompensasCoincidentes;
+                return !terminoRestante || coincideRecompensaTolerante(terminoRestante, textoRecompensas);
+            }
+            return coincideRecompensaTolerante(terminoBusquedaLibre, textoRecompensas);
         }
         const textoBusqueda = normalizarTexto([
             item.mision, item.misionOriginal, item.zona, item.nombre, item.recompensa,
@@ -725,9 +766,9 @@ async function comandoPreguntarAlerta(sock, chatId, msg, palabrasClave = [], pro
     let texto = esBusquedaPL
         ? '🔎 *ALERTAS CON PL ' + etiquetaPL + '*\n\n'
         : '🔎 *ALERTAS QUE CONTIENEN:* ' + termino + '\n\n';
-    if (modoRecompensa) {
+    if (modoRecompensa && !hayFiltroTipoRareza) {
         const resumen = [...totalesMaterialVerificados.entries()]
-            .filter(([material]) => coincideRecompensaTolerante(termino, material))
+            .filter(([material]) => coincideRecompensaTolerante(terminoBusquedaLibre, material))
             .sort((a, b) => a[0].localeCompare(b[0]));
         if (resumen.length) {
             texto += '📊 *TOTALES VERIFICADOS EN 2 O MÁS PÁGINAS*\n';
@@ -749,7 +790,10 @@ async function comandoPreguntarAlerta(sock, chatId, msg, palabrasClave = [], pro
         coincidencias.forEach(item => {
             const categorias = Array.isArray(item.categoria) ? item.categoria : [item.categoria];
             texto += '📌 *' + [...new Set(categorias)].join(' / ') + '*\n';
-            texto += formatearAlertaSTW(item, '', mostrarDetalles, modoRecompensa);
+            const itemParaMostrar = modoRecompensa && Array.isArray(item._recompensasFiltradas)
+                ? { ...item, recompensas: item._recompensasFiltradas }
+                : item;
+            texto += formatearAlertaSTW(itemParaMostrar, '', mostrarDetalles, modoRecompensa);
         });
     }
 
