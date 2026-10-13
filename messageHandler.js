@@ -35,7 +35,7 @@ const categoriasMap = {
     'ia': ['ia'],
     'moderacion': ['warn', 'advertir', 'verwarns', 'limpiarwarns', 'ban', 'unban', 'listanegra', 'banlist', 'unbanlist', 'grupo', 'mute', 'unmute', 'inactivos', 'listablanca', 'desactivarbienvenida', 'activarbienvenida', 'personalizarbienvenida', 'restaurarbienvenida', 'blcarry', 'unblcarry', 'listcarrybl', 'setprecio', 'setgrupostw', 'unsetgrupostw', 'desactivarcomandos', 'catdesa'],
     'tienda': ['tienda', 'tiendavb'],
-    'carry': ['carryleader', 'carryjoin', 'carryleave', 'carryclose', 'buscocarry', 'buscooff', 'doycarry', 'x2busco', 'blcarry', 'unblcarry', 'listcarrybl'],
+    'carry': ['carryleader', 'carryjoin', 'carryleave', 'carryclose', 'buscocarry', 'buscooff', 'doycarry', 'x2busco'],
     'rifas': ['rifa', 'rifainscripcion', 'cerrarrifa', 'rifaquitarduplicados', 'rifajasc13', 'addvarios', 'abrirrifa', 'activarrifaaqui', 'menurifajasc13'],
     'cashback': ['addcashback', 'delcashback', 'vercash', 'delvcash', 'canjecash'],
     'administracion': ['redeploy'],
