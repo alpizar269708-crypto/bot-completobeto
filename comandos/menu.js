@@ -2,7 +2,7 @@ const { esPrivilegiadoTotalAsync } = require('../utils/whatsapp');
 const { Config } = require('../database/modelos');
 
 const categoriasMap = {
-    fortnite: ['pavos', 'destacadasstw', 'legendariasstw', 'epicasstw', 'alertasstw', 'stw', 'alerta', 'alertanov', 'setgrupostw', 'unsetgrupostw', 'setprecio'],
+    fortnite: ['pavos', 'destacadasstw', 'legendariasstw', 'epicasstw', 'alertasstw', 'stw', 'alerta', 'alertanov', 'recompensa', 'recompensanov'],
     tienda: ['tienda', 'tiendavb'],
     carry: ['carryleader', 'carryjoin', 'carryleave', 'carryclose', 'buscocarry', 'doycarry', 'x2busco', 'blcarry', 'unblcarry', 'listcarrybl'],
     rifas: ['rifa', 'rifainscripcion', 'cerrarrifa', 'rifajasc13', 'addvarios', 'abrirrifa', 'activarrifaaqui', 'menurifajasc13'],
@@ -11,7 +11,7 @@ const categoriasMap = {
     utilidades: ['s', 'sticker', 'tiktok', 'instagram', 'traduce', 'skin', 'stats', 'tiendastats', 'tiendavb', 'contacto', 'ping'],
     paypal: ['paypal', 'paypaln', 'paypali'],
     ia: ['ia'],
-    moderacion: ['warn', 'advertir', 'verwarns', 'limpiarwarns', 'ban', 'unban', 'listanegra', 'banlist', 'unbanlist', 'grupo', 'mute', 'unmute', 'inactivos', 'listablanca', 'desactivarbienvenida', 'activarbienvenida', 'personalizarbienvenida', 'restaurarbienvenida']
+    moderacion: ['warn', 'advertir', 'verwarns', 'limpiarwarns', 'ban', 'unban', 'listanegra', 'banlist', 'unbanlist', 'grupo', 'mute', 'unmute', 'inactivos', 'listablanca', 'desactivarbienvenida', 'activarbienvenida', 'personalizarbienvenida', 'restaurarbienvenida', 'blcarry', 'unblcarry', 'listcarrybl', 'setprecio', 'setgrupostw', 'unsetgrupostw', 'desactivarcomandos', 'catdesa']
 };
 
 const nombresCategorias = ['fortnite', 'tienda', 'carry', 'rifas', 'cashback', 'economia', 'utilidades', 'paypal', 'ia', 'moderacion'];
@@ -49,7 +49,8 @@ async function ejecutarMenu(sock, chatId, msg, args) {
     // La configuración de desactivarcomandos se aplica a TODOS los miembros,
     // incluidos administradores y el creador. Por defecto todo está activo;
     // solo se ocultan/deshabilitan las categorías guardadas como desactivadas.
-    const categoriasActivas = await obtenerCategoriasActivas(chatId); 
+    let categoriasActivas = await obtenerCategoriasActivas(chatId);
+    if (!isAdmin || !isGroup) categoriasActivas = categoriasActivas.filter(cat => cat !== 'moderacion'); 
 
     const descripcionCategorias = {
         fortnite: '🎮 *fortnite* - Alertas y PaVos de Salvar el Mundo',
@@ -85,26 +86,13 @@ async function ejecutarMenu(sock, chatId, msg, args) {
     `*${prefijo}epicasstw* - Recompensas épicas útiles (héroes, supervivientes, defensores y esquemas).\n` +
     `*${prefijo}legendariasstw* - Recompensas legendarias útiles de esas categorías.\n` +
     `*${prefijo}alertasstw* - Resumen breve: PaVos y hasta 10 alertas destacadas; usa los comandos por rareza para las listas completas.\n` +
-    `*${prefijo}alerta [nombre]* - Busca una recompensa específica con datos resumidos.\n` +
-    `*${prefijo}alertanov [nombre]* - Alerta para novatos: muestra todo lo necesario para la misión, con modificadores y requisitos disponibles; nunca muestra x4/x5.\n`;
+    `*${prefijo}alerta [nombre]* - Busca una alerta por misión o recompensa.\n` +
+    `*${prefijo}alertanov [nombre]* - Muestra detalles, modificadores y requisitos disponibles; nunca muestra x4/x5.\n` +
+    `*${prefijo}recompensa [tipo] [rareza]* - Busca recompensas concretas; por ejemplo: *recompensa defensor legendario* o *recompensa héroe épico*.\n` +
+    `*${prefijo}recompensanov [tipo] [rareza]* - Igual, pero con detalles de la misión.\n`;
 
-    menuFortnite += `\n🚀 *CARRY / ESCUADRONES:*\n` +
-        `*${prefijo}carryleader [1-3] [motivo]* - Crea un escuadrón indicando cuántos jugadores faltan.\n` +
-        `*${prefijo}carryjoin* - Únete al escuadrón activo.\n` +
-        `*${prefijo}carryleave* - Sal del escuadrón actual.\n` +
-        `*${prefijo}carryclose* - Cierra tu escuadrón.\n` +
-        `*${prefijo}buscocarry [1-3] [motivo]* - Busca carry y menciona a todos de forma oculta.\n` +
-        `*${prefijo}buscooff* - Cierra la búsqueda de carry (quien la abrió o admin).\\n` +
-        `*${prefijo}doycarry* - Se une para ofrecer el carry.\n` +
-        `*${prefijo}x2busco* - Se une como otro jugador que también busca carry.\n` +
-        `*${prefijo}blcarry [@user / número / cita]* - Bloquea a alguien del carry (Admins).\n` +
-        `*${prefijo}unblcarry [@user / número / cita]* - Quita a alguien de la lista negra (Admins).\n` +
-        `*${prefijo}listcarrybl* - Muestra la lista negra de carry (Admins).\n`;
+    // Los comandos administrativos se encuentran en *menú moderación*.
 
-    menuFortnite += `\n⚙️ *Gestión del Grupo:*\n` +
-        `*${prefijo}setprecio* - Configura precio de venta de pavos.\n` +
-        `*${prefijo}setgrupostw* - Activa reportes diarios a las 6:05 PM aquí.\n` +
-        `*${prefijo}unsetgrupostw* - Desactiva los reportes diarios.\n`;
 
     let menuModeracion = `🛡️ *MENÚ MODERACIÓN (Admins)* 🛡️\n\n`;
     if (isAdmin && isGroup) {
@@ -118,7 +106,10 @@ async function ejecutarMenu(sock, chatId, msg, args) {
         `*${prefijo}desactivarbienvenida* - Desactiva la bienvenida en este grupo.\n` +
         `*${prefijo}activarbienvenida* - Vuelve a activar la bienvenida.\n` +
         `*${prefijo}personalizarbienvenida [mensaje]* - Personaliza la bienvenida; usa {usuario} para mencionar al nuevo integrante.\n` +
-        `*${prefijo}restaurarbienvenida* - Regresa al mensaje de bienvenida por defecto.\n\n` +
+        `*${prefijo}restaurarbienvenida* - Regresa al mensaje de bienvenida por defecto.\n` +
+        `*${prefijo}setprecio* - Configura el precio de venta de PaVos.\n` +
+        `*${prefijo}setgrupostw* / *${prefijo}unsetgrupostw* - Activa o desactiva reportes diarios de STW.\n` +
+        `*${prefijo}desactivarcomandos [categorías]* / *${prefijo}catdesa* - Administra las categorías activas.\n\n` +
         `🟢 *Lista Blanca de Links:*\n` +
         `*${prefijo}listablanca agregar [link o dominio]* - Permite un link concreto o un dominio completo.\n` +
         `Ejemplo: *${prefijo}listablanca agregar betomaster.com* - Permite todas las rutas y subdominios de betomaster.com.\n` +
@@ -218,8 +209,10 @@ async function ejecutarMenu(sock, chatId, msg, args) {
     let textoEnviar = menuGeneral;
 
     if (args.length > 0) {
-        const categoria = args[0].toLowerCase();
-        if (menus[categoria] && categoriasActivas.includes(categoria)) {
+        const categoria = args[0].toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+        if (categoria === 'moderacion' && (!isAdmin || !isGroup)) {
+            textoEnviar = '❌ El menú de moderación es exclusivo para administradores del grupo.\n';
+        } else if (menus[categoria] && categoriasActivas.includes(categoria)) {
             textoEnviar = menus[categoria];
         } else if (menus[categoria] && !categoriasActivas.includes(categoria)) {
             textoEnviar = `❌ Esa categoría no está activa en este grupo.\n\n` + menuGeneral;
