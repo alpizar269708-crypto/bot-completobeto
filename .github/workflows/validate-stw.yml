@@ -1,6 +1,14 @@
 name: Validate STW alerts
 
 on:
+  push:
+    branches:
+      - main
+      - fix/stw-html-fixture-tests
+      - fix/stw-alertas-limpias-v2
+  pull_request:
+    branches:
+      - main
   workflow_dispatch:
 
 jobs:
