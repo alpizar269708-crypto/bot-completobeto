@@ -4,7 +4,10 @@ const userSchema = new mongoose.Schema({
     numero: { type: String, required: true, unique: true },
     warns: { type: mongoose.Schema.Types.Mixed, default: [] },
     baneado: { type: Boolean, default: false },
-    banMotivo: { type: String, default: 'Sin motivo especificado' }, // 👈 Nuevo campo para el motivo del baneo
+    banMotivo: { type: String, default: 'Sin motivo especificado' },
+    banPor: { type: String, default: '' },
+    banNumero: { type: String, default: '' },
+    banFecha: { type: Date, default: null },
     saldo: { type: Number, default: 0 },
 });
 
