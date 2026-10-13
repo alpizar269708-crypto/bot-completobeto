@@ -135,7 +135,7 @@ async function ejecutarMenu(sock, chatId, msg, args) {
                  `*${prefijo}carryleave* - Sal del escuadrón en el que estás.\n` +
                  `*${prefijo}carryclose* - Cierra el escuadrón (Solo el líder).\n` +
                  `*${prefijo}buscocarry [1-3] [motivo]* - Busca carry y notifica a todos con mención oculta.\n` +
-                 `*${prefijo}buscooff* - Cierra la búsqueda activa (quien la abrió o admin).\\n` +
+                 `*${prefijo}buscooff* - Cierra la búsqueda activa (quien la abrió o admin).\n` +
                  `*${prefijo}doycarry* - Entra a ofrecer el carry.\n` +
                  `*${prefijo}x2busco* - Entra como otro jugador que busca carry.\n`,
 
