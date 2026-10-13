@@ -386,7 +386,7 @@ async function alertasSTW(sock, chatId, msg, categoria = 'todas', progreso = nul
         if (!datos.pavos.length) {
             lineas.push(datos.errorActualizacion
                 ? '⚠️ _No pude obtener alertas en vivo y todavía no hay caché guardado._'
-                : '😔 _No hay alertas de PaVos registradas en este momento._', '', '');
+                : '😔 *No hay alertas de PaVos hoy.* 💔', '', '');
         } else {
             let totalPavos = 0;
             const pavosUnicos = deduplicarAlertasPavos(datos.pavos);
