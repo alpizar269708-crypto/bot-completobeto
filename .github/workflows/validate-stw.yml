@@ -1,5 +1,9 @@
 name: Validate STW alerts
 
+concurrency:
+  group: validate-stw-${{ github.ref }}
+  cancel-in-progress: true
+
 on:
   push:
     branches:
