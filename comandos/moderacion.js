@@ -570,7 +570,8 @@ async function comandoWarn(sock, numero, msg, args = []) {
         return;
     }
     const moderadorJid = msg.key.participant || (msg.key.fromMe ? (sock.user?.id || 'bot') : chatJid);
-    const moderadorNumero = String(moderadorJid).split('@')[0].split(':')[0];
+    const moderadorResuelto = await resolverLidAPn(sock, moderadorJid).catch(() => moderadorJid);
+    const moderadorNumero = String(moderadorResuelto || moderadorJid).split('@')[0].split(':')[0];
     const registroModerador = { moderador: msg.key.fromMe ? 'Bot/propietario' : moderadorNumero, moderadorNumero, moderadorJid };
 
     let usuarioBD = await User.findOne({ numero: objetivo });
@@ -666,7 +667,8 @@ async function comandoBan(sock, numero, msg, args = []) {
         return;
     }
     const moderadorJid = msg.key.participant || (msg.key.fromMe ? (sock.user?.id || 'bot') : chatJid);
-    const moderadorNumero = String(moderadorJid).split('@')[0].split(':')[0];
+    const moderadorResuelto = await resolverLidAPn(sock, moderadorJid).catch(() => moderadorJid);
+    const moderadorNumero = String(moderadorResuelto || moderadorJid).split('@')[0].split(':')[0];
     const registroModerador = { nombre: msg.key.fromMe ? 'Bot/propietario' : moderadorNumero, numero: moderadorNumero };
     await banearYExpulsar(sock, objetivo, motivo, registroModerador);
     await sock.sendMessage(chatJid, { text: `🚫 El usuario @${objetivo.split('@')[0]} fue agregado a la lista negra.\n📝 Motivo: _${motivo}_\n👮 Baneado por: ${registroModerador.nombre} (${registroModerador.numero})`, mentions: [objetivo] }, { quoted: msg });
