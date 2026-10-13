@@ -28,12 +28,12 @@ const { comandoCarry } = require('./comandos/carry');
 const { comandoPaypal, comandoCalculadoraPaypal } = require('./comandos/paypal');
 
 const categoriasMap = {
-    'fortnite': ['pavos', 'rpavos', 'destacadasstw', 'legendariasstw', 'epicasstw', 'alertasstw', 'stw', 'alerta', 'alertanov', 'recompensa', 'recompensanov', 'setgrupostw', 'unsetgrupostw', 'setprecio'],
+    'fortnite': ['pavos', 'rpavos', 'destacadasstw', 'legendariasstw', 'epicasstw', 'alertasstw', 'stw', 'alerta', 'alertanov', 'recompensa', 'recompensanov'],
     'economia': ['cartera', 'bal', 'banco', 'pay', 'pagar', 'top', 'topdinero', 'daily', 'weekly', 'farmear', 'work', 'crime', 'mendigar', 'pescar', 'minar', 'cazar', 'explorar', 'ruleta', 'cf', 'slots', 'dados', 'adivina', 'buscaminas', 'rob', 'ppt', 'pelea', 'carrera', 'hackear', 'shop', 'buy', 'inventario', 'mochila', 'vender', 'use', 'regalar'],
     'utilidades': ['s', 'sticker', 'recup1vez', 'tiktok', 'instagram', 'traduce', 'skin', 'stats', 'tiendastats', 'tiendavb', 'contacto', 'ping'],
     'paypal': ['paypal', 'paypaln', 'paypali'],
     'ia': ['ia'],
-    'moderacion': ['warn', 'advertir', 'verwarns', 'limpiarwarns', 'ban', 'unban', 'listanegra', 'banlist', 'unbanlist', 'grupo', 'mute', 'unmute', 'inactivos', 'listablanca', 'desactivarbienvenida', 'activarbienvenida', 'personalizarbienvenida', 'restaurarbienvenida'],
+    'moderacion': ['warn', 'advertir', 'verwarns', 'limpiarwarns', 'ban', 'unban', 'listanegra', 'banlist', 'unbanlist', 'grupo', 'mute', 'unmute', 'inactivos', 'listablanca', 'desactivarbienvenida', 'activarbienvenida', 'personalizarbienvenida', 'restaurarbienvenida', 'blcarry', 'unblcarry', 'listcarrybl', 'setprecio', 'setgrupostw', 'unsetgrupostw', 'desactivarcomandos', 'catdesa'],
     'tienda': ['tienda', 'tiendavb'],
     'carry': ['carryleader', 'carryjoin', 'carryleave', 'carryclose', 'buscocarry', 'buscooff', 'doycarry', 'x2busco', 'blcarry', 'unblcarry', 'listcarrybl'],
     'rifas': ['rifa', 'rifainscripcion', 'cerrarrifa', 'rifaquitarduplicados', 'rifajasc13', 'addvarios', 'abrirrifa', 'activarrifaaqui', 'menurifajasc13'],
@@ -437,13 +437,15 @@ Apoya a un creador: JASC13` });
             ['cerrarsesionauth', 'Cierra la sesión de WhatsApp del bot para volver a vincularla.']
         ];
 
+        const comandosModeracion = new Set(['warn', 'advertir', 'verwarns', 'limpiarwarns', 'ban', 'unban', 'listanegra', 'banlist', 'unbanlist', 'grupo', 'mute', 'unmute', 'inactivos', 'listablanca', 'desactivarbienvenida', 'activarbienvenida', 'personalizarbienvenida', 'restaurarbienvenida', 'blcarry', 'unblcarry', 'listcarrybl', 'setprecio', 'setgrupostw', 'unsetgrupostw', 'desactivarcomandos', 'catdesa']);
+        const comandosVisibles = comandosInfo.filter(([cmd]) => (tienePrivilegiosTotales || msg.key.fromMe || !comandosModeracion.has(cmd)));
         const texto = [
             '🕵️‍♂️ *COMANDOS DEL BOT* 🕵️‍♂️',
             '',
             'Lista de comandos útiles, administrativos, de Fortnite, rifas, carry y utilidades.',
             'Se excluyeron los comandos de minijuegos, apuestas y acciones tipo RPG.',
             '',
-            ...comandosInfo.map(([cmd, descripcion], i) => `${i + 1}. *${cmd}* — ${descripcion}`),
+            ...comandosVisibles.map(([cmd, descripcion], i) => `${i + 1}. *${cmd}* — ${descripcion}`),
             '',
             'Apoya a un creador: *JASC13* ❤️'
         ].join('\n');
