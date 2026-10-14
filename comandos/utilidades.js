@@ -1592,6 +1592,90 @@ async function comandoTiktok(sock, chatId, msg, args) {
 }
 
 
+// Descargador común para publicaciones con fotos, carruseles o videos.
+function extraerUrlSocial(texto) {
+    const fuente = String(texto || '').trim();
+    const encontrados = fuente.match(/(?:https?:\/\/)?(?:www\.|m\.|mobile\.)?(?:x\.com|twitter\.com|t\.co|instagram\.com|tiktok\.com|pinterest\.[a-z.]+|pin\.it|facebook\.com|fb\.watch|reddit\.com|redd\.it|threads\.net)\/[^\s<>\]\)]+/gi) || [];
+    for (let valor of encontrados) {
+        valor = valor.replace(/[),.;!?]+$/g, '');
+        if (!/^https?:\/\//i.test(valor)) valor = 'https://' + valor;
+        try {
+            const u = new URL(valor);
+            if (/(^|\.)(x\.com|twitter\.com|t\.co|instagram\.com|tiktok\.com|pinterest\.[a-z.]+|pin\.it|facebook\.com|fb\.watch|reddit\.com|redd\.it|threads\.net)$/i.test(u.hostname)) return u.toString();
+        } catch (_) {}
+    }
+    return null;
+}
+
+async function comandoDescargaSocial(sock, chatId, msg, args, plataforma = 'red social') {
+    const texto = Array.isArray(args) ? args.join(' ') : String(args || '');
+    const url = extraerUrlSocial(texto);
+    if (!url) {
+        await sock.sendMessage(chatId, { text: '⚠️ Envíame un enlace público válido de la publicación.' }, { quoted: msg });
+        return;
+    }
+    const tempDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'social-media-'));
+    try {
+        await sock.sendMessage(chatId, { text: '⬇️ Descargando fotos/videos en la mejor calidad disponible...' }, { quoted: msg });
+        const salida = path.join(tempDir, '%(autonumber)02d.%(ext)s');
+        await youtubedl(url, {
+            output: salida,
+            format: 'bestvideo*+bestaudio/best',
+            mergeOutputFormat: 'mp4',
+            noWarnings: true,
+            noPlaylist: false,
+            maxDownloads: 10,
+            maxFilesize: '64M',
+            socketTimeout: 30,
+            retries: 3,
+            fragmentRetries: 3,
+            extractorRetries: 2,
+            noPart: true,
+            restrictFilenames: true,
+            jsRuntimes: 'node',
+            remoteComponents: 'ejs:github',
+            userAgent: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/131.0.0.0 Safari/537.36',
+            ...(new URL(url).hostname.match(/(^|\.)x\.com$|(^|\.)twitter\.com$/i) ? { referer: 'https://x.com/' } : {})
+        }, { timeout: 150000 });
+
+        const extensiones = /\.(?:jpe?g|png|webp|gif|mp4|m4v|mov|webm|mkv)$/i;
+        const archivos = (await fs.promises.readdir(tempDir))
+            .filter(nombre => extensiones.test(nombre))
+            .map(nombre => path.join(tempDir, nombre))
+            .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+        if (!archivos.length) throw new Error('La plataforma no entregó fotos o videos descargables. La publicación puede ser privada o estar restringida.');
+        let enviados = 0;
+        for (const archivo of archivos.slice(0, 10)) {
+            const stat = await fs.promises.stat(archivo);
+            if (!stat.size || stat.size > 64 * 1024 * 1024) continue;
+            const buffer = await fs.promises.readFile(archivo);
+            const ext = path.extname(archivo).toLowerCase();
+            const caption = '📥 ' + plataforma + ': archivo ' + (enviados + 1) + '\n\nApoya a un creador: *JASC13*';
+            if (['.jpg', '.jpeg', '.png', '.webp'].includes(ext)) {
+                await sock.sendMessage(chatId, { image: buffer, caption }, { quoted: msg });
+            } else if (ext === '.gif') {
+                await sock.sendMessage(chatId, { video: buffer, gifPlayback: true, mimetype: 'video/mp4', caption }, { quoted: msg });
+            } else {
+                await sock.sendMessage(chatId, { video: buffer, mimetype: ext === '.webm' ? 'video/webm' : 'video/mp4', caption }, { quoted: msg });
+            }
+            enviados++;
+        }
+        if (!enviados) throw new Error('Los archivos superan el límite de 64 MB o tienen un formato no compatible con WhatsApp.');
+        if (archivos.length > enviados) {
+            await sock.sendMessage(chatId, { text: 'ℹ️ Se enviaron ' + enviados + ' archivos. Algunos elementos se omitieron por tamaño o compatibilidad.' }, { quoted: msg });
+        }
+    } catch (error) {
+        console.error('Error descargando ' + plataforma + ':', error?.stack || error);
+        await sock.sendMessage(chatId, { text: '❌ No pude descargar esa publicación de ' + plataforma + '. Verifica que sea pública.\n\nDetalle: ' + String(error?.message || error).replace(/\s+/g, ' ').slice(0, 500) }, { quoted: msg });
+    } finally {
+        await fs.promises.rm(tempDir, { recursive: true, force: true }).catch(() => {});
+    }
+}
+
+async function comandoX(sock, chatId, msg, args) {
+    return comandoDescargaSocial(sock, chatId, msg, args, 'X');
+}
+
 // 📌 Pinterest (video en la mejor calidad disponible)
 function extraerUrlPinterest(texto) {
     const fuente = String(texto || '').trim();
@@ -1771,6 +1855,8 @@ module.exports = {
     comandoTiktok,
     comandoInstagram,
     comandoPinterest,
+    comandoX,
+    comandoDescargaSocial,
     comandoTraduce,
     comandoSkin,
     comandoStats,
