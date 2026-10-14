@@ -183,6 +183,7 @@ async function ejecutarMenu(sock, chatId, msg, args) {
                       `*${prefijo}s / sticker* - Convierte imagen/video a sticker animado.\n` +
                       `*${prefijo}tiktok [url]* - Descarga video sin marca de agua.\n` +
                       `*${prefijo}instagram [url]* - Descarga video de Instagram.\n` +
+                      `*${prefijo}pinterest [url]* - Descarga video de Pinterest en HD; también basta con enviar el enlace.\n` +
                       `*${prefijo}traduce [texto]* - Traduce texto al español.\n` +
                       `*${prefijo}stats [usuario]* - Consulta estadísticas de Fortnite.\n` +
                       `*${prefijo}tiendastats [nombre]* - Consulta estadísticas del cosmético.\n` + `*${prefijo}tiendaVb [paVos]* - Convierte paVos a MXN y USD.\n` +
