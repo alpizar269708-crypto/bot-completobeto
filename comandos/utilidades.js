@@ -1362,6 +1362,10 @@ async function comandoInstagram(sock, chatId, msg, args) {
     const textoArgumentos = Array.isArray(args) ? args.join(' ') : String(args || '');
     const urlOriginal = extraerUrlInstagram(textoArgumentos);
 
+    if (urlOriginal && /\/(?:p|tv)\//i.test(new URL(urlOriginal).pathname)) {
+        return comandoDescargaSocial(sock, chatId, msg, [urlOriginal], 'Instagram');
+    }
+
     const diagnosticos = [];
     const registrarDiagnostico = (etapa, error) => {
         const detalle = String(error?.message || error || 'Sin detalle').replace(/\s+/g, ' ').trim().slice(0, 700);
@@ -1447,6 +1451,9 @@ async function comandoInstagram(sock, chatId, msg, args) {
 async function comandoTiktok(sock, chatId, msg, args) {
     const textoArgumentos = Array.isArray(args) ? args.join(' ') : String(args || '');
     const urlOriginal = extraerUrlTikTok(textoArgumentos);
+    if (urlOriginal && /\/photo\//i.test(new URL(urlOriginal).pathname)) {
+        return comandoDescargaSocial(sock, chatId, msg, [urlOriginal], 'TikTok');
+    }
     console.log('🎵 TIKTOK: comando recibido. Texto:', textoArgumentos);
     console.log('🎵 TIKTOK: URL extraída:', urlOriginal || 'NO ENCONTRADA');
 
