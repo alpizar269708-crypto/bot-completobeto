@@ -1699,6 +1699,7 @@ async function comandoPinterest(sock, chatId, msg, args) {
     if (!url) {
         await sock.sendMessage(chatId, { text: '⚠️ Envíame un enlace público de Pinterest. Ejemplo: pinterest.com/pin/...' }, { quoted: msg });
         return;
+    return comandoDescargaSocial(sock, chatId, msg, [url], 'Pinterest');
     }
 
     let tempDir;
