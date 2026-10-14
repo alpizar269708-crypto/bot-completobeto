@@ -228,9 +228,20 @@ async function comandoSticker(sock, msg) {
         const buffer = await downloadMediaMessage(msjMultimedia, 'buffer', {}, { reuploadRequest: sock.updateMediaMessage });
         // Trata GIF y WebP como entrada del pipeline animado aunque el lector de metadatos
         // no detecte sus fotogramas. Así no se pierde el movimiento por una falsa detección estática.
+        let duracionAnimacion = 0;
+        if (esGif && !videoAdjunto) {
+            try {
+                const metadataAnimada = await sharp(buffer, { animated: true }).metadata();
+                if (Array.isArray(metadataAnimada.delay)) {
+                    duracionAnimacion = metadataAnimada.delay.reduce((suma, ms) => suma + Number(ms || 0), 0) / 1000;
+                }
+            } catch (error) {
+                console.warn('⚠️ No se pudo leer la duración del GIF/WebP:', error.message);
+            }
+        }
         const esVideo = videoAdjunto || esGif;
         if (esVideo) {
-            const duracion = msg.message?.videoMessage?.seconds || msjCitado?.videoMessage?.seconds || 0;
+            const duracion = msg.message?.videoMessage?.seconds || msjCitado?.videoMessage?.seconds || duracionAnimacion || 0;
             if (duracion > 10) {
                 return await sock.sendMessage(chatJid, { text: '⚠️ El video o GIF animado es muy largo. Envía contenido de máximo 10 segundos para no saturar el sistema.' }, { quoted: msg });
             }
