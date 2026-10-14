@@ -159,6 +159,11 @@ Apoya a un creador: JASC13` });
         return;
     }
 
+    if (!esComandoPropioPermitido && !tienePrivilegiosTotales && verificarMute(chatJid, remitenteReal)) {
+        try { await sock.sendMessage(chatJid, { delete: msg.key }); } catch (e) {}
+        return;
+    }
+
     // Si llega solo un enlace de una red compatible, lo descargamos sin exigir comando.
     // Se limita a URLs solas y hosts conocidos para no interceptar mensajes normales.
     const enlaceSolo = textoOriginal.trim();
@@ -183,11 +188,6 @@ Apoya a un creador: JASC13` });
 
     // Los comandos explícitos de descarga deben poder recibir enlaces aunque el anti-links esté activo.
     if (!['tiktok', 'instagram', 'pinterest'].includes(textoComandoPrevio) && !esComandoPropioPermitido && !tienePrivilegiosTotales && await verificarAntiLinks(sock, msg)) return;
-
-    if (!esComandoPropioPermitido && !tienePrivilegiosTotales && verificarMute(chatJid, remitenteReal)) {
-        try { await sock.sendMessage(chatJid, { delete: msg.key }); } catch (e) {}
-        return;
-    }
 
     const textoMinusculas = textoOriginal.toLowerCase();
     const textoLimpio = textoMinusculas.normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
