@@ -8,7 +8,7 @@ const categoriasMap = {
     rifas: ['rifa', 'rifainscripcion', 'cerrarrifa', 'rifajasc13', 'addvarios', 'abrirrifa', 'activarrifaaqui', 'menurifajasc13'],
     cashback: ['addcashback', 'delcashback', 'vercash', 'delvcash', 'canjecash'],
     economia: ['cartera', 'bal', 'banco', 'pay', 'pagar', 'top', 'topdinero', 'daily', 'weekly', 'farmear', 'work', 'crime', 'mendigar', 'pescar', 'minar', 'cazar', 'explorar', 'ruleta', 'cf', 'slots', 'dados', 'adivina', 'buscaminas', 'rob', 'ppt', 'pelea', 'carrera', 'hackear', 'shop', 'buy', 'inventario', 'mochila', 'vender', 'use', 'regalar'],
-    utilidades: ['s', 'sticker', 'tiktok', 'instagram', 'pinterest', 'traduce', 'skin', 'stats', 'tiendastats', 'tiendavb', 'contacto', 'ping'],
+    utilidades: ['s', 'sticker', 'tiktok', 'instagram', 'pinterest', 'x', 'twitter', 'traduce', 'skin', 'stats', 'tiendastats', 'tiendavb', 'contacto', 'ping'],
     paypal: ['paypal', 'paypaln', 'paypali'],
     ia: ['ia'],
     moderacion: ['warn', 'advertir', 'verwarns', 'limpiarwarns', 'ban', 'unban', 'listanegra', 'banlist', 'unbanlist', 'grupo', 'mute', 'unmute', 'inactivos', 'listablanca', 'desactivarbienvenida', 'activarbienvenida', 'personalizarbienvenida', 'restaurarbienvenida', 'blcarry', 'unblcarry', 'listcarrybl', 'setprecio', 'setgrupostw', 'unsetgrupostw', 'desactivarcomandos', 'catdesa']
@@ -183,7 +183,8 @@ async function ejecutarMenu(sock, chatId, msg, args) {
                       `*${prefijo}s / sticker* - Convierte imagen/video a sticker animado.\n` +
                       `*${prefijo}tiktok [url]* - Descarga video sin marca de agua.\n` +
                       `*${prefijo}instagram [url]* - Descarga video de Instagram.\n` +
-                      `*${prefijo}pinterest [url]* - Descarga video de Pinterest en HD; también basta con enviar el enlace.\n` +
+                      `*${prefijo}pinterest [url]* - Descarga fotos, carruseles y videos de Pinterest; también basta con enviar el enlace.\n` +
+                      `*${prefijo}x [url]* - Descarga fotos y videos de X/Twitter; también basta con enviar el enlace.\n` +
                       `*${prefijo}traduce [texto]* - Traduce texto al español.\n` +
                       `*${prefijo}stats [usuario]* - Consulta estadísticas de Fortnite.\n` +
                       `*${prefijo}tiendastats [nombre]* - Consulta estadísticas del cosmético.\n` + `*${prefijo}tiendaVb [paVos]* - Convierte paVos a MXN y USD.\n` +
