@@ -117,24 +117,8 @@ async function procesarMensaje(sock, msg) {
     ]);
 
     // Los mensajes enviados por el propio número del bot normalmente se ignoran.
-    // Excepciones: comandos administrativos permitidos y enlaces sociales solos,
-    // para que también funcione si el enlace se manda desde el dispositivo vinculado del bot.
-    const esEnlaceSocialSolo = (() => {
-        const candidato = textoOriginal.trim();
-        if (!/^(?:https?:\/\/)?(?:www\.)?[^\s/]+\/[^\s]*$/i.test(candidato)) return false;
-        try {
-            const u = new URL(/^https?:\/\//i.test(candidato) ? candidato : 'https://' + candidato);
-            const h = u.hostname.toLowerCase().replace(/^www\./, '');
-            return /(^|\.)tiktok\.com$/.test(h) ||
-                /(^|\.)instagram\.com$/.test(h) ||
-                /(^|\.)pinterest\.(?:com|mx|es|co\.uk|ca|fr|de|it|jp|au|nz|pt|in|co)$/.test(h) ||
-                h === 'pin.it' ||
-                /(^|\.)(?:x\.com|twitter\.com|facebook\.com|fb\.watch|reddit\.com|redd\.it|threads\.net)$/.test(h);
-        } catch (_) {
-            return false;
-        }
-    })();
-    if (msg.key.fromMe && !comandoPropioPermitido.has(normalizarComando(textoOriginal)) && !esEnlaceSocialSolo) return;
+    // Excepción: solo se aceptan los comandos de warns/lista negra definidos arriba.
+    if (msg.key.fromMe && !comandoPropioPermitido.has(normalizarComando(textoOriginal))) return;
 
     if (normalizarComando(textoOriginal) === 'cerrarsesionauth') {
         if (msg.key.fromMe || true) { 
