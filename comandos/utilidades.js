@@ -222,20 +222,36 @@ async function comandoSticker(sock, msg) {
         const tipoDocumento = msg.message?.documentMessage || msjCitado?.documentMessage;
         const mimeDocumento = String(tipoDocumento?.mimetype || '').toLowerCase();
         const esGif = mimeDocumento === 'image/gif' || mimeDocumento === 'image/webp';
-        const esVideo = !!(msg.message?.videoMessage || msjCitado?.videoMessage || esGif);
-        if (esVideo) {
-            const duracion = msg.message?.videoMessage?.seconds || msjCitado?.videoMessage?.seconds || 0;
-            if (duracion > 10) {
-                return await sock.sendMessage(chatJid, { text: '⚠️ El video es muy largo. Por favor envía videos de máximo 10 segundos para no saturar el sistema.' }, { quoted: msg });
-            }
-        }
+        const videoAdjunto = !!(msg.message?.videoMessage || msjCitado?.videoMessage);
 
         const msjMultimedia = citadoTipo ? { message: msjCitado } : msg;
         const buffer = await downloadMediaMessage(msjMultimedia, 'buffer', {}, { reuploadRequest: sock.updateMediaMessage });
+        let esAnimado = false;
+        let duracionAnimacion = 0;
+        if (esGif && !videoAdjunto) {
+            try {
+                const metadataAnimada = await sharp(buffer, { animated: true }).metadata();
+                esAnimado = Number(metadataAnimada.pages || 1) > 1;
+                if (Array.isArray(metadataAnimada.delay)) {
+                    duracionAnimacion = metadataAnimada.delay.reduce((suma, ms) => suma + Number(ms || 0), 0) / 1000;
+                }
+            } catch (error) {
+                console.warn('⚠️ No se pudo detectar la animación del archivo:', error.message);
+            }
+        }
+        const esVideo = videoAdjunto || (esGif && esAnimado);
+        if (esVideo) {
+            const duracion = msg.message?.videoMessage?.seconds || msjCitado?.videoMessage?.seconds || duracionAnimacion || 0;
+            if (duracion > 10) {
+                return await sock.sendMessage(chatJid, { text: '⚠️ El video o GIF animado es muy largo. Envía contenido de máximo 10 segundos para no saturar el sistema.' }, { quoted: msg });
+            }
+        }
         const hash = crypto.createHash('sha256').update(buffer).digest('hex');
         let stickerBuffer;
 
-        if (esVideo && !esGif) {
+        if (esVideo) {
+            // Los GIF/WebP animados deben pasar por el mismo pipeline animado que los videos.
+            // Antes entraban al pipeline de imagen y se enviaba únicamente el primer fotograma.
             stickerBuffer = await convertirVideoASticker(buffer, hash);
         } else {
             const clave = 'img:' + hash;
@@ -1575,6 +1591,80 @@ async function comandoTiktok(sock, chatId, msg, args) {
     }
 }
 
+
+// 📌 Pinterest (video en la mejor calidad disponible)
+function extraerUrlPinterest(texto) {
+    const fuente = String(texto || '').trim();
+    const coincidencias = fuente.match(/https?:\/\/[^\s<>\]\)]+|(?:www\.)?pinterest\.[a-z.]+\/[^\s<>\]\)]+/gi) || [];
+    for (let valor of coincidencias) {
+        valor = valor.replace(/[),.;!?]+$/g, '');
+        if (!/^https?:\/\//i.test(valor)) valor = 'https://' + valor;
+        try {
+            const url = new URL(valor);
+            if (/(^|\.)pinterest\.(?:com|mx|es|co\.uk|ca|fr|de|it|jp|au|nz|pt|in|co)$/i.test(url.hostname)) {
+                return url.toString();
+            }
+        } catch (_) {}
+    }
+    return null;
+}
+
+async function comandoPinterest(sock, chatId, msg, args) {
+    const textoArgumentos = Array.isArray(args) ? args.join(' ') : String(args || '');
+    const url = extraerUrlPinterest(textoArgumentos);
+    if (!url) {
+        await sock.sendMessage(chatId, { text: '⚠️ Envíame un enlace público de Pinterest. Ejemplo: pinterest.com/pin/...' }, { quoted: msg });
+        return;
+    }
+
+    let tempDir;
+    try {
+        await sock.sendMessage(chatId, { text: '📌 Descargando Pinterest en la mejor calidad disponible (hasta 1080p)...' }, { quoted: msg });
+        tempDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'pinterest-download-'));
+        const salida = path.join(tempDir, 'pinterest.%(ext)s');
+        await youtubedl(url, {
+            output: salida,
+            format: 'bestvideo[height<=1080]+bestaudio/best[height<=1080]/bestvideo+bestaudio/best',
+            mergeOutputFormat: 'mp4',
+            noWarnings: true,
+            noPlaylist: true,
+            socketTimeout: 30,
+            retries: 3,
+            fragmentRetries: 3,
+            extractorRetries: 2,
+            noPart: true,
+            maxFilesize: '64M',
+            restrictFilenames: true,
+            userAgent: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+            referer: 'https://www.pinterest.com/'
+        }, { timeout: 120000 });
+
+        const archivos = await fs.promises.readdir(tempDir);
+        const ruta = archivos.map(nombre => path.join(tempDir, nombre))
+            .find(nombre => /\.(?:mp4|m4v|mov|webm)$/i.test(nombre));
+        if (!ruta) throw new Error('Pinterest no devolvió un archivo de video compatible; el pin puede ser una imagen o no ser público.');
+        const stat = await fs.promises.stat(ruta);
+        if (!stat.size || stat.size > 64 * 1024 * 1024) {
+            throw new Error(!stat.size ? 'El archivo descargado está vacío.' : 'El video supera el límite de 64 MB de WhatsApp.');
+        }
+        const video = await fs.promises.readFile(ruta);
+        if (video.length < 10000) throw new Error('El archivo recibido no parece un video válido.');
+        await sock.sendMessage(chatId, {
+            video,
+            mimetype: 'video/mp4',
+            caption: '📌 Video de Pinterest listo en la mejor calidad disponible.\n\nApoya a un creador: *JASC13*'
+        }, { quoted: msg });
+    } catch (error) {
+        console.error('Error descargando Pinterest:', error?.stack || error);
+        const detalle = String(error?.message || error).replace(/\s+/g, ' ').slice(0, 500);
+        await sock.sendMessage(chatId, {
+            text: '❌ No pude descargar ese enlace de Pinterest. Comprueba que el pin sea público y contenga un video.\n\nDetalle: ' + detalle
+        }, { quoted: msg });
+    } finally {
+        if (tempDir) await fs.promises.rm(tempDir, { recursive: true, force: true }).catch(() => {});
+    }
+}
+
 // 🌐 4. Traduce (Traductor instantáneo)
 async function comandoTraduce(sock, chatId, msg, args) {
     const idioma = args[0];
@@ -1680,6 +1770,7 @@ module.exports = {
     comandoRecup1Vez,
     comandoTiktok,
     comandoInstagram,
+    comandoPinterest,
     comandoTraduce,
     comandoSkin,
     comandoStats,
