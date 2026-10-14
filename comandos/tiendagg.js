@@ -344,7 +344,7 @@ function extraerDetalle(html, itemBase) {
     }
 
     if (!tipo || !rareza) {
-        const tituloTipo = textoVisible.match(/(?:^|\\s)(legendary|epic|rare|uncommon|common|mythic|icon|gaming)\\s+([a-z ]+?)(?=\\s+Image:|\\s+V-Bucks|\\s+Source:)/i);
+        const tituloTipo = textoVisible.match(/(?:^|\s)(legendary|epic|rare|uncommon|common|mythic|icon|gaming)\s+([a-z ]+?)(?=\s+Image:|\s+V-Bucks|\s+Source:)/i);
         if (tituloTipo) {
             rareza = rareza || tituloTipo[1];
             tipo = tipo || tituloTipo[2].trim();
@@ -353,7 +353,7 @@ function extraerDetalle(html, itemBase) {
 
     let precio = limpiarTexto($('.fn-item-price').first().text());
     if (!precio) {
-        const precioMatch = textoVisible.match(/V-Bucks\\s+([\\d,.]+)/i);
+        const precioMatch = textoVisible.match(/V-Bucks\s+([\d,.]+)/i);
         if (precioMatch) precio = precioMatch[1];
     }
     precio = precio || itemBase.precio || 'No disponible';
@@ -361,7 +361,7 @@ function extraerDetalle(html, itemBase) {
     const timeEl = $('time.shop-out').first();
     let salida = limpiarTexto(timeEl.text());
     if (!salida) {
-        const salidaMatch = textoVisible.match(/Leaving Shop on\\s+(.+?)(?=\\s+(?:Shop on Fortnite\\.com|#EpicPartner|Source\\s*:)|$)/i);
+        const salidaMatch = textoVisible.match(/Leaving Shop on\s+(.+?)(?=\s+(?:Shop on Fortnite\.com|#EpicPartner|Source\s*:)|$)/i);
         if (salidaMatch) salida = limpiarTexto(salidaMatch[1]);
     }
 
@@ -370,7 +370,7 @@ function extraerDetalle(html, itemBase) {
     $('.fn-detail-desc.grey, .fn-detail-desc').each((_, el) => {
         const texto = limpiarTexto($(el).text());
         if (!texto) return;
-        if (/^\\[.*\\]$/.test(texto)) etiquetas.push(texto.replace(/^\\[|\\]$/g, ''));
+        if (/^\[.*\]$/.test(texto)) etiquetas.push(texto.replace(/^\[|\]$/g, ''));
         else if (!descripcion.includes(texto) && texto.length < 500) descripcion.push(texto);
     });
     if (!descripcion.length && descripcionJsonLd) descripcion.push(descripcionJsonLd);
@@ -380,10 +380,10 @@ function extraerDetalle(html, itemBase) {
     const lanzamiento = extraerValorEntreEtiquetas(textoVisible, 'Release date', 'Last seen');
     const ultimaVez = extraerValorEntreEtiquetas(textoVisible, 'Last seen', 'Occurrences');
 
-    const ocurrencias = textoVisible.match(/Occurrences\\s*:\\s*(?:\\|\\s*)?(\\d+)(?=\\s*Date\\s*Days\\s*ago)/i);
+    const ocurrencias = textoVisible.match(/Occurrences\s*:\s*(?:\|\s*)?(\d+)(?=\s*Date\s*Days\s*ago)/i);
     const apariciones = ocurrencias ? ocurrencias[1] : null;
 
-    const conjuntoMatch = textoVisible.match(/Part of the\\s+(.+?)\\s+set/i);
+    const conjuntoMatch = textoVisible.match(/Part of the\s+(.+?)\s+set/i);
     const conjunto = conjuntoMatch ? limpiarTexto(conjuntoMatch[1]) : null;
 
     return {
@@ -875,7 +875,10 @@ async function procesarComandoTiendaGG(sock, chatId, msg, args) {
 
         try {
             await sock.sendMessage(chatId, {
-                text: \`❌ *JASC STORE — ERROR*\n\nNo pude completar la consulta.\n📍 Se trabó en: *\${tiendaGGFase}*\n\n💥 \${String(error?.message || error).replace(/\s+/g, ' ').slice(0, 500)}\n\nApoya a un creador: *JASC13*\`
+                text: '❌ *JASC STORE — ERROR*\n\nNo pude completar la consulta.\n📍 Se trabó en: *' +
+                    tiendaGGFase + '*\n\n💥 ' +
+                    String(error?.message || error).replace(/\s+/g, ' ').slice(0, 500) +
+                    '\n\nApoya a un creador: *JASC13*'
             }, { quoted: msg });
         } catch (sendError) {
             console.error('❌ No pude enviar el error por WhatsApp:', sendError.message);
