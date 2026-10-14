@@ -220,7 +220,7 @@ async function comandoSticker(sock, msg) {
         }
 
         const tipoDocumento = msg.message?.documentMessage || msjCitado?.documentMessage;
-        const mimeDocumento = String(tipoDocumento?.mimetype || '').toLowerCase();
+        const mimeDocumento = String(tipoDocumento?.mimetype || msg.message?.imageMessage?.mimetype || msjCitado?.imageMessage?.mimetype || '').toLowerCase();
         const esGif = mimeDocumento === 'image/gif' || mimeDocumento === 'image/webp';
         const videoAdjunto = !!(msg.message?.videoMessage || msjCitado?.videoMessage);
 
@@ -1595,13 +1595,13 @@ async function comandoTiktok(sock, chatId, msg, args) {
 // 📌 Pinterest (video en la mejor calidad disponible)
 function extraerUrlPinterest(texto) {
     const fuente = String(texto || '').trim();
-    const coincidencias = fuente.match(/https?:\/\/[^\s<>\]\)]+|(?:www\.)?pinterest\.[a-z.]+\/[^\s<>\]\)]+/gi) || [];
+    const coincidencias = fuente.match(/https?:\/\/[^\s<>\]\)]+|(?:www\.)?(?:pinterest\.[a-z.]+|pin\.it)\/[^\s<>\]\)]+/gi) || [];
     for (let valor of coincidencias) {
         valor = valor.replace(/[),.;!?]+$/g, '');
         if (!/^https?:\/\//i.test(valor)) valor = 'https://' + valor;
         try {
             const url = new URL(valor);
-            if (/(^|\.)pinterest\.(?:com|mx|es|co\.uk|ca|fr|de|it|jp|au|nz|pt|in|co)$/i.test(url.hostname)) {
+            if (/(^|\.)pinterest\.(?:com(?:\.(?:mx|au|co\.uk|co\.in))?|mx|es|co\.uk|ca|fr|de|it|jp|au|nz|pt|in|co)$/i.test(url.hostname) || /^pin\.it$/i.test(url.hostname)) {
                 return url.toString();
             }
         } catch (_) {}
