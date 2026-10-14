@@ -5,9 +5,17 @@ const https = require('https');
 const BASE_URL = 'https://fortnite.gg';
 let tiendaGGEnCurso = false;
 let tiendaGGFase = 'iniciando';
-let tiendaGGTimer = null;
 const sesionesTiendaGG = new Map();
 const TIENDAGG_SESION_TTL_MS = 3 * 60 * 1000;
+
+// Todas las operaciones que usan Puppeteer pasan por una cola FIFO. Así, un
+// comando que llega mientras otro se ejecuta espera su turno en vez de fallar.
+let colaTiendaGG = Promise.resolve();
+function encolarTiendaGG(operacion) {
+    const trabajo = colaTiendaGG.then(operacion, operacion);
+    colaTiendaGG = trabajo.catch(() => {});
+    return trabajo;
+}
 
 const FILTROS = [
     { claves: ['todos', 'todo', 'all'], label: 'TODOS', path: '/cosmetics' },
@@ -234,13 +242,34 @@ async function buscarCosmeticosEnPagina(page, termino, reportar = async () => {}
     return page.content();
 }
 
-async function obtenerHtmlConNavegador(page, url) {
-    const respuesta = await page.goto(url, {
-        waitUntil: 'domcontentloaded',
-        timeout: 12000
-    });
+async function obtenerHtmlConNavegador(page, url, selectorEsperado = null) {
+    let respuesta = null;
+    try {
+        // No esperamos a imágenes ni a peticiones de audio; solo a que el
+        // documento se construya. Algunas fichas tardan más que el límite viejo.
+        respuesta = await page.goto(url, {
+            waitUntil: 'domcontentloaded',
+            timeout: 25000
+        });
+    } catch (error) {
+        const esTimeoutNavegacion = /navigation timeout|timeout of \d+ ms exceeded/i.test(String(error?.message || error));
+        if (!esTimeoutNavegacion || !page.url() || page.url() === 'about:blank') throw error;
+        // Si Fortnite.GG ya navegó al documento, aprovechamos el DOM disponible.
+        // La ficha se valida más abajo con sus propios selectores.
+        console.warn('⚠️ Fortnite.GG: navegación tardó; revisaré el DOM disponible:', error.message);
+    }
 
-    await new Promise(resolve => setTimeout(resolve, 1200));
+    if (selectorEsperado) {
+        try {
+            await page.waitForSelector(selectorEsperado, { timeout: 10000 });
+        } catch (error) {
+            console.warn('⚠️ Fortnite.GG: no apareció a tiempo el selector', selectorEsperado, error.message);
+        }
+    }
+
+    // Una pausa corta da oportunidad a que el contenido dinámico se renderice,
+    // sin esperar elementos exclusivos de canciones como .jam-bars.
+    await new Promise(resolve => setTimeout(resolve, 500));
 
     return {
         html: await page.content(),
@@ -292,6 +321,9 @@ function extraerDetalle(html, itemBase) {
     });
 
     $('script, style, noscript, template, iframe').remove();
+    // Fortnite.GG agrega esta sección a las fichas de canciones. No es necesaria
+    // para la tienda: se elimina antes de leer texto o buscar cualquier campo.
+    $('.jam-bars, .jam-bar, .jam-bar-left, .jam-bar-right, .jam-d').remove();
 
     const root = $('main').first().length ? $('main').first() : $('body');
     const textoVisible = limpiarTexto(root.text());
@@ -632,16 +664,14 @@ async function leerFichaTiendaGG(browser, item) {
         page = await browser.newPage();
         await prepararPagina(page);
 
-        const respuesta = await obtenerHtmlConNavegador(page, item.url);
+        const respuesta = await obtenerHtmlConNavegador(page, item.url, '.fn-detail-name');
+        const $ficha = cheerio.load(respuesta.html);
+        const contieneFichaReal = $ficha('.fn-detail-name, .fn-item-price, .fn-detail-type, .fn-detail-table').length > 0;
         const detalle = extraerDetalle(respuesta.html, item);
 
-        // Si el HTML no trae prácticamente ningún dato de la ficha, no mandamos
-        // una ficha vacía como si fuera correcta.
-        const tieneDatos = detalle.nombre || detalle.precio || detalle.tipo ||
-            detalle.rareza || detalle.lanzamiento || detalle.ultimaVez ||
-            detalle.descripcion || detalle.conjunto;
-
-        if (!tieneDatos) {
+        // No aceptamos como ficha real los datos de respaldo que vienen de la
+        // lista si la página de Fortnite.GG no entregó sus elementos de detalle.
+        if (!contieneFichaReal) {
             throw new Error('Fortnite.GG no devolvió datos utilizables para esta ficha');
         }
 
@@ -651,46 +681,43 @@ async function leerFichaTiendaGG(browser, item) {
     }
 }
 
-async function manejarSeleccionTiendaGG(sock, chatId, msg, texto, remitente) {
+function manejarSeleccionTiendaGG(sock, chatId, msg, texto, remitente) {
     const clave = String(chatId) + ':' + String(remitente || chatId);
     const sesion = sesionesTiendaGG.get(clave);
 
-    if (!sesion) return false;
+    if (!sesion) return Promise.resolve(false);
 
     if (sesion.expira <= Date.now()) {
         sesionesTiendaGG.delete(clave);
-        return false;
+        return Promise.resolve(false);
     }
 
     const numeroTexto = String(texto || '').trim();
-    if (!/^\d+$/.test(numeroTexto)) return false;
+    if (!/^\d+$/.test(numeroTexto)) return Promise.resolve(false);
 
     const numero = Number(numeroTexto);
     const item = sesion.items[numero - 1];
 
     if (!item) {
-        await sock.sendMessage(chatId, {
+        return sock.sendMessage(chatId, {
             text: '❌ Ese número no corresponde a la lista. Elige uno de los números mostrados.'
-        }, { quoted: msg });
-        return true;
+        }, { quoted: msg }).then(() => true);
     }
 
     const contexto = msg.message?.extendedTextMessage?.contextInfo;
     const replyId = contexto?.stanzaId || null;
 
     if (replyId && sesion.resultMessageId && replyId !== sesion.resultMessageId) {
-        return false;
+        return Promise.resolve(false);
     }
 
+    // Consumimos y capturamos la selección al recibirla para que otra búsqueda
+    // en cola no sustituya su lista mientras espera turno.
     sesionesTiendaGG.delete(clave);
+    return encolarTiendaGG(() => procesarSeleccionTiendaGG(sock, chatId, msg, item));
+}
 
-    if (tiendaGGEnCurso) {
-        await sock.sendMessage(chatId, {
-            text: '⏳ 🛍️ *JASC STORE* todavía está ocupada con otra consulta.'
-        }, { quoted: msg });
-        return true;
-    }
-
+async function procesarSeleccionTiendaGG(sock, chatId, msg, item) {
     tiendaGGEnCurso = true;
     tiendaGGFase = 'leyendo una sola ficha';
     let browser = null;
@@ -713,7 +740,8 @@ async function manejarSeleccionTiendaGG(sock, chatId, msg, texto, remitente) {
         await sock.sendMessage(chatId, {
             text: '❌ *JASC STORE*\n\nNo pude leer la ficha de *' + item.nombre +
                 '* en este momento.\n\n💥 ' +
-                String(error?.message || error).replace(/\s+/g, ' ').slice(0, 500)
+                String(error?.message || error).replace(/\s+/g, ' ').slice(0, 500) +
+                '\n\nApoya a un creador: *JASC13*'
         }, { quoted: msg });
     } finally {
         if (browser) await browser.close().catch(() => {});
@@ -728,7 +756,7 @@ async function enviarPorPartes(sock, chatId, msg, partes) {
     for (const parte of partes) await sock.sendMessage(chatId, { text: parte }, { quoted: msg });
 }
 
-async function comandoTiendaGG(sock, chatId, msg, args) {
+async function procesarComandoTiendaGG(sock, chatId, msg, args) {
     const filtro = encontrarFiltro(args);
     const textoBusqueda = normalizar(Array.isArray(args) ? args.join(' ') : args);
 
@@ -738,25 +766,20 @@ async function comandoTiendaGG(sock, chatId, msg, args) {
         return;
     }
 
-    if (tiendaGGEnCurso) {
-        await sock.sendMessage(chatId, { text: '⏳ 🛍️ *JASC STORE* ya está consultando la tienda. Espera a que termine la consulta actual.' }, { quoted: msg });
-        return;
-    }
-
+    // Este bloque ya se ejecuta en serie gracias a encolarTiendaGG().
     tiendaGGEnCurso = true;
     tiendaGGFase = 'iniciando consulta';
     let browser = null;
     let tiendaGGAbortada = false;
-    const iniciarTiempo = Date.now();
+    let timeoutTimer = null;
 
     const actualizarFase = fase => {
         tiendaGGFase = fase;
         return fase;
     };
 
-    tiendaGGTimer = setTimeout(async () => {
+    timeoutTimer = setTimeout(async () => {
         tiendaGGAbortada = true;
-        tiendaGGEnCurso = false;
         const faseTimeout = tiendaGGFase;
         console.error('❌ TIENDAGG TIMEOUT. Fase:', faseTimeout);
         if (browser) await browser.close().catch(() => {});
@@ -852,22 +875,25 @@ async function comandoTiendaGG(sock, chatId, msg, args) {
 
         try {
             await sock.sendMessage(chatId, {
-                text: `❌ *JASC STORE — ERROR*\n\n📍 Se trabó en: *${tiendaGGFase}*\n\n💥 Error: ${String(error?.message || error).replace(/\\s+/g, ' ').slice(0, 700)}`
+                text: \`❌ *JASC STORE — ERROR*\n\nNo pude completar la consulta.\n📍 Se trabó en: *\${tiendaGGFase}*\n\n💥 \${String(error?.message || error).replace(/\s+/g, ' ').slice(0, 500)}\n\nApoya a un creador: *JASC13*\`
             }, { quoted: msg });
         } catch (sendError) {
             console.error('❌ No pude enviar el error por WhatsApp:', sendError.message);
         }
-
-        await sock.sendMessage(chatId, {
-            text: `❌ No pude leer la tienda en este momento.\n\nDetalle: ${String(error?.message || error).replace(/\s+/g, ' ').slice(0, 300)}`
-        }, { quoted: msg });
     } finally {
-        if (tiendaGGTimer) clearTimeout(tiendaGGTimer);
-        tiendaGGTimer = null;
+        if (timeoutTimer) clearTimeout(timeoutTimer);
         if (browser) await browser.close().catch(() => {});
         tiendaGGEnCurso = false;
         tiendaGGFase = 'iniciando';
     }
 }
 
-module.exports = { comandoTiendaGG, manejarSeleccionTiendaGG };
+function comandoTiendaGG(sock, chatId, msg, args) {
+    const filtro = encontrarFiltro(args);
+    const textoBusqueda = normalizar(Array.isArray(args) ? args.join(' ') : args);
+    // El menú informativo no usa navegador y no necesita esperar la cola.
+    if (!filtro && !textoBusqueda) return procesarComandoTiendaGG(sock, chatId, msg, args);
+    return encolarTiendaGG(() => procesarComandoTiendaGG(sock, chatId, msg, args));
+}
+
+module.exports = { comandoTiendaGG, manejarSeleccionTiendaGG, extraerDetalle };
