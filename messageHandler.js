@@ -547,13 +547,7 @@ Apoya a un creador: JASC13` });
 
                     const enlace = 'https://chat.whatsapp.com/' + codigoInvitacion;
                     await sock.sendMessage(chatJid, {
-                        text: '╭━━━〔 🔗 *ENLACE DE INVITACIÓN* 〕━━━╮\n' +
-                            '│\n' +
-                            '│  👥 *' + (metadata.subject || 'Este grupo') + '*\n' +
-                            '│\n' +
-                            '╰━━━━━━━━━━━━━━━━━━━━━━━━╯\n\n' +
-                            '🔗 ' + enlace + '\n\n' +
-                            '⚠️ _Comparte el enlace solo con personas de confianza._'
+                        text: '🔗 Link de *' + (metadata.subject || 'este grupo') + '*:\\n' + enlace + '\\n✨ Apoya a un creador: JASC13'
                     }, { quoted: msg });
                 } catch (error) {
                     console.error('❌ No se pudo obtener el enlace del grupo:', error.message || error);
