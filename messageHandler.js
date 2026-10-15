@@ -516,32 +516,7 @@ Apoya a un creador: JASC13` });
                     return;
                 }
 
-                // Solo administradores del grupo o propietarios del bot pueden solicitarlo.
-                let autorizadoLinkGrupo = tienePrivilegiosTotales;
-                if (!autorizadoLinkGrupo) {
-                    try {
-                        const metadataPermisos = await sock.groupMetadata(chatJid);
-                        const participante = metadataPermisos.participants.find(p =>
-                            p.id === remitenteReal ||
-                            p.phoneNumber === remitenteReal ||
-                            p.lid === remitenteReal
-                        );
-                        autorizadoLinkGrupo = participante?.admin === 'admin' ||
-                            participante?.admin === 'superadmin';
-                    } catch (error) {
-                        console.error('No se pudieron verificar los permisos para linkgrupo:', error?.message || error);
-                    }
-                }
-
-                if (!autorizadoLinkGrupo) {
-                    await sock.sendMessage(chatJid, {
-                        text: '╭━━━〔 🔒 *COMANDO RESTRINGIDO* 〕━━━╮\n│\n│  Solo los *administradores del\n│  grupo* y los *propietarios del bot*\n│  pueden solicitar el enlace.\n│\n╰━━━━━━━━━━━━━━━━━━━━━━━━╯'
-                    }, { quoted: msg });
-                    return;
-                }
-
                 try {
-                    const metadata = await sock.groupMetadata(chatJid);
                     const codigoInvitacion = await sock.groupInviteCode(chatJid);
                     if (!codigoInvitacion) throw new Error('WhatsApp no devolvió un código de invitación.');
 
