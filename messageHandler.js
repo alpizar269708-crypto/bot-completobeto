@@ -511,7 +511,31 @@ Apoya a un creador: JASC13` });
             case 'linkgrupo': {
                 if (!chatJid.endsWith('@g.us')) {
                     await sock.sendMessage(chatJid, {
-                        text: '❌ Este comando solo funciona dentro del grupo cuyo enlace quieres obtener.'
+                        text: '╭━━━〔 🔗 *ENLACE DEL GRUPO* 〕━━━╮\n│\n│  Este comando se usa dentro\n│  del grupo del que necesitas\n│  compartir el enlace.\n│\n╰━━━━━━━━━━━━━━━━━━━━━━╯'
+                    }, { quoted: msg });
+                    return;
+                }
+
+                // Solo administradores del grupo o propietarios del bot pueden solicitarlo.
+                let autorizadoLinkGrupo = tienePrivilegiosTotales;
+                if (!autorizadoLinkGrupo) {
+                    try {
+                        const metadataPermisos = await sock.groupMetadata(chatJid);
+                        const participante = metadataPermisos.participants.find(p =>
+                            p.id === remitenteReal ||
+                            p.phoneNumber === remitenteReal ||
+                            p.lid === remitenteReal
+                        );
+                        autorizadoLinkGrupo = participante?.admin === 'admin' ||
+                            participante?.admin === 'superadmin';
+                    } catch (error) {
+                        console.error('No se pudieron verificar los permisos para linkgrupo:', error?.message || error);
+                    }
+                }
+
+                if (!autorizadoLinkGrupo) {
+                    await sock.sendMessage(chatJid, {
+                        text: '╭━━━〔 🔒 *COMANDO RESTRINGIDO* 〕━━━╮\n│\n│  Solo los *administradores del\n│  grupo* y los *propietarios del bot*\n│  pueden solicitar el enlace.\n│\n╰━━━━━━━━━━━━━━━━━━━━━━━━╯'
                     }, { quoted: msg });
                     return;
                 }
@@ -523,14 +547,21 @@ Apoya a un creador: JASC13` });
 
                     const enlace = 'https://chat.whatsapp.com/' + codigoInvitacion;
                     await sock.sendMessage(chatJid, {
-                        text: '🔗 *Enlace del grupo*\n\n' +
-                            '👥 Grupo: *' + (metadata.subject || 'Este grupo') + '*\n' +
-                            enlace
+                        text: '╭━━━〔 🔗 *ENLACE DE INVITACIÓN* 〕━━━╮\n' +
+                            '│\n' +
+                            '│  👥 *' + (metadata.subject || 'Este grupo') + '*\n' +
+                            '│\n' +
+                            '│  📩 Comparte este enlace para\n' +
+                            '│  invitar a alguien al grupo.\n' +
+                            '│\n' +
+                            '╰━━━━━━━━━━━━━━━━━━━━━━━━╯\n\n' +
+                            '🔗 ' + enlace + '\n\n' +
+                            '⚠️ _Comparte el enlace solo con personas de confianza._'
                     }, { quoted: msg });
                 } catch (error) {
                     console.error('❌ No se pudo obtener el enlace del grupo:', error.message || error);
                     await sock.sendMessage(chatJid, {
-                        text: '❌ No pude obtener el enlace de este grupo. Comprueba que el bot tenga permisos de administrador e inténtalo de nuevo.'
+                        text: '╭━━━〔 ⚠️ *NO SE PUDO OBTENER* 〕━━━╮\n│\n│  No pude generar el enlace ahora.\n│  Comprueba que el bot tenga permisos\n│  suficientes en este grupo e inténtalo\n│  de nuevo.\n│\n╰━━━━━━━━━━━━━━━━━━━━━━━━╯'
                     }, { quoted: msg });
                 }
                 return;
