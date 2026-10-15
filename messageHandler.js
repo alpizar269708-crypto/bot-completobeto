@@ -58,7 +58,7 @@ const comandosConUsuarioBD = new Set([
 ]);
 
 const comandosValidos = new Set([
-        'desactivarcomandos', 'catdesa', 'setprecio', 'ping', 'pavos', 'rpavos', 'destacadasstw', 'legendariasstw', 'epicasstw', 'alertasstw', 'stw', 'alerta', 'alertanov', 'recompensa', 'recompensanov', 
+        'desactivarcomandos', 'catdesa', 'linkgrupo', 'setprecio', 'ping', 'pavos', 'rpavos', 'destacadasstw', 'legendariasstw', 'epicasstw', 'alertasstw', 'stw', 'alerta', 'alertanov', 'recompensa', 'recompensanov', 
         'setgrupostw', 'unsetgrupostw', 'grupo', 'mute', 'unmute', 'inactivos', 'tienda', 'tiendastats', 'tiendavb', 'ia', 'menu', 'menusecreto',
         's', 'sticker', 'recup1vez', 'tiktok', 'instagram', 'pinterest', 'x', 'twitter', 'traduce', 'skin', 'stats', 'contacto',
         'warn', 'advertir', 'verwarns', 'limpiarwarns', 'ban', 'unban', 'listanegra', 'banlist', 'unbanlist', 
@@ -405,6 +405,7 @@ Apoya a un creador: JASC13` });
             ['desactivarcomandos', 'Desactiva una o varias categorías en el grupo; las categorías desactivadas se van acumulando. Usa *desactivarcomandos ninguno* para volver a dejar todo activo.'],
             ['catdesa', 'Muestra las categorías desactivadas del grupo y permite volver a activar una seleccionándola por número durante 3 minutos.'],
             ['listablanca', 'Administra la lista blanca de links y dominios completos. Ejemplo: *listablanca agregar betomaster.com* permite todas las rutas y subdominios de ese dominio.'],
+            ['linkgrupo', 'Envía el enlace de invitación del grupo donde se ejecuta el comando.'],
             ['ping', 'Comprueba que el bot esté activo.'],
             ['pavos', 'Muestra las misiones actuales que dan PaVos usando el sistema público habitual.'],
             ['destacadasstw', 'Muestra alertas destacadas de Salvar el Mundo y PL altas.'],
@@ -507,6 +508,33 @@ Apoya a un creador: JASC13` });
 
     if (comandosValidos.has(comando)) {
         switch (comando) {
+            case 'linkgrupo': {
+                if (!chatJid.endsWith('@g.us')) {
+                    await sock.sendMessage(chatJid, {
+                        text: '❌ Este comando solo funciona dentro del grupo cuyo enlace quieres obtener.'
+                    }, { quoted: msg });
+                    return;
+                }
+
+                try {
+                    const metadata = await sock.groupMetadata(chatJid);
+                    const codigoInvitacion = await sock.groupInviteCode(chatJid);
+                    if (!codigoInvitacion) throw new Error('WhatsApp no devolvió un código de invitación.');
+
+                    const enlace = 'https://chat.whatsapp.com/' + codigoInvitacion;
+                    await sock.sendMessage(chatJid, {
+                        text: '🔗 *Enlace del grupo*\n\n' +
+                            '👥 Grupo: *' + (metadata.subject || 'Este grupo') + '*\n' +
+                            enlace
+                    }, { quoted: msg });
+                } catch (error) {
+                    console.error('❌ No se pudo obtener el enlace del grupo:', error.message || error);
+                    await sock.sendMessage(chatJid, {
+                        text: '❌ No pude obtener el enlace de este grupo. Comprueba que el bot tenga permisos de administrador e inténtalo de nuevo.'
+                    }, { quoted: msg });
+                }
+                return;
+            }
             case 'catdesa': {
                 if (!chatJid.endsWith('@g.us')) return;
 
