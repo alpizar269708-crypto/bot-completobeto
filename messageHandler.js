@@ -546,9 +546,8 @@ Apoya a un creador: JASC13` });
                     if (!codigoInvitacion) throw new Error('WhatsApp no devolvió un código de invitación.');
 
                     const enlace = 'https://chat.whatsapp.com/' + codigoInvitacion;
-                    await sock.sendMessage(chatJid, {
-                        text: '🔗 Link de *' + (metadata.subject || 'este grupo') + '*:\\n' + enlace + '\\n✨ Apoya a un creador: JASC13'
-                    }, { quoted: msg });
+                    // Enviar únicamente la URL para que WhatsApp pueda generar su vista previa.
+                    await sock.sendMessage(chatJid, { text: enlace });
                 } catch (error) {
                     console.error('❌ No se pudo obtener el enlace del grupo:', error.message || error);
                     await sock.sendMessage(chatJid, {
