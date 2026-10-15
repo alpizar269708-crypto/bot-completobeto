@@ -1396,6 +1396,17 @@ async function extraerAlertasAPI(progreso = null, opciones = {}) {
 
         ({ misiones: todasPlanner, pavos: pavosPagina } = parsearFuentePlanner());
         todasVBucksDaily = htmlVBucksDaily ? parsearVBucksDailySTW(htmlVBucksDaily) : [];
+
+        // Descarta filas sin una zona real: algunas páginas duplican la misma
+        // misión con la zona "Desconocida", inflando alertas y el total de PaVos.
+        const zonaSTWValida = item => {
+            const zona = String(item?.zona || '').trim().toLocaleLowerCase('es');
+            return zona !== 'desconocida' && zona !== 'unknown';
+        };
+        todasPlanner = todasPlanner.filter(zonaSTWValida);
+        pavosPagina = pavosPagina.filter(zonaSTWValida);
+        todasVBucksDaily = todasVBucksDaily.filter(zonaSTWValida);
+        todasSeeBot = todasSeeBot.filter(zonaSTWValida);
         const traeRarezasHTTP = todasVBucksDaily.some(m =>
             (m.recompensas || []).some(r => r.tipo !== 'vbucks' && ['epic', 'legendary', 'mythic'].includes(r.rareza))
         );
