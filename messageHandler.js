@@ -551,9 +551,6 @@ Apoya a un creador: JASC13` });
                             '│\n' +
                             '│  👥 *' + (metadata.subject || 'Este grupo') + '*\n' +
                             '│\n' +
-                            '│  📩 Comparte este enlace para\n' +
-                            '│  invitar a alguien al grupo.\n' +
-                            '│\n' +
                             '╰━━━━━━━━━━━━━━━━━━━━━━━━╯\n\n' +
                             '🔗 ' + enlace + '\n\n' +
                             '⚠️ _Comparte el enlace solo con personas de confianza._'
