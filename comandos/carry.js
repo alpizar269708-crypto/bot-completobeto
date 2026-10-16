@@ -207,13 +207,21 @@ async function comandoCarry(sock, chatId, msg, comando, args = []) {
         }
 
     } else if (comando === 'carryleave') {
-        if (!escuadron) return;
-        const index = escuadron.miembros.findIndex(m => m.id === sender);
-        if (index !== -1) {
-            escuadron.miembros.splice(index, 1);
-            const espaciosRestantes = escuadron.maxEspacios - escuadron.miembros.length;
-            await sock.sendMessage(chatId, { text: `🚪 *${pushName}* salió del escuadrón. Quedan *${espaciosRestantes}* espacios.` }, { quoted: msg });
+        if (!chatId.endsWith('@g.us')) {
+            return await sock.sendMessage(chatId, { text: '❌ Este comando solo funciona en grupos.' }, { quoted: msg });
         }
+        if (!escuadron) {
+            return await sock.sendMessage(chatId, { text: '❌ No hay ningún escuadrón activo del que puedas salir.' }, { quoted: msg });
+        }
+        const index = escuadron.miembros.findIndex(m => m.id === sender);
+        if (index === -1) {
+            return await sock.sendMessage(chatId, { text: '❌ No estás unido a este escuadrón. El líder no puede abandonarlo con este comando; debe usar *carryclose* para cerrarlo.' }, { quoted: msg });
+        }
+        escuadron.miembros.splice(index, 1);
+        const espaciosRestantes = escuadron.maxEspacios - escuadron.miembros.length;
+        await sock.sendMessage(chatId, {
+            text: `🚪 *${pushName}* salió del escuadrón. Quedan *${espaciosRestantes}* espacios disponibles.`
+        }, { quoted: msg });
 
     } else if (comando === 'carryclose') {
         if (!escuadron) return await sock.sendMessage(chatId, { text: `❌ No hay escuadrones activos.` }, { quoted: msg });
