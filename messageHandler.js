@@ -215,6 +215,11 @@ Apoya a un creador: JASC13` });
     let args = textoParaSeparar.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').split(/ +/);
     let comandoRaw = args.shift();
     argsOriginales.shift();
+    // Los marcadores sueltos que WhatsApp deja separados no cuentan como argumentos.
+    args = args.filter(x => !/^[*_~`]+$/.test(x));
+    for (let i = argsOriginales.length - 1; i >= 0; i--) {
+        if (/^[*_~`]+$/.test(argsOriginales[i])) argsOriginales.splice(i, 1);
+    }
     const comandoEscrito = normalizarComando(comandoRaw);
     // Los comandos R son independientes: por ahora solo rpavos está implementado.
     // Los comandos públicos originales conservan su comportamiento anterior.
