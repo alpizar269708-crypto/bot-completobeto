@@ -106,7 +106,8 @@ async function procesarMensaje(sock, msg) {
         .toLowerCase()
         .normalize('NFD')
         .replace(/[\u0300-\u036f]/g, '')
-        .replace(/^[!/.]/, '');
+        .replace(/^[!/.]/, '')
+        .replace(/^[*_~`]+|[*_~`]+$/g, '');
 
     const comandoPropioPermitido = new Set([
         'warn', 'advertir', 'verwarns', 'limpiarwarns',
