@@ -100,14 +100,17 @@ async function procesarMensaje(sock, msg) {
         return;
     }
 
+    // Normaliza el nombre del comando aunque WhatsApp separe los marcadores
+    // de formato con espacios: "*carryjoin*", "* carryjoin *", "_MENU_", etc.
     const normalizarComando = (texto) => (texto || '')
         .trim()
+        .replace(/^[\s*_~`]+/, '')
         .split(/\s+/)[0]
         .toLowerCase()
         .normalize('NFD')
         .replace(/[\u0300-\u036f]/g, '')
-        .replace(/^[!/.]/, '')
-        .replace(/^[*_~`]+|[*_~`]+$/g, '');
+        .replace(/^[!/.]+/, '')
+        .replace(/[*_~`]+$/g, '');
 
     const comandoPropioPermitido = new Set([
         'warn', 'advertir', 'verwarns', 'limpiarwarns',
@@ -205,8 +208,11 @@ Apoya a un creador: JASC13` });
 
     // Conservamos también los argumentos originales para comandos cuyo contenido
     // pueda ser sensible a mayúsculas o al formato del enlace (como TikTok).
-    const argsOriginales = textoOriginal.trim().split(/\s+/);
-    let args = textoLimpio.split(/ +/);
+    // Quitamos el formato situado antes del comando antes de separar argumentos,
+    // para que "* carryjoin *" no convierta el asterisco en el nombre del comando.
+    const textoParaSeparar = textoOriginal.trim().replace(/^[\s*_~`]+/, '');
+    const argsOriginales = textoParaSeparar.split(/\s+/);
+    let args = textoParaSeparar.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').split(/ +/);
     let comandoRaw = args.shift();
     argsOriginales.shift();
     const comandoEscrito = normalizarComando(comandoRaw);
