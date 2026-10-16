@@ -66,7 +66,7 @@ const comandosValidos = new Set([
         'farmear', 'work', 'crime', 'mendigar', 'pescar', 'minar', 'cazar', 'explorar',
         'ruleta', 'cf', 'slots', 'dados', 'adivina', 'buscaminas', 'rob', 'ppt', 'pelea',
         'carrera', 'hackear', 'shop', 'buy', 'inventario', 'mochila', 'vender', 'use', 'regalar',
-        'rifa', 'rifainscripcion', 'cerrarrifa', 'rifaquitarduplicados', 'rifajasc13', 'addvarios', 'abrirrifa', 'activarrifaaqui', 'menurifajasc13', 'quitarrifajasc13', 'addcashback', 'delcashback', 'vercash', 'delvcash', 'canjecash', 'carryleader', 'carryjoin', 'carryleave', 'carryclose', 'buscocarry', 'doycarry', 'x2busco', 'blcarry', 'unblcarry', 'listcarrybl',
+        'rifa', 'rifainscripcion', 'cerrarrifa', 'rifaquitarduplicados', 'rifajasc13', 'addvarios', 'abrirrifa', 'activarrifaaqui', 'menurifajasc13', 'quitarrifajasc13', 'addcashback', 'delcashback', 'vercash', 'delvcash', 'canjecash', 'carryleader', 'carryjoin', 'carryleave', 'carryclose', 'buscocarry', 'buscooff', 'doycarry', 'x2busco', 'blcarry', 'unblcarry', 'listcarrybl',
         'vertodoscomandos', 'listablanca', 'paypal', 'paypaln', 'paypali', 'desactivarbienvenida', 'activarbienvenida', 'personalizarbienvenida', 'restaurarbienvenida', 'redeploy'
 ]);
 
