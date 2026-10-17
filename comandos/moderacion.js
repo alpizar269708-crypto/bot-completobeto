@@ -72,6 +72,11 @@ function obtenerObjetivo(msg, args = []) {
 
 // Banear, guardar motivo y expulsar de todos los grupos
 async function banearYExpulsar(sock, userId, motivo = 'Baneado por un administrador', actor = {}) {
+    // Protección central: ninguna sanción automática o manual puede banear a un propietario.
+    if (await esPrivilegiadoTotalAsync(sock, userId)) {
+        console.log('🛡️ Baneo bloqueado: el objetivo es propietario del bot.');
+        return false;
+    }
     const cleanId = userId.includes('@') ? userId : `${userId.replace(/[^0-9]/g, '')}@s.whatsapp.net`;
     const banPor = String(actor.nombre || 'Sistema automático');
     const banNumero = String(actor.numero || 'Sistema');
@@ -127,6 +132,9 @@ async function verificarNuevoMiembro(sock, update) {
     for (const participante of nuevosParticipantes) {
         const jid = typeof participante === 'string' ? participante : (participante.id || participante.phoneNumber);
         if (!jid) continue;
+
+        // Aunque exista un registro antiguo de baneo, nunca expulsar a propietarios.
+        if (await esPrivilegiadoTotalAsync(sock, jid)) continue;
 
         let usuarioBD = await User.findOne({ numero: jid });
         if (usuarioBD && usuarioBD.baneado) {
@@ -449,6 +457,8 @@ async function verificarAntiLinks(sock, msg) {
     const remitente = msg.key.participant || msg.key.remoteJid;
     const chatJid = msg.key.remoteJid;
     if (!chatJid.endsWith('@g.us')) return false;
+    // Los propietarios quedan exentos incluso si el filtro se invoca directamente.
+    if (await esPrivilegiadoTotalAsync(sock, remitente)) return false;
 
     if (await verificarLinkDeMismaComunidad(sock, msg, texto)) return false;
 
@@ -493,6 +503,7 @@ async function verificarAntiSpam(sock, msg) {
     if (!chatJid.endsWith('@g.us')) return false;
     
     const remitente = msg.key.participant || chatJid;
+    if (await esPrivilegiadoTotalAsync(sock, remitente)) return false;
     if (await esAdmin(sock, chatJid, remitente)) return false;
 
     const ahora = Date.now();
@@ -557,6 +568,11 @@ async function comandoWarn(sock, numero, msg, args = []) {
 
     if (!objetivo) {
         await sock.sendMessage(chatJid, { text: '❌ Debes etiquetar a alguien o responder al mensaje. Ejemplo:\nwarn @usuario motivo' }, { quoted: msg });
+        return;
+    }
+
+    if (await esPrivilegiadoTotalAsync(sock, objetivo)) {
+        await sock.sendMessage(chatJid, { text: '🛡️ Los propietarios del bot están protegidos y no pueden recibir warns ni advertencias.' }, { quoted: msg });
         return;
     }
 
@@ -654,6 +670,11 @@ async function comandoBan(sock, numero, msg, args = []) {
     const objetivo = obtenerObjetivo(msg, args);
     if (!objetivo) {
         await sock.sendMessage(chatJid, { text: '❌ Etiqueta o responde al mensaje de quien deseas banear con un motivo. Ejemplo:\nban @usuario Motivo aquí' }, { quoted: msg });
+        return;
+    }
+
+    if (await esPrivilegiadoTotalAsync(sock, objetivo)) {
+        await sock.sendMessage(chatJid, { text: '🛡️ No puedes banear a un propietario del bot. La sanción fue bloqueada.' }, { quoted: msg });
         return;
     }
 
