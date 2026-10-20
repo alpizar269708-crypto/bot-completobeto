@@ -530,7 +530,7 @@ async function comandoPreguntarAlerta(sock, chatId, msg, palabrasClave = [], pro
     const normalizarBusquedaRecompensa = valor => normalizarTexto(valor)
         .replace(/gotas?\s+(?:puras?\s+de\s+lluvia|de\s+lluvia(?:\s+pura)?)|pure\s*drop\s*of\s*rain|drop\s*of\s*rain/g, ' pure drop of rain ')
         .replace(/relampago\s+en\s+(?:una\s+)?botella|lightning\s+in\s+a\s+bottle/g, ' lightning in a bottle ')
-        .replace(/ojo\s+de\s+la\s+tormenta|eye\s+of\s+the\s+storm/g, ' eye of the storm ')
+        .replace(/ojo\s+de\s+(?:la\s+)?tormenta|eye\s+of\s+(?:the\s+)?storm/g, ' eye of the storm ')
         .replace(/fragmento\s+de\s+tormenta|storm\s+shard/g, ' storm shard ')
         .replace(/[^a-z0-9]+/g, ' ').replace(/\s+/g, ' ').trim();
     const distanciaEdicion = (a, b) => {
