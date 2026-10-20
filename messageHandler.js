@@ -30,7 +30,7 @@ const { comandoPaypal, comandoCalculadoraPaypal } = require('./comandos/paypal')
 const categoriasMap = {
     'fortnite': ['pavos', 'rpavos', 'destacadasstw', 'legendariasstw', 'epicasstw', 'alertasstw', 'stw', 'alerta', 'alertanov', 'recompensa', 'recompensanov'],
     'economia': ['cartera', 'bal', 'banco', 'pay', 'pagar', 'top', 'topdinero', 'daily', 'weekly', 'farmear', 'work', 'crime', 'mendigar', 'pescar', 'minar', 'cazar', 'explorar', 'ruleta', 'cf', 'slots', 'dados', 'adivina', 'buscaminas', 'rob', 'ppt', 'pelea', 'carrera', 'hackear', 'shop', 'buy', 'inventario', 'mochila', 'vender', 'use', 'regalar'],
-    'utilidades': ['s', 'sticker', 'recup1vez', 'tiktok', 'instagram', 'pinterest', 'x', 'twitter', 'traduce', 'skin', 'stats', 'tiendastats', 'tiendavb', 'contacto', 'ping'],
+    'utilidades': ['s', 'sticker', 'recup1vez', 'descargar', 'download', 'tiktok', 'instagram', 'pinterest', 'x', 'twitter', 'traduce', 'skin', 'stats', 'tiendastats', 'tiendavb', 'contacto', 'ping'],
     'paypal': ['paypal', 'paypaln', 'paypali'],
     'ia': ['ia'],
     'moderacion': ['warn', 'advertir', 'verwarns', 'limpiarwarns', 'ban', 'unban', 'listanegra', 'banlist', 'unbanlist', 'grupo', 'mute', 'unmute', 'inactivos', 'listablanca', 'desactivarbienvenida', 'activarbienvenida', 'personalizarbienvenida', 'restaurarbienvenida', 'blcarry', 'unblcarry', 'listcarrybl', 'setprecio', 'setgrupostw', 'unsetgrupostw', 'desactivarcomandos', 'catdesa'],
@@ -60,7 +60,7 @@ const comandosConUsuarioBD = new Set([
 const comandosValidos = new Set([
         'desactivarcomandos', 'catdesa', 'linkgrupo', 'setprecio', 'ping', 'pavos', 'rpavos', 'destacadasstw', 'legendariasstw', 'epicasstw', 'alertasstw', 'stw', 'alerta', 'alertanov', 'recompensa', 'recompensanov', 
         'setgrupostw', 'unsetgrupostw', 'grupo', 'mute', 'unmute', 'inactivos', 'tienda', 'tiendastats', 'tiendavb', 'ia', 'menu', 'menusecreto',
-        's', 'sticker', 'recup1vez', 'tiktok', 'instagram', 'pinterest', 'x', 'twitter', 'traduce', 'skin', 'stats', 'contacto',
+        's', 'sticker', 'recup1vez', 'descargar', 'download', 'tiktok', 'instagram', 'pinterest', 'x', 'twitter', 'traduce', 'skin', 'stats', 'contacto',
         'warn', 'advertir', 'verwarns', 'limpiarwarns', 'ban', 'unban', 'listanegra', 'banlist', 'unbanlist', 
         'cartera', 'bal', 'banco', 'pay', 'pagar', 'top', 'topdinero', 'daily', 'weekly',
         'farmear', 'work', 'crime', 'mendigar', 'pescar', 'minar', 'cazar', 'explorar',
@@ -168,40 +168,8 @@ Apoya a un creador: JASC13` });
         return;
     }
 
-    // Si llega solo un enlace de una red compatible, lo descargamos sin exigir comando.
-    // Se limita a URLs solas y hosts conocidos para no interceptar mensajes normales.
-    const enlaceSolo = textoOriginal.trim();
-    if (/^(?:https?:\/\/)?(?:www\.)?(?:[^\s/]+)\//i.test(enlaceSolo)) {
-        let urlAutomatica;
-        try { urlAutomatica = new URL(/^https?:\/\//i.test(enlaceSolo) ? enlaceSolo : 'https://' + enlaceSolo); } catch (_) {}
-        const host = urlAutomatica?.hostname?.toLowerCase().replace(/^www\./, '') || '';
-        const argumentosEnlace = [urlAutomatica?.toString() || enlaceSolo];
-        if (/(^|\.)tiktok\.com$/.test(host)) {
-            if (/\/photo\//i.test(urlAutomatica.pathname)) await comandoDescargaSocial(sock, chatJid, msg, argumentosEnlace, 'TikTok');
-            else await comandoTiktok(sock, chatJid, msg, argumentosEnlace);
-            return;
-        }
-        if (/(^|\.)instagram\.com$/.test(host)) {
-            if (/\/(?:p|tv)\//i.test(urlAutomatica.pathname)) await comandoDescargaSocial(sock, chatJid, msg, argumentosEnlace, 'Instagram');
-            else await comandoInstagram(sock, chatJid, msg, argumentosEnlace);
-            return;
-        }
-        if (/(^|\.)pinterest\.(?:com|mx|es|co\.uk|ca|fr|de|it|jp|au|nz|pt|in|co)$/.test(host) || host === 'pin.it') {
-            await comandoDescargaSocial(sock, chatJid, msg, argumentosEnlace, 'Pinterest');
-            return;
-        }
-        if (/(^|\.)(?:x\.com|twitter\.com)$/.test(host)) {
-            await comandoX(sock, chatJid, msg, argumentosEnlace);
-            return;
-        }
-        if (/(^|\.)(?:facebook\.com|fb\.watch|reddit\.com|redd\.it|threads\.net)$/.test(host)) {
-            await comandoDescargaSocial(sock, chatJid, msg, argumentosEnlace, host);
-            return;
-        }
-    }
-
     // Los comandos explícitos de descarga deben poder recibir enlaces aunque el anti-links esté activo.
-    if (!['tiktok', 'instagram', 'pinterest', 'x', 'twitter'].includes(textoComandoPrevio) && !esComandoPropioPermitido && !tienePrivilegiosTotales && await verificarAntiLinks(sock, msg)) return;
+    if (!['descargar', 'download', 'tiktok', 'instagram', 'pinterest', 'x', 'twitter'].includes(textoComandoPrevio) && !esComandoPropioPermitido && !tienePrivilegiosTotales && await verificarAntiLinks(sock, msg)) return;
 
     const textoMinusculas = textoOriginal.toLowerCase();
     const textoLimpio = textoMinusculas.normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
@@ -757,6 +725,10 @@ Apoya a un creador: JASC13` });
                 break;
             case 'recup1vez':
                 await comandoRecup1Vez(sock, chatJid, msg);
+                break;
+            case 'descargar':
+            case 'download':
+                await comandoDescargaSocial(sock, chatJid, msg, argsOriginales, 'red social');
                 break;
             case 'tiktok':
                 await comandoTiktok(sock, chatJid, msg, argsOriginales);
