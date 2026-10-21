@@ -120,11 +120,11 @@ function etiquetasRecompensa(item) {
     if (/people\s*xp|person\s*xp|survivor.?s?\s*xp|survivor experience|hero.?s?\s*xp|experiencia.{0,25}(persona|superviviente|sobreviviente)|(?:superviviente|sobreviviente).{0,25}(?:experiencia|exp\b)/i.test(texto)) {
         etiquetas.xp = true;
     }
-    if (/pure drop of rain|drop of rain|gotas?.{0,20}lluvia|lluvia pura/i.test(texto)) etiquetas.materiales.push('lluvia');
-    if (/eye of the storm|ojo.{0,15}tormenta/i.test(texto)) etiquetas.materiales.push('ojo');
-    if (/lightning in a bottle|relampago.{0,20}botella/i.test(texto)) etiquetas.materiales.push('botella');
-    if (/storm shard|fragmento.{0,15}tormenta/i.test(texto)) etiquetas.materiales.push('fragmento');
-    if (/evolution material|material(?:es)? de evolucion/i.test(texto)) etiquetas.materiales.push('generico');
+    if (/pure[-\\s]?drop[-\\s]?of[-\\s]?rain|drop[-\\s]?of[-\\s]?rain|gotas?.{0,20}lluvia|lluvia pura/i.test(texto)) etiquetas.materiales.push('lluvia');
+    if (/eye[-\\s]?of[-\\s]?the[-\\s]?storm|ojo.{0,15}tormenta/i.test(texto)) etiquetas.materiales.push('ojo');
+    if (/lightning[-\\s]?in[-\\s]?a[-\\s]?bottle|relampago.{0,20}botella/i.test(texto)) etiquetas.materiales.push('botella');
+    if (/storm[-\\s]?shard|fragmento.{0,15}tormenta/i.test(texto)) etiquetas.materiales.push('fragmento');
+    if (/evolution(?: material)?|material(?:es)? de evolucion/i.test(texto)) etiquetas.materiales.push('generico');
     etiquetas.materiales = [...new Set(etiquetas.materiales)];
     if (/\bsurvivors?\b|superviviente|sobreviviente|lead survivor|survivor squad/i.test(texto)) etiquetas.superviviente = true;
     if (/(?:^|[^a-z])(?:gold|oro)(?:$|[^a-z])/i.test(texto)) etiquetas.oro = true;
@@ -158,7 +158,8 @@ function reunirAlertas(datos) {
         if (!Array.isArray(lista)) continue;
         for (const item of lista) {
             if (!item || typeof item !== 'object') continue;
-            const pl = Number(String(item.pl == null ? '' : item.pl).replace(/[^0-9]/g, ''));
+            const plTexto = String(item.pl == null ? '' : item.pl).replace(/[^0-9]/g, '');
+            const pl = plTexto ? Number(plTexto) : NaN;
             const zona = normalizarTexto(item.zona || item.ubicacion);
             const mision = normalizarTexto(item.misionOriginal || item.mision || item.nombre);
             const key = [Number.isFinite(pl) ? pl : '?', zona, mision].join('|');
@@ -249,7 +250,8 @@ async function generarGuia(sock, chatId, msg, sesion) {
     const alertas = reunirAlertas(datos || {});
     const maxZona = r.zona === 5 ? null : r.zona;
     const elegibles = alertas.filter(item => {
-        const pl = Number(String(item.pl == null ? '' : item.pl).replace(/[^0-9]/g, ''));
+        const plTexto = String(item.pl == null ? '' : item.pl).replace(/[^0-9]/g, '');
+            const pl = plTexto ? Number(plTexto) : NaN;
         if (Number.isFinite(pl) && pl > r.pl + 10) return false;
         const zona = zonaOrden(item);
         if (maxZona !== null && zona === 99) return false;
@@ -260,7 +262,8 @@ async function generarGuia(sock, chatId, msg, sesion) {
 
     const ordenadas = elegibles.map(item => {
         const info = prioridadAlerta(item, r);
-        const pl = Number(String(item.pl == null ? '' : item.pl).replace(/[^0-9]/g, ''));
+        const plTexto = String(item.pl == null ? '' : item.pl).replace(/[^0-9]/g, '');
+            const pl = plTexto ? Number(plTexto) : NaN;
         const diferencia = Number.isFinite(pl) ? (pl > r.pl ? (pl - r.pl) * 2 : r.pl - pl) : 30;
         return { item, tags: info.etiquetas, score: info.score, diferencia };
     }).sort((a, b) => a.score - b.score || a.diferencia - b.diferencia);
@@ -335,6 +338,12 @@ async function generarGuia(sock, chatId, msg, sesion) {
         lineas.push('2. *Farmeo principal (' + duracion.misiones + ' min):* prioriza las alertas de materiales que te falten; después experiencia y supervivientes que mejoren los escuadrones.');
     }
     lineas.push('3. *Mejoras (' + duracion.mejoras + ' min):* entra a Comando → Supervivientes → Administrar. Revisa los ocho escuadrones, llena puestos vacíos, corrige líderes y personalidades; luego evoluciona solo los supervivientes que vayas a conservar.');
+    if (r.escuadrones === 2) lineas.push('📌 Como tienes puestos vacíos, llénalos primero con los mejores supervivientes que ya tengas: los huecos sin cubrir desperdician poder disponible.');
+    else if (r.escuadrones === 3) lineas.push('📌 Como no tienes claro cómo están los escuadrones, antes de gastar recursos revisa los ocho: líder correcto, puestos llenos, rareza, nivel y personalidad.');
+    if (r.rareza === 1) lineas.push('🧑‍🚀 Como predominan rarezas bajas, cualquier sustitución por un superviviente de mayor rareza que encaje bien puede ayudar; no evoluciones a todos indiscriminadamente.');
+    else if (r.rareza === 2) lineas.push('🧑‍🚀 Con una mezcla de rarezas, conserva los supervivientes que aporten más poder y reemplaza solo cuando el nuevo suponga una mejora real.');
+    else if (r.rareza === 3) lineas.push('🧑‍🚀 Si ya tienes bastantes épicos/legendarios, céntrate en niveles, evolución, líderes y personalidad compatible antes de gastar recursos en más supervivientes.');
+    if (r.estilo === 1) lineas.push('🎮 Juegas solo: entre dos alertas de valor parecido, empieza por la de menor PL que puedas terminar de forma constante; evita repetir una misión difícil solo por una recompensa atractiva.');
     if (r.oro === 1) {
         lineas.push('4. *Oro (' + duracion.oro + ' min):* no reserves una sesión exclusiva; hazlo solo si una alerta útil también da oro o si ya tienes los materiales prioritarios.');
     } else if (r.oro === 2) {
