@@ -661,6 +661,32 @@ async function comandoPreguntarAlerta(sock, chatId, msg, palabrasClave = [], pro
         totalesMaterialVerificados.set(registro.material, actual);
     }
 
+    // En búsquedas por PL solo mostramos misiones que tengan recompensas
+    // realmente útiles: rarezas altas o materiales de evolución importantes.
+    const recompensasValiosasParaPL = item => {
+        const lista = Array.isArray(item.recompensas) ? item.recompensas : [];
+        const materialesValiosos = /(?:eye\s+of\s+(?:the\s+)?storm|ojo\s+de\s+(?:la\s+)?tormenta|pure\s+drop\s+of\s+rain|drop\s+of\s+rain|gotas?\s+(?:puras?\s+de\s+lluvia|de\s+lluvia)|lightning\s+in\s+a\s+bottle|rel[aá]mpago\s+en\s+(?:una\s+)?botella|storm\s+shard|fragmento\s+de\s+tormenta|epic\s+perk.?up|legendary\s+perk.?up|perk.?up\s+(?:epic|legendary)|reperks?|repercutores?)/i;
+        const valiosas = lista.filter(r => {
+            if (typeof r === 'string') return materialesValiosos.test(r);
+            if (!r) return false;
+            const tipo = normalizarTexto(r.tipo || '').replace(/[^a-z0-9]+/g, '');
+            const rareza = normalizarTexto(r.rareza || '').replace(/[^a-z0-9]+/g, '');
+            const texto = [r.nombre, r.raw, r.tipo, r.iconClasses].filter(Boolean).join(' ');
+            if (materialesValiosos.test(texto)) return true;
+            if (tipo === 'vbucks') return true;
+            if (tipo === 'perkup') return ['epic', 'legendary'].includes(rareza);
+            if (['hero', 'survivor', 'defender', 'schematic'].includes(tipo)) {
+                return ['epic', 'legendary', 'mythic'].includes(rareza);
+            }
+            return false;
+        });
+        const textoPlano = [item.recompensa, item.tipoAlertaTexto].filter(Boolean).join(' ');
+        if (!valiosas.length && materialesValiosos.test(textoPlano)) {
+            return [{ tipo: 'material', nombre: textoPlano, raw: textoPlano }];
+        }
+        return valiosas;
+    };
+
     const coincidenciasFiltradas = [
         ...datos.pavos.map(item => ({ ...item, categoria: 'PaVos' })),
         ...datos.epicas.map(item => ({ ...item, categoria: 'Épicas' })),
@@ -673,7 +699,11 @@ async function comandoPreguntarAlerta(sock, chatId, msg, palabrasClave = [], pro
     ].filter(item => {
         if (esBusquedaPL) {
             const plItem = Number(String(item.pl || '').replace(/[^0-9]/g, ''));
-            return plItem >= Math.min(plMinimo, plMaximo) && plItem <= Math.max(plMinimo, plMaximo);
+            if (!(plItem >= Math.min(plMinimo, plMaximo) && plItem <= Math.max(plMinimo, plMaximo))) return false;
+            const recompensasFiltradas = recompensasValiosasParaPL(item);
+            if (!recompensasFiltradas.length) return false;
+            item._recompensasFiltradas = recompensasFiltradas;
+            return true;
         }
         const listaRecompensas = Array.isArray(item.recompensas) ? item.recompensas : [];
         if (modoRecompensa) {
@@ -790,10 +820,15 @@ async function comandoPreguntarAlerta(sock, chatId, msg, palabrasClave = [], pro
         coincidencias.forEach(item => {
             const categorias = Array.isArray(item.categoria) ? item.categoria : [item.categoria];
             texto += '📌 *' + [...new Set(categorias)].join(' / ') + '*\n';
-            const itemParaMostrar = modoRecompensa && Array.isArray(item._recompensasFiltradas)
-                ? { ...item, recompensas: item._recompensasFiltradas }
+            const itemParaMostrar = (esBusquedaPL || (modoRecompensa && Array.isArray(item._recompensasFiltradas)))
+                ? {
+                    ...item,
+                    recompensas: Array.isArray(item._recompensasFiltradas) ? item._recompensasFiltradas : item.recompensas,
+                    // En búsqueda por PL, evita que el fallback muestre una lista cruda con premios comunes.
+                    ...(esBusquedaPL ? { recompensa: '' } : {})
+                }
                 : item;
-            texto += formatearAlertaSTW(itemParaMostrar, '', mostrarDetalles, modoRecompensa);
+            texto += formatearAlertaSTW(itemParaMostrar, '', mostrarDetalles, modoRecompensa || esBusquedaPL);
         });
     }
 
