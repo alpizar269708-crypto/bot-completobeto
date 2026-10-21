@@ -143,7 +143,10 @@ async function ejecutarMenu(sock, chatId, msg, args) {
                  `*${prefijo}x2busco* - Entra como otro jugador que busca carry.\n`,
 
         'rifas': `🎟️ *MENÚ RIFAS* 🎟️\n\n` +
-                 `*${prefijo}rifainscripcion* - Únete a la rifa activa (1 vez por persona).\n\n` +
+                 `*${prefijo}abrirrifa* - Inicia/abre una rifa en este grupo (administradores).\n` +
+                 `*${prefijo}activarrifaaqui* - Activa la rifa en este grupo (administradores).\n` +
+                 `*${prefijo}rifainscripcion* - Únete a la rifa activa (1 vez por persona).\n` +
+                 `*${prefijo}cerrarrifa* - Cierra las inscripciones sin borrar participantes (administradores).\n\n` +
                  `⚙️ *Comandos Administrativos:*\n` +
                  `*${prefijo}rifa ver* - Mira la lista de participantes inscritos.\n` +
                  `*${prefijo}rifa quitar [número]* - Elimina a un participante de la lista.\n` +
