@@ -511,7 +511,7 @@ async function comandoSubirPL(sock, chatId, msg, args = [], progreso = null) {
     const infoRecompensas = item => (Array.isArray(item.recompensas) ? item.recompensas : [])
         .map(r => typeof r === 'string' ? r : [r.nombre, r.raw, r.tipo, r.rareza, r.cantidad].filter(x => x !== undefined && x !== null).join(' '))
         .concat([item.recompensa, item.tipoAlertaTexto].filter(Boolean)).join(' | ');
-    const regexXP = /survivor.?s?\s*xp|survivor experience|experiencia.{0,20}(?:superviviente|sobreviviente)|(?:superviviente|sobreviviente).{0,20}(?:experiencia|exp\b)|hero.?s?\s*xp/i;
+    const regexXP = /people.?\s*xp|experiencia.{0,20}personas|survivor.?s?\s*xp|survivor experience|experiencia.{0,20}(?:superviviente|sobreviviente)|(?:superviviente|sobreviviente).{0,20}(?:experiencia|exp\b)|hero.?s?\s*xp/i;
     const regexMateriales = /pure drop of rain|drop of rain|gotas?.{0,20}lluvia|lightning in a bottle|relampago.{0,20}botella|eye of the storm|ojo.{0,15}tormenta|storm shard|fragmento.{0,15}tormenta|evolution material|material de evolucion/i;
     const regexSuperviviente = /\bsurvivor\b|superviviente|sobreviviente|lead survivor|survivor squad/i;
     const regexOro = /(?:^|[^a-z])(?:gold|oro)(?:$|[^a-z])/i;
