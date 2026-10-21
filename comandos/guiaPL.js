@@ -116,7 +116,7 @@ function recompensaTexto(item) {
 
 function etiquetasRecompensa(item) {
     const texto = normalizarTexto(recompensaTexto(item));
-    const etiquetas = { xp: false, materiales: [], superviviente: false, oro: false };
+    const etiquetas = { xp: false, materiales: [], superviviente: false, oro: false, rareza: [], valiosa: false };
     if (/people\s*xp|person\s*xp|survivor.?s?\s*xp|survivor experience|hero.?s?\s*xp|experiencia.{0,25}(persona|superviviente|sobreviviente)|(?:superviviente|sobreviviente).{0,25}(?:experiencia|exp\b)/i.test(texto)) {
         etiquetas.xp = true;
     }
@@ -128,6 +128,11 @@ function etiquetasRecompensa(item) {
     etiquetas.materiales = [...new Set(etiquetas.materiales)];
     if (/\bsurvivors?\b|superviviente|sobreviviente|lead survivor|survivor squad/i.test(texto)) etiquetas.superviviente = true;
     if (/(?:^|[^a-z])(?:gold|oro)(?:$|[^a-z])/i.test(texto)) etiquetas.oro = true;
+    if (/\blegendary\b|\blegendaria?s?\b|\blegendari[oa]s?\b/i.test(texto)) etiquetas.rareza.push('legendaria');
+    if (/\bepic\b|\bepica?s?\b|\bepic[oa]s?\b/i.test(texto)) etiquetas.rareza.push('epica');
+    if (/\bmythic\b|\bmitica?s?\b|\bmitic[oa]s?\b/i.test(texto)) etiquetas.rareza.push('mitica');
+    etiquetas.rareza = [...new Set(etiquetas.rareza)];
+    etiquetas.valiosa = etiquetas.rareza.length > 0 || /perk.?up|ventaja|superviviente|sobreviviente|schematic|esquema|hero|heroe|h[eé]roe|defender|defensor/i.test(texto);
     return etiquetas;
 }
 
@@ -203,6 +208,11 @@ function prioridadAlerta(item, respuestas) {
     }
     if (etiquetas.oro && respuestas.oro === 1 && score > 1) score += 3;
     if (etiquetas.oro && respuestas.oro === 2 && score > 1) score += 1;
+    // Si dos alertas tienen prioridad similar, destacar recompensas épicas/legendarias/míticas y útiles para progresión.
+    if (etiquetas.rareza.includes('mitica')) score -= 4;
+    else if (etiquetas.rareza.includes('legendaria')) score -= 3;
+    else if (etiquetas.rareza.includes('epica')) score -= 2;
+    if (etiquetas.valiosa && score > 0) score -= 1;
     return { score, etiquetas };
 }
 
@@ -257,7 +267,7 @@ async function generarGuia(sock, chatId, msg, sesion) {
         if (zona === 99) return false;
         if (maxZona !== null && zona > 0 && zona > maxZona) return false;
         const tags = etiquetasRecompensa(item);
-        return tags.xp || tags.materiales.length > 0 || tags.superviviente || tags.oro;
+        return tags.xp || tags.materiales.length > 0 || tags.superviviente || tags.oro || tags.valiosa;
     });
 
     const ordenadas = elegibles.map(item => {
@@ -315,8 +325,10 @@ async function generarGuia(sock, chatId, msg, sesion) {
                     : '🧪 Material de evolución')
                 : entrada.tags.xp ? '🧬 Experiencia'
                 : entrada.tags.superviviente ? '🧑‍🚀 Superviviente'
-                : '🪙 Oro';
-            lineas.push((i + 1) + '. *' + etiqueta + '*');
+                : entrada.tags.oro ? '🪙 Oro'
+                : '💎 Recompensa especial';
+            const marcaRareza = entrada.tags.rareza.includes('mitica') ? ' · 🌟 MÍTICA' : entrada.tags.rareza.includes('legendaria') ? ' · 🟠 LEGENDARIA' : entrada.tags.rareza.includes('epica') ? ' · 🟣 ÉPICA' : '';
+            lineas.push((i + 1) + '. *' + etiqueta + marcaRareza + '*');
             const detalle = formatearAlertaSTW(item, '', false, true).trim();
             lineas.push(detalle || ('PL ' + (item.pl == null ? '?' : item.pl) + ' · ' + (item.zona || 'Zona no identificada')));
             if (termino) lineas.push('🔎 Para revisar los requisitos: *alertanov ' + termino + '*');
@@ -326,6 +338,18 @@ async function generarGuia(sock, chatId, msg, sesion) {
     }
 
     const duracion = duracionMinutos(r.horas);
+    lineas.push('🧠 *DIAGNÓSTICO Y ORDEN DE MEJORAS*', '');
+    if (r.escuadrones !== 1 || r.rareza === 1 || r.rareza === 4) {
+        lineas.push('• Primero revisa los ocho escuadrones: líder adecuado, puestos llenos, personalidad compatible y supervivientes mejorados. Esto puede aumentar tu PL sin depender de una recompensa nueva.');
+    } else {
+        lineas.push('• Tus escuadrones parecen completos; revisa líderes, personalidad y nivel antes de gastar recursos en sustituciones pequeñas.');
+    }
+    if (r.bloqueo === 1 || (r.materiales || []).length) {
+        const nombresMateriales = { lluvia: 'gotas de lluvia pura', ojo: 'ojo de la tormenta', botella: 'relámpago en una botella', fragmento: 'fragmento de tormenta' };
+        const elegidos = (r.materiales || []).filter(m => nombresMateriales[m]).map(m => nombresMateriales[m]);
+        lineas.push('• Materiales prioritarios: ' + (elegidos.length ? elegidos.join(', ') : 'los que indique la siguiente evolución en el menú de supervivientes') + '. Comprueba también experiencia y nivel de estrella antes de farmear.');
+    }
+    lineas.push('• El filtro favorece recompensas de evolución y, cuando aparecen en los datos, objetos épicos, legendarios o míticos útiles. La rareza se muestra solo si el raspado la identifica; no se deduce una recompensa ausente.', '');
     lineas.push('🗓️ *RUTA DIARIA DE ' + (r.horas * 60) + ' MINUTOS*', '');
     lineas.push('1. *Revisar alertas (' + duracion.revision + ' min):* usa *alerta* con el material que te falte. Después consulta esa misma búsqueda con *alertanov* para ver detalles y requisitos.');
     if (r.bloqueo === 1) {
@@ -353,7 +377,7 @@ async function generarGuia(sock, chatId, msg, sesion) {
     }
 
     lineas.push('', '🔁 *CÓMO ACTUALIZAR LA GUÍA AL CAMBIAR LA ROTACIÓN*');
-    lineas.push('Vuelve a enviar *guiapl* después del reinicio de alertas. La guía intentará usar la rotación recién raspada; si solo tiene datos guardados, lo avisará.');
+    lineas.push('Vuelve a enviar *guiapl* después del reinicio de alertas. La guía intentará usar la rotación recién raspada; si solo tiene datos guardados, lo avisará. El plan se recalcula con tu PL, meta, zona, tiempo, bloqueo, materiales y preferencia por oro.');
     lineas.push('Para consultas rápidas, usa *alerta gotas de lluvia pura*, *alertanov ojo de la tormenta*, *alertanov relámpago en una botella* o *alerta superviviente*. Cambia el término por el recurso que te falte. No se sugerirán recompensas que el raspado del bot no haya detectado.');
     lineas.push('', '💡 *Regla clave:* antes de cada misión, confirma el PL, la recompensa y los requisitos con *alertanov*. Una recompensa solo cuenta como útil si puedes entrar a la misión y completarla razonablemente solo.');
     lineas.push('', 'Apoya a un creador: *JASC13* ❤️');
