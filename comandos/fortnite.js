@@ -158,10 +158,18 @@ function normalizarRecompensaSalidaSTW(recompensa) {
         return icono + ' Perk-Up' + (rarezaEs ? ' ' + rarezaEs : '') + (cantidad > 0 ? ' ×' + cantidad : '');
     }
     const traductores = traductoresSTW();
-    if (typeof traductores.normalizarRecompensaSTW === 'function') {
-        return traductores.normalizarRecompensaSTW(recompensa.raw || recompensa.nombre || '', recompensa.rareza, tipo);
+    let nombre = typeof traductores.normalizarRecompensaSTW === 'function'
+        ? traductores.normalizarRecompensaSTW(recompensa.raw || recompensa.nombre || '', recompensa.rareza, tipo)
+        : String(recompensa.nombre || recompensa.raw || '').trim();
+
+    // Mostrar la cantidad solo cuando el extractor la obtuvo explícitamente.
+    // No se inventan cantidades ni se interpreta el nivel de misión como premio.
+    const cantidad = Number(recompensa.cantidad);
+    if (nombre && Number.isInteger(cantidad) && cantidad > 0 &&
+        !/(?:[x×]\s*\d+|\b\d+\s*(?:PaVos|V-?Bucks))\b/i.test(nombre)) {
+        nombre += ' ×' + cantidad;
     }
-    return String(recompensa.nombre || recompensa.raw || '').trim();
+    return nombre;
 }
 
 function obtenerRecompensasValiosasSTW(item) {
@@ -460,6 +468,106 @@ async function alertasSTW(sock, chatId, msg, categoria = 'todas', progreso = nul
         throw error;
     }
 }
+
+async function comandoSubirPL(sock, chatId, msg, args = [], progreso = null) {
+    const argumentos = Array.isArray(args) ? args : String(args || '').split(/\s+/).filter(Boolean);
+    const plArgumento = argumentos.map(x => String(x).match(/^\d{1,3}$/)).find(Boolean);
+    const plObjetivo = plArgumento ? Number(plArgumento[0]) : 62;
+    const modoOro = argumentos.some(x => /^(oro|gold)$/i.test(String(x)));
+    if (!Number.isInteger(plObjetivo) || plObjetivo < 1 || plObjetivo > 200) {
+        await sock.sendMessage(chatId, { text: '❌ Indica un PL válido. Ejemplo: *subirpl 62*.' }, { quoted: msg });
+        return;
+    }
+
+    if (typeof progreso === 'function') {
+        try { await progreso('⏳ Preparando recomendaciones para subir PL.'); } catch (_) {}
+    }
+
+    let datos;
+    try {
+        datos = await obtenerAlertasSTW(false, null, { exhaustivo: true });
+    } catch (error) {
+        console.error('Error preparando subirpl:', error.stack || error.message);
+        datos = null;
+    }
+    if (!datos) {
+        await sock.sendMessage(chatId, { text: '⚠️ No pude leer las alertas guardadas. Inténtalo de nuevo en un momento.' }, { quoted: msg });
+        return;
+    }
+
+    const fuentes = datos.fuentes || {};
+    const todas = [
+        ...(datos.pavos || []),
+        ...(datos.epicas || []),
+        ...(datos.legendarias || []),
+        ...(datos.plAltas || []),
+        ...(datos.materiales || []),
+        ...(Array.isArray(fuentes.principal) ? fuentes.principal : []),
+        ...(Array.isArray(fuentes.secundaria) ? fuentes.secundaria : []),
+        ...(Array.isArray(fuentes.tercera) ? fuentes.tercera : [])
+    ];
+    const normalizar = valor => String(valor || '').toLowerCase()
+        .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    const infoRecompensas = item => (Array.isArray(item.recompensas) ? item.recompensas : [])
+        .map(r => typeof r === 'string' ? r : [r.nombre, r.raw, r.tipo, r.rareza, r.cantidad].filter(x => x !== undefined && x !== null).join(' '))
+        .concat([item.recompensa, item.tipoAlertaTexto].filter(Boolean)).join(' | ');
+    const regexXP = /survivor.?s?\s*xp|survivor experience|experiencia.{0,20}(?:superviviente|sobreviviente)|(?:superviviente|sobreviviente).{0,20}(?:experiencia|exp\b)|hero.?s?\s*xp/i;
+    const regexMateriales = /pure drop of rain|drop of rain|gotas?.{0,20}lluvia|lightning in a bottle|relampago.{0,20}botella|eye of the storm|ojo.{0,15}tormenta|storm shard|fragmento.{0,15}tormenta|evolution material|material de evolucion/i;
+    const regexSuperviviente = /\bsurvivor\b|superviviente|sobreviviente|lead survivor|survivor squad/i;
+    const regexOro = /(?:^|[^a-z])(?:gold|oro)(?:$|[^a-z])/i;
+    const prioridad = texto => regexXP.test(texto) ? 0 : regexMateriales.test(texto) ? 1 :
+        regexSuperviviente.test(texto) ? 2 : regexOro.test(texto) ? 3 : 4;
+    const porMision = new Map();
+    for (const item of todas) {
+        if (!item || typeof item !== 'object') continue;
+        const pl = Number(String(item.pl ?? '').replace(/[^0-9]/g, ''));
+        if (Number.isFinite(pl) && pl > plObjetivo + 10) continue;
+        const texto = infoRecompensas(item);
+        const textoNorm = normalizar(texto);
+        const esOro = regexOro.test(textoNorm);
+        if (modoOro ? !esOro : !(regexXP.test(textoNorm) || regexMateriales.test(textoNorm) || regexSuperviviente.test(textoNorm) || esOro)) continue;
+        const mision = normalizar(item.misionOriginal || item.mision || item.nombre);
+        const clave = [pl, normalizar(item.zona || item.ubicacion), mision].join('|');
+        const anterior = porMision.get(clave);
+        if (!anterior || infoRecompensas(item).length > infoRecompensas(anterior).length) porMision.set(clave, item);
+    }
+
+    const lista = [...porMision.values()].sort((a, b) => {
+        const pa = prioridad(infoRecompensas(a));
+        const pb = prioridad(infoRecompensas(b));
+        if (pa !== pb) return pa - pb;
+        return Number(a.pl || 0) - Number(b.pl || 0);
+    });
+    const fecha = obtenerFechaActual();
+    const lineas = ['📅 _' + fecha + '_', '', modoOro
+        ? '🪙 *FARMEAR ORO — SALVAR EL MUNDO*'
+        : '🚀 *PLAN DIARIO PARA SUBIR PL*', '',
+    '🎯 *PL de referencia:* ' + plObjetivo,
+    '📌 _Recomendaciones basadas en las alertas guardadas que el bot tiene disponibles; no se muestran cantidades que la fuente no haya proporcionado._', ''];
+
+    if (!lista.length) {
+        lineas.push(modoOro
+            ? '_No encontré alertas guardadas identificadas claramente como oro. Revisa las recompensas actuales del mapa._'
+            : '_No encontré alertas guardadas con experiencia de superviviente, materiales de evolución, supervivientes u oro. Puede que el caché no contenga esas recompensas._',
+        '', '💡 *Consejo:* sube primero los supervivientes de tus escuadrones, asigna líderes correctos y gasta la experiencia/materiales solo en mejoras que aumenten tu potencia.');
+    } else {
+        const limite = 12;
+        for (const item of lista.slice(0, limite)) {
+            const textoRecompensa = infoRecompensas(item);
+            const etiqueta = regexXP.test(textoRecompensa) ? '🧬 *Prioridad: EXP de superviviente*'
+                : regexMateriales.test(textoRecompensa) ? '🌧️ *Prioridad: materiales de evolución*'
+                : regexSuperviviente.test(textoRecompensa) ? '🧑‍🚀 *Prioridad: supervivientes*'
+                : '🪙 *Oro*';
+            lineas.push(etiqueta);
+            lineas.push(formatearAlertaSTW(item, '', false, true).trim(), '');
+        }
+        if (lista.length > limite) lineas.push('_Hay ' + (lista.length - limite) + ' misiones más que coinciden; usa *alertanov* con el nombre del material para buscarlas._', '');
+        if (!modoOro) lineas.push('🛠️ *Orden recomendado:* EXP de superviviente → materiales que te falten → supervivientes/líderes → oro.', '');
+    }
+    lineas.push('Apoya a un creador: *JASC13* ❤️');
+    await sock.sendMessage(chatId, { text: lineas.join('\n') }, { quoted: msg });
+}
+
 async function comandoDestacadasSTW(sock, chatId, msg, progreso = null) {
     let progresoEnviado = false;
     const informar = async () => {
@@ -1248,6 +1356,6 @@ async function desactivarAlertasDiarias(sock, chatId, msg) {
 }
 
 module.exports = { 
-    obtenerAlertasSTW, alertasSTW, comandoDestacadasSTW, comandoPreguntarAlerta, formatearAlertaSTW, 
+    obtenerAlertasSTW, alertasSTW, comandoDestacadasSTW, comandoPreguntarAlerta, comandoSubirPL, formatearAlertaSTW, 
     iniciarCronAlertasDiarias, reanudarAlertaPavosPendiente, activarAlertasDiarias, desactivarAlertasDiarias
 };
