@@ -235,6 +235,7 @@ function traducirNombreObjetoSTW(nombre, tipo = 'other') {
         [/^eye of the storm$/i, 'Ojo de la tormenta'],
         [/^storm shard$/i, 'Fragmento de tormenta'],
         [/^training manual$/i, 'Manual de entrenamiento'],
+        [/^people\s*xp$/i, 'Experiencia de personas'],
         [/^v-bucks(?: or x-ray)?$/i, 'PaVos'],
         [/^deadly blade crash$/i, 'Crash de hoja mortal'],
         [/^ride the lightning$/i, 'Monta el rayo'],
@@ -263,6 +264,7 @@ function traducirNombreObjetoSTW(nombre, tipo = 'other') {
         .replace(/\bLightning in a Bottle\b/gi, 'Relámpago en una botella')
         .replace(/\bEye of the Storm\b/gi, 'Ojo de la tormenta')
         .replace(/\bStorm Shard\b/gi, 'Fragmento de tormenta')
+        .replace(/\bPeople XP\b/gi, 'Experiencia de personas')
         .replace(/\bSurvivor\b/gi, '')
         .replace(/\bDefender\b/gi, '')
         .replace(/\bHero\b/gi, '')
