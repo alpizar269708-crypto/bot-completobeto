@@ -2,7 +2,7 @@ const { esPrivilegiadoTotalAsync } = require('../utils/whatsapp');
 const { Config } = require('../database/modelos');
 
 const categoriasMap = {
-    fortnite: ['pavos', 'destacadasstw', 'legendariasstw', 'epicasstw', 'alertasstw', 'stw', 'alerta', 'alertanov', 'recompensa', 'recompensanov'],
+    fortnite: ['pavos', 'destacadasstw', 'legendariasstw', 'epicasstw', 'alertasstw', 'stw', 'alerta', 'alertanov', 'recompensa', 'recompensanov', 'subirpl'],
     tienda: ['tienda', 'tiendavb'],
     carry: ['carryleader', 'carryjoin', 'carryleave', 'carryclose', 'buscocarry', 'doycarry', 'x2busco'],
     rifas: ['rifa', 'rifainscripcion', 'cerrarrifa', 'rifajasc13', 'addvarios', 'abrirrifa', 'activarrifaaqui', 'menurifajasc13'],
@@ -82,7 +82,9 @@ async function ejecutarMenu(sock, chatId, msg, args) {
     `*${prefijo}alerta [nombre]* - Busca una alerta por misión o recompensa.\n` +
     `*${prefijo}alertanov [nombre]* - Muestra detalles, modificadores y requisitos disponibles; nunca muestra x4/x5.\n` +
     `*${prefijo}recompensa [tipo] [rareza]* - Busca recompensas concretas; por ejemplo: *recompensa defensor legendario* o *recompensa héroe épico*.\n` +
-    `*${prefijo}recompensanov [tipo] [rareza]* - Igual, pero con detalles de la misión.\n`;
+    `*${prefijo}recompensanov [tipo] [rareza]* - Igual, pero con detalles de la misión y cantidades disponibles.\n` +
+    `*${prefijo}subirpl [PL]* - Recomienda misiones útiles para subir potencia según el PL indicado (por defecto PL 62).\n` +
+    `*${prefijo}subirpl oro* - Busca alertas guardadas que indiquen oro como recompensa.\n`;
 
     // Los comandos administrativos se encuentran en *menú moderación*.
 
