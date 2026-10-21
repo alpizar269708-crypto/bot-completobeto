@@ -120,10 +120,10 @@ function etiquetasRecompensa(item) {
     if (/people\s*xp|person\s*xp|survivor.?s?\s*xp|survivor experience|hero.?s?\s*xp|experiencia.{0,25}(persona|superviviente|sobreviviente)|(?:superviviente|sobreviviente).{0,25}(?:experiencia|exp\b)/i.test(texto)) {
         etiquetas.xp = true;
     }
-    if (/pure[-\\s]?drop[-\\s]?of[-\\s]?rain|drop[-\\s]?of[-\\s]?rain|gotas?.{0,20}lluvia|lluvia pura/i.test(texto)) etiquetas.materiales.push('lluvia');
-    if (/eye[-\\s]?of[-\\s]?the[-\\s]?storm|ojo.{0,15}tormenta/i.test(texto)) etiquetas.materiales.push('ojo');
-    if (/lightning[-\\s]?in[-\\s]?a[-\\s]?bottle|relampago.{0,20}botella/i.test(texto)) etiquetas.materiales.push('botella');
-    if (/storm[-\\s]?shard|fragmento.{0,15}tormenta/i.test(texto)) etiquetas.materiales.push('fragmento');
+    if (/pure[-\s]?drop[-\s]?of[-\s]?rain|drop[-\s]?of[-\s]?rain|gotas?.{0,20}lluvia|lluvia pura/i.test(texto)) etiquetas.materiales.push('lluvia');
+    if (/eye[-\s]?of[-\s]?the[-\s]?storm|ojo.{0,15}tormenta/i.test(texto)) etiquetas.materiales.push('ojo');
+    if (/lightning[-\s]?in[-\s]?a[-\s]?bottle|relampago.{0,20}botella/i.test(texto)) etiquetas.materiales.push('botella');
+    if (/storm[-\s]?shard|fragmento.{0,15}tormenta/i.test(texto)) etiquetas.materiales.push('fragmento');
     if (/evolution(?: material)?|material(?:es)? de evolucion/i.test(texto)) etiquetas.materiales.push('generico');
     etiquetas.materiales = [...new Set(etiquetas.materiales)];
     if (/\bsurvivors?\b|superviviente|sobreviviente|lead survivor|survivor squad/i.test(texto)) etiquetas.superviviente = true;
