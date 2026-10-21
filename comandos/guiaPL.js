@@ -55,7 +55,7 @@ async function iniciarGuiaPL(sock, chatId, msg, args = []) {
     };
     sesionesGuiaPL.set(clave, sesion);
     await enviar(sock, chatId, msg,
-        '🧭 *VAMOS A PREPARAR TU GUÍA PERSONAL DE STW*\n\nTe haré preguntas una por una. Responde con el número de la opción; al terminar, revisaré la rotación que pueda extraer el bot y te indicaré qué buscar con *alerta* y *alertanov*.\n\n' +
+        '🧭 *PREPAREMOS TU GUÍA DE STW*\n\nTe haré preguntas una por una. Responde con el número de la opción; al terminar, te indicaré qué buscar con *alerta* y *alertanov*.\n\n' +
         textoPregunta(sesion.paso));
 }
 
@@ -224,7 +224,7 @@ function duracionMinutos(horas) {
 }
 
 async function generarGuia(sock, chatId, msg, sesion) {
-    await enviar(sock, chatId, msg, '🔎 Estoy revisando la rotación con el mismo raspado de alertas que usa el bot. No consultaré páginas externas ni inventaré recompensas.');
+    await enviar(sock, chatId, msg, '🔎 Estoy revisando la rotación con las alertas que usa el bot');
     let datos = null;
     let esCache = false;
     try {
