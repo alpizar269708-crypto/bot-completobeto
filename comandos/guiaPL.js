@@ -254,8 +254,8 @@ async function generarGuia(sock, chatId, msg, sesion) {
             const pl = plTexto ? Number(plTexto) : NaN;
         if (Number.isFinite(pl) && pl > r.pl + 10) return false;
         const zona = zonaOrden(item);
-        if (maxZona !== null && zona === 99) return false;
-        if (maxZona !== null && zona > 0 && zona !== 99 && zona > maxZona) return false;
+        if (zona === 99) return false;
+        if (maxZona !== null && zona > 0 && zona > maxZona) return false;
         const tags = etiquetasRecompensa(item);
         return tags.xp || tags.materiales.length > 0 || tags.superviviente || tags.oro;
     });
