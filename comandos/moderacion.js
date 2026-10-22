@@ -683,16 +683,41 @@ async function comandoBan(sock, numero, msg, args = []) {
     if (citado?.mentionedJid?.[0]) motivo = args.slice(1).join(' ').trim();
     else if (citado?.participant) motivo = args.join(' ').trim();
     else if (args.length > 1) motivo = args.slice(1).join(' ').trim();
-    if (!motivo) {
-        await sock.sendMessage(chatJid, { text: '❌ El motivo es obligatorio. Ejemplo: *ban @usuario spam o conducta peligrosa*. Si respondes al mensaje, usa *ban motivo*.' }, { quoted: msg });
+
+    // Evita registrar el teléfono del usuario como si fuera el motivo del baneo.
+    const motivoSinFormato = motivo.replace(/[*_~`]/g, '').trim();
+    const soloNumero = motivoSinFormato.replace(/[\s()+.\-\u00a0]/g, '');
+    if (!motivoSinFormato || (/^\+?\d+$/.test(soloNumero) && soloNumero.replace(/\D/g, '').length >= 7)) {
+        await sock.sendMessage(chatJid, {
+            text: '❌ Debes indicar un motivo real para el baneo; el número de teléfono no cuenta como motivo.\nEjemplo: *ban @usuario spam repetido*. Si respondes al mensaje, escribe: *ban spam repetido*.'
+        }, { quoted: msg });
         return;
     }
-    const moderadorJid = msg.key.participant || (msg.key.fromMe ? (sock.user?.id || 'bot') : chatJid);
-    const moderadorResuelto = await resolverLidAPn(sock, moderadorJid).catch(() => moderadorJid);
-    const moderadorNumero = String(moderadorResuelto || moderadorJid).split('@')[0].split(':')[0];
-    const registroModerador = { nombre: msg.key.fromMe ? 'Bot/propietario' : moderadorNumero, numero: moderadorNumero };
+    motivo = motivoSinFormato;
+
+    const moderadorOriginal = msg.key.participant || (msg.key.fromMe ? (sock.user?.id || '') : '');
+    const moderadorResuelto = moderadorOriginal
+        ? await resolverLidAPn(sock, moderadorOriginal).catch(() => moderadorOriginal)
+        : '';
+    const moderadorJid = String(moderadorResuelto || moderadorOriginal || '').includes('@')
+        ? String(moderadorResuelto || moderadorOriginal)
+        : '';
+    const moderadorNumero = moderadorJid
+        ? moderadorJid.split('@')[0].split(':')[0]
+        : 'desconocido';
+    const registroModerador = { nombre: moderadorNumero, numero: moderadorNumero };
     await banearYExpulsar(sock, objetivo, motivo, registroModerador);
-    await sock.sendMessage(chatJid, { text: `🚫 El usuario @${objetivo.split('@')[0]} fue agregado a la lista negra.\n📝 Motivo: _${motivo}_\n👮 Baneado por: ${registroModerador.nombre} (${registroModerador.numero})`, mentions: [objetivo] }, { quoted: msg });
+
+    const objetivoResuelto = await resolverLidAPn(sock, objetivo).catch(() => objetivo);
+    const objetivoMencion = String(objetivoResuelto || objetivo).includes('@')
+        ? String(objetivoResuelto || objetivo)
+        : objetivo;
+    const textoModerador = moderadorJid ? `@${moderadorJid.split('@')[0].split(':')[0]}` : 'No identificado';
+    const menciones = [...new Set([objetivoMencion, moderadorJid].filter(jid => jid && jid.includes('@')))];
+    await sock.sendMessage(chatJid, {
+        text: `🚫 El usuario @${objetivoMencion.split('@')[0].split(':')[0]} fue agregado a la lista negra.\n📝 Motivo: _${motivo}_\n👮 Baneado por: ${textoModerador}`,
+        mentions: menciones
+    }, { quoted: msg });
 }
 
 async function comandoUnban(sock, numero, msg, args = []) {
