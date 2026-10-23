@@ -269,7 +269,8 @@ async function generarGuia(sock, chatId, msg, sesion) {
         if (zona === 99) return false;
         if (maxZona !== null && zona > 0 && zona > maxZona) return false;
         const tags = etiquetasRecompensa(item);
-        // No recomendar héroes, esquemas, defensores o Perk-Up solo por su rareza: no suben directamente el PL.\n        return tags.xp || tags.materiales.length > 0 || tags.superviviente || tags.oro;
+        // No recomendar héroes, esquemas, defensores o Perk-Up solo por su rareza: no suben directamente el PL.
+        return tags.xp || tags.materiales.length > 0 || tags.superviviente || tags.oro;
     });
 
     const ordenadas = elegibles.map(item => {
@@ -307,7 +308,10 @@ async function generarGuia(sock, chatId, msg, sesion) {
     if (!ordenadas.length) {
         lineas.push('_No encontré recompensas reconocibles para tus prioridades en la rotación extraída._');
     } else {
-        const limite = Math.min(3, ordenadas.length);
+        // Selecciona hasta 4 recompensas por cada hora disponible (1 h = 4, 2 h = 8, 3 h = 12).
+        // Si la rotación ofrece menos opciones útiles, muestra solo las verificadas por el bot.
+        const limite = Math.min(r.horas * 4, ordenadas.length);
+        lineas.push('_Seleccioné hasta ' + limite + ' recompensas útiles según tu tiempo disponible, priorizando las mejores de la rotación._');
         for (let i = 0; i < limite; i++) {
             const entrada = ordenadas[i];
             const item = entrada.item;
