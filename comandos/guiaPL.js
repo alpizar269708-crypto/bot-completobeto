@@ -288,111 +288,74 @@ async function generarGuia(sock, chatId, msg, sesion) {
         year: 'numeric'
     });
     const lineas = [
-        '🎮 *GUÍA PERSONAL STW*',
-        '📅 _Rotación revisada: ' + fecha + '_',
-        '',
-        '⚡ *PL actual:* ' + r.pl + '  →  🎯 *Meta:* ' + r.meta,
-        '⏱️ *Tiempo diario:* ' + r.horas + (r.horas === 1 ? ' hora' : ' horas') + ' · 🎮 *Estilo:* ' + ({ 1: 'solo', 2: 'grupo', 3: 'solo o grupo' }[r.estilo]),
-        '🛠️ *Principal bloqueo:* ' + ({ 1: 'materiales de evolución', 2: 'experiencia', 3: 'supervivientes/líderes', 4: 'equilibrado' }[r.bloqueo]),
-        '🧑‍🚀 *Escuadrones:* ' + ({ 1: 'probablemente completos', 2: 'hay puestos vacíos', 3: 'por revisar' }[r.escuadrones]),
-        '🗺️ *Zona más alta que indicaste:* ' + ({ 1: 'Bosque Pedregoso', 2: 'Ciudad Tablón', 3: 'Valle Latoso', 4: 'Cumbres Leñosas', 5: 'no confirmada' }[r.zona]),
-        '🧑‍🚀 *Supervivientes:* ' + ({ 1: 'predominan rarezas bajas', 2: 'mezcla de rarezas', 3: 'bastantes épicos/legendarios', 4: 'por revisar' }[r.rareza]),
-        '',
+        '🎮 *GUÍA PERSONAL STW* · ' + fecha,
+        '⚡ PL *' + r.pl + '* → meta *' + r.meta + '* · ⏱️ ' + r.horas + (r.horas === 1 ? ' h/día' : ' h/día') + ' · 🎮 ' + ({ 1: 'solo', 2: 'grupo', 3: 'solo/grupo' }[r.estilo]),
+        '🛠️ Prioridad: ' + ({ 1: 'materiales', 2: 'experiencia', 3: 'supervivientes', 4: 'equilibrado' }[r.bloqueo]) + ' · 🗺️ ' + ({ 1: 'Bosque Pedregoso', 2: 'Ciudad Tablón', 3: 'Valle Latoso', 4: 'Cumbres Leñosas', 5: 'zona por confirmar' }[r.zona]),
         esCache
-            ? '⚠️ _El raspado en vivo no respondió; esta guía usa la última caché guardada. Confirma los resultados con alerta/alertanov antes de entrar._'
-            : (alertas.length ? '✅ _Guía basada en las alertas que acaba de extraer el bot._' : '⚠️ _El bot no tiene alertas extraídas que pueda usar ahora. No inventaré misiones; consulta los comandos indicados al final._'),
+            ? '⚠️ _No respondió el raspado en vivo; uso datos guardados. Confirma las recompensas._'
+            : (alertas.length ? '✅ _Rotación extraída por el bot._' : '⚠️ _No hay alertas utilizables extraídas; no inventaré recompensas._'),
         ''
     ];
 
     if (r.meta <= r.pl) {
-        lineas.push('🎯 Ya estás en el PL objetivo que indicaste. Elige una meta superior o usa las alertas para preparar la siguiente evolución.', '');
+        lineas.push('🎯 Ya alcanzaste la meta indicada. Puedes fijar una meta superior.', '');
     } else {
-        lineas.push('📈 *Objetivo:* acercarte todo lo posible a PL ' + r.meta + '. El salto depende de los niveles, rarezas, líderes, personalidades y materiales que tengas; no se puede garantizar una cifra solo con alertas.', '');
+        lineas.push('🎯 *Plan:* acercarte a PL ' + r.meta + '. El PL final depende de tus escuadrones, niveles y evolución.', '');
     }
 
-    lineas.push('🚨 *ALERTAS QUE MEJOR ENCAJAN CON TU PERFIL*', '');
+    lineas.push('🚨 *MEJORES ALERTAS*');
     if (!ordenadas.length) {
-        lineas.push('_No encontré entre las alertas extraídas una recompensa reconocible para experiencia, materiales de evolución, supervivientes u oro dentro de tu rango/zona indicada._', '');
+        lineas.push('_No encontré recompensas reconocibles para tus prioridades en la rotación extraída._');
     } else {
-        const limite = Math.min(8, ordenadas.length);
+        const limite = Math.min(3, ordenadas.length);
         for (let i = 0; i < limite; i++) {
             const entrada = ordenadas[i];
             const item = entrada.item;
             const termino = terminoComando(entrada.tags);
-            const etiqueta = entrada.tags.materiales.length
-                ? (entrada.tags.materiales.includes('lluvia') ? '🌧️ Gotas de lluvia'
-                    : entrada.tags.materiales.includes('ojo') ? '🌩️ Ojo de la tormenta'
-                    : entrada.tags.materiales.includes('botella') ? '⚡ Relámpago en una botella'
-                    : entrada.tags.materiales.includes('fragmento') ? '🔹 Fragmento de tormenta'
-                    : '🧪 Material de evolución')
+            const etiqueta = entrada.tags.materiales.includes('lluvia') ? '🌧️ Gotas de lluvia'
+                : entrada.tags.materiales.includes('ojo') ? '🌩️ Ojo de la tormenta'
+                : entrada.tags.materiales.includes('botella') ? '⚡ Relámpago en una botella'
+                : entrada.tags.materiales.includes('fragmento') ? '🔹 Fragmento de tormenta'
+                : entrada.tags.materiales.includes('supercargador') ? '🔋 Supercargador'
+                : entrada.tags.materiales.length ? '🧪 Material de evolución'
                 : entrada.tags.xp ? '🧬 Experiencia'
                 : entrada.tags.superviviente ? '🧑‍🚀 Superviviente'
-                : entrada.tags.oro ? '🪙 Oro'
-                : '💎 Recompensa especial';
-            const marcaRareza = entrada.tags.rareza.includes('mitica') ? ' · 🌟 MÍTICA' : entrada.tags.rareza.includes('legendaria') ? ' · 🟠 LEGENDARIA' : entrada.tags.rareza.includes('epica') ? ' · 🟣 ÉPICA' : '';
-            lineas.push((i + 1) + '. *' + etiqueta + marcaRareza + '*');
-            const detalle = formatearAlertaSTW(item, '', false, true).trim();
-            lineas.push(detalle || ('PL ' + (item.pl == null ? '?' : item.pl) + ' · ' + (item.zona || 'Zona no identificada')));
-            if (termino) lineas.push('🔎 Para revisar los requisitos: *alertanov ' + termino + '*');
-            lineas.push('');
+                : '🪙 Oro';
+            const rareza = entrada.tags.rareza.includes('mitica') ? ' · Mítica'
+                : entrada.tags.rareza.includes('legendaria') ? ' · Legendaria'
+                : entrada.tags.rareza.includes('epica') ? ' · Épica' : '';
+            lineas.push('', (i + 1) + '. *' + etiqueta + rareza + '*');
+            lineas.push(formatearAlertaSTW(item, '', false, true).trim() || ('PL ' + (item.pl ?? '?') + ' · ' + (item.zona || 'Zona no identificada')));
+            if (termino) lineas.push('🔎 *alertanov ' + termino + '*');
         }
-        if (ordenadas.length > limite) lineas.push('_Hay más coincidencias en las alertas guardadas; busca el material concreto con alerta o alertanov._', '');
     }
 
-    const duracion = duracionMinutos(r.horas);
-    lineas.push('🧠 *DIAGNÓSTICO Y ORDEN DE MEJORAS*', '');
-    if (r.escuadrones !== 1 || r.rareza === 1 || r.rareza === 4) {
-        lineas.push('• Primero revisa los ocho escuadrones: líder adecuado, puestos llenos, personalidad compatible y supervivientes mejorados. Esto puede aumentar tu PL sin depender de una recompensa nueva.');
+    lineas.push('', '🧠 *QUÉ HACER PARA SUBIR PL*');
+    if (r.escuadrones === 2 || r.escuadrones === 3 || r.rareza === 1 || r.rareza === 4) {
+        lineas.push('• Completa los 8 escuadrones, revisa los líderes y mejora primero los supervivientes que conservarás.');
     } else {
-        lineas.push('• Tus escuadrones parecen completos; revisa líderes, personalidad y nivel antes de gastar recursos en sustituciones pequeñas.');
+        lineas.push('• Revisa líderes, personalidad y nivel de tus supervivientes antes de gastar materiales.');
     }
     if (r.bloqueo === 1 || (r.materiales || []).length) {
-        const nombresMateriales = { lluvia: 'gotas de lluvia pura', ojo: 'ojo de la tormenta', botella: 'relámpago en una botella', fragmento: 'fragmento de tormenta' };
-        const elegidos = (r.materiales || []).filter(m => nombresMateriales[m]).map(m => nombresMateriales[m]);
-        lineas.push('• Materiales prioritarios: ' + (elegidos.length ? elegidos.join(', ') : 'los que indique la siguiente evolución en el menú de supervivientes') + '. Comprueba también experiencia y nivel de estrella antes de farmear.');
-    }
-    lineas.push('• El filtro favorece recompensas de evolución y, cuando aparecen en los datos, objetos épicos, legendarios o míticos útiles. La rareza se muestra solo si el raspado la identifica; no se deduce una recompensa ausente.', '');
-
-    lineas.push('🔧 *REVISIÓN RÁPIDA PARA SUBIR PL*', '');
-    lineas.push('1. *Supervivientes:* en Comando → Supervivientes, revisa que los escuadrones estén completos y usa Completar automáticamente si no sabes cómo organizarlos. Después comprueba los líderes y mejora a los supervivientes que realmente vayas a conservar.');
-    lineas.push('2. *No gastes recursos a ciegas:* abre Ver evolución y revisa los requisitos exactos del siguiente nivel de estrella. Junta primero lo que te falte; la guía no asumirá cantidades ni recompensas que no aparezcan en los datos.');
-    lineas.push('3. *Revisa tu equipo:* el PL también puede depender de tus estadísticas, escuadrones y equipo. Compara las armas de mayor nivel que tienes contigo y tus mejores esquemas; no des por hecho que mejorar solo supervivientes resolverá todo.');
-    lineas.push('4. *Antes de entrar:* confirma el PL de la misión, que la recompensa siga disponible y que puedas completar el objetivo. Si juegas solo, prioriza una misión segura con la recompensa que necesitas sobre una más difícil que puedas perder.', '');
-    lineas.push('🧩 *COMPROBACIÓN PARA NO DESPERDICIAR PL NI RECURSOS*', '');
-    lineas.push('• En cada escuadrón, coloca un líder en su puesto y prioriza supervivientes que encajen con el tipo de líder. Si aparece un bono de personalidad, intenta hacerlo coincidir; no sacrifiques una mejora grande de rareza o nivel solo por un bono pequeño.');
-    lineas.push('• Compara el poder que aporta el superviviente nuevo con el que ya tienes equipado. No gastes experiencia ni materiales en todos por igual: mejora primero los que vayas a mantener en tus escuadrones.');
-    lineas.push('• Si te faltan materiales, abre la pantalla de evolución y apunta el nombre exacto de lo que falta. Busca ese nombre con *alerta* y después con *alertanov*. Si no sale en la rotación, no repitas búsquedas al azar: revisa las misiones disponibles que indiquen esa recompensa.');
-    lineas.push('• Si una alerta ofrece una recompensa útil pero el PL está por encima de lo que puedes completar, no la tomes como prioridad automática. Elige una misión accesible y confirma la recompensa antes de entrar.', '');
-    lineas.push('🗓️ *RUTA DIARIA DE ' + (r.horas * 60) + ' MINUTOS*', '');
-    lineas.push('1. *Revisar alertas (' + duracion.revision + ' min):* usa *alerta* con el material que te falte. Después consulta esa misma búsqueda con *alertanov* para ver detalles y requisitos.');
-    if (r.bloqueo === 1) {
-        lineas.push('2. *Materiales (' + duracion.misiones + ' min):* prioriza las alertas reconocidas del material seleccionado. No gastes un material si aún no tienes la experiencia o los demás requisitos para evolucionar.');
+        const nombres = { lluvia: 'gotas de lluvia pura', ojo: 'ojo de la tormenta', botella: 'relámpago en una botella', fragmento: 'fragmento de tormenta' };
+        const elegidos = (r.materiales || []).filter(m => nombres[m]).map(m => nombres[m]);
+        lineas.push('• Evoluciona solo cuando tengas los requisitos; prioridad: ' + (elegidos.join(', ') || 'lo que indique la pantalla de evolución') + '.');
     } else if (r.bloqueo === 2) {
-        lineas.push('2. *Experiencia (' + duracion.misiones + ' min):* busca con *alerta experiencia de personas* y *alertanov experiencia de personas*; el bot solo recomendará recompensas que su raspado haya identificado.');
-    } else if (r.bloqueo === 3) {
-        lineas.push('2. *Supervivientes (' + duracion.misiones + ' min):* usa *alerta superviviente* y *alertanov superviviente legendario*. Cambia un puesto solo si el reemplazo mejora el poder total del escuadrón.');
+        lineas.push('• Busca experiencia de personas y úsala para subir de nivel a los supervivientes que conservarás.');
     } else {
-        lineas.push('2. *Farmeo principal (' + duracion.misiones + ' min):* prioriza las alertas de materiales que te falten; después experiencia y supervivientes que mejoren los escuadrones.');
+        lineas.push('• Invierte experiencia y materiales en mejoras que aumenten tu poder; evita subir todo por igual.');
     }
-    lineas.push('3. *Mejoras (' + duracion.mejoras + ' min):* entra a Comando → Supervivientes → Administrar. Revisa los ocho escuadrones, llena puestos vacíos, corrige líderes y personalidades; luego evoluciona solo los supervivientes que vayas a conservar.');
-    if (r.escuadrones === 2) lineas.push('📌 Como tienes puestos vacíos, llénalos primero con los mejores supervivientes que ya tengas: los huecos sin cubrir desperdician poder disponible.');
-    else if (r.escuadrones === 3) lineas.push('📌 Como no tienes claro cómo están los escuadrones, antes de gastar recursos revisa los ocho: líder correcto, puestos llenos, rareza, nivel y personalidad.');
-    if (r.rareza === 1) lineas.push('🧑‍🚀 Como predominan rarezas bajas, cualquier sustitución por un superviviente de mayor rareza que encaje bien puede ayudar; no evoluciones a todos indiscriminadamente.');
-    else if (r.rareza === 2) lineas.push('🧑‍🚀 Con una mezcla de rarezas, conserva los supervivientes que aporten más poder y reemplaza solo cuando el nuevo suponga una mejora real.');
-    else if (r.rareza === 3) lineas.push('🧑‍🚀 Si ya tienes bastantes épicos/legendarios, céntrate en niveles, evolución, líderes y personalidad compatible antes de gastar recursos en más supervivientes.');
-    if (r.estilo === 1) lineas.push('🎮 Juegas solo: entre dos alertas de valor parecido, empieza por la de menor PL que puedas terminar de forma constante; evita repetir una misión difícil solo por una recompensa atractiva.');
-    if (r.oro === 1) {
-        lineas.push('4. *Oro (' + duracion.oro + ' min):* no reserves una sesión exclusiva; hazlo solo si una alerta útil también da oro o si ya tienes los materiales prioritarios.');
-    } else if (r.oro === 2) {
-        lineas.push('4. *Oro (' + duracion.oro + ' min):* separa este tiempo para una alerta de oro si aparece en los datos del bot; si no aparece, usa esos minutos en el material más escaso.');
-    } else {
-        lineas.push('4. *Oro (' + duracion.oro + ' min):* priorízalo cuando el bot detecte una recompensa de oro, sin gastar la sesión completa si tienes una evolución bloqueada.');
-    }
+    lineas.push('• En solitario, elige una misión que puedas terminar y confirma la recompensa antes de entrar.');
 
-    lineas.push('', '🔁 *CÓMO ACTUALIZAR LA GUÍA AL CAMBIAR LA ROTACIÓN*');
-    lineas.push('Vuelve a enviar *guiapl* después del reinicio de alertas. La guía intentará usar la rotación recién raspada; si solo tiene datos guardados, lo avisará. El plan se recalcula con tu PL, meta, zona, tiempo, bloqueo, materiales y preferencia por oro.');
-    lineas.push('Para consultas rápidas, usa *alerta gotas de lluvia pura*, *alertanov ojo de la tormenta*, *alertanov relámpago en una botella* o *alerta superviviente*. Cambia el término por el recurso que te falte. No se sugerirán recompensas que el raspado del bot no haya detectado.');
-    lineas.push('', '💡 *Regla clave:* antes de cada misión, confirma el PL, la recompensa y los requisitos con *alertanov*. Una recompensa solo cuenta como útil si puedes entrar a la misión y completarla razonablemente solo.');
+    const duracion = duracionMinutos(r.horas);
+    lineas.push('', '🗓️ *RUTA DE ' + (r.horas * 60) + ' MIN*');
+    lineas.push('1. Alertas: ' + duracion.revision + ' min · busca con *alerta* y confirma con *alertanov*.');
+    lineas.push('2. Misiones prioritarias: ' + duracion.misiones + ' min · farmea el recurso que realmente te falte.');
+    lineas.push('3. Escuadrones y mejoras: ' + duracion.mejoras + ' min · revisa puestos, líderes y evolución.');
+    if (r.oro === 2) lineas.push('4. Reserva hasta ' + duracion.oro + ' min para oro solo si lo necesitas.');
+
+    lineas.push('', '🔎 *COMANDOS:* *alerta gotas de lluvia pura* · *alertanov ojo de la tormenta* · *alerta superviviente*');
+    lineas.push('Repite *guiapl* después del reinicio para actualizar la rotación.');
     lineas.push('', 'Apoya a un creador: *JASC13* ❤️');
 
     await enviar(sock, chatId, msg, lineas.join('\n'));
