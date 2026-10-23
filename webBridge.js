@@ -413,16 +413,25 @@ function detectarRarezaSTW(iconClasses, rewardTypeTexto) {
 function extraerRecompensasMissionEntrySTW($, missionEntry) {
     const recompensas = [];
 
-    $(missionEntry).find('.mission-rewards > .mission-reward-item').each((index, rewardEl) => {
+    // La estructura de las páginas puede variar: primero usamos el selector conocido
+    // y, si ya no coincide, buscamos los elementos de recompensa dentro de la misión.
+    let elementosRecompensa = $(missionEntry).find('.mission-rewards > .mission-reward-item');
+    if (!elementosRecompensa.length) {
+        elementosRecompensa = $(missionEntry).find('.mission-reward-item, [data-reward-name], [class*="mission-reward-item"]');
+    }
+    elementosRecompensa.each((index, rewardEl) => {
         // No descartar recompensas genéricas: aquí pueden venir materiales de evolución.
-        const icon = $(rewardEl).find('.mission-reward-icon').first();
-        const iconClasses = icon.attr('class') || '';
+        const icon = $(rewardEl).find('.mission-reward-icon, [class*="reward-icon"]').first();
+        const iconClasses = (icon.attr('class') || '') + ' ' + (icon.attr('src') || '') + ' ' + (icon.attr('alt') || '');
         const rewardType = $(rewardEl).find('.reward-type').first();
         const rewardTypeTexto = rewardType.length
             ? rewardType.text().replace(/\s+/g, ' ').trim()
             : '';
 
-        let rewardName = rewardTypeTexto || $(rewardEl).find('.mission-reward-name').first().text().replace(/\s+/g, ' ').trim();
+        let rewardName = rewardTypeTexto ||
+            $(rewardEl).find('.mission-reward-name, .reward-name, [class*="reward-name"], [data-reward-name]').first().text().replace(/\s+/g, ' ').trim() ||
+            icon.attr('alt') || icon.attr('title') || $(rewardEl).attr('data-reward-name') || '';
+        if (!rewardName) rewardName = $(rewardEl).text().replace(/\s+/g, ' ').trim();
         rewardName = limpiarTextoSTW(rewardName);
 
         const tipo = detectarTipoRecompensaSTW(iconClasses, '', rewardName);
