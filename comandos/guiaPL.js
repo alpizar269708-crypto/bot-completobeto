@@ -267,7 +267,7 @@ async function generarGuia(sock, chatId, msg, sesion) {
         if (zona === 99) return false;
         if (maxZona !== null && zona > 0 && zona > maxZona) return false;
         const tags = etiquetasRecompensa(item);
-        return tags.xp || tags.materiales.length > 0 || tags.superviviente || tags.oro || tags.valiosa;
+        // No recomendar héroes, esquemas, defensores o Perk-Up solo por su rareza: no suben directamente el PL.\n        return tags.xp || tags.materiales.length > 0 || tags.superviviente || tags.oro;
     });
 
     const ordenadas = elegibles.map(item => {
