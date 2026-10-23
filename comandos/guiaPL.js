@@ -117,14 +117,16 @@ function recompensaTexto(item) {
 function etiquetasRecompensa(item) {
     const texto = normalizarTexto(recompensaTexto(item));
     const etiquetas = { xp: false, materiales: [], superviviente: false, oro: false, rareza: [], valiosa: false };
-    if (/people\s*xp|person\s*xp|survivor.?s?\s*xp|survivor experience|hero.?s?\s*xp|experiencia.{0,25}(persona|superviviente|sobreviviente)|(?:superviviente|sobreviviente).{0,25}(?:experiencia|exp\b)/i.test(texto)) {
+    if (/people.?\s*xp|person.?\s*xp|survivor.?s?\s*xp|survivor experience|hero.?s?\s*xp|experience.?points|\bxp\b|experiencia.{0,25}(persona|superviviente|sobreviviente)|(?:superviviente|sobreviviente).{0,25}(?:experiencia|exp\b)/i.test(texto)) {
         etiquetas.xp = true;
     }
     if (/pure[-\s]?drop[-\s]?of[-\s]?rain|drop[-\s]?of[-\s]?rain|gotas?.{0,20}lluvia|lluvia pura/i.test(texto)) etiquetas.materiales.push('lluvia');
     if (/eye[-\s]?of[-\s]?the[-\s]?storm|ojo.{0,15}tormenta/i.test(texto)) etiquetas.materiales.push('ojo');
     if (/lightning[-\s]?in[-\s]?a[-\s]?bottle|relampago.{0,20}botella/i.test(texto)) etiquetas.materiales.push('botella');
     if (/storm[-\s]?shard|fragmento.{0,15}tormenta/i.test(texto)) etiquetas.materiales.push('fragmento');
-    if (/evolution(?: material)?|material(?:es)? de evolucion/i.test(texto)) etiquetas.materiales.push('generico');
+    // Algunos raspados conservan el tipo interno aunque el nombre venga vacío o sin traducir.
+    if (/evolution|material(?:es)? de evolucion/i.test(texto)) etiquetas.materiales.push('generico');
+    if (/supercharger|supercargador/i.test(texto)) etiquetas.materiales.push('supercargador');
     etiquetas.materiales = [...new Set(etiquetas.materiales)];
     if (/\bsurvivors?\b|superviviente|sobreviviente|lead survivor|survivor squad/i.test(texto)) etiquetas.superviviente = true;
     if (/(?:^|[^a-z])(?:gold|oro)(?:$|[^a-z])/i.test(texto)) etiquetas.oro = true;
@@ -132,10 +134,9 @@ function etiquetasRecompensa(item) {
     if (/\bepic\b|\bepica?s?\b|\bepic[oa]s?\b/i.test(texto)) etiquetas.rareza.push('epica');
     if (/\bmythic\b|\bmitica?s?\b|\bmitic[oa]s?\b/i.test(texto)) etiquetas.rareza.push('mitica');
     etiquetas.rareza = [...new Set(etiquetas.rareza)];
-    etiquetas.valiosa = etiquetas.rareza.length > 0 || /perk.?up|ventaja|superviviente|sobreviviente|schematic|esquema|hero|heroe|h[eé]roe|defender|defensor/i.test(texto);
+    etiquetas.valiosa = etiquetas.rareza.length > 0 || /perk.?up|ventaja|superviviente|sobreviviente|schematic|esquema|hero|heroe|h[eé]roe|defender|defensor|supercharger|supercargador/i.test(texto);
     return etiquetas;
 }
-
 function zonaOrden(item) {
     const zona = normalizarTexto([item && item.zona, item && item.ubicacion].filter(Boolean).join(' '));
     if (/twine peaks|cumbres lenosas/.test(zona)) return 4;
@@ -221,6 +222,7 @@ function terminoComando(etiquetas) {
     if (etiquetas.materiales.includes('ojo')) return 'ojo de la tormenta';
     if (etiquetas.materiales.includes('botella')) return 'relámpago en una botella';
     if (etiquetas.materiales.includes('fragmento')) return 'fragmento de tormenta';
+    if (etiquetas.materiales.includes('supercargador')) return 'supercargador';
     if (etiquetas.xp) return 'experiencia de personas';
     if (etiquetas.superviviente) return 'superviviente';
     if (etiquetas.oro) return 'oro';
