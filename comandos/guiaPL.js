@@ -356,6 +356,11 @@ async function generarGuia(sock, chatId, msg, sesion) {
     lineas.push('2. *No gastes recursos a ciegas:* abre Ver evolución y revisa los requisitos exactos del siguiente nivel de estrella. Junta primero lo que te falte; la guía no asumirá cantidades ni recompensas que no aparezcan en los datos.');
     lineas.push('3. *Revisa tu equipo:* el PL también puede depender de tus estadísticas, escuadrones y equipo. Compara las armas de mayor nivel que tienes contigo y tus mejores esquemas; no des por hecho que mejorar solo supervivientes resolverá todo.');
     lineas.push('4. *Antes de entrar:* confirma el PL de la misión, que la recompensa siga disponible y que puedas completar el objetivo. Si juegas solo, prioriza una misión segura con la recompensa que necesitas sobre una más difícil que puedas perder.', '');
+    lineas.push('🧩 *COMPROBACIÓN PARA NO DESPERDICIAR PL NI RECURSOS*', '');
+    lineas.push('• En cada escuadrón, coloca un líder en su puesto y prioriza supervivientes que encajen con el tipo de líder. Si aparece un bono de personalidad, intenta hacerlo coincidir; no sacrifiques una mejora grande de rareza o nivel solo por un bono pequeño.');
+    lineas.push('• Compara el poder que aporta el superviviente nuevo con el que ya tienes equipado. No gastes experiencia ni materiales en todos por igual: mejora primero los que vayas a mantener en tus escuadrones.');
+    lineas.push('• Si te faltan materiales, abre la pantalla de evolución y apunta el nombre exacto de lo que falta. Busca ese nombre con *alerta* y después con *alertanov*. Si no sale en la rotación, no repitas búsquedas al azar: revisa las misiones disponibles que indiquen esa recompensa.');
+    lineas.push('• Si una alerta ofrece una recompensa útil pero el PL está por encima de lo que puedes completar, no la tomes como prioridad automática. Elige una misión accesible y confirma la recompensa antes de entrar.', '');
     lineas.push('🗓️ *RUTA DIARIA DE ' + (r.horas * 60) + ' MINUTOS*', '');
     lineas.push('1. *Revisar alertas (' + duracion.revision + ' min):* usa *alerta* con el material que te falte. Después consulta esa misma búsqueda con *alertanov* para ver detalles y requisitos.');
     if (r.bloqueo === 1) {
