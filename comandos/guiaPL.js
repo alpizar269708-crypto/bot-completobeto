@@ -350,6 +350,12 @@ async function generarGuia(sock, chatId, msg, sesion) {
         lineas.push('• Materiales prioritarios: ' + (elegidos.length ? elegidos.join(', ') : 'los que indique la siguiente evolución en el menú de supervivientes') + '. Comprueba también experiencia y nivel de estrella antes de farmear.');
     }
     lineas.push('• El filtro favorece recompensas de evolución y, cuando aparecen en los datos, objetos épicos, legendarios o míticos útiles. La rareza se muestra solo si el raspado la identifica; no se deduce una recompensa ausente.', '');
+
+    lineas.push('🔧 *REVISIÓN RÁPIDA PARA SUBIR PL*', '');
+    lineas.push('1. *Supervivientes:* en Comando → Supervivientes, revisa que los escuadrones estén completos y usa Completar automáticamente si no sabes cómo organizarlos. Después comprueba los líderes y mejora a los supervivientes que realmente vayas a conservar.');
+    lineas.push('2. *No gastes recursos a ciegas:* abre Ver evolución y revisa los requisitos exactos del siguiente nivel de estrella. Junta primero lo que te falte; la guía no asumirá cantidades ni recompensas que no aparezcan en los datos.');
+    lineas.push('3. *Revisa tu equipo:* el PL también puede depender de tus estadísticas, escuadrones y equipo. Compara las armas de mayor nivel que tienes contigo y tus mejores esquemas; no des por hecho que mejorar solo supervivientes resolverá todo.');
+    lineas.push('4. *Antes de entrar:* confirma el PL de la misión, que la recompensa siga disponible y que puedas completar el objetivo. Si juegas solo, prioriza una misión segura con la recompensa que necesitas sobre una más difícil que puedas perder.', '');
     lineas.push('🗓️ *RUTA DIARIA DE ' + (r.horas * 60) + ' MINUTOS*', '');
     lineas.push('1. *Revisar alertas (' + duracion.revision + ' min):* usa *alerta* con el material que te falte. Después consulta esa misma búsqueda con *alertanov* para ver detalles y requisitos.');
     if (r.bloqueo === 1) {
