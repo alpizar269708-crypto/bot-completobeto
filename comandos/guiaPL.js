@@ -289,29 +289,26 @@ async function generarGuia(sock, chatId, msg, sesion) {
         year: 'numeric'
     });
     const lineas = [
-        '🎮 *GUÍA PERSONAL STW* · ' + fecha,
-        '⚡ PL *' + r.pl + '* → meta *' + r.meta + '* · ⏱️ ' + r.horas + (r.horas === 1 ? ' h/día' : ' h/día') + ' · 🎮 ' + ({ 1: 'solo', 2: 'grupo', 3: 'solo/grupo' }[r.estilo]),
-        '🛠️ Prioridad: ' + ({ 1: 'materiales', 2: 'experiencia', 3: 'supervivientes', 4: 'equilibrado' }[r.bloqueo]) + ' · 🗺️ ' + ({ 1: 'Bosque Pedregoso', 2: 'Ciudad Tablón', 3: 'Valle Latoso', 4: 'Cumbres Leñosas', 5: 'zona por confirmar' }[r.zona]),
+        '🎮 *GUÍA STW* · ' + fecha,
+        '⚡ PL *' + r.pl + '* → *' + r.meta + '* · ⏱️ ' + r.horas + ' h/día · ' + ({ 1: 'solo', 2: 'grupo', 3: 'solo/grupo' }[r.estilo]),
+        '🎯 Prioridad: ' + ({ 1: 'materiales', 2: 'experiencia', 3: 'supervivientes', 4: 'equilibrada' }[r.bloqueo]) + ' · ' + ({ 1: 'Bosque Pedregoso', 2: 'Ciudad Tablón', 3: 'Valle Latoso', 4: 'Cumbres Leñosas', 5: 'zona por confirmar' }[r.zona]),
         esCache
-            ? '⚠️ _No respondió el raspado en vivo; uso datos guardados. Confirma las recompensas._'
-            : (alertas.length ? '✅ _Rotación extraída por el bot._' : '⚠️ _No hay alertas utilizables extraídas; no inventaré recompensas._'),
+            ? '⚠️ _Uso alertas guardadas; confirma que sigan vigentes._'
+            : (alertas.length ? '✅ _Rotación consultada por el bot._' : '⚠️ _No encontré alertas utilizables; no inventaré recompensas._'),
         ''
     ];
 
     if (r.meta <= r.pl) {
-        lineas.push('🎯 Ya alcanzaste la meta indicada. Puedes fijar una meta superior.', '');
-    } else {
-        lineas.push('🎯 *Plan:* acercarte a PL ' + r.meta + '. El PL final depende de tus escuadrones, niveles y evolución.', '');
+        lineas.push('Ya alcanzaste esa meta. Elige un PL superior si quieres seguir avanzando.', '');
     }
 
-    lineas.push('🚨 *MEJORES ALERTAS*');
+    lineas.push('🚨 *ALERTAS RECOMENDADAS*');
     if (!ordenadas.length) {
         lineas.push('_No encontré recompensas reconocibles para tus prioridades en la rotación extraída._');
     } else {
-        // Selecciona hasta 4 recompensas por cada hora disponible (1 h = 4, 2 h = 8, 3 h = 12).
-        // Si la rotación ofrece menos opciones útiles, muestra solo las verificadas por el bot.
+        // Objetivo: 4 recomendaciones por hora disponible; nunca completar con alertas inventadas.
         const limite = Math.min(r.horas * 4, ordenadas.length);
-        lineas.push('_Seleccioné hasta ' + limite + ' recompensas útiles según tu tiempo disponible, priorizando las mejores de la rotación._');
+        lineas.push('_' + limite + ' opciones encontradas para tus ' + r.horas + ' h de juego; las cantidades solo aparecen si el bot las extrajo._');
         for (let i = 0; i < limite; i++) {
             const entrada = ordenadas[i];
             const item = entrada.item;
@@ -334,32 +331,31 @@ async function generarGuia(sock, chatId, msg, sesion) {
         }
     }
 
-    lineas.push('', '🧠 *QUÉ HACER PARA SUBIR PL*');
+    lineas.push('', '🧠 *PARA SUBIR PL*');
     if (r.escuadrones === 2 || r.escuadrones === 3 || r.rareza === 1 || r.rareza === 4) {
-        lineas.push('• Completa los 8 escuadrones, revisa los líderes y mejora primero los supervivientes que conservarás.');
+        lineas.push('• Revisa los 8 escuadrones y mejora primero los supervivientes que conservarás.');
     } else {
-        lineas.push('• Revisa líderes, personalidad y nivel de tus supervivientes antes de gastar materiales.');
+        lineas.push('• Ajusta líderes, personalidad y niveles antes de gastar materiales.');
     }
     if (r.bloqueo === 1 || (r.materiales || []).length) {
         const nombres = { lluvia: 'gotas de lluvia pura', ojo: 'ojo de la tormenta', botella: 'relámpago en una botella', fragmento: 'fragmento de tormenta' };
         const elegidos = (r.materiales || []).filter(m => nombres[m]).map(m => nombres[m]);
-        lineas.push('• Evoluciona solo cuando tengas los requisitos; prioridad: ' + (elegidos.join(', ') || 'lo que indique la pantalla de evolución') + '.');
+        lineas.push('• Gasta materiales solo en mejoras que puedas evolucionar; prioridad: ' + (elegidos.join(', ') || 'lo que te falte según el menú de evolución') + '.');
     } else if (r.bloqueo === 2) {
-        lineas.push('• Busca experiencia de personas y úsala para subir de nivel a los supervivientes que conservarás.');
+        lineas.push('• Prioriza experiencia de supervivientes y sube de nivel los que usarás.');
     } else {
-        lineas.push('• Invierte experiencia y materiales en mejoras que aumenten tu poder; evita subir todo por igual.');
+        lineas.push('• Invierte recursos en tus escuadrones principales, no en todo por igual.');
     }
-    lineas.push('• En solitario, elige una misión que puedas terminar y confirma la recompensa antes de entrar.');
 
     const duracion = duracionMinutos(r.horas);
-    lineas.push('', '🗓️ *RUTA DE ' + (r.horas * 60) + ' MIN*');
-    lineas.push('1. Alertas: ' + duracion.revision + ' min · busca con *alerta* y confirma con *alertanov*.');
-    lineas.push('2. Misiones prioritarias: ' + duracion.misiones + ' min · farmea el recurso que realmente te falte.');
-    lineas.push('3. Escuadrones y mejoras: ' + duracion.mejoras + ' min · revisa puestos, líderes y evolución.');
-    if (r.oro === 2) lineas.push('4. Reserva hasta ' + duracion.oro + ' min para oro solo si lo necesitas.');
+    lineas.push('', '⏱️ *TU RUTA · ' + (r.horas * 60) + ' MIN*');
+    lineas.push('• ' + duracion.revision + ' min: revisar alertas con *alerta* y *alertanov*.');
+    lineas.push('• ' + duracion.misiones + ' min: completar las misiones con mejores recompensas útiles.');
+    lineas.push('• ' + duracion.mejoras + ' min: mejorar supervivientes y escuadrones.');
+    if (r.oro === 2 || r.oro === 3) lineas.push('• Hasta ' + duracion.oro + ' min para oro si te hace falta.');
 
-    lineas.push('', '🔎 *COMANDOS:* *alerta gotas de lluvia pura* · *alertanov ojo de la tormenta* · *alerta superviviente*');
-    lineas.push('Repite *guiapl* después del reinicio para actualizar la rotación.');
+    lineas.push('', '🔎 *BUSCA:* *alerta gotas de lluvia pura* · *alertanov ojo de la tormenta* · *alerta superviviente*');
+    lineas.push('Vuelve a usar *guiapl* cuando se actualice la rotación.');
     lineas.push('', 'Apoya a un creador: *JASC13* ❤️');
 
     await enviar(sock, chatId, msg, lineas.join('\n'));
