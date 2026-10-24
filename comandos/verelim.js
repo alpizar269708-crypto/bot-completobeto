@@ -139,7 +139,7 @@ async function comandoVerEliminados(sock, chatId, msg) {
         const contenido = r.texto?.trim()
             ? r.texto.trim().slice(0, 1800)
             : `[Se eliminó un mensaje de tipo ${r.tipo}. El archivo multimedia original no se almacena.]`;
-        const etiqueta = r.quienElimino?.includes('@') ? `@ ${r.quienElimino.split('@')[0]}` : 'No identificado';
+        const etiqueta = r.quienElimino?.includes('@') ? `@${r.quienElimino.split('@')[0]}` : 'No identificado';
         return `*Mensaje eliminado #${i + 1}* · ${hora}\n👤 Lo eliminó: ${etiqueta}\n🗑️ Contenido: ${contenido}`;
     });
 
