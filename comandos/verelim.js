@@ -174,6 +174,29 @@ async function comandoVerEliminados(sock, chatId, msg) {
         text: `🕵️ *MENSAJES ELIMINADOS PARA TODOS*\n📍 Este chat · últimas 2 horas\n\n${bloques.join('\n\n')}${extra}`,
         mentions: menciones
     }, { quoted: msg });
+
+    // Reenvía también los archivos multimedia que se guardaron temporalmente.
+    for (let i = 0; i < Math.min(eliminados.length, 30); i++) {
+        const r = eliminados[i];
+        if (!r.media || !r.media.length) continue;
+        const etiqueta = r.quienElimino?.includes('@') ? `@${r.quienElimino.split('@')[0]}` : 'No identificado';
+        const cabecera = `🗑️ *Archivo eliminado #${i + 1}*\n👤 Lo eliminó: ${etiqueta}`;
+        const mentions = r.quienElimino?.includes('@') ? [r.quienElimino] : [];
+        try {
+            if (r.tipo === 'Imagen') await sock.sendMessage(chatId, { image: r.media, caption: `${cabecera}${r.texto ? `\n📝 ${r.texto}` : ''}`, mimetype: r.mimetype || undefined, mentions });
+            else if (r.tipo === 'Video') await sock.sendMessage(chatId, { video: r.media, caption: `${cabecera}${r.texto ? `\n📝 ${r.texto}` : ''}`, mimetype: r.mimetype || undefined, mentions });
+            else if (r.tipo === 'Sticker') {
+                await sock.sendMessage(chatId, { text: cabecera, mentions });
+                await sock.sendMessage(chatId, { sticker: r.media });
+            } else if (r.tipo === 'Audio') {
+                await sock.sendMessage(chatId, { text: cabecera, mentions });
+                await sock.sendMessage(chatId, { audio: r.media, mimetype: r.mimetype || 'audio/ogg; codecs=opus', ptt: r.ptt });
+            } else if (r.tipo === 'Documento') await sock.sendMessage(chatId, { document: r.media, mimetype: r.mimetype || 'application/octet-stream', fileName: r.fileName || 'archivo_recuperado', caption: cabecera, mentions });
+        } catch (error) {
+            console.error('No se pudo reenviar multimedia eliminado:', error.message || error);
+            await sock.sendMessage(chatId, { text: `${cabecera}\n⚠️ No pude volver a enviar el archivo multimedia.`, mentions });
+        }
+    }
 }
 
 module.exports = { registrarMensajeReciente, registrarEliminacion, comandoVerEliminados };
