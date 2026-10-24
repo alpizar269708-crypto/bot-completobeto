@@ -462,7 +462,7 @@ async function arrancarSocket(metodo, numeroTelefono, onCodeReady = null) {
             // Detecta "Eliminar para todos" y conserva mensajes recibidos solo en memoria temporal.
             if (registrarEliminacion(msg, sock)) continue;
             if (!msg.message) continue;
-            registrarMensajeReciente(msg);
+            await registrarMensajeReciente(msg, sock);
 
             const textoCompleto = msg.message.conversation || msg.message.extendedTextMessage?.text || '';
         if (msg.key.fromMe && (textoCompleto.includes('¡Pong!') || textoCompleto.includes('🤖'))) return;
