@@ -5,6 +5,8 @@ const MAX_MENSAJES_POR_CHAT = 300;
 const MAX_ELIMINADOS_POR_CHAT = 200;
 const MAX_CHATS_EN_MEMORIA = 100;
 const MAX_TEXTO_GUARDADO = 4000;
+const MAX_MEDIA_POR_MENSAJE = 8 * 1024 * 1024;
+const MAX_MEDIA_TOTAL_POR_CHAT = 24 * 1024 * 1024;
 
 const mensajesPorChat = new Map();
 const eliminadosPorChat = new Map();
@@ -51,7 +53,7 @@ function limpiarMapa(mapa, ahora) {
     }
 }
 
-function registrarMensajeReciente(msg) {
+async function registrarMensajeReciente(msg, sock) {
     const chatId = msg?.key?.remoteJid;
     const id = msg?.key?.id;
     if (!chatId || !id || !msg.message || msg.message.protocolMessage) return;
@@ -65,14 +67,31 @@ function registrarMensajeReciente(msg) {
         mensajesPorChat.set(chatId, registros);
     }
 
-    registros.set(id, {
+    const registro = {
         id,
         chatId,
         remitente: msg.key.participant || (msg.key.fromMe ? 'bot' : chatId),
         texto: textoDeMensaje(msg.message).slice(0, MAX_TEXTO_GUARDADO),
         tipo: tipoDeMensaje(msg.message),
-        timestamp: Number(msg.messageTimestamp || Math.floor(ahora / 1000)) * 1000
-    });
+        timestamp: Number(msg.messageTimestamp || Math.floor(ahora / 1000)) * 1000,
+        media: null, mediaBytes: 0, mimetype: null, fileName: null, ptt: false
+    };
+    const contenido = msg.message.ephemeralMessage?.message || msg.message.viewOnceMessage?.message || msg.message.viewOnceMessageV2?.message || msg.message.documentWithCaptionMessage?.message || msg.message;
+    const campoMedia = ['imageMessage', 'videoMessage', 'audioMessage', 'stickerMessage', 'documentMessage'].find(campo => contenido[campo]);
+    if (campoMedia && sock) {
+        try {
+            const { downloadMediaMessage } = require('@whiskeysockets/baileys');
+            const buffer = await downloadMediaMessage(msg, 'buffer', {}, { logger: sock.logger, reuploadRequest: sock.updateMediaMessage });
+            const bytesActuales = [...registros.values()].reduce((total, r) => total + (r.mediaBytes || 0), 0);
+            if (Buffer.isBuffer(buffer) && buffer.length > 0 && buffer.length <= MAX_MEDIA_POR_MENSAJE && bytesActuales + buffer.length <= MAX_MEDIA_TOTAL_POR_CHAT) {
+                registro.media = buffer; registro.mediaBytes = buffer.length;
+                registro.mimetype = contenido[campoMedia]?.mimetype || null;
+                registro.fileName = contenido[campoMedia]?.fileName || null;
+                registro.ptt = !!contenido[campoMedia]?.ptt;
+            }
+        } catch (error) { console.warn('No se pudo guardar temporalmente el archivo para verelim:', error.message || error); }
+    }
+    registros.set(id, registro);
 
     while (registros.size > MAX_MENSAJES_POR_CHAT) {
         registros.delete(registros.keys().next().value);
