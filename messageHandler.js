@@ -499,6 +499,30 @@ Apoya a un creador: JASC13` });
     if (comandosValidos.has(comando)) {
         switch (comando) {
             case 'verelim': {
+                // En grupos, solo administradores del grupo o propietarios del bot.
+                // En chat privado, solo los propietarios del bot pueden ejecutarlo.
+                let esAdminGrupo = false;
+                if (chatJid.endsWith('@g.us')) {
+                    try {
+                        const metadata = await sock.groupMetadata(chatJid);
+                        const participante = metadata.participants?.find(p =>
+                            p.id === remitenteReal ||
+                            p.jid === remitenteReal ||
+                            p.lid === remitenteReal
+                        );
+                        esAdminGrupo = participante?.admin === 'admin' || participante?.admin === 'superadmin';
+                    } catch (error) {
+                        console.error('No se pudo verificar administrador para velelim:', error.message || error);
+                    }
+                }
+
+                if (!tienePrivilegiosTotales && !esAdminGrupo) {
+                    await sock.sendMessage(chatJid, {
+                        text: '❌ Solo los administradores del grupo pueden usar *verelim*.'
+                    }, { quoted: msg });
+                    return;
+                }
+
                 await comandoVerEliminados(sock, chatJid, msg);
                 return;
             }
