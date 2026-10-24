@@ -5,6 +5,7 @@ const mongoose = require('mongoose');
 const pino = require('pino');
 const QRCode = require('qrcode');
 const { procesarMensaje } = require('./messageHandler');
+const { registrarMensajeReciente, registrarEliminacion } = require('./comandos/verelim');
 const { verificarNuevoMiembro } = require('./comandos/moderacion');
 const { iniciarCronAlertasDiarias, reanudarAlertaPavosPendiente } = require('./comandos/fortnite');
 const { iniciarVerificacionTarifasPaypal } = require('./comandos/paypal');
@@ -456,7 +457,12 @@ async function arrancarSocket(metodo, numeroTelefono, onCodeReady = null) {
         if (m.type !== 'notify') return;
 
         for (const msg of (m.messages || [])) {
-            if (!msg.message || msg.key.remoteJid === 'status@broadcast') continue;
+            if (!msg.key || msg.key.remoteJid === 'status@broadcast') continue;
+
+            // Detecta "Eliminar para todos" y conserva mensajes recibidos solo en memoria temporal.
+            if (registrarEliminacion(msg, sock)) continue;
+            if (!msg.message) continue;
+            registrarMensajeReciente(msg);
 
             const textoCompleto = msg.message.conversation || msg.message.extendedTextMessage?.text || '';
         if (msg.key.fromMe && (textoCompleto.includes('¡Pong!') || textoCompleto.includes('🤖'))) return;
