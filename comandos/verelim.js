@@ -3,6 +3,8 @@
 const VENTANA_MS = 2 * 60 * 60 * 1000;
 const MAX_MENSAJES_POR_CHAT = 300;
 const MAX_ELIMINADOS_POR_CHAT = 200;
+const MAX_CHATS_EN_MEMORIA = 100;
+const MAX_TEXTO_GUARDADO = 4000;
 
 const mensajesPorChat = new Map();
 const eliminadosPorChat = new Map();
@@ -58,6 +60,7 @@ function registrarMensajeReciente(msg) {
     limpiarMapa(mensajesPorChat, ahora);
     let registros = mensajesPorChat.get(chatId);
     if (!registros) {
+        if (mensajesPorChat.size >= MAX_CHATS_EN_MEMORIA) mensajesPorChat.delete(mensajesPorChat.keys().next().value);
         registros = new Map();
         mensajesPorChat.set(chatId, registros);
     }
@@ -66,7 +69,7 @@ function registrarMensajeReciente(msg) {
         id,
         chatId,
         remitente: msg.key.participant || (msg.key.fromMe ? 'bot' : chatId),
-        texto: textoDeMensaje(msg.message),
+        texto: textoDeMensaje(msg.message).slice(0, MAX_TEXTO_GUARDADO),
         tipo: tipoDeMensaje(msg.message),
         timestamp: Number(msg.messageTimestamp || Math.floor(ahora / 1000)) * 1000
     });
@@ -93,7 +96,11 @@ function registrarEliminacion(msg, sock) {
     // Solo se muestra contenido que el bot recibió y conservó temporalmente.
     if (!original || ahora - original.timestamp > VENTANA_MS) return true;
 
-    const registros = eliminadosPorChat.get(chatId) || new Map();
+    let registros = eliminadosPorChat.get(chatId);
+    if (!registros) {
+        if (eliminadosPorChat.size >= MAX_CHATS_EN_MEMORIA) eliminadosPorChat.delete(eliminadosPorChat.keys().next().value);
+        registros = new Map();
+    }
     const idEvento = msg.key.id || `${idOriginal}:${ahora}`;
     const quienElimino = msg.key.participant
         || (msg.key.fromMe ? sock?.user?.id : null)
