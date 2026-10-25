@@ -103,6 +103,10 @@ function registrarEliminacion(msg, sock) {
     // Baileys usa ProtocolMessage.Type.REVOKE = 0 para "Eliminar para todos".
     if (!protocolo || !(protocolo.type === 0 || protocolo.type === 'REVOKE')) return false;
 
+    // No registrar eliminaciones hechas por el propio bot. Esto evita que
+    // verelim muestre los mensajes que el bot borra al aplicar un mute.
+    if (msg?.key?.fromMe) return true;
+
     const chatId = msg?.key?.remoteJid;
     const idOriginal = protocolo.key?.id;
     if (!chatId || !idOriginal) return true;
