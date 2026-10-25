@@ -1056,7 +1056,22 @@ async function enviarAlertaPavosAutomatica(sock, actualizarEnVivo = false, horaA
         for (const grupo of pendientes) {
             try {
                 const socketEnvio = socketAlertasDiariasActivo || sock;
-                await socketEnvio.sendMessage(grupo, { text: mensaje });
+                const mensajeEnviado = await socketEnvio.sendMessage(grupo, { text: mensaje });
+
+                // Fija únicamente la alerta principal de las 6:01:20 PM.
+                // Si el bot no es administrador o WhatsApp rechaza el pin,
+                // la alerta sigue contando como enviada y no se duplica.
+                if (horaAlerta === '6:01:20 PM' && mensajeEnviado?.key) {
+                    try {
+                        await socketEnvio.sendMessage(grupo, {
+                            pin: { key: mensajeEnviado.key, type: 1 }
+                        });
+                        console.log('📌 Alerta diaria de PaVos fijada en el grupo ' + grupo + '.');
+                    } catch (errorPin) {
+                        console.warn('⚠️ La alerta se envió, pero no se pudo fijar en ' + grupo + ': ' + (errorPin.message || errorPin));
+                    }
+                }
+
                 gruposEnviados.add(grupo);
                 await guardarAlertaPavosEnviada(hoy, horaAlerta, { snapshot: firmas }, [...gruposEnviados], grupos.length);
                 console.log('✅ Alerta diaria de PaVos aceptada por WhatsApp para el grupo ' + grupo + '.');
