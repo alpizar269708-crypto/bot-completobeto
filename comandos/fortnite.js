@@ -1058,10 +1058,11 @@ async function enviarAlertaPavosAutomatica(sock, actualizarEnVivo = false, horaA
                 const socketEnvio = socketAlertasDiariasActivo || sock;
                 const mensajeEnviado = await socketEnvio.sendMessage(grupo, { text: mensaje });
 
-                // Fija únicamente la alerta principal de las 6:01:20 PM.
-                // Si el bot no es administrador o WhatsApp rechaza el pin,
-                // la alerta sigue contando como enviada y no se duplica.
-                if (horaAlerta === '6:01:20 PM' && mensajeEnviado?.key) {
+                // Fija la alerta principal durante 24 horas, incluso si se envía
+                // tarde por un reintento automático o tras una reconexión.
+                // No fija las alertas secundarias de las 6:02 ni de las 6:05.
+                const esAlertaPrincipal = ['6:01:20 PM', 'reintento automático', 'recuperación tras reconexión'].includes(horaAlerta);
+                if (esAlertaPrincipal && mensajeEnviado?.key) {
                     try {
                         await socketEnvio.sendMessage(grupo, {
                             pin: { key: mensajeEnviado.key, type: 1 }
