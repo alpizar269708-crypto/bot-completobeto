@@ -16,6 +16,15 @@ const configSchema = new mongoose.Schema({
     valor: { type: String, required: true }
 });
 
+// Última actividad observada de cada miembro por grupo, persistente entre reinicios.
+const actividadGrupoSchema = new mongoose.Schema({
+    chatId: { type: String, required: true },
+    participanteId: { type: String, required: true },
+    ultimoMensaje: { type: Date, required: true, default: Date.now },
+    primeraActividad: { type: Date, required: true, default: Date.now }
+});
+actividadGrupoSchema.index({ chatId: 1, participanteId: 1 }, { unique: true });
+
 const economiaGrupoSchema = new mongoose.Schema({
     chatId: { type: String, required: true },
     numero: { type: String, required: true },
@@ -32,6 +41,7 @@ economiaGrupoSchema.index({ chatId: 1, numero: 1 }, { unique: true });
 const User = mongoose.model('User', userSchema);
 const EconomiaGrupo = mongoose.model('EconomiaGrupo', economiaGrupoSchema);
 const Config = mongoose.model('Config', configSchema);
+const ActividadGrupo = mongoose.models.ActividadGrupo || mongoose.model('ActividadGrupo', actividadGrupoSchema);
 
 const conectarDB = async () => {
     try {
@@ -42,4 +52,4 @@ const conectarDB = async () => {
     }
 };
 
-module.exports = { conectarDB, User, Config, EconomiaGrupo };
+module.exports = { conectarDB, User, Config, EconomiaGrupo, ActividadGrupo };
