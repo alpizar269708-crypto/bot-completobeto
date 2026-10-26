@@ -6,7 +6,7 @@ const pino = require('pino');
 const QRCode = require('qrcode');
 const { procesarMensaje } = require('./messageHandler');
 const { registrarMensajeReciente, registrarEliminacion } = require('./comandos/verelim');
-const { verificarNuevoMiembro, registrarActividadGrupo } = require('./comandos/moderacion');
+const { verificarNuevoMiembro } = require('./comandos/moderacion');
 const { iniciarCronAlertasDiarias, reanudarAlertaPavosPendiente } = require('./comandos/fortnite');
 const { iniciarVerificacionTarifasPaypal } = require('./comandos/paypal');
 const { limpiarEconomiaAlSalir } = require('./comandos/economia');
@@ -462,8 +462,6 @@ async function arrancarSocket(metodo, numeroTelefono, onCodeReady = null) {
             // Detecta "Eliminar para todos" y conserva mensajes recibidos solo en memoria temporal.
             if (registrarEliminacion(msg, sock)) continue;
             if (!msg.message) continue;
-            // Registra el último mensaje de cada miembro para el comando inactivos.
-            await registrarActividadGrupo(msg, sock);
             await registrarMensajeReciente(msg, sock);
 
             const textoCompleto = msg.message.conversation || msg.message.extendedTextMessage?.text || '';
