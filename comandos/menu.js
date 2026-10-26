@@ -98,7 +98,7 @@ async function ejecutarMenu(sock, chatId, msg, args) {
         `*${prefijo}listanegra / unbanlist* - Gestión de bloqueados.\n` +
         `*${prefijo}grupo [abrir/cerrar]* - Abre o cierra el chat del grupo.\n` +
         `*${prefijo}mute [@user] / unmute* - Silencia a alguien.\n` +
-        `*${prefijo}inactivos* - Revisa quién no habla en el grupo.\n` +
+        `*${prefijo}inactivos [días]* - Etiqueta a quienes llevan 7 días sin hablar (puedes indicar otro umbral).\n` +
         `*${prefijo}desactivarbienvenida* - Desactiva la bienvenida en este grupo.\n` +
         `*${prefijo}activarbienvenida* - Vuelve a activar la bienvenida.\n` +
         `*${prefijo}personalizarbienvenida [mensaje]* - Personaliza la bienvenida; usa {usuario} para mencionar al nuevo integrante.\n` +
