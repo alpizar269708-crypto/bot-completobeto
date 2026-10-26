@@ -161,7 +161,7 @@ function traducirBiomaSTW(bioma) {
     // Evita mostrar el nombre original en inglés entre paréntesis cuando
     // el extractor devuelve duplicados como "Grasslands (Grasslands)".
     limpio = limpio
-        .replace(/\bPraderas\s*\(\s*(?:the\s+)?grasslands\s*\)/gi, 'Praderas')
+        .replace(/\bPraderas\s*\(\s*(?:(?:the\s+)?grasslands|praderas)\s*\)/gi, 'Praderas')
         .replace(/\bCiudad\s*\(\s*(?:the\s+)?city\s*\)/gi, 'Ciudad')
         .replace(/\bBosque\s*\(\s*(?:the\s+)?forest\s*\)/gi, 'Bosque')
         .replace(/\s+/g, ' ').replace(/\(\s*\)/g, '').trim();
