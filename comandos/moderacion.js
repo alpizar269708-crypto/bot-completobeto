@@ -1,4 +1,4 @@
-const { User, Config, ActividadGrupo } = require('../database/modelos');
+const { User, Config } = require('../database/modelos');
 const { esPrivilegiadoTotal, esPrivilegiadoTotalAsync, resolverLidAPn } = require('../utils/whatsapp');
 
 // Memoria temporal para los mutes activos
@@ -895,121 +895,6 @@ function verificarMute(chatId, remitente) {
 }
 
 // 👥 Seguimiento persistente de actividad por grupo.
-function normalizarJidActividad(jid) {
-    return String(jid || '').replace(/:\\d+(?=@)/, '').trim();
-}
-
-async function registrarActividadGrupo(msg, sock) {
-    const chatId = msg?.key?.remoteJid;
-    const participanteOriginal = msg?.key?.participant;
-    if (!chatId?.endsWith('@g.us') || msg?.key?.fromMe || !participanteOriginal || !msg?.message || msg.message.protocolMessage) return false;
-    try {
-        const resuelto = await resolverLidAPn(sock, participanteOriginal);
-        const participanteId = normalizarJidActividad(resuelto || participanteOriginal);
-        if (!participanteId) return false;
-        const ahora = new Date();
-        await ActividadGrupo.findOneAndUpdate(
-            { chatId, participanteId },
-            { $set: { ultimoMensaje: ahora }, $setOnInsert: { primeraActividad: ahora } },
-            { upsert: true, setDefaultsOnInsert: true }
-        );
-        return true;
-    } catch (error) {
-        console.warn('⚠️ No se pudo registrar actividad del grupo:', error.message || error);
-        return false;
-    }
-}
-
-// Por defecto considera inactivo a quien lleva 7 días sin enviar mensajes.
-// Se puede cambiar el umbral con "inactivos 14", por ejemplo.
-async function comandoInactivos(sock, chatId, msg, args = []) {
-    if (!chatId?.endsWith('@g.us')) {
-        await sock.sendMessage(chatId, { text: '⚠️ Este comando solo funciona dentro de un grupo.' }, { quoted: msg });
-        return;
-    }
-    if (!(await esAdmin(sock, chatId, msg.key.participant))) return;
-
-    const solicitado = Number(args?.[0]);
-    const diasUmbral = Number.isInteger(solicitado) && solicitado >= 1 && solicitado <= 365 ? solicitado : 7;
-    const ahora = Date.now();
-    const umbralMs = diasUmbral * 24 * 60 * 60 * 1000;
-
-    try {
-        const [groupMetadata, actividad] = await Promise.all([
-            sock.groupMetadata(chatId),
-            ActividadGrupo.find({ chatId }).lean()
-        ]);
-        const botId = normalizarJidActividad(await resolverLidAPn(sock, sock.user?.id));
-        const actividadPorId = new Map(actividad.map(r => [normalizarJidActividad(r.participanteId), r]));
-        const inactivos = [];
-        let sinRegistro = 0;
-
-        for (const participante of (groupMetadata.participants || [])) {
-            const idsOriginales = [participante.id, participante.jid, participante.lid].filter(Boolean);
-            const ids = new Set();
-            for (const id of idsOriginales) {
-                ids.add(normalizarJidActividad(id));
-                try {
-                    ids.add(normalizarJidActividad(await resolverLidAPn(sock, id)));
-                } catch (_) {}
-            }
-            if (botId && ids.has(botId)) continue;
-
-            let registro = null;
-            for (const id of ids) {
-                if (actividadPorId.has(id)) {
-                    registro = actividadPorId.get(id);
-                    break;
-                }
-            }
-
-            if (!registro?.ultimoMensaje) {
-                sinRegistro++;
-                continue;
-            }
-            const ultimo = new Date(registro.ultimoMensaje).getTime();
-            if (!Number.isFinite(ultimo) || ahora - ultimo < umbralMs) continue;
-
-            const mentionJid = [...ids].find(id => id.endsWith('@s.whatsapp.net')) || [...ids][0];
-            if (!mentionJid) continue;
-            inactivos.push({
-                mentionJid,
-                dias: Math.floor((ahora - ultimo) / (24 * 60 * 60 * 1000)),
-                fecha: new Date(ultimo)
-            });
-        }
-
-        inactivos.sort((a, b) => b.dias - a.dias);
-        const cabecera = `👥 *MIEMBROS INACTIVOS*\\n📆 Umbral: *${diasUmbral} días sin enviar mensajes*\\n👤 Miembros del grupo: *${(groupMetadata.participants || []).length}*\\n\\n`;
-        if (!inactivos.length) {
-            await sock.sendMessage(chatId, {
-                text: cabecera + `✅ No encontré miembros con actividad registrada de hace ${diasUmbral} días o más.\\n\\nℹ️ ${sinRegistro} miembro(s) no tienen actividad registrada desde que se activó este seguimiento; no puedo confirmar su inactividad anterior.`
-            }, { quoted: msg });
-            return;
-        }
-
-        const grupos = [];
-        for (let i = 0; i < inactivos.length; i += 15) grupos.push(inactivos.slice(i, i + 15));
-        for (let i = 0; i < grupos.length; i++) {
-            const bloque = grupos[i];
-            const lista = bloque.map((r, j) => {
-                const etiqueta = r.mentionJid.split('@')[0].split(':')[0];
-                return `${i * 15 + j + 1}. @${etiqueta} — *${r.dias} días* sin actividad`;
-            }).join('\\n');
-            const notaSinRegistro = i === grupos.length - 1 && sinRegistro
-                ? `\\n\\nℹ️ Otros ${sinRegistro} miembro(s) no tienen registro suficiente para calcular cuánto tiempo llevan inactivos.`
-                : '';
-            await sock.sendMessage(chatId, {
-                text: (i === 0 ? cabecera : `👥 *MIEMBROS INACTIVOS (continuación)*\\n\\n`) + lista + notaSinRegistro,
-                mentions: bloque.map(r => r.mentionJid)
-            }, i === 0 ? { quoted: msg } : undefined);
-        }
-    } catch (e) {
-        console.error('No se pudo calcular la inactividad del grupo:', e.message || e);
-        await sock.sendMessage(chatId, { text: '❌ No se pudo obtener la actividad de los miembros. Inténtalo de nuevo más tarde.' }, { quoted: msg });
-    }
-}
-
 module.exports = { 
     verificarAntiLinks, 
     verificarAntiSpam,
@@ -1026,8 +911,6 @@ module.exports = {
     comandoMute,
     comandoUnmute,
     verificarMute,
-    comandoInactivos,
-    registrarActividadGrupo,
     comandoDesactivarBienvenida,
     comandoActivarBienvenida,
     comandoPersonalizarBienvenida,
