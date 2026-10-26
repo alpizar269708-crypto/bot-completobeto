@@ -11,8 +11,11 @@ function traducirNombreMisionSTW(nombreIngles) {
     let nombre = limpiarTextoSTW(nombreIngles).replace(/\s+Group$/i, '').trim();
     if (!nombre) return '';
 
-    const categoriaTormenta = nombre.match(/^category\s+([1-4])\s+fight the storm$/i);
-    if (categoriaTormenta) return 'Lucha contra una tormenta de categoría ' + categoriaTormenta[1];
+    const categoriaTormenta = nombre.match(/^(?:category\s+([1-4])\s+fight the storm|fight category\s+([1-4])\s+storm)$/i);
+    if (categoriaTormenta) {
+        const nivel = categoriaTormenta[1] || categoriaTormenta[2];
+        return 'Defiende el Atlas: tormenta de categoría ' + nivel;
+    }
 
     const misionesMap = {
         'fight the storm': 'Lucha contra la tormenta',
@@ -31,18 +34,18 @@ function traducirNombreMisionSTW(nombreIngles) {
         'trap the storm': 'Atrapa la tormenta',
         'hit the road': 'En la carretera',
         'atlas': 'Atlas',
-        'category 1 fight the storm': 'Lucha contra una tormenta de categoría 1',
-        'category 2 fight the storm': 'Lucha contra una tormenta de categoría 2',
-        'category 3 fight the storm': 'Lucha contra una tormenta de categoría 3',
-        'category 4 fight the storm': 'Lucha contra una tormenta de categoría 4',
+        'category 1 fight the storm': 'Defiende el Atlas: tormenta de categoría 1',
+        'category 2 fight the storm': 'Defiende el Atlas: tormenta de categoría 2',
+        'category 3 fight the storm': 'Defiende el Atlas: tormenta de categoría 3',
+        'category 4 fight the storm': 'Defiende el Atlas: tormenta de categoría 4',
         'launch the rocket': 'Lanza el cohete',
         'defend the launch site': 'Defiende el lugar de lanzamiento',
         'defend the shelter': 'Defiende el refugio',
         'defend the van': 'Defiende la camioneta',
-        'fight category 1 storm': 'Lucha contra una tormenta de categoría 1',
-        'fight category 2 storm': 'Lucha contra una tormenta de categoría 2',
-        'fight category 3 storm': 'Lucha contra una tormenta de categoría 3',
-        'fight category 4 storm': 'Lucha contra una tormenta de categoría 4',
+        'fight category 1 storm': 'Defiende el Atlas: tormenta de categoría 1',
+        'fight category 2 storm': 'Defiende el Atlas: tormenta de categoría 2',
+        'fight category 3 storm': 'Defiende el Atlas: tormenta de categoría 3',
+        'fight category 4 storm': 'Defiende el Atlas: tormenta de categoría 4',
         'rescue survivors': 'Rescata a los supervivientes',
         'build radar grid': 'Construye la cuadrícula del radar',
         'refuel homebase': 'Reabastece la base',
@@ -155,7 +158,13 @@ function traducirBiomaSTW(bioma) {
         .replace(/\bbunkers?\b/gi, 'Búnkeres')
         .replace(/\bthe portal\b/gi, 'El Portal')
         .replace(/\bthe crater\b/gi, 'El Cráter');
-    limpio = limpio.replace(/\s+/g, ' ').replace(/\(\s*\)/g, '').trim();
+    // Evita mostrar el nombre original en inglés entre paréntesis cuando
+    // el extractor devuelve duplicados como "Grasslands (Grasslands)".
+    limpio = limpio
+        .replace(/\bPraderas\s*\(\s*(?:the\s+)?grasslands\s*\)/gi, 'Praderas')
+        .replace(/\bCiudad\s*\(\s*(?:the\s+)?city\s*\)/gi, 'Ciudad')
+        .replace(/\bBosque\s*\(\s*(?:the\s+)?forest\s*\)/gi, 'Bosque')
+        .replace(/\s+/g, ' ').replace(/\(\s*\)/g, '').trim();
     // Si no se reconoce el nombre, usar una etiqueta en español en lugar
     // de enviar un bioma en inglés o una mezcla de ambos idiomas.
     const biomasEspanol = new Set([
