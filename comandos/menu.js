@@ -11,7 +11,7 @@ const categoriasMap = {
     utilidades: ['s', 'sticker', 'tiktok', 'instagram', 'pinterest', 'x', 'twitter', 'traduce', 'skin', 'stats', 'tiendastats', 'tiendavb', 'contacto', 'ping', 'verelim'],
     paypal: ['paypal', 'paypaln', 'paypali'],
     ia: ['ia'],
-    moderacion: ['warn', 'advertir', 'verwarns', 'limpiarwarns', 'ban', 'unban', 'listanegra', 'banlist', 'unbanlist', 'grupo', 'mute', 'unmute', 'inactivos', 'listablanca', 'desactivarbienvenida', 'activarbienvenida', 'personalizarbienvenida', 'restaurarbienvenida', 'blcarry', 'unblcarry', 'listcarrybl', 'setprecio', 'setgrupostw', 'unsetgrupostw', 'desactivarcomandos', 'catdesa']
+    moderacion: ['warn', 'advertir', 'verwarns', 'limpiarwarns', 'ban', 'unban', 'listanegra', 'banlist', 'unbanlist', 'grupo', 'mute', 'unmute', 'listablanca', 'desactivarbienvenida', 'activarbienvenida', 'personalizarbienvenida', 'restaurarbienvenida', 'blcarry', 'unblcarry', 'listcarrybl', 'setprecio', 'setgrupostw', 'unsetgrupostw', 'desactivarcomandos', 'catdesa']
 };
 
 const nombresCategorias = ['fortnite', 'tienda', 'carry', 'rifas', 'cashback', 'economia', 'utilidades', 'paypal', 'ia', 'moderacion'];
@@ -98,7 +98,6 @@ async function ejecutarMenu(sock, chatId, msg, args) {
         `*${prefijo}listanegra / unbanlist* - Gestión de bloqueados.\n` +
         `*${prefijo}grupo [abrir/cerrar]* - Abre o cierra el chat del grupo.\n` +
         `*${prefijo}mute [@user] / unmute* - Silencia a alguien.\n` +
-        `*${prefijo}inactivos [días]* - Etiqueta a quienes llevan 7 días sin hablar (puedes indicar otro umbral).\n` +
         `*${prefijo}desactivarbienvenida* - Desactiva la bienvenida en este grupo.\n` +
         `*${prefijo}activarbienvenida* - Vuelve a activar la bienvenida.\n` +
         `*${prefijo}personalizarbienvenida [mensaje]* - Personaliza la bienvenida; usa {usuario} para mencionar al nuevo integrante.\n` +
