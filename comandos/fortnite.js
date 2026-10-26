@@ -226,7 +226,7 @@ function traducirZonaSalidaSTW(zona) {
 function traducirMisionSalidaSTW(item) {
     const traductores = traductoresSTW();
     const traducirNombre = traductores.traducirNombreMisionSTW;
-    const fuente = String(item && (item.misionOriginal || item.mision) || '').trim();
+    const fuente = String(item && (item.mision || item.misionOriginal) || '').trim();
     if (!fuente || typeof traducirNombre !== 'function') return 'Misión de alerta';
 
     const partes = fuente.split(/\s+-\s+/);
@@ -253,7 +253,8 @@ function traducirBiomaAlertaSTW(item) {
     const fuente = String(item && item.ubicacion || '').trim();
     if (!fuente) return '';
     const bioma = typeof traducirBioma === 'function' ? traducirBioma(fuente) : fuente;
-    return String(bioma || '').replace(/^the\s+/i, '').replace(/\bthe\s+/gi, '').trim();
+    const limpio = String(bioma || '').replace(/^the\s+/i, '').replace(/\bthe\s+/gi, '').trim();
+    return !limpio || /^zona de misión$/i.test(limpio) ? fuente : limpio;
 }
 
 function traducirModificadoresSalidaSTW(modificadores) {
