@@ -832,7 +832,7 @@ Apoya a un creador: JASC13` });
                 await comandoUnmute(sock, chatJid, msg, args);
                 break;
             case 'inactivos':
-                await comandoInactivos(sock, chatJid, msg);
+                await comandoInactivos(sock, chatJid, msg, args);
                 break;
             case 'cartera':
             case 'bal':
