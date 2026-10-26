@@ -226,18 +226,34 @@ function traducirZonaSalidaSTW(zona) {
 function traducirMisionSalidaSTW(item) {
     const traductores = traductoresSTW();
     const traducirNombre = traductores.traducirNombreMisionSTW;
-    const traducirBioma = traductores.traducirBiomaSTW;
-    const fuente = String(item && (item.mision || item.misionOriginal) || '').trim();
+    const fuente = String(item && (item.misionOriginal || item.mision) || '').trim();
     if (!fuente || typeof traducirNombre !== 'function') return 'Misión de alerta';
+
     const partes = fuente.split(/\s+-\s+/);
-    const nombreOriginal = partes.shift();
-    const nombre = traducirNombre(nombreOriginal) || 'Misión de alerta';
-    const biomaOriginal = partes.length ? partes.join(' - ') : String(item.ubicacion || '').trim();
-    let bioma = biomaOriginal && typeof traducirBioma === 'function'
-        ? traducirBioma(biomaOriginal)
-        : biomaOriginal;
-    bioma = String(bioma || '').replace(/^the\s+/i, '').replace(/\bhaunted\s+bosque\b/gi, 'Bosque embrujado').replace(/\bthe\s+/gi, '').trim();
-    return [nombre, bioma && !/^zona desconocida$/i.test(bioma) ? bioma : ''].filter(Boolean).join(' - ');
+    let nombreOriginal = partes.shift().trim();
+    // Algunos extractores entregan esta misión con una traducción literal que
+    // no coincide con el nombre que aparece en el mapa del juego.
+    const tormentaCategoria = nombreOriginal.match(/^(?:category\s+([1-4])\s+fight the storm|fight category\s+([1-4])\s+storm|lucha contra (?:una )?tormenta de categoría\s+([1-4]))$/i);
+    if (tormentaCategoria) {
+        const nivel = tormentaCategoria[1] || tormentaCategoria[2] || tormentaCategoria[3];
+        return 'Defiende el Atlas: tormenta de categoría ' + nivel;
+    }
+
+    let nombre = traducirNombre(nombreOriginal) || 'Misión de alerta';
+    // Si la fuente ya trae una traducción válida, conservarla en vez de degradarla.
+    if (/^(recupera los datos|repara el refugio|monta el rayo|evacúa el refugio|entrega la bomba|rescata a los supervivientes|reabastecimiento|elimina y recoge|destruye los campamentos|defiende el atlas)/i.test(nombreOriginal)) {
+        nombre = nombreOriginal;
+    }
+    return nombre;
+}
+
+function traducirBiomaAlertaSTW(item) {
+    const traductores = traductoresSTW();
+    const traducirBioma = traductores.traducirBiomaSTW;
+    const fuente = String(item && item.ubicacion || '').trim();
+    if (!fuente) return '';
+    const bioma = typeof traducirBioma === 'function' ? traducirBioma(fuente) : fuente;
+    return String(bioma || '').replace(/^the\s+/i, '').replace(/\bthe\s+/gi, '').trim();
 }
 
 function traducirModificadoresSalidaSTW(modificadores) {
@@ -404,6 +420,7 @@ async function alertasSTW(sock, chatId, msg, categoria = 'todas', progreso = nul
                 lineas.push(
                     '🌍 *Zona:* ' + traducirZonaSalidaSTW(p.zona || 'Desconocida'),
                     '⚡ *PL:* ' + (p.pl ?? '?'),
+                    '🗺️ *Bioma:* ' + (traducirBiomaAlertaSTW(p) || 'No especificado'),
                     '🎯 *Misión:* ' + traducirMisionSalidaSTW(p),
                     '🪙 *PaVos:* ' + cantidad,
                     ''
@@ -1036,6 +1053,7 @@ async function enviarAlertaPavosAutomatica(sock, actualizarEnVivo = false, horaA
             total += cantidad;
             mensaje += '🌍 *Zona:* ' + traducirZonaSalidaSTW(item.zona || 'Desconocida') + '\n' +
                 '⚡ *PL:* ' + (item.pl ?? '?') + '\n' +
+                '🗺️ *Bioma:* ' + (traducirBiomaAlertaSTW(item) || 'No especificado') + '\n' +
                 '🎯 *Misión:* ' + traducirMisionSalidaSTW(item) + '\n' +
                 '🪙 *PaVos:* ' + cantidad + '\n\n';
         }
