@@ -6,6 +6,8 @@ const BASE_URL = 'https://fortnite.gg';
 const API_COSMETICOS_BASE = 'https://fortnite-api.com/v2/cosmetics';
 let cacheCatalogoAPI = null;
 let cacheCatalogoAPIExpira = 0;
+let cacheRegistroPreciosHistoricos = null;
+let cacheRegistroPreciosHistoricosExpira = 0;
 
 function pedirJsonHttps(url, timeoutMs = 15000) {
     return new Promise((resolve, reject) => {
@@ -221,6 +223,42 @@ async function obtenerPrecioEnArchivoPublicoTienda(idCosmetico) {
     return '';
 }
 
+async function obtenerRegistroPreciosHistoricos() {
+    if (cacheRegistroPreciosHistoricos && cacheRegistroPreciosHistoricosExpira > Date.now()) {
+        return cacheRegistroPreciosHistoricos;
+    }
+    const data = await pedirJsonHttps(
+        'https://raw.githubusercontent.com/Fortnite-Datamining/Fortnite-Datamining/main/data/items/registry.json',
+        12000
+    );
+    if (!data || typeof data !== 'object' || Array.isArray(data)) {
+        throw new Error('El archivo de historial de precios no tiene el formato esperado');
+    }
+    cacheRegistroPreciosHistoricos = data;
+    cacheRegistroPreciosHistoricosExpira = Date.now() + 6 * 60 * 60 * 1000;
+    return data;
+}
+
+async function obtenerPrecioHistoricoAPI(idCosmetico) {
+    if (!idCosmetico) return null;
+    try {
+        const registro = await obtenerRegistroPreciosHistoricos();
+        const item = registro[String(idCosmetico)] ||
+            Object.values(registro).find(valor => String(valor?.id || '').toLowerCase() === String(idCosmetico).toLowerCase());
+        const apariciones = Array.isArray(item?.shop_appearances) ? item.shop_appearances : [];
+        // El precio de un lote no representa el precio individual del cosmético.
+        const individuales = apariciones.filter(a =>
+            !a?.bundle && Number.isFinite(Number(a?.price)) && Number(a.price) > 0 && a?.date
+        );
+        if (!individuales.length) return null;
+        individuales.sort((a, b) => String(b.date).localeCompare(String(a.date)));
+        return { precio: String(individuales[0].price), fecha: String(individuales[0].date) };
+    } catch (error) {
+        console.warn('⚠️ JASC STORE: no pude leer el registro histórico de precios:', error.message);
+        return null;
+    }
+}
+
 async function obtenerPrecioTiendaActualAPI(idCosmetico) {
     if (!idCosmetico) return '';
     try {
@@ -267,6 +305,8 @@ function extraerDetalleAPI(itemBase) {
         rareza: item.rarity?.displayValue || item.rarity?.value || '',
         tipo: item.type?.displayValue || item.type?.value || '',
         precio: itemBase.precio || '',
+        precioHistorico: itemBase.precioHistorico || '',
+        fechaPrecioHistorico: itemBase.fechaPrecioHistorico || '',
         salida: null,
         // "added" es la fecha de alta en el catálogo, no la fecha de estreno en tienda.
         lanzamiento: null,
@@ -983,7 +1023,10 @@ function traducirFecha(texto) {
 async function formatearItem(item, indice) {
     const lineas = [`${indice}. 🎮 *${traducirTextoFicha(item.nombre)}*`];
     if (item.precio && item.precio !== 'No disponible') {
-        lineas.push(`   💰 ${String(item.precio).trim()} pavos`);
+        lineas.push(`   💰 Precio actual: ${String(item.precio).trim()} pavos`);
+    }
+    if (item.precioHistorico) {
+        lineas.push(`   🧾 Último precio histórico registrado: ${String(item.precioHistorico).trim()} pavos` + (item.fechaPrecioHistorico ? ` (${traducirFecha(item.fechaPrecioHistorico)})` : ''));
     }
     if (item.tipo || item.rareza) {
         const partes = [traducirTextoFicha(item.rareza), traducirTextoFicha(item.tipo)].filter(Boolean);
@@ -1091,6 +1134,13 @@ async function procesarSeleccionTiendaGG(sock, chatId, msg, item) {
 
         // Solo mostramos precio si está confirmado por la ficha o la tienda actual.
         // No inventamos precios históricos si la fuente no los proporciona.
+        if (detalle.id) {
+            const historico = await obtenerPrecioHistoricoAPI(detalle.id);
+            if (historico) {
+                detalle.precioHistorico = historico.precio;
+                detalle.fechaPrecioHistorico = historico.fecha;
+            }
+        }
         if (!detalle.precio && detalle.id) {
             detalle.precio = await obtenerPrecioTiendaActualAPI(detalle.id);
         }
