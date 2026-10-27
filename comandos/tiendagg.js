@@ -193,6 +193,34 @@ async function buscarCosmeticoAPIPorNombre(nombre) {
     return normalizarCosmeticoAPI(exacto || lista[0]);
 }
 
+async function obtenerPrecioEnArchivoPublicoTienda(idCosmetico) {
+    if (!idCosmetico) return '';
+    try {
+        // Respaldo público sin API key: copia de la tienda actual mantenida por
+        // Fortnite-Datamining. Solo confirma precios de ofertas de hoy; no es historial.
+        const data = await pedirJsonHttps(
+            'https://raw.githubusercontent.com/Fortnite-Datamining/Fortnite-Datamining/main/data/shop/current.json',
+            7000
+        );
+        const raiz = data?.data || data;
+        const entradas = Array.isArray(raiz?.entries) ? raiz.entries : [];
+        const objetivo = String(idCosmetico).toLowerCase();
+        for (const entrada of entradas) {
+            const articulos = [
+                ...(Array.isArray(entrada?.brItems) ? entrada.brItems : []),
+                ...(Array.isArray(entrada?.items) ? entrada.items : [])
+            ];
+            if (!articulos.some(item => String(item?.id || '').toLowerCase() === objetivo)) continue;
+            const precio = entrada?.finalPrice ?? entrada?.price?.finalPrice ??
+                entrada?.regularPrice ?? entrada?.price?.regularPrice;
+            if (Number.isFinite(Number(precio)) && Number(precio) > 0) return String(precio);
+        }
+    } catch (error) {
+        console.warn('⚠️ JASC STORE: tampoco pude consultar la copia pública de la tienda:', error.message);
+    }
+    return '';
+}
+
 async function obtenerPrecioTiendaActualAPI(idCosmetico) {
     if (!idCosmetico) return '';
     try {
@@ -207,9 +235,11 @@ async function obtenerPrecioTiendaActualAPI(idCosmetico) {
             if (Number.isFinite(Number(precio)) && Number(precio) > 0) return String(precio);
         }
     } catch (error) {
-        console.warn('⚠️ JASC STORE: no pude confirmar el precio en la tienda actual:', error.message);
+        console.warn('⚠️ JASC STORE: no pude confirmar el precio en Fortnite-API; probaré la copia pública:', error.message);
     }
-    return '';
+
+    // Segunda fuente: útil cuando falla el endpoint principal o cambia su respuesta.
+    return obtenerPrecioEnArchivoPublicoTienda(idCosmetico);
 }
 
 function fechaCosmeticoAPI(valor) {
