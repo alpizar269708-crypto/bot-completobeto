@@ -56,11 +56,42 @@ function pedirJsonHttps(url, timeoutMs = 15000) {
     });
 }
 
+function listaCosmeticosDeRespuesta(data) {
+    const encontrados = [];
+    const vistos = new Set();
+
+    function recorrer(valor) {
+        if (!valor) return;
+        if (Array.isArray(valor)) {
+            for (const elemento of valor) recorrer(elemento);
+            return;
+        }
+        if (typeof valor !== 'object') return;
+
+        if (valor.id && valor.name && (valor.type || valor.rarity)) {
+            const clave = String(valor.id);
+            if (!vistos.has(clave)) {
+                vistos.add(clave);
+                encontrados.push(valor);
+            }
+            return;
+        }
+
+        for (const [clave, contenido] of Object.entries(valor)) {
+            if (['images', 'variants', 'styles', 'shopHistory'].includes(clave)) continue;
+            recorrer(contenido);
+        }
+    }
+
+    recorrer(data);
+    return encontrados;
+}
+
 async function obtenerCatalogoAPI() {
     if (cacheCatalogoAPI && cacheCatalogoAPIExpira > Date.now()) return cacheCatalogoAPI;
     const data = await pedirJsonHttps(API_COSMETICOS_BASE + '?language=es');
-    const lista = Array.isArray(data) ? data : Array.isArray(data?.items) ? data.items : null;
-    if (!lista) throw new Error('La fuente alternativa no devolvió un catálogo reconocible');
+    const lista = listaCosmeticosDeRespuesta(data);
+    if (!lista.length) throw new Error('La fuente alternativa no devolvió un catálogo reconocible');
     cacheCatalogoAPI = lista;
     cacheCatalogoAPIExpira = Date.now() + 30 * 60 * 1000;
     return lista;
@@ -112,7 +143,7 @@ async function buscarCosmeticosAPI(termino, filtro) {
             encodeURIComponent(termino) + '&matchMethod=contains&language=es';
         try {
             const data = await pedirJsonHttps(url);
-            const lista = Array.isArray(data) ? data : Array.isArray(data?.items) ? data.items : [];
+            const lista = listaCosmeticosDeRespuesta(data);
             if (lista.length) return lista.map(normalizarCosmeticoAPI);
         } catch (error) {
             console.warn('⚠️ JASC STORE: la búsqueda rápida alternativa no respondió; revisaré el catálogo completo.', error.message);
