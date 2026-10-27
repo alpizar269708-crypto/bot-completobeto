@@ -193,6 +193,25 @@ async function buscarCosmeticoAPIPorNombre(nombre) {
     return normalizarCosmeticoAPI(exacto || lista[0]);
 }
 
+async function obtenerPrecioTiendaActualAPI(idCosmetico) {
+    if (!idCosmetico) return '';
+    try {
+        const data = await pedirJsonHttps('https://fortnite-api.com/v2/shop?language=es');
+        const entradas = Array.isArray(data?.entries) ? data.entries : [];
+        for (const entrada of entradas) {
+            const articulos = Array.isArray(entrada?.brItems) ? entrada.brItems
+                : Array.isArray(entrada?.items) ? entrada.items : [];
+            if (!articulos.some(item => String(item?.id || '').toLowerCase() === String(idCosmetico).toLowerCase())) continue;
+            const precio = entrada?.finalPrice ?? entrada?.price?.finalPrice ??
+                entrada?.regularPrice ?? entrada?.price?.regularPrice;
+            if (Number.isFinite(Number(precio)) && Number(precio) > 0) return String(precio);
+        }
+    } catch (error) {
+        console.warn('⚠️ JASC STORE: no pude confirmar el precio en la tienda actual:', error.message);
+    }
+    return '';
+}
+
 function fechaCosmeticoAPI(valor) {
     if (valor === null || valor === undefined || valor === '') return null;
     let fecha;
@@ -210,12 +229,14 @@ function extraerDetalleAPI(itemBase) {
     const history = Array.isArray(item.shopHistory) ? item.shopHistory : [];
     const ultimaVez = history.length ? history[history.length - 1] : null;
     const introduccion = item.introduction || {};
+    const variantes = Array.isArray(item.variants)
+        ? item.variants.map(v => limpiarTexto(v?.name || v?.type || '')).filter(Boolean)
+        : [];
     return {
         nombre: limpiarTexto(item.name || itemBase.nombre),
         rareza: item.rarity?.displayValue || item.rarity?.value || '',
         tipo: item.type?.displayValue || item.type?.value || '',
-        // La fuente alternativa no entrega un precio de tienda fiable.
-        precio: '',
+        precio: itemBase.precio || '',
         salida: null,
         // "added" es la fecha de alta en el catálogo, no la fecha de estreno en tienda.
         lanzamiento: null,
@@ -223,9 +244,18 @@ function extraerDetalleAPI(itemBase) {
         ultimaVez: fechaCosmeticoAPI(ultimaVez) || fechaCosmeticoAPI(item.lastAppearance),
         apariciones: history.length ? String(history.length) : null,
         descripcion: item.description || null,
-        etiquetas: [],
+        etiquetas: Array.isArray(item.gameplayTags) ? item.gameplayTags.slice(0, 6) : [],
         conjunto: item.set?.text || item.set?.value || null,
-        temporada: [introduccion.chapter, introduccion.season].filter(Boolean).join(' · ') || null,
+        serie: item.series?.name || item.series?.value || item.series?.displayValue || null,
+        variantes,
+        imagen: item.images?.featured || item.images?.icon || item.images?.smallIcon || null,
+        temporada: introduccion.chapter && introduccion.season
+            ? 'Capítulo ' + introduccion.chapter + ', temporada ' + introduccion.season
+            : introduccion.chapter
+                ? 'Capítulo ' + introduccion.chapter
+                : introduccion.season
+                    ? 'Temporada ' + introduccion.season
+                    : null,
         fuenteAPI: true,
         url: '',
         id: item.id || itemBase.id
@@ -924,8 +954,6 @@ async function formatearItem(item, indice) {
     const lineas = [`${indice}. 🎮 *${traducirTextoFicha(item.nombre)}*`];
     if (item.precio && item.precio !== 'No disponible') {
         lineas.push(`   💰 ${String(item.precio).trim()} pavos`);
-    } else if (item.fuenteAPI) {
-        lineas.push('   💰 Precio: no disponible en la fuente alternativa');
     }
     if (item.tipo || item.rareza) {
         const partes = [traducirTextoFicha(item.rareza), traducirTextoFicha(item.tipo)].filter(Boolean);
@@ -939,6 +967,8 @@ async function formatearItem(item, indice) {
     if (item.apariciones) lineas.push(`   📅 Apariciones en tienda: ${item.apariciones}`);
     if (item.temporada) lineas.push(`   📚 Introducido en: ${traducirTextoFicha(item.temporada)}`);
     if (item.conjunto) lineas.push(`   🧩 Conjunto: ${traducirTextoFicha(item.conjunto)}`);
+    if (item.serie) lineas.push(`   🌟 Serie: ${traducirTextoFicha(item.serie)}`);
+    if (item.variantes?.length) lineas.push(`   🎨 Variantes: ${item.variantes.join(', ')}`);
     if (item.etiquetas?.length) lineas.push(`   ⚡ ${item.etiquetas.map(traducirTextoFicha).join(' • ')}`);
     return lineas.join('\n');
 }
@@ -1029,11 +1059,28 @@ async function procesarSeleccionTiendaGG(sock, chatId, msg, item) {
             }
         }
 
-        await sock.sendMessage(chatId, {
-            text: '🎮 Información del cosmético\n\n' +
-                await formatearItem(detalle, 1) +
-                '\n\nApoya a un creador: *JASC13*'
-        }, { quoted: msg });
+        // Solo mostramos precio si está confirmado por la ficha o la tienda actual.
+        // No inventamos precios históricos si la fuente no los proporciona.
+        if (!detalle.precio && detalle.id) {
+            detalle.precio = await obtenerPrecioTiendaActualAPI(detalle.id);
+        }
+
+        const textoFicha = '🎮 Información del cosmético\n\n' +
+            await formatearItem(detalle, 1) +
+            '\n\nApoya a un creador: *JASC13*';
+        if (detalle.imagen) {
+            try {
+                await sock.sendMessage(chatId, {
+                    image: { url: detalle.imagen },
+                    caption: textoFicha
+                }, { quoted: msg });
+            } catch (errorImagen) {
+                console.warn('⚠️ JASC STORE: no pude enviar la imagen; enviaré la ficha como texto:', errorImagen.message);
+                await sock.sendMessage(chatId, { text: textoFicha }, { quoted: msg });
+            }
+        } else {
+            await sock.sendMessage(chatId, { text: textoFicha }, { quoted: msg });
+        }
     } catch (error) {
         console.error('❌ TIENDAGG selección:', error);
         await sock.sendMessage(chatId, {
