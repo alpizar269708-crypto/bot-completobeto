@@ -223,40 +223,57 @@ async function obtenerPrecioEnArchivoPublicoTienda(idCosmetico) {
     return '';
 }
 
-async function obtenerRegistroPreciosHistoricos() {
-    if (cacheRegistroPreciosHistoricos && cacheRegistroPreciosHistoricosExpira > Date.now()) {
-        return cacheRegistroPreciosHistoricos;
-    }
-    const data = await pedirJsonHttps(
-        'https://raw.githubusercontent.com/Fortnite-Datamining/Fortnite-Datamining/main/data/items/registry.json',
-        12000
-    );
-    if (!data || typeof data !== 'object' || Array.isArray(data)) {
-        throw new Error('El archivo de historial de precios no tiene el formato esperado');
-    }
-    cacheRegistroPreciosHistoricos = data;
-    cacheRegistroPreciosHistoricosExpira = Date.now() + 6 * 60 * 60 * 1000;
-    return data;
-}
-
 async function obtenerPrecioHistoricoAPI(idCosmetico) {
     if (!idCosmetico) return null;
+
     try {
-        const registro = await obtenerRegistroPreciosHistoricos();
-        const item = registro[String(idCosmetico)] ||
-            Object.values(registro).find(valor => String(valor?.id || '').toLowerCase() === String(idCosmetico).toLowerCase());
-        const apariciones = Array.isArray(item?.shop_appearances) ? item.shop_appearances : [];
-        // El precio de un lote no representa el precio individual del cosmético.
-        const individuales = apariciones.filter(a =>
-            !a?.bundle && Number.isFinite(Number(a?.price)) && Number(a.price) > 0 && a?.date
-        );
-        if (!individuales.length) return null;
-        individuales.sort((a, b) => String(b.date).localeCompare(String(a.date)));
-        return { precio: String(individuales[0].price), fecha: String(individuales[0].date) };
+        // No descargamos registry.json: actualmente es demasiado grande para
+        // una consulta fiable desde el bot. Usamos el historial de apariciones
+        // del cosmético y consultamos únicamente las instantáneas de esos días.
+        const urlCosmetico = API_COSMETICOS_BASE + '/br/' +
+            encodeURIComponent(String(idCosmetico)) + '?language=es';
+        const respuestaCosmetico = await pedirJsonHttps(urlCosmetico, 8000);
+        const item = respuestaCosmetico?.data || respuestaCosmetico;
+        const historial = Array.isArray(item?.shopHistory) ? item.shopHistory : [];
+        const fechas = [...new Set(historial
+            .map(fecha => fechaCosmeticoAPI(fecha))
+            .filter(fecha => fecha && fecha >= '2026-08-05')
+        )].sort((a, b) => b.localeCompare(a));
+
+        // Los precios de las instantáneas públicas están disponibles desde
+        // agosto de 2026. Revisamos hasta 12 apariciones recientes para evitar
+        // consultas ilimitadas y no confundimos el precio de un lote con uno individual.
+        for (const fecha of fechas.slice(0, 12)) {
+            try {
+                const snapshot = await pedirJsonHttps(
+                    'https://raw.githubusercontent.com/Fortnite-Datamining/Fortnite-Datamining/history/shop/' +
+                    fecha + '.json',
+                    7000
+                );
+                const raiz = snapshot?.data || snapshot;
+                const entradas = Array.isArray(raiz?.entries) ? raiz.entries : [];
+                for (const entrada of entradas) {
+                    const articulos = [
+                        ...(Array.isArray(entrada?.brItems) ? entrada.brItems : []),
+                        ...(Array.isArray(entrada?.items) ? entrada.items : [])
+                    ];
+                    if (!articulos.some(a => String(a?.id || '').toLowerCase() === String(idCosmetico).toLowerCase())) continue;
+
+                    const precio = entrada?.finalPrice ?? entrada?.price?.finalPrice ??
+                        entrada?.regularPrice ?? entrada?.price?.regularPrice;
+                    if (Number.isFinite(Number(precio)) && Number(precio) > 0) {
+                        return { precio: String(precio), fecha };
+                    }
+                }
+            } catch (errorSnapshot) {
+                console.warn('⚠️ JASC STORE: no pude consultar la tienda histórica del ' + fecha + ':', errorSnapshot.message);
+            }
+        }
     } catch (error) {
-        console.warn('⚠️ JASC STORE: no pude leer el registro histórico de precios:', error.message);
-        return null;
+        console.warn('⚠️ JASC STORE: no pude obtener el historial de precios del cosmético:', error.message);
     }
+
+    return null;
 }
 
 async function obtenerPrecioTiendaActualAPI(idCosmetico) {
