@@ -236,7 +236,7 @@ async function buscarCosmeticosEnPagina(page, termino, reportar = async () => {}
             )
         ]);
     } catch (error) {
-        throw new Error('No pude inspeccionar/aplicar el buscador de Fortnite.GG: ' + error.message);
+        throw new Error('No pude inspeccionar/aplicar el buscador del catálogo: ' + error.message);
     }
 
     if (!datosBusqueda?.encontrado) {
@@ -250,7 +250,7 @@ async function buscarCosmeticosEnPagina(page, termino, reportar = async () => {}
         } catch (_) {}
 
         throw new Error(
-            'No encontré el buscador del catálogo de Fortnite.GG tras ' +
+            'No encontré el buscador del catálogo tras ' +
             (inputDisponible ? 'inspeccionar el DOM' : 'esperar y recargar el catálogo') +
             ' (inputs detectados: ' + String(datosBusqueda?.inputs ?? 0) + ')' +
             (diagnostico.titulo ? '; página: ' + diagnostico.titulo : '') +
@@ -778,7 +778,7 @@ async function procesarSeleccionTiendaGG(sock, chatId, msg, item) {
         await sock.sendMessage(chatId, {
             text: '❌ *JASC STORE*\n\nNo pude leer la ficha de *' + item.nombre +
                 '* en este momento.\n\n💥 ' +
-                String(error?.message || error).replace(/\s+/g, ' ').slice(0, 500) +
+                String(error?.message || error).replace(/fortnite\.gg/gi, 'el catálogo').replace(/\s+/g, ' ').slice(0, 500) +
                 '\n\nApoya a un creador: *JASC13*'
         }, { quoted: msg });
     } finally {
@@ -866,7 +866,7 @@ async function procesarComandoTiendaGG(sock, chatId, msg, args) {
 
         if (!itemsBase.length) {
             throw new Error(filtro
-                ? 'No se encontraron artículos en el catálogo de Fortnite.GG'
+                ? 'No se encontraron artículos en el catálogo'
                 : 'No encontré coincidencias para "' + args.join(' ') + '"');
         }
 
