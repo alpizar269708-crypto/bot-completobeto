@@ -915,7 +915,7 @@ async function procesarComandoTiendaGG(sock, chatId, msg, args) {
             await sock.sendMessage(chatId, {
                 text: '❌ *JASC STORE — ERROR*\n\nNo pude completar la consulta.\n📍 Se trabó en: *' +
                     tiendaGGFase + '*\n\n💥 ' +
-                    String(error?.message || error).replace(/\s+/g, ' ').slice(0, 500) +
+                    String(error?.message || error).replace(/fortnite\.gg/gi, 'el catálogo').replace(/\s+/g, ' ').slice(0, 500) +
                     '\n\nApoya a un creador: *JASC13*'
             }, { quoted: msg });
         } catch (sendError) {
