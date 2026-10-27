@@ -113,20 +113,22 @@ function normalizarCosmeticoAPI(cosmetico) {
 function tipoCoincideConFiltroAPI(item, filtro) {
     const tipo = normalizar(item?.type?.value || item?.type?.displayValue || '');
     const tabla = {
-        'skins': ['outfit'], 'bailes': ['emote'], 'picos': ['pickaxe'],
-        'mochilas': ['backpack', 'backbling'], 'planeadores': ['glider'],
-        'envolturas': ['wrap'], 'pantallas de carga': ['loadingscreen'],
-        'música': ['music'], 'estelas': ['contrail'], 'sprays': ['spray'],
-        'emojis': ['emoji'], 'banners': ['banner'], 'lotes': ['bundle'],
-        'autos': ['car'], 'calcomanías': ['decal'], 'ruedas': ['wheel'],
-        'trails': ['trail'], 'impulsos': ['boost'], 'canciones': ['jamtrack', 'track'],
-        'instrumentos': ['instrument'], 'guitarras': ['guitar'], 'bajos': ['bass'],
-        'baterías': ['drums'], 'keytars': ['keytar'], 'micrófonos': ['microphone'],
-        'auras': ['aura'], 'sidekicks': ['sidekick'], 'construcciones': ['build'],
-        'decoraciones': ['decor']
+        skins: ['outfit'], bailes: ['emote'], picos: ['pickaxe'],
+        mochilas: ['backpack', 'backbling'], planeadores: ['glider'],
+        envolturas: ['wrap'], 'pantallas de carga': ['loadingscreen'],
+        musica: ['music'], estelas: ['contrail'], sprays: ['spray'],
+        emojis: ['emoji'], banners: ['banner'], lotes: ['bundle'],
+        autos: ['car'], calcomanias: ['decal'], ruedas: ['wheel'],
+        trails: ['trail'], impulsos: ['boost'], canciones: ['jamtrack', 'track'],
+        instrumentos: ['instrument'], guitarras: ['guitar'], bajos: ['bass'],
+        baterias: ['drums'], keytars: ['keytar'], microfonos: ['microphone'],
+        auras: ['aura'], sidekicks: ['sidekick'], construcciones: ['build'],
+        decoraciones: ['decor']
     };
     const tipos = tabla[normalizar(filtro?.label || '')];
-    if (!tipos) return true;
+    // Si la API no permite identificar un tipo con certeza, no mostramos
+    // el catálogo completo bajo una categoría que podría ser incorrecta.
+    if (!tipos) return false;
     return tipos.includes(tipo);
 }
 
