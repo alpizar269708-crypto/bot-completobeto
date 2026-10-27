@@ -901,7 +901,7 @@ async function formatearItem(item, indice) {
     if (item.lanzamiento) lineas.push(`   📅 Salió: ${traducirFecha(item.lanzamiento)}`);
     if (item.ultimaVez) lineas.push(`   👀 Última vez: ${traducirFecha(item.ultimaVez)}`);
     if (item.salida) lineas.push(`   🕑 Se va de la tienda: ${traducirFecha(item.salida)}`);
-    if (item.apariciones) lineas.push(`   📅 Días totales en tienda: ${item.apariciones}`);
+    if (item.apariciones) lineas.push(`   📅 Apariciones en tienda: ${item.apariciones}`);
     if (item.temporada) lineas.push(`   📚 Introducido en: ${traducirTextoFicha(item.temporada)}`);
     if (item.conjunto) lineas.push(`   🧩 Conjunto: ${traducirTextoFicha(item.conjunto)}`);
     if (item.etiquetas?.length) lineas.push(`   ⚡ ${item.etiquetas.map(traducirTextoFicha).join(' • ')}`);
