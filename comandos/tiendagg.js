@@ -10,9 +10,11 @@ let cacheCatalogoAPIExpira = 0;
 function pedirJsonHttps(url, timeoutMs = 15000) {
     return new Promise((resolve, reject) => {
         let terminado = false;
+        let temporizadorTotal;
         const finalizar = (error, valor) => {
             if (terminado) return;
             terminado = true;
+            if (temporizadorTotal) clearTimeout(temporizadorTotal);
             if (error) reject(error);
             else resolve(valor);
         };
@@ -48,6 +50,12 @@ function pedirJsonHttps(url, timeoutMs = 15000) {
             });
         });
 
+        // req.setTimeout detecta inactividad; este límite también cubre respuestas
+        // que sigan enviando datos sin terminar.
+        temporizadorTotal = setTimeout(() => {
+            req.destroy();
+            finalizar(new Error('La fuente alternativa tardó más de ' + timeoutMs + ' ms en completar la respuesta'));
+        }, timeoutMs);
         req.setTimeout(timeoutMs, () => {
             req.destroy();
             finalizar(new Error('La fuente alternativa tardó demasiado en responder'));
@@ -1059,6 +1067,7 @@ async function procesarComandoTiendaGG(sock, chatId, msg, args) {
 
     const actualizarFase = fase => {
         tiendaGGFase = fase;
+        console.log('🔎 TIENDAGG FASE:', fase);
         return fase;
     };
 
@@ -1066,14 +1075,22 @@ async function procesarComandoTiendaGG(sock, chatId, msg, args) {
         tiendaGGAbortada = true;
         const faseTimeout = tiendaGGFase;
         console.error('❌ TIENDAGG TIMEOUT. Fase:', faseTimeout);
-        if (browser) await browser.close().catch(() => {});
 
+        // Avisar primero: Chromium puede quedarse bloqueado al cerrarse.
         try {
             await sock.sendMessage(chatId, {
-                text: `❌ *JASC STORE — TIMEOUT*\n\nLa consulta lleva demasiado tiempo.\n\n📍 Se quedó en: *${faseTimeout}*\n⏱️ Se cerró el navegador y se liberó la consulta.`
+                text: `❌ *JASC STORE — TIMEOUT*\n\nLa consulta lleva más de 60 segundos.\n\n📍 Se quedó en: *${faseTimeout}*\n🔄 La consulta se canceló; intenta de nuevo en un momento.`
             }, { quoted: msg });
         } catch (error) {
             console.error('❌ Error enviando timeout de tiendagg:', error.message);
+        }
+
+        if (browser) {
+            const navegadorAtascado = browser;
+            browser = null;
+            navegadorAtascado.close().catch(error => {
+                console.warn('⚠️ TIENDAGG: error cerrando Chromium tras timeout:', error.message);
+            });
         }
     }, 60000);
 
