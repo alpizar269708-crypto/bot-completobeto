@@ -327,6 +327,25 @@ async function abrirNavegador() {
     });
 }
 
+// Evita que Puppeteer bloquee TiendaStats indefinidamente al arrancar.
+// Si el lanzamiento termina tarde, cerramos el navegador para no dejar procesos huérfanos.
+async function abrirNavegadorConTimeout(timeoutMs = 15000) {
+    let temporizador;
+    const lanzamiento = abrirNavegador();
+    const limite = new Promise((_, reject) => {
+        temporizador = setTimeout(() => reject(new Error('Puppeteer tardó más de ' + timeoutMs + ' ms en iniciar')), timeoutMs);
+    });
+
+    try {
+        return await Promise.race([lanzamiento, limite]);
+    } catch (error) {
+        lanzamiento.then(browser => browser.close().catch(() => {})).catch(() => {});
+        throw error;
+    } finally {
+        clearTimeout(temporizador);
+    }
+}
+
 async function prepararPagina(page) {
     page.setDefaultNavigationTimeout(15000);
     await page.setExtraHTTPHeaders({ 'Accept-Language': 'es-MX,es;q=0.9,en;q=0.8' });
@@ -1067,21 +1086,29 @@ async function procesarComandoTiendaGG(sock, chatId, msg, args) {
             actualizarFase(texto);
         };
 
-        await fase('Abriendo navegador Puppeteer...');
-        browser = await abrirNavegador();
-
-        await fase('Puppeteer abierto. Creando página principal...');
-        await fase('Creando página principal...');
-        const page = await browser.newPage();
-
-        await fase('Página principal creada. Preparando conexión...');
-        await prepararPagina(page);
-        await fase('Página principal lista.');
-
-        let itemsBase = [];
+        let page = null;
         let falloFuentePrincipal = null;
 
+        await fase('Abriendo navegador Puppeteer...');
         try {
+            browser = await abrirNavegadorConTimeout(15000);
+            await fase('Puppeteer abierto. Creando página principal...');
+            page = await browser.newPage();
+            await fase('Página principal creada. Preparando conexión...');
+            await prepararPagina(page);
+            await fase('Página principal lista.');
+        } catch (error) {
+            falloFuentePrincipal = error;
+            console.warn('⚠️ TIENDAGG: no pude iniciar el navegador; intentaré la fuente alternativa:', error.message);
+            if (browser) await browser.close().catch(() => {});
+            browser = null;
+            page = null;
+        }
+
+        let itemsBase = [];
+
+        try {
+            if (!page) throw falloFuentePrincipal || new Error('El navegador no está disponible');
             let html;
             if (filtro) {
                 await fase('Consultando el catálogo principal...');
