@@ -196,7 +196,7 @@ async function buscarCosmeticoAPIPorNombre(nombre) {
 async function obtenerPrecioTiendaActualAPI(idCosmetico) {
     if (!idCosmetico) return '';
     try {
-        const data = await pedirJsonHttps('https://fortnite-api.com/v2/shop?language=es');
+        const data = await pedirJsonHttps('https://fortnite-api.com/v2/shop?language=es', 5000);
         const entradas = Array.isArray(data?.entries) ? data.entries : [];
         for (const entrada of entradas) {
             const articulos = Array.isArray(entrada?.brItems) ? entrada.brItems
