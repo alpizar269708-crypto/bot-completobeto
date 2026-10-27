@@ -214,20 +214,23 @@ function extraerDetalleAPI(itemBase) {
         nombre: limpiarTexto(item.name || itemBase.nombre),
         rareza: item.rarity?.displayValue || item.rarity?.value || '',
         tipo: item.type?.displayValue || item.type?.value || '',
+        // La fuente alternativa no entrega un precio de tienda fiable.
         precio: '',
         salida: null,
-        lanzamiento: fechaCosmeticoAPI(item.added),
+        // "added" es la fecha de alta en el catálogo, no la fecha de estreno en tienda.
+        lanzamiento: null,
+        añadidoCatalogo: fechaCosmeticoAPI(item.added),
         ultimaVez: fechaCosmeticoAPI(ultimaVez) || fechaCosmeticoAPI(item.lastAppearance),
         apariciones: history.length ? String(history.length) : null,
         descripcion: item.description || null,
         etiquetas: [],
         conjunto: item.set?.text || item.set?.value || null,
         temporada: [introduccion.chapter, introduccion.season].filter(Boolean).join(' · ') || null,
+        fuenteAPI: true,
         url: '',
         id: item.id || itemBase.id
     };
 }
-
 let tiendaGGEnCurso = false;
 let tiendaGGFase = 'iniciando';
 const sesionesTiendaGG = new Map();
@@ -919,22 +922,26 @@ function traducirFecha(texto) {
 
 async function formatearItem(item, indice) {
     const lineas = [`${indice}. 🎮 *${traducirTextoFicha(item.nombre)}*`];
-    if (item.precio && item.precio !== 'No disponible') lineas.push(`   💰 ${String(item.precio).trim()} pavos`);
+    if (item.precio && item.precio !== 'No disponible') {
+        lineas.push(`   💰 ${String(item.precio).trim()} pavos`);
+    } else if (item.fuenteAPI) {
+        lineas.push('   💰 Precio: no disponible en la fuente alternativa');
+    }
     if (item.tipo || item.rareza) {
         const partes = [traducirTextoFicha(item.rareza), traducirTextoFicha(item.tipo)].filter(Boolean);
         if (partes.length) lineas.push(`   🏷️ ${partes.join(' • ')}`);
     }
     if (item.descripcion) lineas.push(`   📝 ${await traducirDescripcion(item.descripcion)}`);
     if (item.lanzamiento) lineas.push(`   📅 Salió: ${traducirFecha(item.lanzamiento)}`);
+    if (item.añadidoCatalogo) lineas.push(`   📚 Añadido al catálogo: ${traducirFecha(item.añadidoCatalogo)}`);
     if (item.ultimaVez) lineas.push(`   👀 Última vez: ${traducirFecha(item.ultimaVez)}`);
     if (item.salida) lineas.push(`   🕑 Se va de la tienda: ${traducirFecha(item.salida)}`);
     if (item.apariciones) lineas.push(`   📅 Apariciones en tienda: ${item.apariciones}`);
     if (item.temporada) lineas.push(`   📚 Introducido en: ${traducirTextoFicha(item.temporada)}`);
     if (item.conjunto) lineas.push(`   🧩 Conjunto: ${traducirTextoFicha(item.conjunto)}`);
     if (item.etiquetas?.length) lineas.push(`   ⚡ ${item.etiquetas.map(traducirTextoFicha).join(' • ')}`);
-    return lineas.join('\n');
+    return lineas.join('\\n');
 }
-
 async function leerFichaTiendaGG(browser, item) {
     let page = null;
     try {
