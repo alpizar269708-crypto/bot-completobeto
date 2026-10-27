@@ -171,6 +171,18 @@ async function buscarCosmeticosAPI(termino, filtro) {
     return resultado.map(normalizarCosmeticoAPI);
 }
 
+
+async function buscarCosmeticoAPIPorNombre(nombre) {
+    const url = API_COSMETICOS_BASE + '/br/search/all?name=' +
+        encodeURIComponent(nombre) + '&matchMethod=contains&language=es';
+    const data = await pedirJsonHttps(url);
+    const lista = listaCosmeticosDeRespuesta(data);
+    if (!lista.length) return null;
+    const objetivo = normalizar(nombre);
+    const exacto = lista.find(item => normalizar(item.name) === objetivo);
+    return normalizarCosmeticoAPI(exacto || lista[0]);
+}
+
 function extraerDetalleAPI(itemBase) {
     const item = itemBase?.apiData || {};
     const history = Array.isArray(item.shopHistory) ? item.shopHistory : [];
@@ -296,21 +308,16 @@ async function abrirNavegador() {
         headless: true,
         args: [
             '--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage',
-            '--disable-gpu', '--no-first-run', '--no-zygote',
-            '--disable-blink-features=AutomationControlled'
+            '--disable-gpu', '--no-first-run', '--no-zygote'
         ]
     });
 }
 
 async function prepararPagina(page) {
     page.setDefaultNavigationTimeout(15000);
-    await page.setUserAgent('Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Safari/537.36');
     await page.setExtraHTTPHeaders({ 'Accept-Language': 'es-MX,es;q=0.9,en;q=0.8' });
-    // No interceptamos solicitudes: Fortnite.GG usa contenido dinámico y una
-    // solicitud interceptada sin resolución puede dejar la página esperando.
-    await page.evaluateOnNewDocument(() => {
-        Object.defineProperty(navigator, 'webdriver', { get: () => false });
-    });
+    // Se usa el navegador sin alterar señales de automatización. Si el catálogo
+    // exige una verificación, la consulta cambia a la fuente alternativa.
 }
 
 async function buscarCosmeticosEnPagina(page, termino, reportar = async () => {}) {
@@ -961,8 +968,17 @@ async function procesarSeleccionTiendaGG(sock, chatId, msg, item) {
         if (item.fuenteAPI) {
             detalle = extraerDetalleAPI(item);
         } else {
-            browser = await abrirNavegador();
-            detalle = await leerFichaTiendaGG(browser, item);
+            try {
+                browser = await abrirNavegador();
+                detalle = await leerFichaTiendaGG(browser, item);
+            } catch (errorPrincipal) {
+                console.warn('⚠️ JASC STORE: no se pudo leer la ficha principal; intentaré la fuente alternativa.', errorPrincipal.message);
+                if (browser) await browser.close().catch(() => {});
+                browser = null;
+                const alternativo = await buscarCosmeticoAPIPorNombre(item.nombre);
+                if (!alternativo) throw errorPrincipal;
+                detalle = extraerDetalleAPI(alternativo);
+            }
         }
 
         await sock.sendMessage(chatId, {
@@ -1081,6 +1097,9 @@ async function procesarComandoTiendaGG(sock, chatId, msg, args) {
         if (!itemsBase.length) {
             if (filtro?.label === 'SE VAN') {
                 throw new Error('No pude confirmar qué artículos salen de la tienda en este momento. No mostraré una lista sin verificar.');
+            }
+            if (filtro?.label === 'NUEVOS') {
+                throw new Error('No pude confirmar qué artículos son nuevos en la tienda en este momento. No mostraré una lista sin verificar.');
             }
             if (falloFuentePrincipal) {
                 throw new Error('El catálogo principal no respondió y la fuente alternativa no pudo completar la consulta. Inténtalo de nuevo más tarde.');
