@@ -245,7 +245,7 @@ async function buscarCosmeticosEnPagina(page, termino, reportar = async () => {}
             diagnostico = await page.evaluate(() => ({
                 titulo: document.title || '',
                 url: location.href,
-                texto: (document.body?.innerText || '').slice(0, 180).replace(/\\s+/g, ' ')
+                texto: (document.body?.innerText || '').slice(0, 180).replace(/\s+/g, ' ')
             }));
         } catch (_) {}
 
