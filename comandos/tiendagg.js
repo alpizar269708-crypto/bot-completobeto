@@ -185,6 +185,18 @@ async function buscarCosmeticoAPIPorNombre(nombre) {
     return normalizarCosmeticoAPI(exacto || lista[0]);
 }
 
+function fechaCosmeticoAPI(valor) {
+    if (valor === null || valor === undefined || valor === '') return null;
+    let fecha;
+    if (typeof valor === 'number' || /^\d+$/.test(String(valor))) {
+        const numero = Number(valor);
+        fecha = new Date(numero < 100000000000 ? numero * 1000 : numero);
+    } else {
+        fecha = new Date(valor);
+    }
+    return Number.isNaN(fecha.getTime()) ? null : fecha.toISOString().slice(0, 10);
+}
+
 function extraerDetalleAPI(itemBase) {
     const item = itemBase?.apiData || {};
     const history = Array.isArray(item.shopHistory) ? item.shopHistory : [];
@@ -196,8 +208,8 @@ function extraerDetalleAPI(itemBase) {
         tipo: item.type?.displayValue || item.type?.value || '',
         precio: '',
         salida: null,
-        lanzamiento: item.added ? new Date(item.added * 1000).toISOString().slice(0, 10) : null,
-        ultimaVez: ultimaVez ? String(ultimaVez).slice(0, 10) : (item.lastAppearance ? new Date(item.lastAppearance * 1000).toISOString().slice(0, 10) : null),
+        lanzamiento: fechaCosmeticoAPI(item.added),
+        ultimaVez: fechaCosmeticoAPI(ultimaVez) || fechaCosmeticoAPI(item.lastAppearance),
         apariciones: history.length ? String(history.length) : null,
         descripcion: item.description || null,
         etiquetas: [],
