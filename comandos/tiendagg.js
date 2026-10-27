@@ -134,6 +134,32 @@ async function buscarCosmeticosEnPagina(page, termino, reportar = async () => {}
 
     await reportar('Catálogo abierto. Buscando el campo de búsqueda...');
 
+    // Fortnite.GG puede entregar el documento antes de que el buscador se monte.
+    // Esperamos el input y, si la primera respuesta vino incompleta, recargamos
+    // el catálogo una sola vez antes de declarar que no existe.
+    const buscarInputDisponible = async () => {
+        try {
+            await page.waitForFunction(
+                () => document.querySelectorAll('input').length > 0,
+                { timeout: 5000 }
+            );
+            return true;
+        } catch (_) {
+            return false;
+        }
+    };
+
+    let inputDisponible = await buscarInputDisponible();
+    if (!inputDisponible) {
+        await reportar('El catálogo llegó sin buscador. Recargando e intentando de nuevo...');
+        try {
+            await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 20000 });
+        } catch (error) {
+            console.warn('⚠️ Fortnite.GG: la recarga del catálogo agotó tiempo: ' + error.message);
+        }
+        inputDisponible = await buscarInputDisponible();
+    }
+
     // Evitamos page.$/ElementHandle aquí. La búsqueda es una operación puramente
     // DOM y podemos localizar + modificar el input dentro de una sola evaluación.
     let datosBusqueda;
@@ -214,9 +240,21 @@ async function buscarCosmeticosEnPagina(page, termino, reportar = async () => {}
     }
 
     if (!datosBusqueda?.encontrado) {
+        let diagnostico = {};
+        try {
+            diagnostico = await page.evaluate(() => ({
+                titulo: document.title || '',
+                url: location.href,
+                texto: (document.body?.innerText || '').slice(0, 180).replace(/\\s+/g, ' ')
+            }));
+        } catch (_) {}
+
         throw new Error(
-            'No encontré el buscador del catálogo de Fortnite.GG (inputs detectados: ' +
-            String(datosBusqueda?.inputs ?? 0) + ')'
+            'No encontré el buscador del catálogo de Fortnite.GG tras ' +
+            (inputDisponible ? 'inspeccionar el DOM' : 'esperar y recargar el catálogo') +
+            ' (inputs detectados: ' + String(datosBusqueda?.inputs ?? 0) + ')' +
+            (diagnostico.titulo ? '; página: ' + diagnostico.titulo : '') +
+            (diagnostico.texto ? '; respuesta: ' + diagnostico.texto : '')
         );
     }
 
