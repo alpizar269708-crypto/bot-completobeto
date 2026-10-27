@@ -940,7 +940,7 @@ async function formatearItem(item, indice) {
     if (item.temporada) lineas.push(`   📚 Introducido en: ${traducirTextoFicha(item.temporada)}`);
     if (item.conjunto) lineas.push(`   🧩 Conjunto: ${traducirTextoFicha(item.conjunto)}`);
     if (item.etiquetas?.length) lineas.push(`   ⚡ ${item.etiquetas.map(traducirTextoFicha).join(' • ')}`);
-    return lineas.join('\\n');
+    return lineas.join('\n');
 }
 async function leerFichaTiendaGG(browser, item) {
     let page = null;
