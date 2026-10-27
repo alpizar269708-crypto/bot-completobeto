@@ -3,6 +3,223 @@ const puppeteer = require('puppeteer');
 const https = require('https');
 
 const BASE_URL = 'https://fortnite.gg';
+const API_COSMETICOS_BASE = 'https://fortnite-api.com/v2/cosmetics';
+let cacheCatalogoAPI = null;
+let cacheCatalogoAPIExpira = 0;
+
+function pedirJsonHttps(url, timeoutMs = 15000) {
+    return new Promise((resolve, reject) => {
+        let terminado = false;
+        const finalizar = (error, valor) => {
+            if (terminado) return;
+            terminado = true;
+            if (error) reject(error);
+            else resolve(valor);
+        };
+
+        const req = https.get(url, {
+            headers: {
+                'Accept': 'application/json',
+                'User-Agent': 'JASC-STORE/1.0'
+            }
+        }, res => {
+            let body = '';
+            res.setEncoding('utf8');
+            res.on('data', chunk => {
+                body += chunk;
+                if (body.length > 25 * 1024 * 1024) {
+                    req.destroy();
+                    finalizar(new Error('La fuente alternativa devolvió una respuesta demasiado grande'));
+                }
+            });
+            res.on('end', () => {
+                if (res.statusCode < 200 || res.statusCode >= 300) {
+                    return finalizar(new Error('La fuente alternativa respondió con HTTP ' + res.statusCode));
+                }
+                try {
+                    const json = JSON.parse(body);
+                    if (json?.status === 400 || json?.status === 404) {
+                        return finalizar(new Error('La fuente alternativa no encontró datos para esta consulta'));
+                    }
+                    finalizar(null, json?.data ?? json);
+                } catch (_) {
+                    finalizar(new Error('La fuente alternativa devolvió datos no válidos'));
+                }
+            });
+        });
+
+        req.setTimeout(timeoutMs, () => {
+            req.destroy();
+            finalizar(new Error('La fuente alternativa tardó demasiado en responder'));
+        });
+        req.on('error', error => finalizar(error));
+    });
+}
+
+function listaCosmeticosDeRespuesta(data) {
+    const encontrados = [];
+    const vistos = new Set();
+
+    function recorrer(valor) {
+        if (!valor) return;
+        if (Array.isArray(valor)) {
+            for (const elemento of valor) recorrer(elemento);
+            return;
+        }
+        if (typeof valor !== 'object') return;
+
+        if (valor.id && valor.name && (valor.type || valor.rarity)) {
+            const clave = String(valor.id);
+            if (!vistos.has(clave)) {
+                vistos.add(clave);
+                encontrados.push(valor);
+            }
+            return;
+        }
+
+        for (const [clave, contenido] of Object.entries(valor)) {
+            if (['images', 'variants', 'styles', 'shopHistory'].includes(clave)) continue;
+            recorrer(contenido);
+        }
+    }
+
+    recorrer(data);
+    return encontrados;
+}
+
+async function obtenerCatalogoAPI() {
+    if (cacheCatalogoAPI && cacheCatalogoAPIExpira > Date.now()) return cacheCatalogoAPI;
+    const data = await pedirJsonHttps(API_COSMETICOS_BASE + '?language=es');
+    const lista = listaCosmeticosDeRespuesta(data);
+    if (!lista.length) throw new Error('La fuente alternativa no devolvió un catálogo reconocible');
+    cacheCatalogoAPI = lista;
+    cacheCatalogoAPIExpira = Date.now() + 30 * 60 * 1000;
+    return lista;
+}
+
+function normalizarCosmeticoAPI(cosmetico) {
+    const tipo = cosmetico?.type?.displayValue || cosmetico?.type?.value || '';
+    return {
+        id: cosmetico?.id || '',
+        nombre: limpiarTexto(cosmetico?.name || cosmetico?.id || 'Cosmético sin nombre'),
+        url: '',
+        precio: '',
+        tipo,
+        fuenteAPI: true,
+        apiData: cosmetico
+    };
+}
+
+function tipoCoincideConFiltroAPI(item, filtro) {
+    const tipo = normalizar(item?.type?.value || item?.type?.displayValue || '');
+    const tabla = {
+        skins: ['outfit'], bailes: ['emote'], picos: ['pickaxe'],
+        mochilas: ['backpack', 'backbling'], planeadores: ['glider'],
+        envolturas: ['wrap'], 'pantallas de carga': ['loadingscreen'],
+        musica: ['music'], estelas: ['contrail'], sprays: ['spray'],
+        emojis: ['emoji'], banners: ['banner'], lotes: ['bundle'],
+        autos: ['car'], calcomanias: ['decal'], ruedas: ['wheel'],
+        trails: ['trail'], impulsos: ['boost'], canciones: ['jamtrack', 'track'],
+        instrumentos: ['instrument'], guitarras: ['guitar'], bajos: ['bass'],
+        baterias: ['drums'], keytars: ['keytar'], microfonos: ['microphone'],
+        auras: ['aura'], sidekicks: ['sidekick'], construcciones: ['build'],
+        decoraciones: ['decor']
+    };
+    const tipos = tabla[normalizar(filtro?.label || '')];
+    // Si la API no permite identificar un tipo con certeza, no mostramos
+    // el catálogo completo bajo una categoría que podría ser incorrecta.
+    if (!tipos) return false;
+    return tipos.includes(tipo);
+}
+
+async function buscarCosmeticosAPI(termino, filtro) {
+    // Esta API no expone una lista fiable de artículos que salen de la tienda hoy.
+    if (filtro?.label === 'SE VAN') return null;
+
+    // "NUEVOS" y "SE VAN" describen la rotación de la tienda, no la fecha
+    // en que se añadió un cosmético al catálogo. No sustituimos una cosa por otra.
+    if (filtro?.label === 'NUEVOS') return null;
+
+    if (!filtro && termino) {
+        const url = API_COSMETICOS_BASE + '/br/search/all?name=' +
+            encodeURIComponent(termino) + '&matchMethod=contains&language=es';
+        try {
+            const data = await pedirJsonHttps(url);
+            const lista = listaCosmeticosDeRespuesta(data);
+            if (lista.length) return lista.map(normalizarCosmeticoAPI);
+        } catch (error) {
+            console.warn('⚠️ JASC STORE: la búsqueda rápida alternativa no respondió; revisaré el catálogo completo.', error.message);
+        }
+    }
+
+    const lista = await obtenerCatalogoAPI();
+    const consulta = normalizar(termino || '');
+    let resultado = lista.filter(item => {
+        if (filtro && filtro.label !== 'TODOS' && !tipoCoincideConFiltroAPI(item, filtro)) return false;
+        if (!consulta || filtro) return true;
+        return normalizar(item?.name || '').includes(consulta) ||
+            normalizar(item?.id || '').includes(consulta) ||
+            normalizar(item?.description || '').includes(consulta);
+    });
+
+    if (!filtro && consulta && !resultado.length) {
+        resultado = lista.filter(item =>
+            normalizar(item?.name || '').includes(consulta) ||
+            normalizar(item?.id || '').includes(consulta) ||
+            normalizar(item?.description || '').includes(consulta)
+        );
+    }
+
+    return resultado.map(normalizarCosmeticoAPI);
+}
+
+
+async function buscarCosmeticoAPIPorNombre(nombre) {
+    const url = API_COSMETICOS_BASE + '/br/search/all?name=' +
+        encodeURIComponent(nombre) + '&matchMethod=contains&language=es';
+    const data = await pedirJsonHttps(url);
+    const lista = listaCosmeticosDeRespuesta(data);
+    if (!lista.length) return null;
+    const objetivo = normalizar(nombre);
+    const exacto = lista.find(item => normalizar(item.name) === objetivo);
+    return normalizarCosmeticoAPI(exacto || lista[0]);
+}
+
+function fechaCosmeticoAPI(valor) {
+    if (valor === null || valor === undefined || valor === '') return null;
+    let fecha;
+    if (typeof valor === 'number' || /^\d+$/.test(String(valor))) {
+        const numero = Number(valor);
+        fecha = new Date(numero < 100000000000 ? numero * 1000 : numero);
+    } else {
+        fecha = new Date(valor);
+    }
+    return Number.isNaN(fecha.getTime()) ? null : fecha.toISOString().slice(0, 10);
+}
+
+function extraerDetalleAPI(itemBase) {
+    const item = itemBase?.apiData || {};
+    const history = Array.isArray(item.shopHistory) ? item.shopHistory : [];
+    const ultimaVez = history.length ? history[history.length - 1] : null;
+    const introduccion = item.introduction || {};
+    return {
+        nombre: limpiarTexto(item.name || itemBase.nombre),
+        rareza: item.rarity?.displayValue || item.rarity?.value || '',
+        tipo: item.type?.displayValue || item.type?.value || '',
+        precio: '',
+        salida: null,
+        lanzamiento: fechaCosmeticoAPI(item.added),
+        ultimaVez: fechaCosmeticoAPI(ultimaVez) || fechaCosmeticoAPI(item.lastAppearance),
+        apariciones: history.length ? String(history.length) : null,
+        descripcion: item.description || null,
+        etiquetas: [],
+        conjunto: item.set?.text || item.set?.value || null,
+        temporada: [introduccion.chapter, introduccion.season].filter(Boolean).join(' · ') || null,
+        url: '',
+        id: item.id || itemBase.id
+    };
+}
+
 let tiendaGGEnCurso = false;
 let tiendaGGFase = 'iniciando';
 const sesionesTiendaGG = new Map();
@@ -105,21 +322,16 @@ async function abrirNavegador() {
         headless: true,
         args: [
             '--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage',
-            '--disable-gpu', '--no-first-run', '--no-zygote',
-            '--disable-blink-features=AutomationControlled'
+            '--disable-gpu', '--no-first-run', '--no-zygote'
         ]
     });
 }
 
 async function prepararPagina(page) {
     page.setDefaultNavigationTimeout(15000);
-    await page.setUserAgent('Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Safari/537.36');
     await page.setExtraHTTPHeaders({ 'Accept-Language': 'es-MX,es;q=0.9,en;q=0.8' });
-    // No interceptamos solicitudes: Fortnite.GG usa contenido dinámico y una
-    // solicitud interceptada sin resolución puede dejar la página esperando.
-    await page.evaluateOnNewDocument(() => {
-        Object.defineProperty(navigator, 'webdriver', { get: () => false });
-    });
+    // Se usa el navegador sin alterar señales de automatización. Si el catálogo
+    // exige una verificación, la consulta cambia a la fuente alternativa.
 }
 
 async function buscarCosmeticosEnPagina(page, termino, reportar = async () => {}) {
@@ -680,7 +892,7 @@ function traducirFecha(texto) {
 
 async function formatearItem(item, indice) {
     const lineas = [`${indice}. 🎮 *${traducirTextoFicha(item.nombre)}*`];
-    if (item.precio) lineas.push(`   💰 ${String(item.precio).trim()} pavos`);
+    if (item.precio && item.precio !== 'No disponible') lineas.push(`   💰 ${String(item.precio).trim()} pavos`);
     if (item.tipo || item.rareza) {
         const partes = [traducirTextoFicha(item.rareza), traducirTextoFicha(item.tipo)].filter(Boolean);
         if (partes.length) lineas.push(`   🏷️ ${partes.join(' • ')}`);
@@ -689,7 +901,7 @@ async function formatearItem(item, indice) {
     if (item.lanzamiento) lineas.push(`   📅 Salió: ${traducirFecha(item.lanzamiento)}`);
     if (item.ultimaVez) lineas.push(`   👀 Última vez: ${traducirFecha(item.ultimaVez)}`);
     if (item.salida) lineas.push(`   🕑 Se va de la tienda: ${traducirFecha(item.salida)}`);
-    if (item.apariciones) lineas.push(`   📅 Días totales en tienda: ${item.apariciones}`);
+    if (item.apariciones) lineas.push(`   📅 Apariciones en tienda: ${item.apariciones}`);
     if (item.temporada) lineas.push(`   📚 Introducido en: ${traducirTextoFicha(item.temporada)}`);
     if (item.conjunto) lineas.push(`   🧩 Conjunto: ${traducirTextoFicha(item.conjunto)}`);
     if (item.etiquetas?.length) lineas.push(`   ⚡ ${item.etiquetas.map(traducirTextoFicha).join(' • ')}`);
@@ -766,7 +978,22 @@ async function procesarSeleccionTiendaGG(sock, chatId, msg, item) {
 
     try {
         browser = await abrirNavegador();
-        const detalle = await leerFichaTiendaGG(browser, item);
+        let detalle;
+        if (item.fuenteAPI) {
+            detalle = extraerDetalleAPI(item);
+        } else {
+            try {
+                browser = await abrirNavegador();
+                detalle = await leerFichaTiendaGG(browser, item);
+            } catch (errorPrincipal) {
+                console.warn('⚠️ JASC STORE: no se pudo leer la ficha principal; intentaré la fuente alternativa.', errorPrincipal.message);
+                if (browser) await browser.close().catch(() => {});
+                browser = null;
+                const alternativo = await buscarCosmeticoAPIPorNombre(item.nombre);
+                if (!alternativo) throw errorPrincipal;
+                detalle = extraerDetalleAPI(alternativo);
+            }
+        }
 
         await sock.sendMessage(chatId, {
             text: '🎮 Información del cosmético\n\n' +
@@ -851,22 +1078,48 @@ async function procesarComandoTiendaGG(sock, chatId, msg, args) {
         await prepararPagina(page);
         await fase('Página principal lista.');
 
-        let html;
-        if (filtro) {
-            await fase('Navegando a: ' + filtro.path);
-            const url = BASE_URL + filtro.path;
-            console.log('🛒 TIENDAGG: abriendo navegador para ' + url);
-            html = await obtenerHtmlConNavegador(page, url, '#items a.item-icon[href*="/cosmetics?id="]');
-        } else {
-            await fase('Escribiendo la búsqueda: ' + args.join(' '));
-            html = await buscarCosmeticosEnPagina(page, args.join(' '), fase);
+        let itemsBase = [];
+        let falloFuentePrincipal = null;
+
+        try {
+            let html;
+            if (filtro) {
+                await fase('Consultando el catálogo principal...');
+                const url = BASE_URL + filtro.path;
+                console.log('🛒 TIENDAGG: consultando filtro ' + filtro.label);
+                html = await obtenerHtmlConNavegador(page, url, '#items a.item-icon[href*="/cosmetics?id="]');
+            } else {
+                await fase('Buscando coincidencias en el catálogo principal...');
+                html = await buscarCosmeticosEnPagina(page, args.join(' '), fase);
+            }
+            itemsBase = extraerItemsTienda(html);
+        } catch (error) {
+            falloFuentePrincipal = error;
+            console.warn('⚠️ JASC STORE: no se pudo consultar la fuente principal; usaré la alternativa si cubre esta búsqueda.', error.message);
         }
 
-        const itemsBase = extraerItemsTienda(html);
+        if (!itemsBase.length) {
+            try {
+                await fase('Consultando fuente alternativa de cosméticos...');
+                const alternativos = await buscarCosmeticosAPI(args.join(' '), filtro);
+                if (Array.isArray(alternativos)) itemsBase = alternativos;
+            } catch (error) {
+                console.warn('⚠️ JASC STORE: también falló la fuente alternativa:', error.message);
+            }
+        }
 
         if (!itemsBase.length) {
+            if (filtro?.label === 'SE VAN') {
+                throw new Error('No pude confirmar qué artículos salen de la tienda en este momento. No mostraré una lista sin verificar.');
+            }
+            if (filtro?.label === 'NUEVOS') {
+                throw new Error('No pude confirmar qué artículos son nuevos en la tienda en este momento. No mostraré una lista sin verificar.');
+            }
+            if (falloFuentePrincipal) {
+                throw new Error('El catálogo principal no respondió y la fuente alternativa no pudo completar la consulta. Inténtalo de nuevo más tarde.');
+            }
             throw new Error(filtro
-                ? 'No se encontraron artículos en el catálogo'
+                ? 'No se encontraron artículos para este filtro'
                 : 'No encontré coincidencias para "' + args.join(' ') + '"');
         }
 
