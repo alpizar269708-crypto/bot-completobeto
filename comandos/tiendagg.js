@@ -103,11 +103,9 @@ async function buscarCosmeticosAPI(termino, filtro) {
     // Esta API no expone una lista fiable de artículos que salen de la tienda hoy.
     if (filtro?.label === 'SE VAN') return null;
 
-    if (filtro?.label === 'NUEVOS') {
-        const data = await pedirJsonHttps(API_COSMETICOS_BASE + '/new?language=es');
-        const lista = Array.isArray(data) ? data : Array.isArray(data?.items) ? data.items : [];
-        return lista.map(normalizarCosmeticoAPI);
-    }
+    // "NUEVOS" y "SE VAN" describen la rotación de la tienda, no la fecha
+    // en que se añadió un cosmético al catálogo. No sustituimos una cosa por otra.
+    if (filtro?.label === 'NUEVOS') return null;
 
     if (!filtro && termino) {
         const url = API_COSMETICOS_BASE + '/br/search/all?name=' +
@@ -928,9 +926,13 @@ async function procesarSeleccionTiendaGG(sock, chatId, msg, item) {
 
     try {
         browser = await abrirNavegador();
-        const detalle = item.fuenteAPI
-            ? extraerDetalleAPI(item)
-            : await leerFichaTiendaGG(browser, item);
+        let detalle;
+        if (item.fuenteAPI) {
+            detalle = extraerDetalleAPI(item);
+        } else {
+            browser = await abrirNavegador();
+            detalle = await leerFichaTiendaGG(browser, item);
+        }
 
         await sock.sendMessage(chatId, {
             text: '🎮 Información del cosmético\n\n' +
