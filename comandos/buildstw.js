@@ -7,7 +7,10 @@ const DOMINIOS_PERMITIDOS = [
     'stw-planner.com',
     'epicgames.com',
     'savetheworlddb.com',
-    'founderbacon.com'
+    'founderbacon.com',
+    'fortnite.fandom.com',
+    'fortnite-archive.fandom.com',
+    'fortoffans.com'
 ];
 const CACHE_TTL = 30 * 60 * 1000;
 const cacheBuilds = new Map();
@@ -84,21 +87,21 @@ async function generarResumen(nombre, fuentes) {
             'Eres un especialista en Fortnite: Salvar el Mundo.',
             'Responde en español mexicano, claro y práctico, para WhatsApp.',
             'Usa exclusivamente los datos incluidos en las fuentes suministradas.',
-            'No inventes estadísticas, nombres de perks, porcentajes, costes, materiales ni efectos.',
-            'Separa claramente datos que aparecen en las fuentes de tus recomendaciones razonadas.',
-            'Si las fuentes no confirman un dato, omítelo o di que no se pudo confirmar.',
+            'No inventes datos que no puedas respaldar con el contenido recuperado.',
+            'Separa claramente los datos encontrados de tus recomendaciones razonadas.',
+            'Si no se encuentra información suficiente, dilo brevemente y no completes con suposiciones.',
             'Para armas, prioriza ventajas/perks, sexta ventaja, elemento y estilo de uso si la fuente los menciona.',
             'Para héroes, explica habilidad, ventaja estándar/comandante y equipo o sinergias solo si están documentados.',
             'Incluye una recomendación de configuración solo cuando los datos recopilados la respalden.',
-            'No inventes ni cites fuentes que no estén en el contexto.',
-            'Máximo 2600 caracteres antes de la sección de fuentes.'
+            'No incluyas enlaces, citas, nombres de páginas ni una sección de fuentes en la respuesta al usuario.',
+            'Máximo 2600 caracteres.'
         ].join(' ')
     });
     const resultado = await modelo.generateContent(
         'Investiga este objeto de Fortnite: Salvar el Mundo: "' + nombre + '". ' +
         'Primero identifica si es arma o héroe si las fuentes lo permiten. Después resume datos verificados, ' +
         'build/perks recomendados, por qué sirven, alternativas si hay evidencia y cualquier limitación. ' +
-        'Termina con una sección "Fuentes consultadas" enumerando los títulos y URL exactos que aparecen abajo.\n\n' + contexto
+        'No menciones páginas, fuentes, enlaces ni referencias en la respuesta final.\n\n' + contexto
     );
     return resultado.response.text().trim();
 }
