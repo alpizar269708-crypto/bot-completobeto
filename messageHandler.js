@@ -1,6 +1,7 @@
 const mongoose = require('mongoose'); 
 const { ejecutarMenu } = require('./comandos/menu');
 const { alertasSTW, comandoDestacadasSTW, comandoPreguntarAlerta, comandoSubirPL, activarAlertasDiarias, desactivarAlertasDiarias } = require('./comandos/fortnite');
+const { comandoBuildSTW } = require('./comandos/buildstw');
 const { iniciarGuiaPL, manejarRespuestaGuiaPL } = require('./comandos/guiaPL');
 const { comandoPavosOficial } = require('./comandos/fortnitedb');
 const { comandoTiendaMenu, comandoTiendaCategoria } = require('./comandos/tienda');
@@ -30,7 +31,7 @@ const { comandoPaypal, comandoCalculadoraPaypal } = require('./comandos/paypal')
 const { comandoVerEliminados } = require('./comandos/verelim');
 
 const categoriasMap = {
-    'fortnite': ['pavos', 'rpavos', 'destacadasstw', 'legendariasstw', 'epicasstw', 'alertasstw', 'stw', 'alerta', 'alertanov', 'recompensa', 'recompensanov', 'subirpl', 'guiapl'],
+    'fortnite': ['pavos', 'rpavos', 'destacadasstw', 'legendariasstw', 'epicasstw', 'alertasstw', 'stw', 'alerta', 'alertanov', 'recompensa', 'recompensanov', 'subirpl', 'guiapl', 'buildstw', 'buildstw'],
     'economia': ['cartera', 'bal', 'banco', 'pay', 'pagar', 'top', 'topdinero', 'daily', 'weekly', 'farmear', 'work', 'crime', 'mendigar', 'pescar', 'minar', 'cazar', 'explorar', 'ruleta', 'cf', 'slots', 'dados', 'adivina', 'buscaminas', 'rob', 'ppt', 'pelea', 'carrera', 'hackear', 'shop', 'buy', 'inventario', 'mochila', 'vender', 'use', 'regalar'],
     'utilidades': ['s', 'sticker', 'recup1vez', 'descargar', 'download', 'tiktok', 'instagram', 'pinterest', 'x', 'twitter', 'traduce', 'skin', 'stats', 'tiendastats', 'tiendavb', 'contacto', 'ping', 'verelim'],
     'paypal': ['paypal', 'paypaln', 'paypali'],
@@ -403,6 +404,7 @@ Apoya a un creador: JASC13` });
             ['alertanov', 'Busca alertas con detalles y cantidades disponibles en la fuente.'],
             ['subirpl', 'Recomienda alertas guardadas para subir potencia; acepta un PL, por ejemplo: subirpl 62, o subirpl oro.'],
             ['guiapl', 'Hace preguntas numeradas y genera una guía personal de farmeo según tu PL, tus recursos y la rotación que extrae el bot.'],
+            ['buildstw', 'Busca información web y recomienda una build para el arma o héroe de Salvar el Mundo que escribas después del comando.'],
             ['grupo', 'Abre o cierra el chat del grupo.'],
             ['mute', 'Silencia a un usuario del grupo.'],
             ['unmute', 'Quita el silencio a un usuario.'],
@@ -739,6 +741,9 @@ Apoya a un creador: JASC13` });
                 break;
             case 'guiapl':
                 await iniciarGuiaPL(sock, chatJid, msg, args);
+                break;
+            case 'buildstw':
+                await comandoBuildSTW(sock, chatJid, msg, argsOriginales);
                 break;
             case 'recompensa':
                 await comandoPreguntarAlerta(sock, chatJid, msg, args, undefined, false, true);
