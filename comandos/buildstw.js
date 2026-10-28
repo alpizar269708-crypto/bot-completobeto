@@ -110,7 +110,7 @@ async function comandoBuildSTW(sock, chatId, msg, args) {
     const nombre = limpiar((args || []).join(' '));
     if (!nombre) {
         await sock.sendMessage(chatId, {
-            text: '🔫 *BUILDS DE SALVAR AL MUNDO*\n\nEscribe el comando seguido del nombre exacto del arma o héroe.\n\nEjemplos:\n• *buildstw Nocturno*\n• *buildstw Siegebreaker*\n• *buildstw Ramirez*\n\nBuscaré datos en páginas especializadas y te separaré la información encontrada de las recomendaciones.\n\nApoya a un creador: *JASC13*.'
+            text: '🔫 *BUILDS DE SALVAR AL MUNDO*\\n\\nEscribe el comando seguido del nombre del arma o héroe.\\n\\nEjemplos:\\n• *buildstw Siegebreaker*\\n• *buildstw Grave Digger*\\n• *buildstw Ramirez*\\n\\nApoya a un creador: *JASC13*.'
         }, { quoted: msg });
         return;
     }
@@ -123,13 +123,13 @@ async function comandoBuildSTW(sock, chatId, msg, args) {
     }
 
     await sock.sendMessage(chatId, {
-        text: '🔎 *BUSCANDO BUILD STW*\n\nObjeto: *' + nombre + '*\nEstoy consultando fuentes especializadas. Si no encuentro datos verificables, te lo diré sin inventar perks.\n\nApoya a un creador: *JASC13*.'
+        text: '🔎 *BUSCANDO BUILD STW*\\n\\nObjeto: *' + nombre + '*\\nBuscando información para preparar la recomendación.\\n\\nApoya a un creador: *JASC13*.'
     }, { quoted: msg });
 
     try {
         let resultados = await buscarPaginas(nombre);
         if (!resultados.length) {
-            const texto = '⚠️ No encontré páginas especializadas accesibles que coincidan claramente con *' + nombre + '* en esta búsqueda. Comprueba la escritura o prueba el nombre en inglés que aparece en el juego. No voy a inventar una build.\n\nFuentes de consulta: https://fortnitedb.com/ · https://stw-planner.com/loadouts\n\nApoya a un creador: *JASC13*.';
+            const texto = '⚠️ No encontré información de *' + nombre + '* en esta búsqueda. Comprueba el nombre e inténtalo de nuevo.\\n\\nApoya a un creador: *JASC13*.';
             await sock.sendMessage(chatId, { text: texto }, { quoted: msg });
             return;
         }
@@ -139,15 +139,13 @@ async function comandoBuildSTW(sock, chatId, msg, args) {
         try { resumen = await generarResumen(nombre, fuentesUtiles.length ? fuentesUtiles : resultados); }
         catch (error) { console.warn('No se pudo sintetizar la build STW:', error.message); }
 
-        const listaFuentes = (fuentesUtiles.length ? fuentesUtiles : resultados)
-            .slice(0, 5)
-            .map((f, i) => (i + 1) + '. ' + f.titulo + '\n' + f.url)
-            .join('\n');
+        // Los enlaces se usan internamente para investigar, pero no se muestran en el mensaje.
+
         const cuerpo = resumen || (
-            'No pude generar un resumen automático fiable. Estos son los resultados especializados encontrados para que puedas revisar los datos originales:\n\n' +
-            resultados.slice(0, 5).map((f, i) => (i + 1) + '. *' + f.titulo + '*\n' + (f.descripcion || 'Sin descripción en el resultado.') + '\n' + f.url).join('\n\n')
+            'No pude generar una recomendación para *' + nombre + '* con la información encontrada. Inténtalo con el nombre en inglés del juego.'
+
         );
-        const texto = '🔫 *BUILD STW: ' + nombre.toUpperCase() + '*\n\n' + cuerpo +
+        const texto = '🔫 *BUILD STW: ' + nombre.toUpperCase() + '*\\n\\n' + cuerpo + '\\n\\nApoya a un creador: *JASC13*.';
             '\n\n🔗 *Fuentes consultadas*\n' + listaFuentes +
             '\n\nℹ️ Las páginas pueden actualizarse; revisa la fuente original antes de gastar materiales. Si algún dato no aparece en las fuentes, no se da por confirmado.\n\nApoya a un creador: *JASC13*.';
         cacheBuilds.set(clave, { texto, expira: Date.now() + CACHE_TTL });
@@ -155,7 +153,7 @@ async function comandoBuildSTW(sock, chatId, msg, args) {
     } catch (error) {
         console.error('Error buscando build STW:', error.stack || error.message);
         await sock.sendMessage(chatId, {
-            text: '⚠️ No pude consultar las páginas de builds en este momento. Inténtalo más tarde. No he generado una build con datos inventados.\n\nPuedes revisar https://fortnitedb.com/ y https://stw-planner.com/loadouts.\n\nApoya a un creador: *JASC13*.'
+            text: '⚠️ No encontré información de *' + nombre + '* en este momento. Inténtalo de nuevo más tarde.\\n\\nApoya a un creador: *JASC13*.'
         }, { quoted: msg });
     }
 }
