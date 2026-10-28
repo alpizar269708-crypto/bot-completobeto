@@ -146,8 +146,6 @@ async function comandoBuildSTW(sock, chatId, msg, args) {
 
         );
         const texto = '🔫 *BUILD STW: ' + nombre.toUpperCase() + '*\\n\\n' + cuerpo + '\\n\\nApoya a un creador: *JASC13*.';
-            '\n\n🔗 *Fuentes consultadas*\n' + listaFuentes +
-            '\n\nℹ️ Las páginas pueden actualizarse; revisa la fuente original antes de gastar materiales. Si algún dato no aparece en las fuentes, no se da por confirmado.\n\nApoya a un creador: *JASC13*.';
         cacheBuilds.set(clave, { texto, expira: Date.now() + CACHE_TTL });
         await sock.sendMessage(chatId, { text }, { quoted: msg });
     } catch (error) {
