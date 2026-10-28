@@ -85,7 +85,8 @@ async function ejecutarMenu(sock, chatId, msg, args) {
     `*${prefijo}recompensanov [tipo] [rareza]* - Igual, pero con detalles de la misión y cantidades disponibles.\n` +
     `*${prefijo}subirpl [PL]* - Recomienda misiones útiles para subir potencia según el PL indicado (por defecto PL 62).\n` +
     `*${prefijo}subirpl oro* - Busca alertas guardadas que indiquen oro como recompensa.\n` +
-    `*${prefijo}guiapl* - Te hace preguntas numeradas y genera una guía personal con la rotación de alertas que extrae el bot. Responde con números; puedes escribir *cancelar* para salir.\n`;
+    `*${prefijo}guiapl* - Te hace preguntas numeradas y genera una guía personal con la rotación de alertas que extrae el bot. Responde con números; puedes escribir *cancelar* para salir.\n` +
+    `*${prefijo}buildstw [nombre]* - Busca una build para un arma o héroe concreto, con perks, recomendaciones y fuentes web. Ejemplos: *buildstw Nocturno* o *buildstw Ramirez*.\\n`;
 
     // Los comandos administrativos se encuentran en *menú moderación*.
 
