@@ -1037,7 +1037,8 @@ async function enviarAlertaPavosAutomatica(sock, actualizarEnVivo = false, horaA
             let avisoEnviado = false;
             for (const grupo of grupos) {
                 try {
-                    await sock.sendMessage(grupo, { text: '🎮 *ALERTAS DE PAVOS AUTOMÁTICA*\n\n💔 No hay alertas de PaVos hoy. 😔\n\nSupport-a-Creator: *JASC13* ❤️' });
+                    const mensajeVacio = await sock.sendMessage(grupo, { text: '🎮 *ALERTAS DE PAVOS AUTOMÁTICA*\n\n💔 No hay alertas de PaVos hoy. 😔\n\nSupport-a-Creator: *JASC13* ❤️' });
+                    await fijarAlertaPavosEnGrupo(sock, grupo, mensajeVacio?.key, fechaCDMX());
                     avisoEnviado = true;
                 } catch (e) {
                     console.error('Error enviando aviso de alertas vacías:', e.message);
@@ -1077,19 +1078,11 @@ async function enviarAlertaPavosAutomatica(sock, actualizarEnVivo = false, horaA
                 const socketEnvio = socketAlertasDiariasActivo || sock;
                 const mensajeEnviado = await socketEnvio.sendMessage(grupo, { text: mensaje });
 
-                // Fija la alerta principal durante 24 horas, incluso si se envía
-                // tarde por un reintento automático o tras una reconexión.
-                // No fija las alertas secundarias de las 6:02 ni de las 6:05.
+                // Solo se fija el mensaje principal de las 6:01:20 PM y sus recuperaciones.
+                // WhatsApp exige indicar time: 86400 para limitar la fijación a 24 horas.
                 const esAlertaPrincipal = ['6:01:20 PM', 'reintento automático', 'recuperación tras reconexión'].includes(horaAlerta);
                 if (esAlertaPrincipal && mensajeEnviado?.key) {
-                    try {
-                        await socketEnvio.sendMessage(grupo, {
-                            pin: { key: mensajeEnviado.key, type: 1 }
-                        });
-                        console.log('📌 Alerta diaria de PaVos fijada en el grupo ' + grupo + '.');
-                    } catch (errorPin) {
-                        console.warn('⚠️ La alerta se envió, pero no se pudo fijar en ' + grupo + ': ' + (errorPin.message || errorPin));
-                    }
+                    await fijarAlertaPavosEnGrupo(socketEnvio, grupo, mensajeEnviado.key, hoy);
                 }
 
                 gruposEnviados.add(grupo);
@@ -1104,6 +1097,94 @@ async function enviarAlertaPavosAutomatica(sock, actualizarEnVivo = false, horaA
         console.error('Error en alerta diaria:', error.stack || error.message);
         return false;
     }
+}
+
+const CLAVE_REGISTRO_PIN_PAVOS = 'stw_pavos_alerta_pin_registry';
+const socketsConVigilanciaPins = new WeakSet();
+
+async function leerRegistroPinsPavos() {
+    try {
+        const doc = await Config.findOne({ clave: CLAVE_REGISTRO_PIN_PAVOS });
+        const parsed = doc?.valor ? JSON.parse(doc.valor) : [];
+        return Array.isArray(parsed) ? parsed : [];
+    } catch (error) {
+        console.warn('⚠️ No se pudo leer el registro de fijados de PaVos:', error.message);
+        return [];
+    }
+}
+
+async function guardarRegistroPinsPavos(registros) {
+    await Config.findOneAndUpdate(
+        { clave: CLAVE_REGISTRO_PIN_PAVOS },
+        { valor: JSON.stringify(registros) },
+        { upsert: true }
+    );
+}
+
+async function fijarAlertaPavosEnGrupo(sock, grupo, key, fecha = fechaCDMX(), forzar = false) {
+    if (!sock || !grupo || !key?.id) return false;
+    const registros = await leerRegistroPinsPavos();
+    const indice = registros.findIndex(r => r.grupo === grupo);
+    const previo = indice >= 0 ? registros[indice] : null;
+    const ahora = Date.now();
+
+    if (!forzar && previo?.key?.id === key.id && previo.ultimaFijacion &&
+        ahora - new Date(previo.ultimaFijacion).getTime() < 23 * 60 * 60 * 1000) {
+        return true;
+    }
+
+    try {
+        await sock.sendMessage(grupo, { pin: { key, type: 1, time: 86400 } });
+        const registro = { grupo, key, fecha, ultimaFijacion: new Date().toISOString(), pendiente: false };
+        if (indice >= 0) registros[indice] = registro;
+        else registros.push(registro);
+        await guardarRegistroPinsPavos(registros);
+        console.log('📌 Alerta de PaVos fijada por 24 horas en ' + grupo + ' (mensaje ' + key.id + ').');
+        return true;
+    } catch (errorPin) {
+        const registro = { grupo, key, fecha, ultimaFijacion: previo?.ultimaFijacion || null, pendiente: true };
+        if (indice >= 0) registros[indice] = registro;
+        else registros.push(registro);
+        try { await guardarRegistroPinsPavos(registros); } catch (_) {}
+        console.warn('⚠️ No se pudo fijar la alerta de PaVos en ' + grupo + '; se volverá a intentar: ' + (errorPin.message || errorPin));
+        return false;
+    }
+}
+
+async function revisarPinsAlertaPavos(sock) {
+    if (!sock) return;
+    const registros = await leerRegistroPinsPavos();
+    const ahora = Date.now();
+    for (const registro of registros) {
+        if (!registro?.grupo || !registro?.key?.id) continue;
+        const ultima = registro.ultimaFijacion ? new Date(registro.ultimaFijacion).getTime() : 0;
+        if (registro.pendiente || !ultima || ahora - ultima >= 23 * 60 * 60 * 1000) {
+            await fijarAlertaPavosEnGrupo(sock, registro.grupo, registro.key, registro.fecha || fechaCDMX(), true);
+        }
+    }
+}
+
+function instalarVigilanciaPinsAlertaPavos(sock) {
+    if (!sock?.ev || socketsConVigilanciaPins.has(sock)) return;
+    socketsConVigilanciaPins.add(sock);
+    sock.ev.on('messages.upsert', async ({ messages }) => {
+        try {
+            const registros = await leerRegistroPinsPavos();
+            for (const msg of (messages || [])) {
+                const pin = msg?.message?.protocolMessage?.pinInChat;
+                if (!pin) continue;
+                const clave = pin.key;
+                if (!clave?.id) continue;
+                const registro = registros.find(r => r.key?.id === clave.id && r.grupo === msg.key?.remoteJid);
+                if (registro && Number(pin.type) !== 1) {
+                    console.log('🔎 La alerta de PaVos fue des fijada en ' + registro.grupo + '; intentando fijarla otra vez.');
+                    await fijarAlertaPavosEnGrupo(socketAlertasDiariasActivo || sock, registro.grupo, registro.key, registro.fecha || fechaCDMX(), true);
+                }
+            }
+        } catch (error) {
+            console.warn('⚠️ Error revisando cambios de fijado de alertas de PaVos:', error.message);
+        }
+    });
 }
 
 const CLAVE_ESTADO_ALERTA_PAVOS = 'stw_pavos_alerta_diaria_estado';
@@ -1160,7 +1241,10 @@ async function guardarAlertaPavosEnviada(hoy, horario, firmasPorFuente = {}, gru
 function iniciarCronAlertasDiarias(sock) {
     // El cron vive durante toda la vida del proceso, pero Baileys reemplaza el socket
     // al reconectar. Actualizamos siempre la referencia para no enviar con un socket muerto.
-    if (sock) socketAlertasDiariasActivo = sock;
+    if (sock) {
+        socketAlertasDiariasActivo = sock;
+        instalarVigilanciaPinsAlertaPavos(sock);
+    }
     if (cronAlertasDiariasIniciado) {
         console.log('ℹ️ El cron diario de STW ya estaba iniciado; no se duplicarán horarios.');
         return;
@@ -1258,6 +1342,17 @@ function iniciarCronAlertasDiarias(sock) {
             }
         }, { scheduled: true, timezone: zonaHoraria });
     }
+    // Revisa fijados pendientes cada 5 minutos y renueva antes de que venza el plazo de 24 h.
+    // Baileys no expone una consulta directa de todos los mensajes fijados del grupo; se guarda
+    // la clave del mensaje, se escuchan avisos de desfijado y se reintentan fallos.
+    cron.schedule('*/5 * * * *', async () => {
+        try {
+            await revisarPinsAlertaPavos(socketAlertasDiariasActivo || sock);
+        } catch (error) {
+            console.error('⚠️ Error en la revisión automática de fijados de PaVos:', error.message);
+        }
+    }, { scheduled: true, timezone: zonaHoraria });
+
     // Reintento liviano cada 30 segundos después de las 18:01:20 hasta que TODOS los grupos reciban la alerta.
     // Usa la caché ya guardada: no vuelve a raspar la web ni repite mensajes a grupos que ya confirmaron envío.
     cron.schedule('*/30 * * * * *', async () => {
