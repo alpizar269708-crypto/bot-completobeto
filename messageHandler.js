@@ -1,7 +1,7 @@
 const mongoose = require('mongoose'); 
 const { ejecutarMenu } = require('./comandos/menu');
 const { alertasSTW, comandoDestacadasSTW, comandoPreguntarAlerta, comandoSubirPL, activarAlertasDiarias, desactivarAlertasDiarias } = require('./comandos/fortnite');
-const { comandoBuildSTW } = require('./comandos/buildstw');
+const { comandoBuildSTW, manejarRespuestaBuildSTW } = require('./comandos/buildstw');
 const { iniciarGuiaPL, manejarRespuestaGuiaPL } = require('./comandos/guiaPL');
 const { comandoPavosOficial } = require('./comandos/fortnitedb');
 const { comandoTiendaMenu, comandoTiendaCategoria } = require('./comandos/tienda');
@@ -240,6 +240,9 @@ Apoya a un creador: JASC13` });
             return;
         }
     }
+
+    // Las respuestas pendientes de reemplazo de héroes se procesan antes de validar comandos.
+    if (await manejarRespuestaBuildSTW(sock, chatJid, msg, remitenteReal, textoOriginal)) return;
 
     // Las respuestas numéricas de la guía interactiva se procesan antes de la
     // validación general de comandos para que no se confundan con mensajes normales.
