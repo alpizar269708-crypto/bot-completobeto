@@ -160,24 +160,24 @@ async function generarResumen(nombre, fuentes) {
     const instrucciones = [
         'Eres un experto práctico en builds de Fortnite: Salvar el Mundo.',
         'La prioridad es entregar una configuración jugable y concreta, no una ficha histórica del objeto.',
-        'Responde en español mexicano, muy claro y directo para WhatsApp. Máximo 1800 caracteres; usa frases cortas y evita repetir ideas.',
+        'Responde en español mexicano, directo y sin explicaciones largas. Máximo 1000 caracteres.',
         'Formato obligatorio de WhatsApp: usa un solo asterisco para negritas (*texto*), nunca doble asterisco. Usa títulos breves y listas simples.',
-        'Explica cada perk en pocas palabras: qué poner y para qué sirve. Evita tecnicismos innecesarios, párrafos largos, introducciones, relleno y repetir la misma advertencia.',
+        'No expliques por qué funciona la build ni describas el arma. Devuelve solo listas claras con los perks y los héroes. Sin introducción, párrafos, historia, consejos ni alternativas salvo que sean indispensables.',
         'No inventes estadísticas exactas ni afirmes que una ventaja está disponible en el arma si las fuentes no lo confirman.',
         'Sí puedes recomendar una configuración meta razonada aunque las páginas recuperadas no enumeren todos los perks; marca claramente qué es recomendación y qué dato no se pudo confirmar.',
-        'Si el usuario escribe un arma, NO te limites a decir cómo mejorar esa arma: construye la build completa alrededor de ella. Incluye los perks del arma y un equipo de héroes completo: comandante + cinco apoyos, ventaja de equipo y qué aporta cada héroe. El usuario no debe tener que decirte qué héroe usar.',
-        'En perks, usa nombres prácticos en español: probabilidad crítica, daño crítico, daño, velocidad de recarga, tamaño del cargador y daño a objetivos afectados.',
+        'Si el usuario escribe un arma, responde solo con los perks recomendados en orden y los héroes de la build: comandante + cinco apoyos. No agregues ventaja de equipo ni expliques qué aporta cada héroe, a menos que sea imprescindible.',
+        'En perks, usa nombres prácticos en español: probabilidad crítica, daño crítico, daño, velocidad de recarga, tamaño del cargador y daño a objetivos afectados. Enuméralos en el orden de las casillas.',
         'Para rifles de asalto orientados a crítico, evalúa una base de 1 probabilidad crítica + 2 daño crítico + 1 daño, con energía como elemento general; aclara que se deben adaptar los perks a los espacios que realmente tenga el esquema.',
-        'Si el usuario escribe un héroe, úsalo como centro de la build y decide si conviene como comandante o apoyo; entrega el equipo completo de seis héroes, ventaja de equipo y arma recomendada. No le pidas al usuario que elija el héroe: decide tú según el nombre que te dio.',
-        'En cualquier consulta, da una configuración ya armada, no instrucciones para que el usuario la diseñe. Lista claramente: COMANDANTE, APOYOS 1-5, VENTAJA DE EQUIPO y ARMA/PERKS cuando aplique. Elige nombres concretos que tengan sinergia real; explica cada elección con pocas palabras. Si un nombre o perk no se puede confirmar, dilo brevemente y no lo inventes.',
-        'Incluye los datos históricos solo si ayudan a elegir la build; no los pongas por encima de la configuración.',
+        'Si el usuario escribe un héroe, entrega solo el equipo de seis héroes (comandante + cinco apoyos) que lo aproveche mejor y los perks del arma recomendada si corresponde. No le pidas al usuario que elija el héroe.',
+        'Formato de salida obligatorio: ARMA: lista de perks; HÉROES: Comandante y Apoyo 1-5. Solo nombres y configuración. No inventes nombres, héroes ni perks; si algo no se puede verificar, márcalo en una nota de una sola línea.',
+        'No incluyas datos históricos, explicación de la build, estilo de juego, enlaces ni sección de fuentes.',
         'No respondas únicamente que faltan datos, no des una recomendación genérica vacía y no incluyas enlaces, citas, nombres de páginas ni sección de fuentes.'
     ].join(' ');
     const prompt = 'Prepara una BUILD RECOMENDADA para Fortnite: Salvar el Mundo con este objeto: "' + nombre + '". ' +
-        'Entrega una configuración COMPLETA y ya elegida, no una guía para que el usuario la arme por su cuenta. ' +
-        'Si el nombre es un arma: 1) perks del arma en orden y elemento, 2) comandante concreto, 3) cinco héroes de apoyo concretos, 4) ventaja de equipo, 5) una línea de cómo jugarla. ' +
-        'Si el nombre es un héroe: úsalo como base y entrega el comandante/apoyos que mejor aprovechen su ventaja, más arma recomendada. ' +
-        'Explica cada elección en una frase corta. No le pidas al usuario que te diga qué héroe llevar ni le devuelvas solo una lista de opciones. ' +
+        'Devuelve únicamente la configuración final, sin explicación. ' +
+        'Si el nombre es un arma: lista sus perks en orden y después comandante + cinco héroes de apoyo. ' +
+        'Si el nombre es un héroe: lista el comandante + cinco apoyos de la build que mejor lo aproveche y los perks del arma recomendada si aplica. ' +
+        'No agregues motivos, consejos, historia, ventaja de equipo ni alternativas. ' +
         'Si es el Sepulturero/Grave Digger, trátalo como rifle de asalto y céntrate en daño sostenido/impacto crítico; no gastes la respuesta en su historia. ' +
         'No afirmes que un perk específico existe en ese esquema salvo que esté confirmado en el contexto. ' +
         'Si la información recuperada es pobre, usa conocimiento general del juego para dar una recomendación razonada y distingue lo no verificado.\n\n' + contexto;
@@ -188,7 +188,7 @@ async function generarResumen(nombre, fuentes) {
         try {
             const modelo = genAI.getGenerativeModel({ model: nombreModelo, systemInstruction: instrucciones });
             const resultado = await modelo.generateContent(prompt);
-            const texto = resultado.response.text().trim().replaceAll('**', '*').slice(0, 1800);
+            const texto = resultado.response.text().trim().replaceAll('**', '*').slice(0, 1000);
             if (texto) return texto;
         } catch (error) {
             ultimoError = error;
