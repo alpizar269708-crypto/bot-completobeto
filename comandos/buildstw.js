@@ -110,7 +110,16 @@ async function comandoBuildSTW(sock, chatId, msg, args) {
     const nombre = limpiar((args || []).join(' '));
     if (!nombre) {
         await sock.sendMessage(chatId, {
-            text: '🔫 *BUILDS DE SALVAR AL MUNDO*\\n\\nEscribe el comando seguido del nombre del arma o héroe.\\n\\nEjemplos:\\n• *buildstw Siegebreaker*\\n• *buildstw Grave Digger*\\n• *buildstw Ramirez*\\n\\nApoya a un creador: *JASC13*.'
+            text: `🔫 *BUILDS DE SALVAR AL MUNDO*
+
+Escribe el comando seguido del nombre del arma o héroe.
+
+Ejemplos:
+• *buildstw Siegebreaker*
+• *buildstw Grave Digger*
+• *buildstw Ramirez*
+
+Apoya a un creador: *JASC13*.`
         }, { quoted: msg });
         return;
     }
@@ -118,42 +127,116 @@ async function comandoBuildSTW(sock, chatId, msg, args) {
     const clave = nombre.toLocaleLowerCase('es-MX');
     const guardado = cacheBuilds.get(clave);
     if (guardado && guardado.expira > Date.now()) {
+        console.info('[buildstw] Resultado servido desde caché:', { nombre });
         await sock.sendMessage(chatId, { text: guardado.texto }, { quoted: msg });
         return;
     }
 
+    let etapa = 'Inicio del comando';
+    const registroEtapa = (nuevaEtapa, datos = {}) => {
+        etapa = nuevaEtapa;
+        console.info('[buildstw] ' + etapa, { nombre, ...datos });
+    };
+
     await sock.sendMessage(chatId, {
-        text: '🔎 *BUSCANDO BUILD STW*\\n\\nObjeto: *' + nombre + '*\\nBuscando información para preparar la recomendación.\\n\\nApoya a un creador: *JASC13*.'
+        text: `🔎 *BUSCANDO BUILD STW*
+
+Objeto: *${nombre}*
+Buscando información para preparar la recomendación.
+
+Apoya a un creador: *JASC13*.`
     }, { quoted: msg });
 
     try {
-        let resultados = await buscarPaginas(nombre);
+        registroEtapa('Preparando consulta de búsqueda');
+        registroEtapa('Consultando buscador DuckDuckGo');
+        const resultados = await buscarPaginas(nombre);
+        console.info('[buildstw] Resultados del buscador:', {
+            nombre,
+            cantidad: resultados.length,
+            resultados: resultados.map(r => ({
+                titulo: r.titulo,
+                dominio: (() => { try { return new URL(r.url).hostname; } catch (_) { return 'URL no válida'; } })(),
+                tieneDescripcion: Boolean(r.descripcion)
+            }))
+        });
+
         if (!resultados.length) {
-            const texto = '⚠️ No encontré información de *' + nombre + '* en esta búsqueda. Comprueba el nombre e inténtalo de nuevo.\\n\\nApoya a un creador: *JASC13*.';
+            registroEtapa('Búsqueda terminada sin resultados permitidos');
+            const texto = `⚠️ No encontré información de *${nombre}* en esta búsqueda. Comprueba el nombre e inténtalo de nuevo.
+
+Apoya a un creador: *JASC13*.`;
             await sock.sendMessage(chatId, { text: texto }, { quoted: msg });
             return;
         }
+
+        registroEtapa('Descargando y extrayendo el contenido de las páginas', { cantidadResultados: resultados.length });
         const fuentes = await Promise.all(resultados.map(extraerPagina));
         const fuentesUtiles = fuentes.filter(f => (f.contenido || f.descripcion || '').length > 30);
+        registroEtapa('Contenido extraído; preparando resumen con IA', {
+            paginasEncontradas: resultados.length,
+            paginasConContenido: fuentesUtiles.length
+        });
+
         let resumen = null;
-        try { resumen = await generarResumen(nombre, fuentesUtiles.length ? fuentesUtiles : resultados); }
-        catch (error) { console.warn('No se pudo sintetizar la build STW:', error.message); }
+        try {
+            resumen = await generarResumen(nombre, fuentesUtiles.length ? fuentesUtiles : resultados);
+            registroEtapa('Resumen generado', { resumenVacio: !resumen });
+        } catch (error) {
+            console.error('[buildstw] Falló la generación del resumen con IA:', {
+                etapa, name: error?.name, message: error?.message, code: error?.code,
+                status: error?.response?.status, stack: error?.stack
+            });
+            throw Object.assign(new Error('Falló la generación del resumen con IA: ' + (error?.message || String(error))), {
+                etapaError: 'Generación del resumen con IA',
+                causa: error
+            });
+        }
 
-        // Los enlaces se usan internamente para investigar, pero no se muestran en el mensaje.
+        const cuerpo = resumen || ('No pude generar una recomendación para *' + nombre + '* con la información encontrada. Inténtalo con el nombre en inglés del juego.');
+        const texto = `🔫 *BUILD STW: ${nombre.toUpperCase()}*
 
-        const cuerpo = resumen || (
-            'No pude generar una recomendación para *' + nombre + '* con la información encontrada. Inténtalo con el nombre en inglés del juego.'
+${cuerpo}
 
-        );
-        const texto = '🔫 *BUILD STW: ' + nombre.toUpperCase() + '*\\n\\n' + cuerpo + '\\n\\nApoya a un creador: *JASC13*.';
+Apoya a un creador: *JASC13*.`;
         cacheBuilds.set(clave, { texto, expira: Date.now() + CACHE_TTL });
-        await sock.sendMessage(chatId, { text }, { quoted: msg });
+        registroEtapa('Enviando respuesta final a WhatsApp');
+        await sock.sendMessage(chatId, { text: texto }, { quoted: msg });
+        registroEtapa('Proceso completado correctamente');
     } catch (error) {
-        console.error('Error buscando build STW:', error.stack || error.message);
-        await sock.sendMessage(chatId, {
-            text: '⚠️ No encontré información de *' + nombre + '* en este momento. Inténtalo de nuevo más tarde.\\n\\nApoya a un creador: *JASC13*.'
-        }, { quoted: msg });
+        const causa = error?.causa || error;
+        const etapaError = error?.etapaError || etapa;
+        const nombreError = causa?.name || error?.name || 'Error';
+        const mensajeError = causa?.message || error?.message || String(error);
+        const codigoError = causa?.code || error?.code || 'No disponible';
+        const estadoHttp = causa?.response?.status || error?.response?.status || 'No disponible';
+        const urlError = causa?.config?.url || error?.config?.url || 'No disponible';
+        const stackError = String(causa?.stack || error?.stack || 'Stack no disponible').slice(0, 2600);
+
+        console.error('[buildstw] ERROR DETALLADO', {
+            objeto: nombre, etapa: etapaError, nombreError, mensajeError, codigoError, estadoHttp, urlError,
+            stack: causa?.stack || error?.stack
+        });
+
+        const detalle = `⚠️ *ERROR EN BUILDS STW*
+
+Objeto: *${nombre}*
+Proceso donde falló: *${etapaError}*
+Tipo de error: ${nombreError}
+Mensaje: ${mensajeError}
+Código: ${codigoError}
+Estado HTTP: ${estadoHttp}
+URL implicada: ${urlError}
+
+Detalle técnico:
+${stackError}
+
+Apoya a un creador: *JASC13*.`;
+        try {
+            await sock.sendMessage(chatId, { text: detalle }, { quoted: msg });
+        } catch (errorEnvio) {
+            console.error('[buildstw] También falló el envío del diagnóstico por WhatsApp:', errorEnvio?.stack || errorEnvio?.message || errorEnvio);
+        }
     }
 }
-
 module.exports = { comandoBuildSTW };
