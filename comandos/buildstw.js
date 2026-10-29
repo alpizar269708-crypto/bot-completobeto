@@ -236,8 +236,11 @@ async function generarReemplazosHeroes(nombre, buildActual, indices, fuentes) {
         'Eres experto práctico en builds de Fortnite: Salvar el Mundo.',
         'Responde en español mexicano, breve, usando formato WhatsApp con un solo asterisco para negritas.',
         'El usuario no tiene los héroes identificados por estos números: ' + indices.join(', ') + '.',
-        'Sustituye solamente esos héroes. Conserva exactamente los perks del arma y los héroes de los números no señalados.',
-        'Respeta las posiciones: 1 es Comandante y 2-6 son apoyos. Devuelve la build completa con perks y los seis héroes numerados del 1 al 6.',
+        'Esto puede ser una build solicitada por nombre de arma o una build centrada en un héroe. Identifica el tipo a partir de la build actual y del nombre solicitado.',
+        'Sustituye solamente los héroes cuyos números indicó el usuario. Conserva exactamente los perks del arma recomendada y los héroes de los números no señalados.',
+        'Si la build está centrada en un héroe y el usuario pide sustituir precisamente ese héroe, recomienda un reemplazo que mantenga una función parecida en la build; si no pidió sustituirlo, consérvalo.',
+        'Si es una build de arma, conserva los perks y reemplaza solo los héroes solicitados. Si es una build centrada en un héroe, conserva los perks del arma recomendada y reemplaza solo los héroes solicitados.',
+        'Respeta las posiciones: 1 es Comandante y 2-6 son apoyos. Devuelve la build completa con perks cuando correspondan y los seis héroes numerados del 1 al 6.',
         'Recomienda héroes reales de Salvar el Mundo que sean sustitutos razonables para esa build. No inventes nombres ni cambies los héroes no seleccionados.',
         'No incluyas explicación, introducción, alternativas ni comentarios.'
     ].join(' ');
