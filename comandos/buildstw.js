@@ -29,31 +29,79 @@ function urlPermitida(url) {
 }
 
 async function buscarPaginas(nombre) {
-    const consulta = encodeURIComponent('Fortnite Save the World "' + nombre + '" weapon perks build hero');
-    const respuesta = await axios.get('https://html.duckduckgo.com/html/?q=' + consulta, {
-        timeout: 12000,
-        headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131.0.0.0 Safari/537.36',
-            'Accept-Language': 'en-US,en;q=0.9'
-        }
-    });
-    const $ = cheerio.load(respuesta.data);
+    const consultas = [
+        'Fortnite Save the World ' + nombre + ' weapon perks build hero',
+        'Fortnite Salvar el Mundo ' + nombre + ' arma ventajas'
+    ];
+    const headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+        'Accept-Language': 'es-MX,es;q=0.9,en-US;q=0.8,en;q=0.7'
+    };
     const enlaces = [];
-    $('.result').each((_, el) => {
-        const a = $(el).find('.result__a').first();
-        let url = a.attr('href') || '';
-        try {
-            const parsed = new URL(url, 'https://duckduckgo.com');
-            url = parsed.searchParams.get('uddg') || url;
-        } catch (_) {}
-        if (!urlPermitida(url)) return;
-        const titulo = limpiar(a.text());
-        const descripcion = limpiar($(el).find('.result__snippet').text());
-        if (!enlaces.some(x => x.url === url)) enlaces.push({ titulo, url, descripcion });
-    });
-    return enlaces.slice(0, 5);
-}
+    const vistos = new Set();
 
+    const agregarResultado = (url, titulo, descripcion, motor) => {
+        try {
+            const parsed = new URL(url);
+            if (!urlPermitida(parsed.href) || vistos.has(parsed.href)) return;
+            vistos.add(parsed.href);
+            enlaces.push({ titulo: limpiar(titulo), url: parsed.href, descripcion: limpiar(descripcion), motor });
+        } catch (_) {}
+    };
+
+    // Se prueban dos motores: si DuckDuckGo se queda colgado, Bing sirve de respaldo.
+    for (const consulta of consultas) {
+        try {
+            console.info('[buildstw] Consultando DuckDuckGo', { consulta });
+            const respuesta = await axios.get('https://html.duckduckgo.com/html/?q=' + encodeURIComponent(consulta), {
+                timeout: 15000, headers
+            });
+            const $ = cheerio.load(respuesta.data);
+            $('.result').each((_, el) => {
+                const a = $(el).find('.result__a').first();
+                let url = a.attr('href') || '';
+                try {
+                    const parsed = new URL(url, 'https://duckduckgo.com');
+                    url = parsed.searchParams.get('uddg') || url;
+                } catch (_) {}
+                agregarResultado(url, a.text(), $(el).find('.result__snippet').text(), 'DuckDuckGo');
+            });
+        } catch (error) {
+            console.warn('[buildstw] DuckDuckGo falló; se intentará el siguiente motor:', {
+                consulta, name: error?.name, message: error?.message, code: error?.code, status: error?.response?.status
+            });
+        }
+        if (enlaces.length >= 5) break;
+    }
+
+    if (enlaces.length < 5) {
+        for (const consulta of consultas) {
+            try {
+                console.info('[buildstw] Consultando Bing como respaldo', { consulta });
+                const respuesta = await axios.get('https://www.bing.com/search?q=' + encodeURIComponent(consulta), {
+                    timeout: 15000, headers
+                });
+                const $ = cheerio.load(respuesta.data);
+                $('li.b_algo').each((_, el) => {
+                    const a = $(el).find('h2 a').first();
+                    const url = a.attr('href') || '';
+                    const descripcion = $(el).find('.b_caption p, p').first().text();
+                    agregarResultado(url, a.text(), descripcion, 'Bing');
+                });
+            } catch (error) {
+                console.warn('[buildstw] Falló la búsqueda de respaldo:', {
+                    motor: 'Bing', consulta, name: error?.name, message: error?.message, code: error?.code, status: error?.response?.status
+                });
+            }
+            if (enlaces.length >= 5) break;
+        }
+    }
+
+    console.info('[buildstw] Búsqueda finalizada', {
+        cantidad: enlaces.length, motores: [...new Set(enlaces.map(x => x.motor))]
+    });
+    return enlaces.slice(0, 5).map(({ motor, ...resultado }) => resultado);
+}
 async function extraerPagina(fuente) {
     try {
         const respuesta = await axios.get(fuente.url, {
