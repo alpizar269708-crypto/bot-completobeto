@@ -14,6 +14,16 @@ const DOMINIOS_PERMITIDOS = [
 ];
 const CACHE_TTL = 30 * 60 * 1000;
 const cacheBuilds = new Map();
+const sesionesReemplazoHeroes = new Map();
+const SESION_REEMPLAZO_TTL = 10 * 60 * 1000;
+
+function claveSesion(chatId, remitente) {
+    return String(chatId) + ':' + String(remitente);
+}
+
+function preguntaHeroes() {
+    return '\n\n¿Te falta algún héroe de la lista? Escribe su número o números (ejemplo: *3* o *1,3,5*). Si tienes todos, escribe *0*.';
+}
 
 function limpiar(texto) {
     return String(texto || '').replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim();
@@ -169,12 +179,12 @@ async function generarResumen(nombre, fuentes) {
         'En perks, usa nombres prácticos en español: probabilidad crítica, daño crítico, daño, velocidad de recarga, tamaño del cargador y daño a objetivos afectados. Enuméralos en el orden de las casillas.',
         'Para rifles de asalto orientados a crítico, evalúa una base de 1 probabilidad crítica + 2 daño crítico + 1 daño, con energía como elemento general; aclara que se deben adaptar los perks a los espacios que realmente tenga el esquema.',
         'Si el usuario escribe un héroe, entrega solo el equipo de seis héroes (comandante + cinco apoyos) que lo aproveche mejor y los perks del arma recomendada si corresponde. No le pidas al usuario que elija el héroe.',
-        'Formato de salida obligatorio: ARMA: lista de perks; HÉROES: Comandante y Apoyo 1-5. Solo nombres y configuración. No inventes nombres, héroes ni perks; si algo no se puede verificar, márcalo en una nota de una sola línea.',
+        'Formato obligatorio: PERKS: lista numerada en orden. HÉROES: lista numerada del 1 al 6, donde 1 es Comandante y 2-6 son los cinco apoyos. Escribe un héroe por número y no omitas la numeración. Solo nombres y configuración. No inventes nombres, héroes ni perks; si algo no se puede verificar, márcalo en una nota de una sola línea.',
         'No incluyas datos históricos, explicación de la build, estilo de juego, enlaces ni sección de fuentes.',
         'No respondas únicamente que faltan datos, no des una recomendación genérica vacía y no incluyas enlaces, citas, nombres de páginas ni sección de fuentes.'
     ].join(' ');
     const prompt = 'Prepara una BUILD RECOMENDADA para Fortnite: Salvar el Mundo con este objeto: "' + nombre + '". ' +
-        'Devuelve únicamente la configuración final, sin explicación. ' +
+        'Devuelve únicamente la configuración final, sin explicación. Numera los seis héroes del 1 al 6 (1 = Comandante; 2-6 = apoyos). ' +
         'Si el nombre es un arma: lista sus perks en orden y después comandante + cinco héroes de apoyo. ' +
         'Si el nombre es un héroe: lista el comandante + cinco apoyos de la build que mejor lo aproveche y los perks del arma recomendada si aplica. ' +
         'No agregues motivos, consejos, historia, ventaja de equipo ni alternativas. ' +
@@ -215,6 +225,75 @@ async function generarResumen(nombre, fuentes) {
     return null;
 }
 
+async function generarReemplazosHeroes(nombre, buildActual, indices, fuentes) {
+    const apiKey = process.env.GOOGLE_API_KEY;
+    if (!apiKey) throw new Error('La IA no está configurada para recomendar reemplazos.');
+    const contexto = (fuentes || []).map((f, i) =>
+        '[' + (i + 1) + '] ' + f.titulo + '\n' + (f.contenido || f.descripcion || '').slice(0, 3500)
+    ).join('\n\n---\n\n').slice(0, 12000);
+    const genAI = new GoogleGenerativeAI(apiKey);
+    const instrucciones = [
+        'Eres experto práctico en builds de Fortnite: Salvar el Mundo.',
+        'Responde en español mexicano, breve, usando formato WhatsApp con un solo asterisco para negritas.',
+        'El usuario no tiene los héroes identificados por estos números: ' + indices.join(', ') + '.',
+        'Sustituye solamente esos héroes. Conserva exactamente los perks del arma y los héroes de los números no señalados.',
+        'Respeta las posiciones: 1 es Comandante y 2-6 son apoyos. Devuelve la build completa con perks y los seis héroes numerados del 1 al 6.',
+        'Recomienda héroes reales de Salvar el Mundo que sean sustitutos razonables para esa build. No inventes nombres ni cambies los héroes no seleccionados.',
+        'No incluyas explicación, introducción, alternativas ni comentarios.'
+    ].join(' ');
+    const prompt = 'El usuario está usando esta build para "' + nombre + '". Reemplaza únicamente los héroes de estas posiciones: ' + indices.join(', ') + '.\n\nBUILD ACTUAL:\n' + buildActual + '\n\nCONTEXTO RECUPERADO:\n' + contexto;
+    let ultimoError;
+    for (const modeloNombre of ['gemini-3.6-flash', 'gemini-2.5-flash']) {
+        try {
+            const modelo = genAI.getGenerativeModel({ model: modeloNombre, systemInstruction: instrucciones });
+            const resultado = await modelo.generateContent(prompt);
+            const texto = resultado.response.text().trim().replaceAll('**', '*').slice(0, 1000);
+            if (texto) return texto;
+        } catch (error) {
+            ultimoError = error;
+            const mensaje = String(error?.message || error);
+            if (!/(503|429|high demand|overloaded|temporar|unavailable|rate.?limit)/i.test(mensaje)) throw error;
+        }
+    }
+    throw ultimoError || new Error('No se pudieron generar los reemplazos.');
+}
+
+async function manejarRespuestaBuildSTW(sock, chatId, msg, remitente, textoOriginal) {
+    const clave = claveSesion(chatId, remitente);
+    const sesion = sesionesReemplazoHeroes.get(clave);
+    if (!sesion) return false;
+    if (sesion.expira <= Date.now()) {
+        sesionesReemplazoHeroes.delete(clave);
+        return false;
+    }
+    const texto = String(textoOriginal || '').trim().toLowerCase();
+    if (/^(0|no|ninguno|ninguna|tengo todos|tengo todas|todos)$/.test(texto)) {
+        sesionesReemplazoHeroes.delete(clave);
+        await sock.sendMessage(chatId, { text: '✅ Perfecto, conservamos la build tal como está.' }, { quoted: msg });
+        return true;
+    }
+    if (!/^[\d\s,.;y-]+$/.test(texto)) return false;
+    const numeros = texto.split(/[\s,.;y-]+/).filter(Boolean).map(Number);
+    const indices = [...new Set(numeros)];
+    if (!indices.length || indices.some(n => !Number.isInteger(n) || n < 1 || n > 6)) {
+        await sock.sendMessage(chatId, { text: '❌ Usa números del *1 al 6* separados por comas (ejemplo: *1,3,5*) o escribe *0* si tienes todos.' }, { quoted: msg });
+        return true;
+    }
+    await sock.sendMessage(chatId, { text: '🔄 Buscando reemplazos para los héroes ' + indices.join(', ') + '…' }, { quoted: msg });
+    try {
+        const nuevoCuerpo = await generarReemplazosHeroes(sesion.nombre, sesion.cuerpo, indices, sesion.fuentes);
+        sesion.cuerpo = nuevoCuerpo;
+        sesion.expira = Date.now() + SESION_REEMPLAZO_TTL;
+        sesionesReemplazoHeroes.set(clave, sesion);
+        const respuesta = '🔫 *BUILD STW: ' + sesion.nombre.toUpperCase() + '*\n\n' + nuevoCuerpo + preguntaHeroes() + '\n\nApoya a un creador: *JASC13*.';
+        await sock.sendMessage(chatId, { text: respuesta }, { quoted: msg });
+    } catch (error) {
+        console.error('[buildstw] Error recomendando reemplazos:', error?.stack || error?.message || error);
+        await sock.sendMessage(chatId, { text: '⚠️ No pude generar los reemplazos en este momento. Intenta responder con los números otra vez.' }, { quoted: msg });
+    }
+    return true;
+}
+
 async function comandoBuildSTW(sock, chatId, msg, args) {
     const nombre = limpiar((args || []).join(' '));
     if (!nombre) {
@@ -237,6 +316,11 @@ Apoya a un creador: *JASC13*.`
     const guardado = cacheBuilds.get(clave);
     if (guardado && guardado.expira > Date.now()) {
         console.info('[buildstw] Resultado servido desde caché:', { nombre });
+        const remitente = msg.key?.participant || msg.key?.remoteJid || chatId;
+        sesionesReemplazoHeroes.set(claveSesion(chatId, remitente), {
+            nombre: guardado.nombre || nombre, cuerpo: guardado.cuerpo,
+            fuentes: guardado.fuentes || [], expira: Date.now() + SESION_REEMPLAZO_TTL
+        });
         await sock.sendMessage(chatId, { text: guardado.texto }, { quoted: msg });
         return;
     }
@@ -311,12 +395,13 @@ Apoya a un creador: *JASC13*.`;
         }
 
         const cuerpo = resumen || ('No pude generar una recomendación para *' + nombre + '* con la información encontrada. Inténtalo con el nombre en inglés del juego.');
-        const texto = `🔫 *BUILD STW: ${nombre.toUpperCase()}*
-
-${cuerpo}
-
-Apoya a un creador: *JASC13*.`;
-        cacheBuilds.set(clave, { texto, expira: Date.now() + CACHE_TTL });
+        const texto = `🔫 *BUILD STW: ${nombre.toUpperCase()}*\n\n${cuerpo}${preguntaHeroes()}\n\nApoya a un creador: *JASC13*.`;
+        const remitente = msg.key?.participant || msg.key?.remoteJid || chatId;
+        const fuentesBuild = fuentesUtiles.length ? fuentesUtiles : resultados;
+        sesionesReemplazoHeroes.set(claveSesion(chatId, remitente), {
+            nombre, cuerpo, fuentes: fuentesBuild, expira: Date.now() + SESION_REEMPLAZO_TTL
+        });
+        cacheBuilds.set(clave, { texto, nombre, cuerpo, fuentes: fuentesBuild, expira: Date.now() + CACHE_TTL });
         registroEtapa('Enviando respuesta final a WhatsApp');
         await sock.sendMessage(chatId, { text: texto }, { quoted: msg });
         registroEtapa('Proceso completado correctamente');
@@ -356,4 +441,4 @@ Apoya a un creador: *JASC13*.`;
         }
     }
 }
-module.exports = { comandoBuildSTW };
+module.exports = { comandoBuildSTW, manejarRespuestaBuildSTW };
