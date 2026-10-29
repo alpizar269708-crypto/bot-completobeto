@@ -163,7 +163,15 @@ Apoya a un creador: *JASC13*.`
 
         if (!resultados.length) {
             registroEtapa('Búsqueda terminada sin resultados permitidos');
-            const texto = `⚠️ No encontré información de *${nombre}* en esta búsqueda. Comprueba el nombre e inténtalo de nuevo.
+            const texto = `⚠️ *BUILD STW: SIN RESULTADOS*
+
+Objeto: *${nombre}*
+Proceso donde se detuvo: *Búsqueda web*
+Resultado: el buscador respondió, pero no se encontraron coincidencias de los dominios admitidos.
+Coincidencias útiles: 0
+Consulta realizada: Fortnite Save the World "${nombre}" weapon perks build hero
+
+Prueba con el nombre en inglés o con el nombre exacto que aparece en el juego.
 
 Apoya a un creador: *JASC13*.`;
             await sock.sendMessage(chatId, { text: texto }, { quoted: msg });
