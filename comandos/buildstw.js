@@ -160,21 +160,24 @@ async function generarResumen(nombre, fuentes) {
     const instrucciones = [
         'Eres un experto práctico en builds de Fortnite: Salvar el Mundo.',
         'La prioridad es entregar una configuración jugable y concreta, no una ficha histórica del objeto.',
-        'Responde en español mexicano, muy claro y directo para WhatsApp. Máximo 1400 caracteres; usa frases cortas y evita repetir ideas.',
+        'Responde en español mexicano, muy claro y directo para WhatsApp. Máximo 1800 caracteres; usa frases cortas y evita repetir ideas.',
         'Formato obligatorio de WhatsApp: usa un solo asterisco para negritas (*texto*), nunca doble asterisco. Usa títulos breves y listas simples.',
         'Explica cada perk en pocas palabras: qué poner y para qué sirve. Evita tecnicismos innecesarios, párrafos largos, introducciones, relleno y repetir la misma advertencia.',
         'No inventes estadísticas exactas ni afirmes que una ventaja está disponible en el arma si las fuentes no lo confirman.',
         'Sí puedes recomendar una configuración meta razonada aunque las páginas recuperadas no enumeren todos los perks; marca claramente qué es recomendación y qué dato no se pudo confirmar.',
-        'Si es un arma, entrega: tipo de arma, configuración de los cuatro perks en orden, elemento recomendado, qué hacer con el sexto perk, estilo de juego y alternativa si no tiene los perks sugeridos.',
+        'Si el usuario escribe un arma, NO te limites a decir cómo mejorar esa arma: construye la build completa alrededor de ella. Incluye los perks del arma y un equipo de héroes completo: comandante + cinco apoyos, ventaja de equipo y qué aporta cada héroe. El usuario no debe tener que decirte qué héroe usar.',
         'En perks, usa nombres prácticos en español: probabilidad crítica, daño crítico, daño, velocidad de recarga, tamaño del cargador y daño a objetivos afectados.',
         'Para rifles de asalto orientados a crítico, evalúa una base de 1 probabilidad crítica + 2 daño crítico + 1 daño, con energía como elemento general; aclara que se deben adaptar los perks a los espacios que realmente tenga el esquema.',
-        'Si es un héroe, entrega rol comandante o apoyo, ventaja principal, equipo de seis héroes y estilo de juego; si no puedes confirmar nombres concretos, ofrece una plantilla por función sin inventar nombres.',
+        'Si el usuario escribe un héroe, úsalo como centro de la build y decide si conviene como comandante o apoyo; entrega el equipo completo de seis héroes, ventaja de equipo y arma recomendada. No le pidas al usuario que elija el héroe: decide tú según el nombre que te dio.',
+        'En cualquier consulta, da una configuración ya armada, no instrucciones para que el usuario la diseñe. Lista claramente: COMANDANTE, APOYOS 1-5, VENTAJA DE EQUIPO y ARMA/PERKS cuando aplique. Elige nombres concretos que tengan sinergia real; explica cada elección con pocas palabras. Si un nombre o perk no se puede confirmar, dilo brevemente y no lo inventes.',
         'Incluye los datos históricos solo si ayudan a elegir la build; no los pongas por encima de la configuración.',
         'No respondas únicamente que faltan datos, no des una recomendación genérica vacía y no incluyas enlaces, citas, nombres de páginas ni sección de fuentes.'
     ].join(' ');
     const prompt = 'Prepara una BUILD RECOMENDADA para Fortnite: Salvar el Mundo con este objeto: "' + nombre + '". ' +
-        'Entrega solo lo útil, con esta estructura breve: 1) build en lista numerada, 2) elemento recomendado, 3) sexto perk si se conoce, 4) héroe recomendado y una frase de por qué, 5) alternativa solo si hace falta. ' +
-        'En cada perk escribe el nombre y una explicación de máximo una frase corta. No agregues resumen de una línea ni sección larga de por qué funciona. ' +
+        'Entrega una configuración COMPLETA y ya elegida, no una guía para que el usuario la arme por su cuenta. ' +
+        'Si el nombre es un arma: 1) perks del arma en orden y elemento, 2) comandante concreto, 3) cinco héroes de apoyo concretos, 4) ventaja de equipo, 5) una línea de cómo jugarla. ' +
+        'Si el nombre es un héroe: úsalo como base y entrega el comandante/apoyos que mejor aprovechen su ventaja, más arma recomendada. ' +
+        'Explica cada elección en una frase corta. No le pidas al usuario que te diga qué héroe llevar ni le devuelvas solo una lista de opciones. ' +
         'Si es el Sepulturero/Grave Digger, trátalo como rifle de asalto y céntrate en daño sostenido/impacto crítico; no gastes la respuesta en su historia. ' +
         'No afirmes que un perk específico existe en ese esquema salvo que esté confirmado en el contexto. ' +
         'Si la información recuperada es pobre, usa conocimiento general del juego para dar una recomendación razonada y distingue lo no verificado.\n\n' + contexto;
@@ -185,7 +188,7 @@ async function generarResumen(nombre, fuentes) {
         try {
             const modelo = genAI.getGenerativeModel({ model: nombreModelo, systemInstruction: instrucciones });
             const resultado = await modelo.generateContent(prompt);
-            const texto = resultado.response.text().trim().replaceAll('**', '*').slice(0, 1400);
+            const texto = resultado.response.text().trim().replaceAll('**', '*').slice(0, 1800);
             if (texto) return texto;
         } catch (error) {
             ultimoError = error;
