@@ -15,14 +15,14 @@ const DOMINIOS_PERMITIDOS = [
 const CACHE_TTL = 30 * 60 * 1000;
 const cacheBuilds = new Map();
 const sesionesReemplazoHeroes = new Map();
-const SESION_REEMPLAZO_TTL = 10 * 60 * 1000;
+const SESION_REEMPLAZO_TTL = 5 * 60 * 1000;
 
 function claveSesion(chatId, remitente) {
     return String(chatId) + ':' + String(remitente);
 }
 
 function preguntaHeroes() {
-    return '\n\n¿Te falta algún héroe de la lista? Escribe su número o números (ejemplo: *3* o *1,3,5*). Si tienes todos, escribe *0*.';
+    return '\n\n¿Te falta algún héroe? Responde con su número o números (ejemplo: *3* o *1,3,5*). Si no te falta ninguno, ignora este mensaje.';
 }
 
 function limpiar(texto) {
@@ -270,19 +270,14 @@ async function manejarRespuestaBuildSTW(sock, chatId, msg, remitente, textoOrigi
         return false;
     }
     const texto = String(textoOriginal || '').trim().toLowerCase();
-    if (/^(0|no|ninguno|ninguna|tengo todos|tengo todas|todos)$/.test(texto)) {
-        sesionesReemplazoHeroes.delete(clave);
-        await sock.sendMessage(chatId, { text: '✅ Perfecto, conservamos la build tal como está.' }, { quoted: msg });
-        return true;
-    }
     if (!/^[\d\s,.;y-]+$/.test(texto)) return false;
     const numeros = texto.split(/[\s,.;y-]+/).filter(Boolean).map(Number);
     const indices = [...new Set(numeros)];
     if (!indices.length || indices.some(n => !Number.isInteger(n) || n < 1 || n > 6)) {
-        await sock.sendMessage(chatId, { text: '❌ Usa números del *1 al 6* separados por comas (ejemplo: *1,3,5*) o escribe *0* si tienes todos.' }, { quoted: msg });
+        await sock.sendMessage(chatId, { text: '❌ Usa números del *1 al 6* separados por comas (ejemplo: *1,3,5*).' }, { quoted: msg });
         return true;
     }
-    await sock.sendMessage(chatId, { text: '🔄 Buscando reemplazos para los héroes ' + indices.join(', ') + '…' }, { quoted: msg });
+    // Solo los números válidos del propio remitente renuevan la sesión; otros mensajes no la prolongan.\n    sesion.expira = Date.now() + SESION_REEMPLAZO_TTL;\n    sesionesReemplazoHeroes.set(clave, sesion);\n    await sock.sendMessage(chatId, { text: '🔄 Buscando reemplazos para los héroes ' + indices.join(', ') + '…' }, { quoted: msg });
     try {
         const nuevoCuerpo = await generarReemplazosHeroes(sesion.nombre, sesion.cuerpo, indices, sesion.fuentes);
         sesion.cuerpo = nuevoCuerpo;
