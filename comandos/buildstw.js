@@ -160,8 +160,9 @@ async function generarResumen(nombre, fuentes) {
     const instrucciones = [
         'Eres un experto práctico en builds de Fortnite: Salvar el Mundo.',
         'La prioridad es entregar una configuración jugable y concreta, no una ficha histórica del objeto.',
-        'Responde en español mexicano, directo, útil para WhatsApp y con máximo 2600 caracteres.',
-        'Formato obligatorio de WhatsApp: usa un solo asterisco para negritas (*texto*). Nunca uses doble asterisco (**texto**) ni formato Markdown de negrita con dos asteriscos.',
+        'Responde en español mexicano, muy claro y directo para WhatsApp. Máximo 1400 caracteres; usa frases cortas y evita repetir ideas.',
+        'Formato obligatorio de WhatsApp: usa un solo asterisco para negritas (*texto*), nunca doble asterisco. Usa títulos breves y listas simples.',
+        'Explica cada perk en pocas palabras: qué poner y para qué sirve. Evita tecnicismos innecesarios, párrafos largos, introducciones, relleno y repetir la misma advertencia.',
         'No inventes estadísticas exactas ni afirmes que una ventaja está disponible en el arma si las fuentes no lo confirman.',
         'Sí puedes recomendar una configuración meta razonada aunque las páginas recuperadas no enumeren todos los perks; marca claramente qué es recomendación y qué dato no se pudo confirmar.',
         'Si es un arma, entrega: tipo de arma, configuración de los cuatro perks en orden, elemento recomendado, qué hacer con el sexto perk, estilo de juego y alternativa si no tiene los perks sugeridos.',
@@ -172,7 +173,8 @@ async function generarResumen(nombre, fuentes) {
         'No respondas únicamente que faltan datos, no des una recomendación genérica vacía y no incluyas enlaces, citas, nombres de páginas ni sección de fuentes.'
     ].join(' ');
     const prompt = 'Prepara una BUILD RECOMENDADA para Fortnite: Salvar el Mundo con este objeto: "' + nombre + '". ' +
-        'Orden obligatorio: 1) resumen de una línea, 2) build concreta, 3) por qué funciona, 4) alternativa o advertencia si los perks exactos no están confirmados. ' +
+        'Entrega solo lo útil, con esta estructura breve: 1) build en lista numerada, 2) elemento recomendado, 3) sexto perk si se conoce, 4) héroe recomendado y una frase de por qué, 5) alternativa solo si hace falta. ' +
+        'En cada perk escribe el nombre y una explicación de máximo una frase corta. No agregues resumen de una línea ni sección larga de por qué funciona. ' +
         'Si es el Sepulturero/Grave Digger, trátalo como rifle de asalto y céntrate en daño sostenido/impacto crítico; no gastes la respuesta en su historia. ' +
         'No afirmes que un perk específico existe en ese esquema salvo que esté confirmado en el contexto. ' +
         'Si la información recuperada es pobre, usa conocimiento general del juego para dar una recomendación razonada y distingue lo no verificado.\n\n' + contexto;
@@ -183,7 +185,7 @@ async function generarResumen(nombre, fuentes) {
         try {
             const modelo = genAI.getGenerativeModel({ model: nombreModelo, systemInstruction: instrucciones });
             const resultado = await modelo.generateContent(prompt);
-            const texto = resultado.response.text().trim().replaceAll('**', '*');
+            const texto = resultado.response.text().trim().replaceAll('**', '*').slice(0, 1400);
             if (texto) return texto;
         } catch (error) {
             ultimoError = error;
