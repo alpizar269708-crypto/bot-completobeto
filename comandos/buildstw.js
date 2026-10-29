@@ -158,22 +158,23 @@ async function generarResumen(nombre, fuentes) {
 
     const genAI = new GoogleGenerativeAI(apiKey);
     const instrucciones = [
-        'Eres un especialista en Fortnite: Salvar el Mundo.',
-        'Responde en español mexicano, claro y práctico, para WhatsApp.',
-        'Usa exclusivamente los datos incluidos en las fuentes suministradas.',
-        'No inventes datos que no puedas respaldar con el contenido recuperado.',
-        'Separa claramente los datos encontrados de tus recomendaciones razonadas.',
-        'Si no se encuentra información suficiente, dilo brevemente y no completes con suposiciones.',
-        'Para armas, prioriza ventajas/perks, sexta ventaja, elemento y estilo de uso si la fuente los menciona.',
-        'Para héroes, explica habilidad, ventaja estándar/comandante y equipo o sinergias solo si están documentados.',
-        'Incluye una recomendación de configuración solo cuando los datos recopilados la respalden.',
-        'No incluyas enlaces, citas, nombres de páginas ni una sección de fuentes en la respuesta al usuario.',
-        'Máximo 2600 caracteres.'
+        'Eres un experto práctico en builds de Fortnite: Salvar el Mundo.',
+        'La prioridad es entregar una configuración jugable y concreta, no una ficha histórica del objeto.',
+        'Responde en español mexicano, directo, útil para WhatsApp y con máximo 2600 caracteres.',
+        'No inventes estadísticas exactas ni afirmes que una ventaja está disponible en el arma si las fuentes no lo confirman.',
+        'Sí puedes recomendar una configuración meta razonada aunque las páginas recuperadas no enumeren todos los perks; marca claramente qué es recomendación y qué dato no se pudo confirmar.',
+        'Si es un arma, entrega: tipo de arma, configuración de los cuatro perks en orden, elemento recomendado, qué hacer con el sexto perk, estilo de juego y alternativa si no tiene los perks sugeridos.',
+        'En perks, usa nombres prácticos en español: probabilidad crítica, daño crítico, daño, velocidad de recarga, tamaño del cargador y daño a objetivos afectados.',
+        'Para rifles de asalto orientados a crítico, evalúa una base de 1 probabilidad crítica + 2 daño crítico + 1 daño, con energía como elemento general; aclara que se deben adaptar los perks a los espacios que realmente tenga el esquema.',
+        'Si es un héroe, entrega rol comandante o apoyo, ventaja principal, equipo de seis héroes y estilo de juego; si no puedes confirmar nombres concretos, ofrece una plantilla por función sin inventar nombres.',
+        'Incluye los datos históricos solo si ayudan a elegir la build; no los pongas por encima de la configuración.',
+        'No respondas únicamente que faltan datos, no des una recomendación genérica vacía y no incluyas enlaces, citas, nombres de páginas ni sección de fuentes.'
     ].join(' ');
-    const prompt = 'Investiga este objeto de Fortnite: Salvar el Mundo: "' + nombre + '". ' +
-        'Primero identifica si es arma o héroe si las fuentes lo permiten. Después resume datos verificados, ' +
-        'build/perks recomendados, por qué sirven, alternativas si hay evidencia y cualquier limitación. ' +
-        'No menciones páginas, fuentes, enlaces ni referencias en la respuesta final.\n\n' + contexto;
+    const prompt = 'Prepara una BUILD RECOMENDADA para Fortnite: Salvar el Mundo con este objeto: "' + nombre + '". ' +
+        'Orden obligatorio: 1) resumen de una línea, 2) build concreta, 3) por qué funciona, 4) alternativa o advertencia si los perks exactos no están confirmados. ' +
+        'Si es el Sepulturero/Grave Digger, trátalo como rifle de asalto y céntrate en daño sostenido/impacto crítico; no gastes la respuesta en su historia. ' +
+        'No afirmes que un perk específico existe en ese esquema salvo que esté confirmado en el contexto. ' +
+        'Si la información recuperada es pobre, usa conocimiento general del juego para dar una recomendación razonada y distingue lo no verificado.\n\n' + contexto;
 
     // Si el modelo principal está saturado (503/429), probar un modelo alternativo.
     let ultimoError = null;
