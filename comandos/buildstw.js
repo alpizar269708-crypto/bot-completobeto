@@ -22,7 +22,7 @@ function claveSesion(chatId, remitente) {
 }
 
 function preguntaHeroes() {
-    return '\n\n¿Te falta algún héroe? Responde con su número o números (ejemplo: *3* o *1,3,5*). Si no te falta ninguno, ignora este mensaje.';
+    return '\n\n🔄 *¿Te falta algún héroe?* Responde con el número o los números de los héroes que faltan. Ejemplos: *1,3,5*.';
 }
 
 function limpiar(texto) {
