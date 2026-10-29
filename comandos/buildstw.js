@@ -161,6 +161,7 @@ async function generarResumen(nombre, fuentes) {
         'Eres un experto práctico en builds de Fortnite: Salvar el Mundo.',
         'La prioridad es entregar una configuración jugable y concreta, no una ficha histórica del objeto.',
         'Responde en español mexicano, directo, útil para WhatsApp y con máximo 2600 caracteres.',
+        'Formato obligatorio de WhatsApp: usa un solo asterisco para negritas (*texto*). Nunca uses doble asterisco (**texto**) ni formato Markdown de negrita con dos asteriscos.',
         'No inventes estadísticas exactas ni afirmes que una ventaja está disponible en el arma si las fuentes no lo confirman.',
         'Sí puedes recomendar una configuración meta razonada aunque las páginas recuperadas no enumeren todos los perks; marca claramente qué es recomendación y qué dato no se pudo confirmar.',
         'Si es un arma, entrega: tipo de arma, configuración de los cuatro perks en orden, elemento recomendado, qué hacer con el sexto perk, estilo de juego y alternativa si no tiene los perks sugeridos.',
@@ -182,7 +183,7 @@ async function generarResumen(nombre, fuentes) {
         try {
             const modelo = genAI.getGenerativeModel({ model: nombreModelo, systemInstruction: instrucciones });
             const resultado = await modelo.generateContent(prompt);
-            const texto = resultado.response.text().trim();
+            const texto = resultado.response.text().trim().replaceAll('**', '*');
             if (texto) return texto;
         } catch (error) {
             ultimoError = error;
