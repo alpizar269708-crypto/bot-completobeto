@@ -28,10 +28,17 @@ function urlPermitida(url) {
     }
 }
 
+const ALIAS_OBJETOS_STW = {
+    'sepulturero': ['Grave Digger'],
+    'grave digger': ['Sepulturero']
+};
+
 async function buscarPaginas(nombre) {
+    const alias = ALIAS_OBJETOS_STW[limpiar(nombre).toLocaleLowerCase('es-MX')] || [];
+    const nombresBusqueda = [nombre, ...alias];
     const consultas = [
-        'Fortnite Save the World ' + nombre + ' weapon perks build hero',
-        'Fortnite Salvar el Mundo ' + nombre + ' arma ventajas'
+        'Fortnite Save the World ' + nombresBusqueda.join(' ') + ' weapon perks build hero',
+        'Fortnite Salvar el Mundo ' + nombresBusqueda.join(' ') + ' arma ventajas'
     ];
     const headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
@@ -49,12 +56,33 @@ async function buscarPaginas(nombre) {
         } catch (_) {}
     };
 
-    // Se prueban dos motores: si DuckDuckGo se queda colgado, Bing sirve de respaldo.
+    // Consulta directa a las APIs de búsqueda de las wikis, sin depender del HTML de los buscadores.
+    for (const dominio of ['fortnite.fandom.com', 'fortnite-archive.fandom.com']) {
+        for (const termino of nombresBusqueda) {
+            try {
+                console.info('[buildstw] Consultando API de wiki', { dominio, termino });
+                const respuesta = await axios.get('https://' + dominio + '/api.php', {
+                    timeout: 8000, headers,
+                    params: { action: 'query', list: 'search', srsearch: '"' + termino + '" Fortnite Save the World', srlimit: 5, format: 'json' }
+                });
+                const paginas = respuesta.data?.query?.search || [];
+                for (const pagina of paginas) {
+                    agregarResultado('https://' + dominio + '/?curid=' + pagina.pageid, pagina.title, String(pagina.snippet || '').replace(/<[^>]*>/g, ' '), 'MediaWiki');
+                }
+            } catch (error) {
+                console.warn('[buildstw] Falló la API de wiki:', { dominio, termino, name: error?.name, message: error?.message, code: error?.code, status: error?.response?.status });
+            }
+            if (enlaces.length >= 5) break;
+        }
+        if (enlaces.length >= 5) break;
+    }
+
+    // Buscadores externos como respaldo; cada espera tiene un límite menor.
     for (const consulta of consultas) {
         try {
             console.info('[buildstw] Consultando DuckDuckGo', { consulta });
             const respuesta = await axios.get('https://html.duckduckgo.com/html/?q=' + encodeURIComponent(consulta), {
-                timeout: 15000, headers
+                timeout: 9000, headers
             });
             const $ = cheerio.load(respuesta.data);
             $('.result').each((_, el) => {
@@ -79,7 +107,7 @@ async function buscarPaginas(nombre) {
             try {
                 console.info('[buildstw] Consultando Bing como respaldo', { consulta });
                 const respuesta = await axios.get('https://www.bing.com/search?q=' + encodeURIComponent(consulta), {
-                    timeout: 15000, headers
+                    timeout: 9000, headers
                 });
                 const $ = cheerio.load(respuesta.data);
                 $('li.b_algo').each((_, el) => {
