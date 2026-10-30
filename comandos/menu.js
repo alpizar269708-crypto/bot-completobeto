@@ -133,6 +133,7 @@ async function ejecutarMenu(sock, chatId, msg, args) {
                   `*${prefijo}tienda [categoría]* - Muestra la imagen de esa categoría.\n` + `*${prefijo}tiendaVb [paVos]* - Convierte paVos a MXN y USD.\n`,
                   
         'carry': `🚀 *MENÚ CARRY (ESCUADRONES)* 🚀\n\n` +
+                 `*${prefijo}id TuIDDeEpic* - Registra o actualiza tu ID de Epic.\\n` +
                  `*${prefijo}carryleader [espacios] [motivo]* - Abre un nuevo escuadrón (Notifica a todos).\n` +
                  `*${prefijo}carryjoin* - Únete al escuadrón activo (Notifica a todos).\n` +
                  `*${prefijo}carryleave* - Sal del escuadrón en el que estás.\n` +
