@@ -3,6 +3,15 @@ const { esPrivilegiadoTotalAsync } = require('../utils/whatsapp');
 const escuadronesActivos = new Map();
 const buscoCarryActivos = new Map();
 
+const claveEpicId = (usuarioId) => 'epic_id_' + String(usuarioId);
+async function obtenerEpicId(usuarioId) {
+    const registro = await Config.findOne({ clave: claveEpicId(usuarioId) }).lean();
+    return registro?.valor || null;
+}
+function mencionarJugador(usuarioId, epicId, etiqueta = '') {
+    return `${etiqueta}${etiqueta ? ' ' : ''}@${String(usuarioId).split('@')[0]} — 🆔 Epic: ${epicId || 'Sin registrar'}`;
+}
+
 // Función auxiliar para verificar si el usuario es admin del grupo
 async function esAdminValido(sock, chatId, msg) {
     if (!chatId.endsWith('@g.us')) return false;
@@ -38,6 +47,18 @@ function extraerUsuarioObjetivo(msg, args) {
 async function comandoCarry(sock, chatId, msg, comando, args = []) {
     const sender = msg.key.participant || msg.key.remoteJid;
     const pushName = msg.pushName || 'Jugador';
+
+    if (comando === 'id') {
+        const texto = msg.message?.conversation || msg.message?.extendedTextMessage?.text || '';
+        const epicId = texto.trim().replace(/^[*_~`]+/, '').replace(/^id\b/i, '').trim();
+        if (!epicId) {
+            const actual = await obtenerEpicId(sender);
+            return await sock.sendMessage(chatId, { text: actual ? `🎮 Tu ID de Epic registrado es: *${actual}*\\n\\nPara cambiarlo, escribe *ID TuNuevoID*.` : '🎮 *Registra tu ID de Epic*\\n\\nEscribe *ID TuIDDeEpic* para guardarlo y poder participar en los carries.' }, { quoted: msg });
+        }
+        if (epicId.length < 2 || epicId.length > 64 || /[@\\n\\r]/.test(epicId)) return await sock.sendMessage(chatId, { text: '❌ Ese ID no parece válido. Escribe *ID TuIDDeEpic* (máximo 64 caracteres).' }, { quoted: msg });
+        await Config.findOneAndUpdate({ clave: claveEpicId(sender) }, { valor: epicId }, { upsert: true, new: true });
+        return await sock.sendMessage(chatId, { text: `✅ *ID DE EPIC GUARDADO*\\n🎮 Tu ID: *${epicId}*\\n\\nA partir de ahora aparecerá junto a tu etiqueta en los avisos de carry.` }, { quoted: msg });
+    }
 
     let escuadron = escuadronesActivos.get(chatId);
 
@@ -95,6 +116,12 @@ async function comandoCarry(sock, chatId, msg, comando, args = []) {
         return await sock.sendMessage(chatId, { text: `❌ Estás en la lista negra de carry de este grupo y no puedes participar.` }, { quoted: msg });
     }
 
+    const comandosConID = ['carryleader', 'carryjoin', 'buscocarry', 'doycarry', 'x2busco'];
+    const epicIdRemitente = await obtenerEpicId(sender);
+    if (comandosConID.includes(comando) && !epicIdRemitente) {
+        return await sock.sendMessage(chatId, { text: '⚠️ *Primero registra tu ID de Epic.*\\n\\nEscribe *ID TuIDDeEpic* y vuelve a intentar. Así los demás podrán identificarte dentro del juego.' }, { quoted: msg });
+    }
+
     let participantesGrupo = [];
     if (chatId.endsWith('@g.us') && ['carryleader', 'carryjoin', 'buscocarry', 'doycarry', 'x2busco'].includes(comando)) {
         try {
@@ -120,23 +147,23 @@ async function comandoCarry(sock, chatId, msg, comando, args = []) {
             if (args.length < 1 || !/^[1-3]$/.test(String(args[0]).trim())) return await sock.sendMessage(chatId, { text: '❌ *Formato:* buscocarry [1-3] [motivo]\n\nIndica cuántos jugadores faltan (de 1 a 3). El aviso menciona a todos de forma oculta.' }, { quoted: msg });
             const espacios = Number(args[0]);
             const motivo = args.slice(1).join(' ').trim() || 'Carry por coordinar';
-            busqueda = { solicitanteId: sender, solicitanteNombre: pushName, motivo, maxEspacios: espacios, miembros: [] };
+            busqueda = { solicitanteId: sender, solicitanteNombre: pushName, solicitanteEpicId: epicIdRemitente, motivo, maxEspacios: espacios, miembros: [] };
             buscoCarryActivos.set(chatId, busqueda);
-            await sock.sendMessage(chatId, { text: `🔎 *BUSCO CARRY*\n🙋 *${pushName}* está buscando carry.\n🎯 *Objetivo:* ${motivo}\n\nFaltan *${espacios}* espacios.\n🛟 Para ofrecer el carry: *doycarry*\n🎮 Para unirse como otro jugador que busca carry: *x2busco*`, mentions: participantesGrupo }, { quoted: msg });
+            await sock.sendMessage(chatId, { text: `🔎 *BUSCO CARRY*\n🙋 ${mencionarJugador(sender, epicIdRemitente)} está buscando carry.\n🎯 *Objetivo:* ${motivo}\n\nFaltan *${espacios}* espacios.\n🛟 Para ofrecer el carry: *doycarry*\n🎮 Para unirse como otro jugador que busca carry: *x2busco*`, mentions: [...new Set([sender, ...participantesGrupo])] }, { quoted: msg });
             return;
         }
         if (!busqueda) return await sock.sendMessage(chatId, { text: '❌ No hay una búsqueda activa. Usa *buscocarry [1-3] [motivo]* primero.' }, { quoted: msg });
         if (busqueda.solicitanteId === sender) return await sock.sendMessage(chatId, { text: '❌ Tú abriste la búsqueda; no puedes unirte a ella.' }, { quoted: msg });
         if (busqueda.miembros.some(m => m.id === sender)) return await sock.sendMessage(chatId, { text: '❌ Ya estás dentro de esta búsqueda de carry.' }, { quoted: msg });
         if (busqueda.miembros.length >= busqueda.maxEspacios) return await sock.sendMessage(chatId, { text: '❌ El escuadrón ya está completo.' }, { quoted: msg });
-        busqueda.miembros.push({ id: sender, nombre: pushName, rol: comando === 'doycarry' ? 'Ofrece carry' : 'Busca carry' });
+        busqueda.miembros.push({ id: sender, nombre: pushName, epicId: epicIdRemitente, rol: comando === 'doycarry' ? 'Ofrece carry' : 'Busca carry' });
         const restantes = busqueda.maxEspacios - busqueda.miembros.length;
         if (restantes > 0) {
-            await sock.sendMessage(chatId, { text: `🤝 *BUSCO CARRY: ACTUALIZACIÓN*\n${comando === 'doycarry' ? '🛟' : '🎮'} *${pushName}* se unió (${comando === 'doycarry' ? 'ofrece el carry' : 'también busca carry'}).\n🎯 *Objetivo:* ${busqueda.motivo}\n\nFaltan *${restantes}* espacios.`, mentions: participantesGrupo }, { quoted: msg });
+            await sock.sendMessage(chatId, { text: `🤝 *BUSCO CARRY: ACTUALIZACIÓN*\n${mencionarJugador(sender, epicIdRemitente, comando === 'doycarry' ? '🛟' : '🎮')} se unió (${comando === 'doycarry' ? 'ofrece el carry' : 'también busca carry'}).\n🎯 *Objetivo:* ${busqueda.motivo}\n\nFaltan *${restantes}* espacios.`, mentions: participantesGrupo }, { quoted: msg });
         } else {
             const mentions = [...new Set([busqueda.solicitanteId, ...busqueda.miembros.map(m => m.id), ...participantesGrupo])];
-            let texto = `🚀 *¡ESCUADRÓN DE CARRY COMPLETO!*\n🎯 *Objetivo:* ${busqueda.motivo}\n\n🙋 Busca carry: @${busqueda.solicitanteId.split('@')[0]}\n`;
-            busqueda.miembros.forEach(m => { texto += `${m.rol === 'Ofrece carry' ? '🛟' : '🎮'} ${m.rol}: @${m.id.split('@')[0]}\n`; });
+            let texto = `🚀 *¡ESCUADRÓN DE CARRY COMPLETO!*\n🎯 *Objetivo:* ${busqueda.motivo}\n\n🙋 Busca carry: ${mencionarJugador(busqueda.solicitanteId, busqueda.solicitanteEpicId)}\n`;
+            busqueda.miembros.forEach(m => { texto += `${mencionarJugador(m.id, m.epicId, m.rol === 'Ofrece carry' ? '🛟' : '🎮')}\n`; });
             texto += '\n¡Coordínense y a jugar!';
             await sock.sendMessage(chatId, { text: texto, mentions });
             buscoCarryActivos.delete(chatId);
@@ -165,13 +192,14 @@ async function comandoCarry(sock, chatId, msg, comando, args = []) {
         escuadronesActivos.set(chatId, {
             liderId: sender,
             liderNombre: pushName,
+            liderEpicId: epicIdRemitente,
             motivo: motivo,
             maxEspacios: maxEspacios,
             miembros: [] 
         });
         
         await sock.sendMessage(chatId, { 
-            text: `📢 *NUEVO CARRY DISPONIBLE*\n👑 *${pushName}* ha creado un escuadrón.\n🎯 *Objetivo:* ${motivo}\n\nFaltan *${maxEspacios}* espacios. Usa *carryjoin* para unirte.`,
+            text: `📢 *NUEVO CARRY DISPONIBLE*\n👑 ${mencionarJugador(sender, epicIdRemitente)} ha creado un escuadrón.\n🎯 *Objetivo:* ${motivo}\n\nFaltan *${maxEspacios}* espacios. Usa *carryjoin* para unirte.`,
             mentions: participantesGrupo
         }, { quoted: msg });
 
@@ -180,22 +208,22 @@ async function comandoCarry(sock, chatId, msg, comando, args = []) {
         if (escuadron.liderId === sender) return await sock.sendMessage(chatId, { text: `❌ Eres el líder, ya estás en el escuadrón.` }, { quoted: msg });
         if (escuadron.miembros.some(m => m.id === sender)) return await sock.sendMessage(chatId, { text: `❌ Ya estás dentro de este escuadrón.` }, { quoted: msg });
         
-        escuadron.miembros.push({ id: sender, nombre: pushName });
+        escuadron.miembros.push({ id: sender, nombre: pushName, epicId: epicIdRemitente });
         const espaciosRestantes = escuadron.maxEspacios - escuadron.miembros.length;
 
         if (espaciosRestantes > 0) {
             await sock.sendMessage(chatId, { 
-                text: `📢 *ACTUALIZACIÓN DE CARRY*\n✅ *${pushName}* se unió al escuadrón para *${escuadron.motivo}*.\n\nFaltan *${espaciosRestantes}* espacios.`,
+                text: `📢 *ACTUALIZACIÓN DE CARRY*\n✅ ${mencionarJugador(sender, epicIdRemitente)} se unió al escuadrón para *${escuadron.motivo}*.\n\nFaltan *${espaciosRestantes}* espacios.`,
                 mentions: participantesGrupo
             }, { quoted: msg });
         } else {
             let mencionesSquad = [escuadron.liderId, ...escuadron.miembros.map(m => m.id)];
             let todasLasMenciones = [...new Set([...mencionesSquad, ...participantesGrupo])];
             
-            let textoLleno = `🚀 *¡ESCUADRÓN LLENO!*\n🎯 *Objetivo:* ${escuadron.motivo}\n\n👑 Líder: @${escuadron.liderId.split('@')[0]}\n`;
+            let textoLleno = `🚀 *¡ESCUADRÓN LLENO!*\n🎯 *Objetivo:* ${escuadron.motivo}\n\n👑 Líder: ${mencionarJugador(escuadron.liderId, escuadron.liderEpicId)}\n`;
             
             escuadron.miembros.forEach((m, i) => {
-                textoLleno += `🎮 P${i+2}: @${m.id.split('@')[0]}\n`;
+                textoLleno += `${mencionarJugador(m.id, m.epicId, '🎮 P' + (i + 2) + ':')}\n`;
             });
             textoLleno += `\n¡Listos para darle!`;
 
