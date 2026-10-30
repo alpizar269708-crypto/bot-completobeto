@@ -466,6 +466,7 @@ Apoya a un creador: JASC13` });
             ['abrirrifa', 'Inicia una rifa; en grupos la puede iniciar un administrador.'],
             ['activarrifaaqui', 'Activa la rifa en el grupo para permitir inscripciones.'],
             ['id', 'Registra o actualiza tu ID de Epic para que aparezca junto a tu etiqueta en los carries.'],
+            ['carryver', 'Muestra búsquedas, escuadrones abiertos y equipos completos de los últimos 30 minutos.'],
             ['carryleader', 'Crea un escuadrón de carry y define sus espacios.']
             ['buscocarry', 'Abre una búsqueda de carry y menciona a todos de forma oculta.'],
             ['doycarry', 'Se une a una búsqueda activa para ofrecer el carry.'],
@@ -951,6 +952,7 @@ Apoya a un creador: JASC13` });
                 await comandoMenuRifaJasc13(sock, chatJid, msg);
                 break;
             case 'id':
+            case 'carryver':
             case 'carryleader':
             case 'buscocarry':
             case 'buscooff':
