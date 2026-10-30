@@ -86,7 +86,7 @@ async function ejecutarMenu(sock, chatId, msg, args) {
     `*${prefijo}subirpl [PL]* - Recomienda misiones útiles para subir potencia según el PL indicado (por defecto PL 62).\n` +
     `*${prefijo}subirpl oro* - Busca alertas guardadas que indiquen oro como recompensa.\n` +
     `*${prefijo}guiapl* - Te hace preguntas numeradas y genera una guía personal con la rotación de alertas que extrae el bot. Responde con números; puedes escribir *cancelar* para salir.\n` +
-    `*${prefijo}buildstw [nombre]* - Busca una build para un arma o héroe concreto, con perks, recomendaciones y fuentes web. Ejemplos: *buildstw Nocturno* o *buildstw Ramirez*.\\n`;
+    `*${prefijo}buildstw [nombre]* - Busca una build para un arma o héroe concreto, con perks, recomendaciones y fuentes web. Ejemplos: *buildstw Nocturno* o *buildstw Ramirez*.\n`;
 
     // Los comandos administrativos se encuentran en *menú moderación*.
 
@@ -133,7 +133,7 @@ async function ejecutarMenu(sock, chatId, msg, args) {
                   `*${prefijo}tienda [categoría]* - Muestra la imagen de esa categoría.\n` + `*${prefijo}tiendaVb [paVos]* - Convierte paVos a MXN y USD.\n`,
                   
         'carry': `🚀 *MENÚ CARRY (ESCUADRONES)* 🚀\n\n` +
-                 `*${prefijo}id TuIDDeEpic* - Registra o actualiza tu ID de Epic.\\n` +
+                 `*${prefijo}id TuIDDeEpic* - Registra o actualiza tu ID de Epic.\n` +
                  `*${prefijo}carryleader [espacios] [motivo]* - Abre un nuevo escuadrón (Notifica a todos).\n` +
                  `*${prefijo}carryjoin* - Únete al escuadrón activo (Notifica a todos).\n` +
                  `*${prefijo}carryleave* - Sal del escuadrón en el que estás.\n` +
