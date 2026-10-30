@@ -2,6 +2,8 @@ const { Config } = require('../database/modelos');
 const { esPrivilegiadoTotalAsync, resolverLidAPn } = require('../utils/whatsapp');
 const escuadronesActivos = new Map();
 const buscoCarryActivos = new Map();
+const escuadronesCompletados = new Map();
+const DURACION_CARRY_COMPLETO = 30 * 60 * 1000;
 
 async function claveEpicId(sock, usuarioId) {
     const usuarioNormalizado = await resolverLidAPn(sock, usuarioId);
@@ -64,6 +66,41 @@ async function comandoCarry(sock, chatId, msg, comando, args = []) {
     }
 
     let escuadron = escuadronesActivos.get(chatId);
+
+    if (comando === 'carryver') {
+        if (!chatId.endsWith('@g.us')) return await sock.sendMessage(chatId, { text: '❌ Este comando solo funciona en grupos.' }, { quoted: msg });
+        const ahora = Date.now();
+        const completados = (escuadronesCompletados.get(chatId) || []).filter(s => ahora - s.completadoEn < DURACION_CARRY_COMPLETO);
+        if (completados.length) escuadronesCompletados.set(chatId, completados); else escuadronesCompletados.delete(chatId);
+        const activos = escuadronesActivos.get(chatId);
+        const busqueda = buscoCarryActivos.get(chatId);
+        if (!activos && !busqueda && !completados.length) return await sock.sendMessage(chatId, { text: '📋 *CARRIES DEL GRUPO*\n\nNo hay carries activos, búsquedas abiertas ni escuadrones completados en los últimos 30 minutos.' }, { quoted: msg });
+        let texto = '📋 *CARRIES DEL GRUPO*\n';
+        const menciones = [];
+        if (activos) {
+            texto += `\n🟢 *ESCUADRÓN EN BUSCA DE JUGADORES*\n🎯 *Objetivo:* ${activos.motivo}\n👑 Líder: ${mencionarJugador(activos.liderId, activos.liderEpicId)}\n`;
+            menciones.push(activos.liderId);
+            activos.miembros.forEach((m, i) => { texto += `${mencionarJugador(m.id, m.epicId, '🎮 P' + (i + 2) + ':')}\n`; menciones.push(m.id); });
+            texto += `Faltan *${Math.max(0, activos.maxEspacios - activos.miembros.length)}* espacios.\n`;
+        }
+        if (busqueda) {
+            texto += `\n🔎 *BÚSQUEDA DE CARRY ABIERTA*\n🙋 Solicitante: ${mencionarJugador(busqueda.solicitanteId, busqueda.solicitanteEpicId)}\n🎯 *Objetivo:* ${busqueda.motivo}\n`;
+            menciones.push(busqueda.solicitanteId);
+            busqueda.miembros.forEach(m => { texto += `${mencionarJugador(m.id, m.epicId, m.rol === 'Ofrece carry' ? '🛟 Ofrece carry:' : '🎮 Busca carry:')}\n`; menciones.push(m.id); });
+            texto += `Faltan *${Math.max(0, busqueda.maxEspacios - busqueda.miembros.length)}* espacios.\n`;
+        }
+        if (completados.length) {
+            texto += '\n🏁 *ESCUADRONES COMPLETADOS (ÚLTIMOS 30 MIN)*\n';
+            completados.slice().reverse().forEach((s, i) => {
+                const minutos = Math.max(0, Math.ceil((DURACION_CARRY_COMPLETO - (ahora - s.completadoEn)) / 60000));
+                texto += `\n${i + 1}. 🎯 *Objetivo:* ${s.motivo}\n👑 Líder/solicitante: ${mencionarJugador(s.liderId, s.liderEpicId)}\n`;
+                menciones.push(s.liderId);
+                s.miembros.forEach((m, j) => { texto += `${mencionarJugador(m.id, m.epicId, '🎮 P' + (j + 2) + ':')}\n`; menciones.push(m.id); });
+                texto += `⏳ Visible aproximadamente ${minutos} min más.\n`;
+            });
+        }
+        return await sock.sendMessage(chatId, { text: texto, mentions: [...new Set(menciones)] }, { quoted: msg });
+    }
 
     // === GESTIÓN DE LISTA NEGRA DE CARRY (SOLO ADMINS) ===
     if (comando === 'blcarry' || comando === 'unblcarry' || comando === 'listcarrybl') {
@@ -169,6 +206,9 @@ async function comandoCarry(sock, chatId, msg, comando, args = []) {
             busqueda.miembros.forEach(m => { texto += `${mencionarJugador(m.id, m.epicId, m.rol === 'Ofrece carry' ? '🛟 Ofrece carry:' : '🎮 Busca carry:')}\n`; });
             texto += '\n¡Coordínense y a jugar!';
             await sock.sendMessage(chatId, { text: texto, mentions });
+            const historial = (escuadronesCompletados.get(chatId) || []).filter(s => Date.now() - s.completadoEn < DURACION_CARRY_COMPLETO);
+            historial.push({ motivo: busqueda.motivo, liderId: busqueda.solicitanteId, liderEpicId: busqueda.solicitanteEpicId, miembros: busqueda.miembros.map(m => ({ ...m })), completadoEn: Date.now() });
+            escuadronesCompletados.set(chatId, historial);
             buscoCarryActivos.delete(chatId);
         }
         return;
@@ -234,6 +274,9 @@ async function comandoCarry(sock, chatId, msg, comando, args = []) {
                 text: textoLleno, 
                 mentions: todasLasMenciones
             });
+            const historial = (escuadronesCompletados.get(chatId) || []).filter(s => Date.now() - s.completadoEn < DURACION_CARRY_COMPLETO);
+            historial.push({ motivo: escuadron.motivo, liderId: escuadron.liderId, liderEpicId: escuadron.liderEpicId, miembros: escuadron.miembros.map(m => ({ ...m })), completadoEn: Date.now() });
+            escuadronesCompletados.set(chatId, historial);
             escuadronesActivos.delete(chatId); 
         }
 
