@@ -1,11 +1,14 @@
 const { Config } = require('../database/modelos');
-const { esPrivilegiadoTotalAsync } = require('../utils/whatsapp');
+const { esPrivilegiadoTotalAsync, resolverLidAPn } = require('../utils/whatsapp');
 const escuadronesActivos = new Map();
 const buscoCarryActivos = new Map();
 
-const claveEpicId = (usuarioId) => 'epic_id_' + String(usuarioId);
-async function obtenerEpicId(usuarioId) {
-    const registro = await Config.findOne({ clave: claveEpicId(usuarioId) }).lean();
+async function claveEpicId(sock, usuarioId) {
+    const usuarioNormalizado = await resolverLidAPn(sock, usuarioId);
+    return 'epic_id_' + String(usuarioNormalizado || usuarioId);
+}
+async function obtenerEpicId(sock, usuarioId) {
+    const registro = await Config.findOne({ clave: await claveEpicId(sock, usuarioId) }).lean();
     return registro?.valor || null;
 }
 function mencionarJugador(usuarioId, epicId, etiqueta = '') {
@@ -52,11 +55,11 @@ async function comandoCarry(sock, chatId, msg, comando, args = []) {
         const texto = msg.message?.conversation || msg.message?.extendedTextMessage?.text || '';
         const epicId = texto.trim().replace(/^[*_~`]+/, '').replace(/^id\b/i, '').trim();
         if (!epicId) {
-            const actual = await obtenerEpicId(sender);
+            const actual = await obtenerEpicId(sock, sender);
             return await sock.sendMessage(chatId, { text: actual ? `🎮 Tu ID de Epic registrado es: *${actual}*\n\nPara cambiarlo, escribe *ID TuNuevoID*.` : '🎮 *Registra tu ID de Epic*\n\nEscribe *ID TuIDDeEpic* para guardarlo y poder participar en los carries.' }, { quoted: msg });
         }
         if (epicId.length < 2 || epicId.length > 64 || /[@\n\\r]/.test(epicId)) return await sock.sendMessage(chatId, { text: '❌ Ese ID no parece válido. Escribe *ID TuIDDeEpic* (máximo 64 caracteres).' }, { quoted: msg });
-        await Config.findOneAndUpdate({ clave: claveEpicId(sender) }, { valor: epicId }, { upsert: true, new: true });
+        await Config.findOneAndUpdate({ clave: await claveEpicId(sock, sender) }, { valor: epicId }, { upsert: true, new: true });
         return await sock.sendMessage(chatId, { text: `✅ *ID DE EPIC GUARDADO*\n🎮 Tu ID: *${epicId}*\n\nA partir de ahora aparecerá junto a tu etiqueta en los avisos de carry.` }, { quoted: msg });
     }
 
