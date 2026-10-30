@@ -194,7 +194,7 @@ async function generarResumen(nombre, fuentes) {
 
     // Si el modelo principal está saturado (503/429), probar un modelo alternativo.
     let ultimoError = null;
-    for (const nombreModelo of ['gemini-3.6-flash', 'gemini-2.5-flash']) {
+    for (const nombreModelo of ['gemini-3.8-flash']) {
         try {
             const modelo = genAI.getGenerativeModel({ model: nombreModelo, systemInstruction: instrucciones });
             const resultado = await modelo.generateContent(prompt);
@@ -246,7 +246,7 @@ async function generarReemplazosHeroes(nombre, buildActual, indices, fuentes) {
     ].join(' ');
     const prompt = 'El usuario está usando esta build para "' + nombre + '". Reemplaza únicamente los héroes de estas posiciones: ' + indices.join(', ') + '.\n\nBUILD ACTUAL:\n' + buildActual + '\n\nCONTEXTO RECUPERADO:\n' + contexto;
     let ultimoError;
-    for (const modeloNombre of ['gemini-3.6-flash', 'gemini-2.5-flash']) {
+    for (const modeloNombre of ['gemini-3.8-flash']) {
         try {
             const modelo = genAI.getGenerativeModel({ model: modeloNombre, systemInstruction: instrucciones });
             const resultado = await modelo.generateContent(prompt);
@@ -277,7 +277,10 @@ async function manejarRespuestaBuildSTW(sock, chatId, msg, remitente, textoOrigi
         await sock.sendMessage(chatId, { text: '❌ Usa números del *1 al 6* separados por comas (ejemplo: *1,3,5*).' }, { quoted: msg });
         return true;
     }
-    // Solo los números válidos del propio remitente renuevan la sesión; otros mensajes no la prolongan.\n    sesion.expira = Date.now() + SESION_REEMPLAZO_TTL;\n    sesionesReemplazoHeroes.set(clave, sesion);\n    await sock.sendMessage(chatId, { text: '🔄 Buscando reemplazos para los héroes ' + indices.join(', ') + '…' }, { quoted: msg });
+    // Solo los números válidos del propio remitente renuevan la sesión; otros mensajes no la prolongan.
+    sesion.expira = Date.now() + SESION_REEMPLAZO_TTL;
+    sesionesReemplazoHeroes.set(clave, sesion);
+    await sock.sendMessage(chatId, { text: '🔄 Buscando reemplazos para los héroes ' + indices.join(', ') + '…' }, { quoted: msg });
     try {
         const nuevoCuerpo = await generarReemplazosHeroes(sesion.nombre, sesion.cuerpo, indices, sesion.fuentes);
         sesion.cuerpo = nuevoCuerpo;
