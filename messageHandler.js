@@ -241,7 +241,9 @@ Apoya a un creador: JASC13` });
         }
     }
 
-    if (await manejarRespuestaSeleccionCarry(sock, chatJid, msg, remitenteReal, textoOriginal)) return;\n\n    // Las respuestas pendientes de reemplazo de héroes se procesan antes de validar comandos.
+    if (await manejarRespuestaSeleccionCarry(sock, chatJid, msg, remitenteReal, textoOriginal)) return;
+
+    // Las respuestas pendientes de reemplazo de héroes se procesan antes de validar comandos.
     if (await manejarRespuestaBuildSTW(sock, chatJid, msg, remitenteReal, textoOriginal)) return;
 
     // Las respuestas numéricas de la guía interactiva se procesan antes de la
