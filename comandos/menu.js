@@ -2,9 +2,9 @@ const { esPrivilegiadoTotalAsync } = require('../utils/whatsapp');
 const { Config } = require('../database/modelos');
 
 const categoriasMap = {
-    fortnite: ['pavos', 'destacadasstw', 'legendariasstw', 'epicasstw', 'alertasstw', 'stw', 'alerta', 'alertanov', 'recompensa', 'recompensanov', 'subirpl', 'guiapl', 'buildstw'],
+    fortnite: ['pavos', 'destacadasstw', 'legendariasstw', 'epicasstw', 'alertasstw', 'stw', 'alerta', 'alertanov', 'recompensa', 'recompensanov', 'subirpl', 'guiapl', 'buildstw', 'id'],
     tienda: ['tienda', 'tiendavb'],
-    carry: ['carryleader', 'carryjoin', 'carryleave', 'carryclose', 'buscocarry', 'doycarry', 'x2busco'],
+    carry: ['carryleader', 'carryjoin', 'carryleave', 'carryclose', 'buscocarry', 'buscooff', 'doycarry', 'x2busco', 'carryver', 'id'],
     rifas: ['rifa', 'rifainscripcion', 'cerrarrifa', 'rifajasc13', 'addvarios', 'abrirrifa', 'activarrifaaqui', 'menurifajasc13'],
     cashback: ['addcashback', 'delcashback', 'vercash', 'delvcash', 'canjecash'],
     economia: ['cartera', 'bal', 'banco', 'pay', 'pagar', 'top', 'topdinero', 'daily', 'weekly', 'farmear', 'work', 'crime', 'mendigar', 'pescar', 'minar', 'cazar', 'explorar', 'ruleta', 'cf', 'slots', 'dados', 'adivina', 'buscaminas', 'rob', 'ppt', 'pelea', 'carrera', 'hackear', 'shop', 'buy', 'inventario', 'mochila', 'vender', 'use', 'regalar'],
@@ -86,7 +86,8 @@ async function ejecutarMenu(sock, chatId, msg, args) {
     `*${prefijo}subirpl [PL]* - Recomienda misiones útiles para subir potencia según el PL indicado (por defecto PL 62).\n` +
     `*${prefijo}subirpl oro* - Busca alertas guardadas que indiquen oro como recompensa.\n` +
     `*${prefijo}guiapl* - Te hace preguntas numeradas y genera una guía personal con la rotación de alertas que extrae el bot. Responde con números; puedes escribir *cancelar* para salir.\n` +
-    `*${prefijo}buildstw [nombre]* - Busca una build para un arma o héroe concreto, con perks, recomendaciones y fuentes web. Ejemplos: *buildstw Nocturno* o *buildstw Ramirez*.\n`;
+    `*${prefijo}buildstw [nombre]* - Busca una build para un arma o héroe concreto, con perks, recomendaciones y fuentes web. Ejemplos: *buildstw Nocturno* o *buildstw Ramirez*.\n` +
+    `*${prefijo}id TuIDDeEpic* - Registra o actualiza tu ID de Epic para los carries.\n`;
 
     // Los comandos administrativos se encuentran en *menú moderación*.
 
@@ -141,7 +142,8 @@ async function ejecutarMenu(sock, chatId, msg, args) {
                  `*${prefijo}buscocarry [1-3] [motivo]* - Busca carry y notifica a todos con mención oculta.\n` +
                  `*${prefijo}buscooff* - Cierra la búsqueda activa (quien la abrió o admin).\n` +
                  `*${prefijo}doycarry* - Entra a ofrecer el carry.\n` +
-                 `*${prefijo}x2busco* - Entra como otro jugador que busca carry.\n`,
+                 `*${prefijo}x2busco* - Entra como otro jugador que busca carry.\n` +
+                 `*${prefijo}carryver* - Muestra las búsquedas abiertas y escuadrones activos; también muestra los completos durante 30 minutos.\n`,
 
         'rifas': `🎟️ *MENÚ RIFAS* 🎟️\n\n` +
                  `*${prefijo}abrirrifa* - Inicia/abre una rifa en este grupo (administradores).\n` +
