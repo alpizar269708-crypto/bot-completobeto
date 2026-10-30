@@ -26,7 +26,7 @@ const {
     comandoShop, comandoBuy, comandoInventario, comandoVender, comandoUse, comandoRegalarItem 
 } = require('./comandos/economia');
 const { comandoRifa, comandoRifaInscripcion, comandoRifaQuitarDuplicados, comandoRifaJasc13, comandoMenuRifaJasc13, comandoRecuperarRegistroJasc13, comandoAbrirRifa, comandoActivarRifaAqui, comandoCerrarRifa } = require('./comandos/rifas');
-const { comandoCarry } = require('./comandos/carry');
+const { comandoCarry, manejarRespuestaSeleccionCarry } = require('./comandos/carry');
 const { comandoPaypal, comandoCalculadoraPaypal } = require('./comandos/paypal');
 const { comandoVerEliminados } = require('./comandos/verelim');
 
@@ -241,7 +241,7 @@ Apoya a un creador: JASC13` });
         }
     }
 
-    // Las respuestas pendientes de reemplazo de héroes se procesan antes de validar comandos.
+    if (await manejarRespuestaSeleccionCarry(sock, chatJid, msg, remitenteReal, textoOriginal)) return;\n\n    // Las respuestas pendientes de reemplazo de héroes se procesan antes de validar comandos.
     if (await manejarRespuestaBuildSTW(sock, chatJid, msg, remitenteReal, textoOriginal)) return;
 
     // Las respuestas numéricas de la guía interactiva se procesan antes de la
@@ -467,7 +467,10 @@ Apoya a un creador: JASC13` });
             ['activarrifaaqui', 'Activa la rifa en el grupo para permitir inscripciones.'],
             ['id', 'Registra o actualiza tu ID de Epic para que aparezca junto a tu etiqueta en los carries.'],
             ['carryver', 'Muestra búsquedas, escuadrones abiertos y equipos completos de los últimos 30 minutos.'],
-            ['carryleader', 'Crea un escuadrón de carry y define sus espacios.']
+            ['carryleader', 'Crea un escuadrón de carry y define sus espacios.'],
+            ['id2', 'Registra o consulta tu segunda cuenta de Epic.'],
+            ['id3', 'Registra o consulta tu tercera cuenta de Epic.'],
+            ['id4', 'Registra o consulta tu cuarta cuenta de Epic.'],
             ['buscocarry', 'Abre una búsqueda de carry y menciona a todos de forma oculta.'],
             ['doycarry', 'Se une a una búsqueda activa para ofrecer el carry.'],
             ['x2busco', 'Se une a una búsqueda activa como otro jugador que también busca carry.'], 
@@ -952,6 +955,9 @@ Apoya a un creador: JASC13` });
                 await comandoMenuRifaJasc13(sock, chatJid, msg);
                 break;
             case 'id':
+            case 'id2':
+            case 'id3':
+            case 'id4':
             case 'carryver':
             case 'carryleader':
             case 'buscocarry':
