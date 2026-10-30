@@ -159,7 +159,7 @@ async function extraerPagina(fuente) {
     }
 }
 
-async function generarResumen(nombre, fuentes) {
+async function generarResumen(nombre, fuentes, evolucion = null) {
     const apiKey = process.env.GOOGLE_API_KEY;
     if (!apiKey) return null;
     const contexto = fuentes.map((f, i) =>
@@ -174,6 +174,7 @@ async function generarResumen(nombre, fuentes) {
         'Formato obligatorio de WhatsApp: usa un solo asterisco para negritas (*texto*), nunca doble asterisco. Usa títulos breves y listas simples.',
         'No expliques por qué funciona la build ni describas el arma. Devuelve solo listas claras con los perks y los héroes. Sin introducción, párrafos, historia, consejos ni alternativas salvo que sean indispensables.',
         'No inventes estadísticas exactas ni afirmes que una ventaja está disponible en el arma si las fuentes no lo confirman.',
+        'Si se proporciona una evolución/material actual del arma, debes respetarlo y recomendar perks y evolución compatibles con ese nivel. No sugieras volver a una evolución inferior ni reiniciar la progresión. Si el usuario ya indicó una evolución, no la cambies por tu cuenta.',
         'Sí puedes recomendar una configuración meta razonada aunque las páginas recuperadas no enumeren todos los perks; marca claramente qué es recomendación y qué dato no se pudo confirmar.',
         'Si el usuario escribe un arma, responde solo con los perks recomendados en orden y los héroes de la build: comandante + cinco apoyos. No agregues ventaja de equipo ni expliques qué aporta cada héroe, a menos que sea imprescindible.',
         'En perks, usa nombres prácticos en español y respeta estrictamente el orden de las casillas del esquema. No asumas que todas las armas tienen las mismas opciones: recomienda solo perks compatibles con el arma y, si no puedes confirmar una opción exacta, indícalo brevemente.',
@@ -187,7 +188,8 @@ async function generarResumen(nombre, fuentes) {
         'No incluyas datos históricos, explicación de la build, estilo de juego, enlaces ni sección de fuentes.',
         'No respondas únicamente que faltan datos, no des una recomendación genérica vacía y no incluyas enlaces, citas, nombres de páginas ni sección de fuentes.'
     ].join(' ');
-    const prompt = 'Prepara una BUILD RECOMENDADA para Fortnite: Salvar el Mundo con este objeto: "' + nombre + '". ' +
+    const contextoEvolucion = evolucion ? ' EVOLUCIÓN ACTUAL INDICADA POR EL USUARIO: ' + evolucion + '. Conserva esta evolución en la recomendación; no propongas bajarla ni reemplazarla.' : ' El usuario no indicó la evolución actual; recomienda perks apropiados y no inventes una evolución confirmada.';
+    const prompt = 'Prepara una BUILD RECOMENDADA para Fortnite: Salvar el Mundo con este objeto: "' + nombre + '".' + contextoEvolucion + ' ' +
         'Devuelve únicamente la configuración final, sin explicación. Numera los seis héroes del 1 al 6 (1 = Comandante; 2-6 = apoyos). ' +
         'Si el nombre es un arma: lista sus perks en orden y después comandante + cinco héroes de apoyo. ' +
         'Si el nombre es un héroe: lista el comandante + cinco apoyos de la build que mejor lo aproveche y los perks del arma recomendada si aplica. ' +
@@ -301,7 +303,10 @@ async function manejarRespuestaBuildSTW(sock, chatId, msg, remitente, textoOrigi
 }
 
 async function comandoBuildSTW(sock, chatId, msg, args) {
-    const nombre = limpiar((args || []).join(' '));
+    const entrada = limpiar((args || []).join(' '));
+    const coincidenciaEvolucion = entrada.match(/\[([^\]]+)\]\s*$/);
+    const evolucion = coincidenciaEvolucion ? limpiar(coincidenciaEvolucion[1]) : null;
+    const nombre = limpiar(coincidenciaEvolucion ? entrada.slice(0, coincidenciaEvolucion.index) : entrada);
     if (!nombre) {
         await sock.sendMessage(chatId, {
             text: `🔫 *BUILDS DE SALVAR AL MUNDO*
@@ -311,20 +316,22 @@ Escribe el comando seguido del nombre del arma o héroe.
 Ejemplos:
 • *buildstw Siegebreaker*
 • *buildstw Grave Digger*
-• *buildstw Ramirez*
+• *buildstw Pulsar 900 [malaquita]*
+
+Si tu arma ya tiene evolución, escríbela entre corchetes para conservarla en la recomendación.
 
 Apoya a un creador: *JASC13*.`
         }, { quoted: msg });
         return;
     }
 
-    const clave = nombre.toLocaleLowerCase('es-MX');
+    const clave = (nombre + (evolucion ? ' [' + evolucion.toLocaleLowerCase('es-MX') + ']' : '')).toLocaleLowerCase('es-MX');
     const guardado = cacheBuilds.get(clave);
     if (guardado && guardado.expira > Date.now()) {
         console.info('[buildstw] Resultado servido desde caché:', { nombre });
         const remitente = msg.key?.participant || msg.key?.remoteJid || chatId;
         sesionesReemplazoHeroes.set(claveSesion(chatId, remitente), {
-            nombre: guardado.nombre || nombre, cuerpo: guardado.cuerpo,
+            nombre: guardado.nombre || nombre, evolucion: guardado.evolucion || null, cuerpo: guardado.cuerpo,
             fuentes: guardado.fuentes || [], expira: Date.now() + SESION_REEMPLAZO_TTL
         });
         await sock.sendMessage(chatId, { text: guardado.texto }, { quoted: msg });
@@ -387,7 +394,7 @@ Apoya a un creador: *JASC13*.`;
 
         let resumen = null;
         try {
-            resumen = await generarResumen(nombre, fuentesUtiles.length ? fuentesUtiles : resultados);
+            resumen = await generarResumen(nombre, fuentesUtiles.length ? fuentesUtiles : resultados, evolucion);
             registroEtapa('Resumen generado', { resumenVacio: !resumen });
         } catch (error) {
             console.error('[buildstw] Falló la generación del resumen con IA:', {
@@ -405,9 +412,9 @@ Apoya a un creador: *JASC13*.`;
         const remitente = msg.key?.participant || msg.key?.remoteJid || chatId;
         const fuentesBuild = fuentesUtiles.length ? fuentesUtiles : resultados;
         sesionesReemplazoHeroes.set(claveSesion(chatId, remitente), {
-            nombre, cuerpo, fuentes: fuentesBuild, expira: Date.now() + SESION_REEMPLAZO_TTL
+            nombre, evolucion, cuerpo, fuentes: fuentesBuild, expira: Date.now() + SESION_REEMPLAZO_TTL
         });
-        cacheBuilds.set(clave, { texto, nombre, cuerpo, fuentes: fuentesBuild, expira: Date.now() + CACHE_TTL });
+        cacheBuilds.set(clave, { texto, nombre, evolucion, cuerpo, fuentes: fuentesBuild, expira: Date.now() + CACHE_TTL });
         registroEtapa('Enviando respuesta final a WhatsApp');
         await sock.sendMessage(chatId, { text: texto }, { quoted: msg });
         registroEtapa('Proceso completado correctamente');
