@@ -53,11 +53,11 @@ async function comandoCarry(sock, chatId, msg, comando, args = []) {
         const epicId = texto.trim().replace(/^[*_~`]+/, '').replace(/^id\b/i, '').trim();
         if (!epicId) {
             const actual = await obtenerEpicId(sender);
-            return await sock.sendMessage(chatId, { text: actual ? `🎮 Tu ID de Epic registrado es: *${actual}*\\n\\nPara cambiarlo, escribe *ID TuNuevoID*.` : '🎮 *Registra tu ID de Epic*\\n\\nEscribe *ID TuIDDeEpic* para guardarlo y poder participar en los carries.' }, { quoted: msg });
+            return await sock.sendMessage(chatId, { text: actual ? `🎮 Tu ID de Epic registrado es: *${actual}*\n\nPara cambiarlo, escribe *ID TuNuevoID*.` : '🎮 *Registra tu ID de Epic*\n\nEscribe *ID TuIDDeEpic* para guardarlo y poder participar en los carries.' }, { quoted: msg });
         }
-        if (epicId.length < 2 || epicId.length > 64 || /[@\\n\\r]/.test(epicId)) return await sock.sendMessage(chatId, { text: '❌ Ese ID no parece válido. Escribe *ID TuIDDeEpic* (máximo 64 caracteres).' }, { quoted: msg });
+        if (epicId.length < 2 || epicId.length > 64 || /[@\n\\r]/.test(epicId)) return await sock.sendMessage(chatId, { text: '❌ Ese ID no parece válido. Escribe *ID TuIDDeEpic* (máximo 64 caracteres).' }, { quoted: msg });
         await Config.findOneAndUpdate({ clave: claveEpicId(sender) }, { valor: epicId }, { upsert: true, new: true });
-        return await sock.sendMessage(chatId, { text: `✅ *ID DE EPIC GUARDADO*\\n🎮 Tu ID: *${epicId}*\\n\\nA partir de ahora aparecerá junto a tu etiqueta en los avisos de carry.` }, { quoted: msg });
+        return await sock.sendMessage(chatId, { text: `✅ *ID DE EPIC GUARDADO*\n🎮 Tu ID: *${epicId}*\n\nA partir de ahora aparecerá junto a tu etiqueta en los avisos de carry.` }, { quoted: msg });
     }
 
     let escuadron = escuadronesActivos.get(chatId);
@@ -119,7 +119,7 @@ async function comandoCarry(sock, chatId, msg, comando, args = []) {
     const comandosConID = ['carryleader', 'carryjoin', 'buscocarry', 'doycarry', 'x2busco'];
     const epicIdRemitente = await obtenerEpicId(sender);
     if (comandosConID.includes(comando) && !epicIdRemitente) {
-        return await sock.sendMessage(chatId, { text: '⚠️ *Primero registra tu ID de Epic.*\\n\\nEscribe *ID TuIDDeEpic* y vuelve a intentar. Así los demás podrán identificarte dentro del juego.' }, { quoted: msg });
+        return await sock.sendMessage(chatId, { text: '⚠️ *Primero registra tu ID de Epic.*\n\nEscribe *ID TuIDDeEpic* y vuelve a intentar. Así los demás podrán identificarte dentro del juego.' }, { quoted: msg });
     }
 
     let participantesGrupo = [];
@@ -163,7 +163,7 @@ async function comandoCarry(sock, chatId, msg, comando, args = []) {
         } else {
             const mentions = [...new Set([busqueda.solicitanteId, ...busqueda.miembros.map(m => m.id), ...participantesGrupo])];
             let texto = `🚀 *¡ESCUADRÓN DE CARRY COMPLETO!*\n🎯 *Objetivo:* ${busqueda.motivo}\n\n🙋 Busca carry: ${mencionarJugador(busqueda.solicitanteId, busqueda.solicitanteEpicId)}\n`;
-            busqueda.miembros.forEach(m => { texto += `${mencionarJugador(m.id, m.epicId, m.rol === 'Ofrece carry' ? '🛟' : '🎮')}\n`; });
+            busqueda.miembros.forEach(m => { texto += `${mencionarJugador(m.id, m.epicId, m.rol === 'Ofrece carry' ? '🛟 Ofrece carry:' : '🎮 Busca carry:')}\n`; });
             texto += '\n¡Coordínense y a jugar!';
             await sock.sendMessage(chatId, { text: texto, mentions });
             buscoCarryActivos.delete(chatId);
