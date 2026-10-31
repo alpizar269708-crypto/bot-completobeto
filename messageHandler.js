@@ -490,7 +490,7 @@ Apoya a un creador: JASC13` });
             ['cerrarsesionauth', 'Cierra la sesión de WhatsApp del bot para volver a vincularla.']
         ];
 
-        const comandosModeracion = new Set(['warn', 'advertir', 'verwarns', 'limpiarwarns', 'ban', 'unban', 'listanegra', 'banlist', 'unbanlist', 'grupo', 'mute', 'unmute', 'listablanca', 'desactivarbienvenida', 'activarbienvenida', 'personalizarbienvenida', 'restaurarbienvenida', 'blcarry', 'unblcarry', 'listcarrybl', 'setprecio', 'setgrupostw', 'unsetgrupostw', 'desactivarcomandos', 'catdesa']);
+        const comandosModeracion = new Set(['warn', 'advertir', 'verwarns', 'limpiarwarns', 'ban', 'unban', 'listanegra', 'banlist', 'unbanlist', 'grupo', 'mute', 'unmute', 'listablanca', 'desactivarbienvenida', 'activarbienvenida', 'personalizarbienvenida', 'restaurarbienvenida', 'carryban', 'blcarry', 'unblcarry', 'setprecio', 'setgrupostw', 'unsetgrupostw', 'desactivarcomandos', 'catdesa']);
         const comandosVisibles = comandosInfo.filter(([cmd]) => (tienePrivilegiosTotales || msg.key.fromMe || !comandosModeracion.has(cmd)));
         const texto = [
             '🕵️‍♂️ *COMANDOS DEL BOT* 🕵️‍♂️',
