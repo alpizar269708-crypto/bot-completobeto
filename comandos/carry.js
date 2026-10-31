@@ -124,57 +124,78 @@ async function comandoCarry(sock, chatId, msg, comando, args = [], epicIdElegido
     }
 
     // === GESTIÓN DE LISTA NEGRA DE CARRY (SOLO ADMINS) ===
-    if (comando === 'blcarry' || comando === 'unblcarry' || comando === 'listcarrybl') {
+    if (['blcarry', 'unblcarry', 'listacarrybl'].includes(comando)) {
         if (!(await esAdminValido(sock, chatId, msg))) {
-            return await sock.sendMessage(chatId, { text: `❌ Este comando exclusivo de lista negra es solo para administradores.` }, { quoted: msg });
+            return await sock.sendMessage(chatId, { text: '❌ Estos comandos de lista negra son exclusivos de los administradores.' }, { quoted: msg });
         }
-
         let configBL = await Config.findOne({ clave: `carry_bl_${chatId}` });
-        let listaNegra = configBL ? JSON.parse(configBL.valor) : [];
+        let listaNegra = [];
+        if (configBL?.valor) {
+            try { const parsed = JSON.parse(configBL.valor); if (Array.isArray(parsed)) listaNegra = parsed; } catch (e) {}
+        }
+        const normalizarRegistro = item => typeof item === 'string'
+            ? { id: item, motivo: 'Motivo no registrado (entrada anterior)', agregadoPor: null, agregadoPorNombre: 'No disponible' }
+            : item;
 
-        if (comando === 'listcarrybl') {
-            if (listaNegra.length === 0) {
-                return await sock.sendMessage(chatId, { text: `📋 La lista negra de carry en este grupo está vacía.` }, { quoted: msg });
-            }
-            let txt = `🚫 *LISTA NEGRA DE CARRY*\n\n`;
-            listaNegra.forEach((id, idx) => {
-                txt += `${idx + 1}. @${id.split('@')[0]}\n`;
+        if (comando === 'listacarrybl') {
+            if (!listaNegra.length) return await sock.sendMessage(chatId, { text: '📋 La lista negra de carry en este grupo está vacía.' }, { quoted: msg });
+            let txt = '🚫 *LISTA NEGRA DE CARRY*\\n\\n';
+            const menciones = [];
+            listaNegra.forEach((item, idx) => {
+                const r = normalizarRegistro(item);
+                txt += `${idx + 1}. @${String(r.id).split('@')[0]}\\n   📝 *Motivo:* ${r.motivo || 'No especificado'}\\n   👮 *Agregó:* ${r.agregadoPor ? '@' + String(r.agregadoPor).split('@')[0] : (r.agregadoPorNombre || 'No disponible')}\\n\\n`;
+                menciones.push(r.id);
+                if (r.agregadoPor) menciones.push(r.agregadoPor);
             });
-            return await sock.sendMessage(chatId, { text: txt, mentions: listaNegra }, { quoted: msg });
+            return await sock.sendMessage(chatId, { text: txt.trim(), mentions: [...new Set(menciones)] }, { quoted: msg });
         }
 
-        let objetivo = extraerUsuarioObjetivo(msg, args);
-        if (!objetivo) {
-            return await sock.sendMessage(chatId, { text: `❌ Debes mencionar a un usuario, escribir su número o responder a un mensaje suyo.` }, { quoted: msg });
-        }
+        const objetivo = extraerUsuarioObjetivo(msg, args);
+        if (!objetivo) return await sock.sendMessage(chatId, { text: '❌ Debes mencionar a un usuario, escribir su número o responder a un mensaje suyo. En *blcarry* también indica el motivo.' }, { quoted: msg });
+        const motivo = args.slice(1).join(' ').trim();
 
         if (comando === 'blcarry') {
-            if (listaNegra.includes(objetivo)) {
-                return await sock.sendMessage(chatId, { text: `⚠️ El usuario @${objetivo.split('@')[0]} ya está en la lista negra de carry.`, mentions: [objetivo] }, { quoted: msg });
-            }
-            listaNegra.push(objetivo);
+            if (!motivo) return await sock.sendMessage(chatId, { text: '❌ Indica el motivo.\\n\\nEjemplo: *blcarry @usuario Abandonó varios carries sin avisar* (o responde a su mensaje y escribe el motivo).' }, { quoted: msg });
+            const existente = listaNegra.map(normalizarRegistro).find(r => r.id === objetivo);
+            if (existente) return await sock.sendMessage(chatId, { text: `⚠️ @${objetivo.split('@')[0]} ya está en la lista negra.\\n📝 *Motivo:* ${existente.motivo || 'No especificado'}`, mentions: [objetivo] }, { quoted: msg });
+            listaNegra.push({ id: objetivo, motivo, agregadoPor: sender, agregadoPorNombre: pushName, fecha: new Date().toISOString() });
             await Config.findOneAndUpdate({ clave: `carry_bl_${chatId}` }, { valor: JSON.stringify(listaNegra) }, { upsert: true });
-            return await sock.sendMessage(chatId, { text: `🚫 El usuario @${objetivo.split('@')[0]} ha sido agregado a la lista negra de carry.`, mentions: [objetivo] }, { quoted: msg });
+            return await sock.sendMessage(chatId, { text: `🚫 @${objetivo.split('@')[0]} fue agregado a la lista negra.\\n📝 *Motivo:* ${motivo}\\n👮 *Agregado por:* @${String(sender).split('@')[0]}`, mentions: [objetivo, sender] }, { quoted: msg });
         }
-
         if (comando === 'unblcarry') {
-            let index = listaNegra.indexOf(objetivo);
-            if (index === -1) {
-                return await sock.sendMessage(chatId, { text: `⚠️ El usuario @${objetivo.split('@')[0]} no estaba en la lista negra.`, mentions: [objetivo] }, { quoted: msg });
-            }
+            const index = listaNegra.findIndex(item => normalizarRegistro(item).id === objetivo);
+            if (index === -1) return await sock.sendMessage(chatId, { text: `⚠️ @${objetivo.split('@')[0]} no estaba en la lista negra.`, mentions: [objetivo] }, { quoted: msg });
             listaNegra.splice(index, 1);
             await Config.findOneAndUpdate({ clave: `carry_bl_${chatId}` }, { valor: JSON.stringify(listaNegra) }, { upsert: true });
-            return await sock.sendMessage(chatId, { text: `✅ El usuario @${objetivo.split('@')[0]} fue removido de la lista negra de carry.`, mentions: [objetivo] }, { quoted: msg });
+            return await sock.sendMessage(chatId, { text: `✅ @${objetivo.split('@')[0]} fue removido de la lista negra de carry.`, mentions: [objetivo] }, { quoted: msg });
         }
         return;
     }
     // =====================================================
 
-    // Verificar si el usuario está en lista negra antes de unirse o crear
-    let configBL = await Config.findOne({ clave: `carry_bl_${chatId}` });
-    let listaNegra = configBL ? JSON.parse(configBL.valor) : [];
-    if (listaNegra.includes(sender)) {
-        return await sock.sendMessage(chatId, { text: `❌ Estás en la lista negra de carry de este grupo y no puedes participar.` }, { quoted: msg });
+    // Rechazar únicamente solicitudes o uniones de carry de usuarios en lista negra.
+    const comandosParaSolicitarCarry = ['carryleader', 'carryjoin', 'buscocarry', 'doycarry', 'x2busco'];
+    if (comandosParaSolicitarCarry.includes(comando)) {
+        let configBL = await Config.findOne({ clave: `carry_bl_${chatId}` });
+        let listaNegra = [];
+        if (configBL?.valor) {
+            try { const parsed = JSON.parse(configBL.valor); if (Array.isArray(parsed)) listaNegra = parsed; } catch (e) {}
+        }
+        const idsRemitente = await identificadoresEpic(sock, sender, idsAlternativos);
+        const registroBL = listaNegra.map(item => typeof item === 'string'
+            ? { id: item, motivo: 'Motivo no registrado (entrada anterior)', agregadoPor: null, agregadoPorNombre: 'No disponible' }
+            : item).find(item => idsRemitente.includes(item.id));
+        if (registroBL) {
+            const quienAgrego = registroBL.agregadoPor
+                ? '@' + String(registroBL.agregadoPor).split('@')[0]
+                : (registroBL.agregadoPorNombre || 'No disponible');
+            const menciones = [sender];
+            if (registroBL.agregadoPor) menciones.push(registroBL.agregadoPor);
+            return await sock.sendMessage(chatId, {
+                text: `⛔ *SOLICITUD DE CARRY RECHAZADA*\\n\\nNo puedes crear ni unirte a carries en este grupo porque estás en la lista negra.\\n📝 *Motivo:* ${registroBL.motivo || 'No especificado'}\\n👮 *Agregado por:* ${quienAgrego}`,
+                mentions: menciones
+            }, { quoted: msg });
+        }
     }
 
     const comandosConID = ['carryleader', 'carryjoin', 'buscocarry', 'doycarry', 'x2busco'];
