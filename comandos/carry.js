@@ -152,7 +152,8 @@ async function comandoCarry(sock, chatId, msg, comando, args = [], epicIdElegido
 
         const objetivo = extraerUsuarioObjetivo(msg, args);
         if (!objetivo) return await sock.sendMessage(chatId, { text: '❌ Debes mencionar a un usuario, escribir su número o responder a un mensaje suyo. En *blcarry* también indica el motivo.' }, { quoted: msg });
-        const motivo = args.slice(1).join(' ').trim();
+        const hayRespuesta = Boolean(msg.message?.extendedTextMessage?.contextInfo?.participant);
+        const motivo = (hayRespuesta ? args : args.slice(1)).join(' ').trim();
 
         if (comando === 'blcarry') {
             if (!motivo) return await sock.sendMessage(chatId, { text: '❌ Indica el motivo.\\n\\nEjemplo: *blcarry @usuario Abandonó varios carries sin avisar* (o responde a su mensaje y escribe el motivo).' }, { quoted: msg });
