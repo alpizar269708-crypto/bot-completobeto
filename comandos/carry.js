@@ -4,6 +4,28 @@ const escuadronesActivos = new Map();
 const buscoCarryActivos = new Map();
 const escuadronesCompletados = new Map();
 const DURACION_CARRY_COMPLETO = 30 * 60 * 1000;
+const DURACION_CARRY_ACTIVO = 30 * 60 * 1000;
+
+function programarExpiracionCarry(mapa, chatId, registro, sock, tipo) {
+    registro.expiraEn = Date.now() + DURACION_CARRY_ACTIVO;
+    registro.expiracionTimer = setTimeout(async () => {
+        if (mapa.get(chatId) !== registro) return;
+        mapa.delete(chatId);
+        try {
+            const texto = tipo === 'escuadron'
+                ? '⏰ *CARRY EXPIRADO*\\nEl escuadrón se cerró automáticamente porque pasaron 30 minutos desde que se abrió.'
+                : '⏰ *BÚSQUEDA DE CARRY EXPIRADA*\\nLa búsqueda se cerró automáticamente porque pasaron 30 minutos desde que se abrió.';
+            await sock.sendMessage(chatId, { text: texto });
+        } catch (error) {
+            console.error('[CARRY] No se pudo avisar que expiró:', error?.message || error);
+        }
+    }, DURACION_CARRY_ACTIVO);
+    if (typeof registro.expiracionTimer.unref === 'function') registro.expiracionTimer.unref();
+}
+
+function cancelarExpiracionCarry(registro) {
+    if (registro?.expiracionTimer) clearTimeout(registro.expiracionTimer);
+}
 
 const seleccionesEpicPendientes = new Map();
 const MAX_CUENTAS_EPIC = 4;
