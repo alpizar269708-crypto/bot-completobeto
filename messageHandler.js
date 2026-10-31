@@ -971,7 +971,7 @@ Apoya a un creador: JASC13` });
             case 'carryclose':
             case 'blcarry':
             case 'unblcarry':
-            case 'listcarrybl':
+            case 'listacarrybl':
                 await comandoCarry(sock, chatJid, msg, comando, args);
                 break;
         }
