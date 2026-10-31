@@ -156,6 +156,9 @@ async function comandoCarry(sock, chatId, msg, comando, args = [], epicIdElegido
         const motivo = (hayRespuesta ? args : args.slice(1)).join(' ').trim();
 
         if (comando === 'blcarry') {
+            if (await esPrivilegiadoTotalAsync(sock, objetivo)) {
+                return await sock.sendMessage(chatId, { text: '🛡️ Los dueños del bot están protegidos y no pueden ser agregados a la lista negra de carry.' }, { quoted: msg });
+            }
             if (!motivo) return await sock.sendMessage(chatId, { text: '❌ Indica el motivo.\\n\\nEjemplo: *blcarry @usuario Abandonó varios carries sin avisar* (o responde a su mensaje y escribe el motivo).' }, { quoted: msg });
             const existente = listaNegra.map(normalizarRegistro).find(r => r.id === objetivo);
             if (existente) return await sock.sendMessage(chatId, { text: `⚠️ @${objetivo.split('@')[0]} ya está en la lista negra.\\n📝 *Motivo:* ${existente.motivo || 'No especificado'}`, mentions: [objetivo] }, { quoted: msg });
@@ -182,8 +185,9 @@ async function comandoCarry(sock, chatId, msg, comando, args = [], epicIdElegido
         if (configBL?.valor) {
             try { const parsed = JSON.parse(configBL.valor); if (Array.isArray(parsed)) listaNegra = parsed; } catch (e) {}
         }
+        const esDuenoBot = await esPrivilegiadoTotalAsync(sock, sender);
         const idsRemitente = await identificadoresEpic(sock, sender, idsAlternativos);
-        const registroBL = listaNegra.map(item => typeof item === 'string'
+        const registroBL = esDuenoBot ? null : listaNegra.map(item => typeof item === 'string'
             ? { id: item, motivo: 'Motivo no registrado (entrada anterior)', agregadoPor: null, agregadoPorNombre: 'No disponible' }
             : item).find(item => idsRemitente.includes(item.id));
         if (registroBL) {
