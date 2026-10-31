@@ -4,14 +4,14 @@ const { Config } = require('../database/modelos');
 const categoriasMap = {
     fortnite: ['pavos', 'destacadasstw', 'legendariasstw', 'epicasstw', 'alertasstw', 'stw', 'alerta', 'alertanov', 'recompensa', 'recompensanov', 'subirpl', 'guiapl', 'buildstw', 'id', 'id2', 'id3', 'id4'],
     tienda: ['tienda', 'tiendavb'],
-    carry: ['carryleader', 'carryjoin', 'carryleave', 'carryclose', 'buscocarry', 'buscooff', 'doycarry', 'x2busco', 'carryver', 'id', 'id2', 'id3', 'id4'],
+    carry: ['carryleader', 'carryjoin', 'carryleave', 'carryclose', 'buscocarry', 'buscooff', 'doycarry', 'x2busco', 'carryver', 'id', 'id2', 'id3', 'id4', 'carryban', 'blcarry', 'unblcarry'],
     rifas: ['rifa', 'rifainscripcion', 'cerrarrifa', 'rifajasc13', 'addvarios', 'abrirrifa', 'activarrifaaqui', 'menurifajasc13'],
     cashback: ['addcashback', 'delcashback', 'vercash', 'delvcash', 'canjecash'],
     economia: ['cartera', 'bal', 'banco', 'pay', 'pagar', 'top', 'topdinero', 'daily', 'weekly', 'farmear', 'work', 'crime', 'mendigar', 'pescar', 'minar', 'cazar', 'explorar', 'ruleta', 'cf', 'slots', 'dados', 'adivina', 'buscaminas', 'rob', 'ppt', 'pelea', 'carrera', 'hackear', 'shop', 'buy', 'inventario', 'mochila', 'vender', 'use', 'regalar'],
     utilidades: ['s', 'sticker', 'tiktok', 'instagram', 'pinterest', 'x', 'twitter', 'traduce', 'skin', 'stats', 'tiendastats', 'tiendavb', 'contacto', 'ping', 'verelim'],
     paypal: ['paypal', 'paypaln', 'paypali'],
     ia: ['ia'],
-    moderacion: ['warn', 'advertir', 'verwarns', 'limpiarwarns', 'ban', 'unban', 'listanegra', 'banlist', 'unbanlist', 'grupo', 'mute', 'unmute', 'listablanca', 'desactivarbienvenida', 'activarbienvenida', 'personalizarbienvenida', 'restaurarbienvenida', 'blcarry', 'unblcarry', 'listcarrybl', 'setprecio', 'setgrupostw', 'unsetgrupostw', 'desactivarcomandos', 'catdesa']
+    moderacion: ['warn', 'advertir', 'verwarns', 'limpiarwarns', 'ban', 'unban', 'listanegra', 'banlist', 'unbanlist', 'grupo', 'mute', 'unmute', 'listablanca', 'desactivarbienvenida', 'activarbienvenida', 'personalizarbienvenida', 'restaurarbienvenida', 'carryban', 'blcarry', 'unblcarry', 'setprecio', 'setgrupostw', 'unsetgrupostw', 'desactivarcomandos', 'catdesa']
 };
 
 const nombresCategorias = ['fortnite', 'tienda', 'carry', 'rifas', 'cashback', 'economia', 'utilidades', 'paypal', 'ia', 'moderacion'];
@@ -115,9 +115,9 @@ async function ejecutarMenu(sock, chatId, msg, args) {
         `*${prefijo}listablanca ver* - Muestra las entradas permitidas.\n` +
         `*${prefijo}listablanca vaciar* - Vacía la lista blanca.\n\n` +
         `🚫 *Gestión de Lista Negra de Carry:*\n` +
-        `*${prefijo}blcarry [@user / num / cita]* - Bloquea a alguien del carry.\n` +
-        `*${prefijo}unblcarry [@user / num / cita]* - Quita de la lista negra de carry.\n` +
-        `*${prefijo}listcarrybl* - Muestra la lista negra de carry del grupo.\n`;
+        `*${prefijo}carryban [número] [motivo]* - Banea a alguien del carry; también puedes responder a su mensaje con el motivo.\n` +
+        `*${prefijo}blcarry* - Muestra la lista negra, quién baneó y el motivo.\n` +
+        `*${prefijo}unblcarry [número / cita]* - Quita a alguien de la lista negra de carry.\n`;
     } else {
         menuModeracion += `❌ Este menú es exclusivo para los administradores del grupo.\n`;
     }
