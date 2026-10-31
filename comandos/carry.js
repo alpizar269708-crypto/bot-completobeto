@@ -239,7 +239,9 @@ async function comandoCarry(sock, chatId, msg, comando, args = [], epicIdElegido
         if (comando === 'buscooff') {
             if (!busqueda) return await sock.sendMessage(chatId, { text: '❌ No hay una búsqueda de carry activa.' }, { quoted: msg });
             if (busqueda.solicitanteId === sender) {
-                buscoCarryActivos.delete(chatId);
+                cancelarExpiracionCarry(busqueda);
+                cancelarExpiracionCarry(busqueda);
+            buscoCarryActivos.delete(chatId);
                 return await sock.sendMessage(chatId, { text: '🔒 *BUSCO CARRY CERRADO*\nLa búsqueda se cerró y ya nadie puede unirse.' }, { quoted: msg });
             }
             const indiceMiembro = busqueda.miembros.findIndex(m => m.id === sender);
@@ -257,6 +259,7 @@ async function comandoCarry(sock, chatId, msg, comando, args = [], epicIdElegido
             const motivo = args.slice(1).join(' ').trim() || 'Carry por coordinar';
             busqueda = { solicitanteId: sender, solicitanteNombre: pushName, solicitanteEpicId: epicIdRemitente, motivo, maxEspacios: espacios, miembros: [] };
             buscoCarryActivos.set(chatId, busqueda);
+            programarExpiracionCarry(buscoCarryActivos, chatId, busqueda, sock, 'busqueda');
             await sock.sendMessage(chatId, { text: `🔎 *BUSCO CARRY*\n🙋 ${mencionarJugador(sender, epicIdRemitente)} está buscando carry.\n🎯 *Objetivo:* ${motivo}\n\nFaltan *${espacios}* espacios.\n🛟 Para ofrecer el carry: *doycarry*\n🎮 Para unirse como otro jugador que busca carry: *x2busco*`, mentions: [...new Set([sender, ...participantesGrupo])] }, { quoted: msg });
             return;
         }
@@ -300,14 +303,16 @@ async function comandoCarry(sock, chatId, msg, comando, args = [], epicIdElegido
 
         const motivo = args.join(' ');
         
-        escuadronesActivos.set(chatId, {
+        const nuevoEscuadron = {
             liderId: sender,
             liderNombre: pushName,
             liderEpicId: epicIdRemitente,
             motivo: motivo,
             maxEspacios: maxEspacios,
             miembros: [] 
-        });
+        };
+        escuadronesActivos.set(chatId, nuevoEscuadron);
+        programarExpiracionCarry(escuadronesActivos, chatId, nuevoEscuadron, sock, 'escuadron');
         
         await sock.sendMessage(chatId, { 
             text: `📢 *NUEVO CARRY DISPONIBLE*\n👑 ${mencionarJugador(sender, epicIdRemitente)} ha creado un escuadrón.\n🎯 *Objetivo:* ${motivo}\n\nFaltan *${maxEspacios}* espacios. Usa *carryjoin* para unirte.`,
@@ -345,6 +350,7 @@ async function comandoCarry(sock, chatId, msg, comando, args = [], epicIdElegido
             const historial = (escuadronesCompletados.get(chatId) || []).filter(s => Date.now() - s.completadoEn < DURACION_CARRY_COMPLETO);
             historial.push({ motivo: escuadron.motivo, liderId: escuadron.liderId, liderEpicId: escuadron.liderEpicId, miembros: escuadron.miembros.map(m => ({ ...m })), completadoEn: Date.now() });
             escuadronesCompletados.set(chatId, historial);
+            cancelarExpiracionCarry(escuadron);
             escuadronesActivos.delete(chatId); 
         }
 
@@ -368,6 +374,7 @@ async function comandoCarry(sock, chatId, msg, comando, args = [], epicIdElegido
     } else if (comando === 'carryclose') {
         if (!escuadron) return await sock.sendMessage(chatId, { text: '❌ No hay escuadrones activos.' }, { quoted: msg });
         if (escuadron.liderId === sender) {
+            cancelarExpiracionCarry(escuadron);
             escuadronesActivos.delete(chatId);
             return await sock.sendMessage(chatId, { text: '🛑 *CARRY CERRADO*\nEl líder canceló el escuadrón.' }, { quoted: msg });
         }
