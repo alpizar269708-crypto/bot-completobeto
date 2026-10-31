@@ -13,8 +13,8 @@ function programarExpiracionCarry(mapa, chatId, registro, sock, tipo) {
         mapa.delete(chatId);
         try {
             const texto = tipo === 'escuadron'
-                ? '⏰ *CARRY EXPIRADO*\\nEl escuadrón se cerró automáticamente porque pasaron 30 minutos desde que se abrió.'
-                : '⏰ *BÚSQUEDA DE CARRY EXPIRADA*\\nLa búsqueda se cerró automáticamente porque pasaron 30 minutos desde que se abrió.';
+                ? '⏰ *CARRY EXPIRADO*\nEl escuadrón se cerró automáticamente porque pasaron 30 minutos desde que se abrió.'
+                : '⏰ *BÚSQUEDA DE CARRY EXPIRADA*\nLa búsqueda se cerró automáticamente porque pasaron 30 minutos desde que se abrió.';
             await sock.sendMessage(chatId, { text: texto });
         } catch (error) {
             console.error('[CARRY] No se pudo avisar que expiró:', error?.message || error);
@@ -240,8 +240,7 @@ async function comandoCarry(sock, chatId, msg, comando, args = [], epicIdElegido
             if (!busqueda) return await sock.sendMessage(chatId, { text: '❌ No hay una búsqueda de carry activa.' }, { quoted: msg });
             if (busqueda.solicitanteId === sender) {
                 cancelarExpiracionCarry(busqueda);
-                cancelarExpiracionCarry(busqueda);
-            buscoCarryActivos.delete(chatId);
+                buscoCarryActivos.delete(chatId);
                 return await sock.sendMessage(chatId, { text: '🔒 *BUSCO CARRY CERRADO*\nLa búsqueda se cerró y ya nadie puede unirse.' }, { quoted: msg });
             }
             const indiceMiembro = busqueda.miembros.findIndex(m => m.id === sender);
@@ -280,6 +279,7 @@ async function comandoCarry(sock, chatId, msg, comando, args = [], epicIdElegido
             const historial = (escuadronesCompletados.get(chatId) || []).filter(s => Date.now() - s.completadoEn < DURACION_CARRY_COMPLETO);
             historial.push({ motivo: busqueda.motivo, liderId: busqueda.solicitanteId, liderEpicId: busqueda.solicitanteEpicId, miembros: busqueda.miembros.map(m => ({ ...m })), completadoEn: Date.now() });
             escuadronesCompletados.set(chatId, historial);
+            cancelarExpiracionCarry(busqueda);
             buscoCarryActivos.delete(chatId);
         }
         return;
