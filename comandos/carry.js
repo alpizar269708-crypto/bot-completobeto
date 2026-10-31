@@ -201,12 +201,18 @@ async function comandoCarry(sock, chatId, msg, comando, args = [], epicIdElegido
         if (!chatId.endsWith('@g.us')) return await sock.sendMessage(chatId, { text: '❌ Este comando solo funciona en grupos.' }, { quoted: msg });
         let busqueda = buscoCarryActivos.get(chatId);
         if (comando === 'buscooff') {
-            if (!busqueda) return await sock.sendMessage(chatId, { text: '❌ No hay una búsqueda de carry activa para cerrar.' }, { quoted: msg });
-            if (busqueda.solicitanteId !== sender && !(await esAdminValido(sock, chatId, msg))) {
-                return await sock.sendMessage(chatId, { text: '❌ Solo quien abrió el buscocarry o un administrador puede cerrarlo.' }, { quoted: msg });
+            if (!busqueda) return await sock.sendMessage(chatId, { text: '❌ No hay una búsqueda de carry activa.' }, { quoted: msg });
+            if (busqueda.solicitanteId === sender) {
+                buscoCarryActivos.delete(chatId);
+                return await sock.sendMessage(chatId, { text: '🔒 *BUSCO CARRY CERRADO*\\nLa búsqueda se cerró y ya nadie puede unirse.' }, { quoted: msg });
             }
-            buscoCarryActivos.delete(chatId);
-            return await sock.sendMessage(chatId, { text: '🔒 *BUSCO CARRY CERRADO*\nLa búsqueda se cerró y ya nadie puede unirse.' }, { quoted: msg });
+            const indiceMiembro = busqueda.miembros.findIndex(m => m.id === sender);
+            if (indiceMiembro !== -1) {
+                const [saliente] = busqueda.miembros.splice(indiceMiembro, 1);
+                const rol = saliente.rol === 'Ofrece carry' ? '🛟 Ofrecía el carry' : '🎮 Buscaba carry';
+                return await sock.sendMessage(chatId, { text: '🚪 *SALISTE DE LA BÚSQUEDA DE CARRY*\\n' + mencionarJugador(sender, saliente.epicId) + ' salió de la búsqueda.\\n' + rol + '.\\nQuedan *' + Math.max(0, busqueda.maxEspacios - busqueda.miembros.length) + '* espacios disponibles.' }, { quoted: msg });
+            }
+            return await sock.sendMessage(chatId, { text: '❌ Solo quien abrió esta búsqueda puede cerrarla. Si formas parte de ella, puedes usar *buscooff* para salir.' }, { quoted: msg });
         }
         if (comando === 'buscocarry') {
             if (busqueda) return await sock.sendMessage(chatId, { text: '❌ Ya hay una búsqueda de carry activa. Únete con *doycarry* o *x2busco*.' }, { quoted: msg });
@@ -324,11 +330,18 @@ async function comandoCarry(sock, chatId, msg, comando, args = [], epicIdElegido
         }, { quoted: msg });
 
     } else if (comando === 'carryclose') {
-        if (!escuadron) return await sock.sendMessage(chatId, { text: `❌ No hay escuadrones activos.` }, { quoted: msg });
-        if (escuadron.liderId !== sender) return await sock.sendMessage(chatId, { text: `❌ Solo el líder (${escuadron.liderNombre}) puede cerrar el escuadrón.` }, { quoted: msg });
-        
-        escuadronesActivos.delete(chatId);
-        await sock.sendMessage(chatId, { text: `🛑 Has cancelado el escuadrón.` }, { quoted: msg });
+        if (!escuadron) return await sock.sendMessage(chatId, { text: '❌ No hay escuadrones activos.' }, { quoted: msg });
+        if (escuadron.liderId === sender) {
+            escuadronesActivos.delete(chatId);
+            return await sock.sendMessage(chatId, { text: '🛑 *CARRY CERRADO*\\nEl líder canceló el escuadrón.' }, { quoted: msg });
+        }
+        const indiceMiembro = escuadron.miembros.findIndex(m => m.id === sender);
+        if (indiceMiembro !== -1) {
+            const [saliente] = escuadron.miembros.splice(indiceMiembro, 1);
+            return await sock.sendMessage(chatId, { text: '🚪 *SALISTE DEL CARRY*\\n' + mencionarJugador(sender, saliente.epicId) + ' salió del escuadrón.\\nQuedan *' + Math.max(0, escuadron.maxEspacios - escuadron.miembros.length) + '* espacios disponibles.' }, { quoted: msg });
+        }
+        return await sock.sendMessage(chatId, { text: '❌ Solo el líder (' + escuadron.liderNombre + ') puede cerrar este carry. Si formas parte del escuadrón, puedes usar *carryclose* para salir.' }, { quoted: msg });
+
     }
 }
 
