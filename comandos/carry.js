@@ -265,8 +265,19 @@ async function comandoCarry(sock, chatId, msg, comando, args = [], epicIdElegido
         if (!busqueda) return await sock.sendMessage(chatId, { text: '❌ No hay una búsqueda activa. Usa *buscocarry [1-3] [motivo]* primero.' }, { quoted: msg });
         if (busqueda.solicitanteId === sender) return await sock.sendMessage(chatId, { text: '❌ Tú abriste la búsqueda; no puedes unirte a ella.' }, { quoted: msg });
         if (busqueda.miembros.some(m => m.id === sender)) return await sock.sendMessage(chatId, { text: '❌ Ya estás dentro de esta búsqueda de carry.' }, { quoted: msg });
+        const esOferente = comando === 'doycarry';
+        const oferenteActual = busqueda.miembros.find(m => m.rol === 'Ofrece carry');
+        const buscadoresActuales = busqueda.miembros.filter(m => m.rol !== 'Ofrece carry').length;
+        const maxBuscadores = Math.max(0, busqueda.maxEspacios - 1);
+
+        if (esOferente && oferenteActual) {
+            return await sock.sendMessage(chatId, { text: '❌ Esta búsqueda ya tiene a alguien que ofrece el carry.' }, { quoted: msg });
+        }
+        if (!esOferente && buscadoresActuales >= maxBuscadores) {
+            return await sock.sendMessage(chatId, { text: '❌ Ya se ocuparon los espacios para quienes buscan carry. Se reservó 1 espacio para quien lo ofrece.\\n🛟 Falta que alguien use *doycarry*.' }, { quoted: msg });
+        }
         if (busqueda.miembros.length >= busqueda.maxEspacios) return await sock.sendMessage(chatId, { text: '❌ El escuadrón ya está completo.' }, { quoted: msg });
-        busqueda.miembros.push({ id: sender, nombre: pushName, epicId: epicIdRemitente, rol: comando === 'doycarry' ? 'Ofrece carry' : 'Busca carry' });
+        busqueda.miembros.push({ id: sender, nombre: pushName, epicId: epicIdRemitente, rol: esOferente ? 'Ofrece carry' : 'Busca carry' });
         const restantes = busqueda.maxEspacios - busqueda.miembros.length;
         if (restantes > 0) {
             await sock.sendMessage(chatId, { text: `🤝 *BUSCO CARRY: ACTUALIZACIÓN*\n${mencionarJugador(sender, epicIdRemitente, comando === 'doycarry' ? '🛟' : '🎮')} se unió (${comando === 'doycarry' ? 'ofrece el carry' : 'también busca carry'}).\n🎯 *Objetivo:* ${busqueda.motivo}\n\nFaltan *${restantes}* espacios.`, mentions: participantesGrupo }, { quoted: msg });
