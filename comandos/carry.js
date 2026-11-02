@@ -145,7 +145,7 @@ async function comandoCarry(sock, chatId, msg, comando, args = [], epicIdElegido
         }
 
         if (consultandoOtro) return await sock.sendMessage(chatId, { text: '❌ Para consultar las cuentas de otra persona, usa *ID* sin escribir un nombre de Epic.' }, { quoted: msg });
-        if (epicId.length < 2 || epicId.length > 64 || /[@\\n\\r]/.test(epicId)) return await sock.sendMessage(chatId, { text: '❌ Ese ID no parece válido (máximo 64 caracteres).' }, { quoted: msg });
+        if (epicId.length < 2 || epicId.length > 64 || /[@\n\r]/.test(epicId)) return await sock.sendMessage(chatId, { text: '❌ Ese ID no parece válido (máximo 64 caracteres).' }, { quoted: msg });
         const cuenta = numeroCuenta || 1;
         const existente = cuentas.find(c => c.epicId.toLowerCase() === epicId.toLowerCase());
         if (existente) return await sock.sendMessage(chatId, { text: `ℹ️ Ese ID ya está registrado como tu cuenta ${existente.numero}. No lo dupliqué.` }, { quoted: msg });
