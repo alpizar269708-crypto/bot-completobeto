@@ -973,7 +973,7 @@ Apoya a un creador: JASC13` });
             case 'carryban':
             case 'blcarry':
             case 'unblcarry':
-                await comandoCarry(sock, chatJid, msg, comando, args);
+                await comandoCarry(sock, chatJid, msg, comando, argsOriginales);
                 break;
         }
     }
