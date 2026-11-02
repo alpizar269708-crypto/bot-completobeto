@@ -455,4 +455,4 @@ async function manejarRespuestaSeleccionCarry(sock, chatId, msg, remitente, text
  seleccionesEpicPendientes.delete(clave);
  await comandoCarry(sock,chatId,msg,p.comando,p.args,cuenta.epicId); return true;
 }
-module.exports = { comandoCarry, manejarRespuestaSeleccionCarry };
+module.exports = { comandoCarry, manejarRespuestaSeleccionCarry, obtenerCuentasEpic };
