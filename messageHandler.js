@@ -27,11 +27,13 @@ const {
 } = require('./comandos/economia');
 const { comandoRifa, comandoRifaInscripcion, comandoRifaQuitarDuplicados, comandoRifaJasc13, comandoMenuRifaJasc13, comandoRecuperarRegistroJasc13, comandoAbrirRifa, comandoActivarRifaAqui, comandoCerrarRifa } = require('./comandos/rifas');
 const { comandoCarry, manejarRespuestaSeleccionCarry } = require('./comandos/carry');
+const { comandoSquad } = require('./comandos/squad');
 const { comandoPaypal, comandoCalculadoraPaypal } = require('./comandos/paypal');
 const { comandoVerEliminados } = require('./comandos/verelim');
 
 const categoriasMap = {
-    'fortnite': ['pavos', 'rpavos', 'destacadasstw', 'legendariasstw', 'epicasstw', 'alertasstw', 'stw', 'alerta', 'alertanov', 'recompensa', 'recompensanov', 'subirpl', 'guiapl', 'buildstw', 'eliminarid', 'id', 'id1', 'id2', 'id3', 'id4'],
+    'fortnite': ['buscajugador', 'buscajugadores', 'cancelarbusqueda', 'id', 'id1', 'id2', 'id3', 'id4'],
+    'stw': ['pavos', 'rpavos', 'destacadasstw', 'legendariasstw', 'epicasstw', 'alertasstw', 'stw', 'alerta', 'alertanov', 'recompensa', 'recompensanov', 'subirpl', 'guiapl', 'buildstw', 'id', 'id1', 'id2', 'id3', 'id4'],
     'economia': ['cartera', 'bal', 'banco', 'pay', 'pagar', 'top', 'topdinero', 'daily', 'weekly', 'farmear', 'work', 'crime', 'mendigar', 'pescar', 'minar', 'cazar', 'explorar', 'ruleta', 'cf', 'slots', 'dados', 'adivina', 'buscaminas', 'rob', 'ppt', 'pelea', 'carrera', 'hackear', 'shop', 'buy', 'inventario', 'mochila', 'vender', 'use', 'regalar'],
     'utilidades': ['s', 'sticker', 'recup1vez', 'descargar', 'download', 'tiktok', 'instagram', 'pinterest', 'x', 'twitter', 'traduce', 'skin', 'stats', 'tiendastats', 'tiendavb', 'contacto', 'ping', 'verelim'],
     'paypal': ['paypal', 'paypaln', 'paypali'],
@@ -70,7 +72,7 @@ const comandosValidos = new Set([
         'ruleta', 'cf', 'slots', 'dados', 'adivina', 'buscaminas', 'rob', 'ppt', 'pelea',
         'carrera', 'hackear', 'shop', 'buy', 'inventario', 'mochila', 'vender', 'use', 'regalar',
         'rifa', 'rifainscripcion', 'cerrarrifa', 'rifaquitarduplicados', 'rifajasc13', 'addvarios', 'abrirrifa', 'activarrifaaqui', 'menurifajasc13', 'quitarrifajasc13', 'addcashback', 'delcashback', 'vercash', 'delvcash', 'canjecash', 'carryleader', 'carryjoin', 'carryleave', 'carryclose', 'buscocarry', 'buscooff', 'doycarry', 'x2busco', 'carryver', 'carryban', 'blcarry', 'unblcarry',
-        'vertodoscomandos', 'listablanca', 'paypal', 'paypaln', 'paypali', 'desactivarbienvenida', 'activarbienvenida', 'personalizarbienvenida', 'restaurarbienvenida', 'redeploy', 'verelim', 'eliminarid', 'id', 'id1', 'id2', 'id3', 'id4'
+        'vertodoscomandos', 'listablanca', 'buscajugador', 'buscajugadores', 'cancelarbusqueda', 'paypal', 'paypaln', 'paypali', 'desactivarbienvenida', 'activarbienvenida', 'personalizarbienvenida', 'restaurarbienvenida', 'redeploy', 'verelim', 'eliminarid', 'id', 'id1', 'id2', 'id3', 'id4'
 ]);
 
 
@@ -287,9 +289,13 @@ Apoya a un creador: JASC13` });
 
         const comandoDeConfiguracion = comando === 'menu' || comando === 'desactivarcomandos' || comando === 'catdesa' || comando === 'vertodoscomandos' ||
             ['desactivarbienvenida', 'activarbienvenida', 'personalizarbienvenida', 'restaurarbienvenida'].includes(comando);
-        const estaDesactivado = desactivados.some(categoria =>
-            categoriasMap[categoria] && categoriasMap[categoria].includes(comando)
-        );
+        const categoriasDelComando = Object.entries(categoriasMap)
+            .filter(([, comandos]) => comandos.includes(comando))
+            .map(([categoria]) => categoria);
+        // ID está disponible desde Fortnite, STW y Carry. Solo se bloquea
+        // cuando todas las categorías que lo ofrecen están desactivadas.
+        const estaDesactivado = categoriasDelComando.length > 0 &&
+            categoriasDelComando.every(categoria => desactivados.includes(categoria));
 
         // Todo funciona por defecto. Solo se bloquea si la categoría del comando
         // aparece explícitamente en la lista de categorías desactivadas.
@@ -955,6 +961,11 @@ Apoya a un creador: JASC13` });
                 break;
             case 'menurifajasc13':
                 await comandoMenuRifaJasc13(sock, chatJid, msg);
+                break;
+            case 'buscajugador':
+            case 'buscajugadores':
+            case 'cancelarbusqueda':
+                await comandoSquad(sock, chatJid, msg, comando, argsOriginales);
                 break;
             case 'eliminarid':
             case 'id':
