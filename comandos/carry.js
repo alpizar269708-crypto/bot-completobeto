@@ -114,12 +114,12 @@ async function comandoCarry(sock, chatId, msg, comando, args = [], epicIdElegido
                 const mensaje = numeroCuenta
                     ? `No hay una cuenta Epic registrada en el espacio ID${numeroCuenta} de esta persona.`
                     : 'Esta persona todavía no tiene cuentas Epic registradas.';
-                return await sock.sendMessage(chatId, { text: `🎮 *${etiqueta}*\\n\\n${mensaje}`, mentions: consultandoOtro ? [usuarioConsulta] : [], quoted: msg });
+                return await sock.sendMessage(chatId, { text: `🎮 *${etiqueta}*\\n\\n${mensaje}`, mentions: consultandoOtro ? [usuarioConsulta] : [] }, { quoted: msg });
             }
             const lista = seleccionadas.map(c => `• *ID${c.numero}:* ${c.epicId}`).join('\\n');
             const ayuda = consultandoOtro ? '' : '\\n\\nUsa *ID1*, *ID2*, *ID3* o *ID4* para consultar una cuenta específica.';
             const instruccion = consultandoOtro ? '' : '\\nResponde al mensaje de alguien con *ID* o escribe *ID @persona* para consultar sus cuentas.';
-            return await sock.sendMessage(chatId, { text: `🎮 *${etiqueta}*\\n\\n${lista}${ayuda}${instruccion}`, mentions: consultandoOtro ? [usuarioConsulta] : [], quoted: msg });
+            return await sock.sendMessage(chatId, { text: `🎮 *${etiqueta}*\\n\\n${lista}${ayuda}${instruccion}`, mentions: consultandoOtro ? [usuarioConsulta] : [] }, { quoted: msg });
         }
 
         if (consultandoOtro) return await sock.sendMessage(chatId, { text: '❌ Para consultar las cuentas de otra persona, usa *ID* sin escribir un nombre de Epic.' }, { quoted: msg });
