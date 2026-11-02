@@ -91,6 +91,21 @@ async function comandoCarry(sock, chatId, msg, comando, args = [], epicIdElegido
     const idsAlternativos = [msg.key.participantAlt, msg.key.participantPn, msg.key.senderPn];
     const pushName = msg.pushName || 'Jugador';
 
+    if (comando === 'eliminarid') {
+        const numero = Number(Array.isArray(args) ? args[0] : args);
+        if (!/^[1-4]$/.test(String(Array.isArray(args) ? args[0] || '' : args || ''))) {
+            return await sock.sendMessage(chatId, { text: '❌ Usa *eliminarID 1*, *eliminarID 2*, *eliminarID 3* o *eliminarID 4*.' }, { quoted: msg });
+        }
+        const idsUsuario = await identificadoresEpic(sock, sender, idsAlternativos);
+        const claves = idsUsuario.map(id => numero === 1 ? 'epic_id_' + id : 'epic_id_' + id + '_' + numero);
+        const existente = await obtenerCuentasEpic(sock, sender, idsAlternativos);
+        if (!existente.some(c => c.numero === numero)) {
+            return await sock.sendMessage(chatId, { text: `ℹ️ No tienes ninguna cuenta registrada en *ID${numero}*.` }, { quoted: msg });
+        }
+        await Config.deleteMany({ clave: { $in: claves } });
+        return await sock.sendMessage(chatId, { text: `🗑️ *ID${numero} ELIMINADO*\\nLa cuenta Epic de ese espacio fue borrada. Los demás ID permanecen intactos.` }, { quoted: msg });
+    }
+
     if (/^id[1-4]?$/.test(comando)) {
         const numeroCuenta = comando === 'id' ? null : (comando === 'id1' ? 1 : Number(comando.slice(2)));
         const contexto = msg.message?.extendedTextMessage?.contextInfo || {};
