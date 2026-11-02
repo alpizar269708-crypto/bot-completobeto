@@ -82,7 +82,8 @@ async function ejecutarMenu(sock, chatId, msg, args) {
     `*cancelarbusqueda* - Cancela tu búsqueda activa.\n` +
     `*id TuIDDeEpic* - Registra tu cuenta principal.\n` +
     `*id2 / id3 / id4 TuIDDeEpic* - Registra cuentas adicionales (máximo 4).\n` +
-    `*eliminarID 1-4* - Elimina únicamente la cuenta Epic del espacio indicado.\n`;
+    `*eliminarID 1-4* - Elimina únicamente la cuenta Epic del espacio indicado.\n` +
+    `*ID @persona* o responder a su mensaje con *ID* - Consulta las cuentas Epic registradas de otra persona. Usa *ID1*, *ID2*, *ID3* o *ID4* para consultar un espacio específico.\n`;
 
     let menuSTW = `🛡️ *MENÚ SALVAR EL MUNDO (STW)* 🛡️\n\n` +
     `*pavos* - Muestra misiones de PaVos actuales.\n` +
@@ -99,7 +100,8 @@ async function ejecutarMenu(sock, chatId, msg, args) {
     `*guiapl* - Genera una guía personal con la rotación de alertas.\n` +
     `*buildstw [nombre]* - Busca una build para un arma o héroe concreto.\n` +
     `*id / id2 / id3 / id4* - Registra o consulta tus cuentas Epic (máximo 4).\n` +
-    `*eliminarID 1-4* - Elimina únicamente la cuenta Epic del espacio indicado.\n`;
+    `*eliminarID 1-4* - Elimina únicamente la cuenta Epic del espacio indicado.\n` +
+    `*ID @persona* o responder a su mensaje con *ID* - Consulta las cuentas Epic registradas de otra persona. Usa *ID1*, *ID2*, *ID3* o *ID4* para consultar un espacio específico.\n`;
 
     // Los comandos administrativos se encuentran en *menú moderación*.
 
@@ -150,6 +152,7 @@ async function ejecutarMenu(sock, chatId, msg, args) {
                  `*${prefijo}id TuIDDeEpic* - Registra la cuenta principal.\n` +
                  `*${prefijo}id2 / id3 / id4 TuIDDeEpic* - Registra cuentas adicionales (máximo 4).\n` +
                  `*${prefijo}eliminarID 1-4* - Elimina únicamente la cuenta Epic del espacio indicado.\n` +
+                 `*${prefijo}ID @persona* o responder a su mensaje con *ID* - Consulta las cuentas Epic de otra persona; usa *ID1*-*ID4* para un espacio específico.\n` +
                  `*${prefijo}carryleader [espacios] [motivo]* - Abre un nuevo escuadrón (Notifica a todos).\n` +
                  `*${prefijo}carryjoin* - Únete al escuadrón activo (Notifica a todos).\n` +
                  `*${prefijo}carryleave* - Sal del escuadrón en el que estás.\n` +
