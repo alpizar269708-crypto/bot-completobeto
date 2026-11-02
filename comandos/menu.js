@@ -2,8 +2,8 @@ const { esPrivilegiadoTotalAsync } = require('../utils/whatsapp');
 const { Config } = require('../database/modelos');
 
 const categoriasMap = {
-    fortnite: ['buscajugador', 'buscajugadores', 'cancelarbusqueda', 'id', 'id1', 'id2', 'id3', 'id4'],
-    stw: ['pavos', 'rpavos', 'destacadasstw', 'legendariasstw', 'epicasstw', 'alertasstw', 'stw', 'alerta', 'alertanov', 'recompensa', 'recompensanov', 'subirpl', 'guiapl', 'buildstw', 'id', 'id1', 'id2', 'id3', 'id4'],
+    fortnite: ['buscajugador', 'buscajugadores', 'cancelarbusqueda', 'id', 'id1', 'id2', 'id3', 'id4', 'eliminarid'],
+    stw: ['pavos', 'rpavos', 'destacadasstw', 'legendariasstw', 'epicasstw', 'alertasstw', 'stw', 'alerta', 'alertanov', 'recompensa', 'recompensanov', 'subirpl', 'guiapl', 'buildstw', 'id', 'id1', 'id2', 'id3', 'id4', 'eliminarid'],
     tienda: ['tienda', 'tiendavb'],
     carry: ['carryleader', 'carryjoin', 'carryleave', 'carryclose', 'buscocarry', 'buscooff', 'doycarry', 'x2busco', 'carryver', 'eliminarid', 'id', 'id1', 'id2', 'id3', 'id4', 'carryban', 'blcarry', 'unblcarry'],
     rifas: ['rifa', 'rifainscripcion', 'cerrarrifa', 'rifajasc13', 'addvarios', 'abrirrifa', 'activarrifaaqui', 'menurifajasc13'],
@@ -81,7 +81,8 @@ async function ejecutarMenu(sock, chatId, msg, args) {
     `*buscajugadores* - Muestra las búsquedas activas publicadas en este grupo.\n` +
     `*cancelarbusqueda* - Cancela tu búsqueda activa.\n` +
     `*id TuIDDeEpic* - Registra tu cuenta principal.\n` +
-    `*id2 / id3 / id4 TuIDDeEpic* - Registra cuentas adicionales (máximo 4).\n`;
+    `*id2 / id3 / id4 TuIDDeEpic* - Registra cuentas adicionales (máximo 4).\n` +
+    `*eliminarID 1-4* - Elimina únicamente la cuenta Epic del espacio indicado.\n`;
 
     let menuSTW = `🛡️ *MENÚ SALVAR EL MUNDO (STW)* 🛡️\n\n` +
     `*pavos* - Muestra misiones de PaVos actuales.\n` +
@@ -97,7 +98,8 @@ async function ejecutarMenu(sock, chatId, msg, args) {
     `*subirpl oro* - Busca alertas guardadas con oro como recompensa.\n` +
     `*guiapl* - Genera una guía personal con la rotación de alertas.\n` +
     `*buildstw [nombre]* - Busca una build para un arma o héroe concreto.\n` +
-    `*id / id2 / id3 / id4* - Registra o consulta tus cuentas Epic (máximo 4).\n`;
+    `*id / id2 / id3 / id4* - Registra o consulta tus cuentas Epic (máximo 4).\n` +
+    `*eliminarID 1-4* - Elimina únicamente la cuenta Epic del espacio indicado.\n`;
 
     // Los comandos administrativos se encuentran en *menú moderación*.
 
@@ -147,6 +149,7 @@ async function ejecutarMenu(sock, chatId, msg, args) {
         'carry': `🚀 *MENÚ CARRY (ESCUADRONES)* 🚀\n\n` +
                  `*${prefijo}id TuIDDeEpic* - Registra la cuenta principal.\n` +
                  `*${prefijo}id2 / id3 / id4 TuIDDeEpic* - Registra cuentas adicionales (máximo 4).\n` +
+                 `*${prefijo}eliminarID 1-4* - Elimina únicamente la cuenta Epic del espacio indicado.\n` +
                  `*${prefijo}carryleader [espacios] [motivo]* - Abre un nuevo escuadrón (Notifica a todos).\n` +
                  `*${prefijo}carryjoin* - Únete al escuadrón activo (Notifica a todos).\n` +
                  `*${prefijo}carryleave* - Sal del escuadrón en el que estás.\n` +
