@@ -91,21 +91,45 @@ async function comandoCarry(sock, chatId, msg, comando, args = [], epicIdElegido
     const idsAlternativos = [msg.key.participantAlt, msg.key.participantPn, msg.key.senderPn];
     const pushName = msg.pushName || 'Jugador';
 
-    if (/^id[2-4]?$/.test(comando)) {
-        const cuenta = comando === 'id' ? 1 : Number(comando.slice(2));
+    if (/^id[1-4]?$/.test(comando)) {
+        const numeroCuenta = comando === 'id' ? null : (comando === 'id1' ? 1 : Number(comando.slice(2)));
+        const contexto = msg.message?.extendedTextMessage?.contextInfo || {};
+        const usuarioMencionado = contexto.mentionedJid?.[0] || contexto.mentionedJid?.[0]?.jid || null;
+        const usuarioCitado = contexto.participant || null;
+        const objetivoId = usuarioCitado || usuarioMencionado;
+        const consultandoOtro = Boolean(objetivoId);
+        const usuarioConsulta = objetivoId || sender;
+        const alternativosConsulta = consultandoOtro
+            ? [contexto.participantAlt, contexto.senderPn, usuarioMencionado].filter(Boolean)
+            : idsAlternativos;
+
         const texto = msg.message?.conversation || msg.message?.extendedTextMessage?.text || '';
-        const epicId = texto.trim().replace(/^[*_~`]+/, '').replace(/^id[2-4]?\b/i, '').trim();
-        const cuentas = await obtenerCuentasEpic(sock, sender, idsAlternativos);
+        const epicId = texto.trim().replace(/^[*_~`]+/, '').replace(/^id[1-4]?\\b/i, '').trim();
+        const cuentas = await obtenerCuentasEpic(sock, usuarioConsulta, alternativosConsulta);
+
         if (!epicId) {
-            const lista = cuentas.length ? cuentas.map(c => `• *ID${c.numero===1?'':c.numero}:* ${c.epicId}`).join('\n') : 'Todavía no tienes cuentas registradas.';
-            return await sock.sendMessage(chatId,{text:`🎮 *TUS CUENTAS DE EPIC*\n\n${lista}\n\nRegistra hasta 4 con *ID*, *ID2*, *ID3* e *ID4*, seguido del nombre de Epic.`},{quoted:msg});
+            const seleccionadas = numeroCuenta ? cuentas.filter(c => c.numero === numeroCuenta) : cuentas;
+            const etiqueta = consultandoOtro ? `CUENTAS DE EPIC DE @${String(usuarioConsulta).split('@')[0]}` : 'TUS CUENTAS DE EPIC';
+            if (!seleccionadas.length) {
+                const mensaje = numeroCuenta
+                    ? `No hay una cuenta Epic registrada en el espacio ID${numeroCuenta} de esta persona.`
+                    : 'Esta persona todavía no tiene cuentas Epic registradas.';
+                return await sock.sendMessage(chatId, { text: `🎮 *${etiqueta}*\\n\\n${mensaje}`, mentions: consultandoOtro ? [usuarioConsulta] : [], quoted: msg });
+            }
+            const lista = seleccionadas.map(c => `• *ID${c.numero}:* ${c.epicId}`).join('\\n');
+            const ayuda = consultandoOtro ? '' : '\\n\\nUsa *ID1*, *ID2*, *ID3* o *ID4* para consultar una cuenta específica.';
+            const instruccion = consultandoOtro ? '' : '\\nResponde al mensaje de alguien con *ID* o escribe *ID @persona* para consultar sus cuentas.';
+            return await sock.sendMessage(chatId, { text: `🎮 *${etiqueta}*\\n\\n${lista}${ayuda}${instruccion}`, mentions: consultandoOtro ? [usuarioConsulta] : [], quoted: msg });
         }
-        if(epicId.length<2||epicId.length>64||/[@\n\r]/.test(epicId)) return await sock.sendMessage(chatId,{text:'❌ Ese ID no parece válido (máximo 64 caracteres).'}, {quoted:msg});
-        const existente=cuentas.find(c=>c.epicId.toLowerCase()===epicId.toLowerCase());
-        if(existente) return await sock.sendMessage(chatId,{text:`ℹ️ Ese ID ya está registrado como tu cuenta ${existente.numero===1?'principal':existente.numero}. No lo dupliqué.`},{quoted:msg});
-        const guardado=await guardarEpicId(sock,sender,idsAlternativos,cuenta,epicId);
-        if(guardado.duplicado) return await sock.sendMessage(chatId,{text:`⚠️ Ese ID ya está registrado en tu cuenta ${guardado.duplicado}. Cada espacio debe tener un ID diferente.`},{quoted:msg});
-        return await sock.sendMessage(chatId,{text:`✅ *ID ${cuenta===1?'PRINCIPAL':cuenta+' '}GUARDADO*\n🎮 *${epicId}*\n\nPuedes registrar hasta 4 cuentas.`},{quoted:msg});
+
+        if (consultandoOtro) return await sock.sendMessage(chatId, { text: '❌ Para consultar las cuentas de otra persona, usa *ID* sin escribir un nombre de Epic.' }, { quoted: msg });
+        if (epicId.length < 2 || epicId.length > 64 || /[@\\n\\r]/.test(epicId)) return await sock.sendMessage(chatId, { text: '❌ Ese ID no parece válido (máximo 64 caracteres).' }, { quoted: msg });
+        const cuenta = numeroCuenta || 1;
+        const existente = cuentas.find(c => c.epicId.toLowerCase() === epicId.toLowerCase());
+        if (existente) return await sock.sendMessage(chatId, { text: `ℹ️ Ese ID ya está registrado como tu cuenta ${existente.numero}. No lo dupliqué.` }, { quoted: msg });
+        const guardado = await guardarEpicId(sock, sender, idsAlternativos, cuenta, epicId);
+        if (guardado.duplicado) return await sock.sendMessage(chatId, { text: `⚠️ Ese ID ya está registrado en tu cuenta ${guardado.duplicado}. Cada espacio debe tener un ID diferente.` }, { quoted: msg });
+        return await sock.sendMessage(chatId, { text: `✅ *ID${cuenta} GUARDADO*\\n🎮 *${epicId}*\\n\\nPuedes registrar hasta 4 cuentas.` }, { quoted: msg });
     }
 
     let escuadron = escuadronesActivos.get(chatId);
