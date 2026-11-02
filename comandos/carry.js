@@ -104,7 +104,9 @@ async function comandoCarry(sock, chatId, msg, comando, args = [], epicIdElegido
             : idsAlternativos;
 
         const texto = msg.message?.conversation || msg.message?.extendedTextMessage?.text || '';
-        const epicId = texto.trim().replace(/^[*_~`]+/, '').replace(/^id[1-4]?\\b/i, '').trim();
+        // Los argumentos originales del router conservan mayúsculas y no dependen del tipo de mensaje de WhatsApp.
+        const epicDesdeArgs = Array.isArray(args) ? args.join(' ').trim() : '';
+        const epicId = (epicDesdeArgs || texto.trim().replace(/^[*_~`]+/, '').replace(/^id[1-4]?\s*/i, '')).trim();
         const cuentas = await obtenerCuentasEpic(sock, usuarioConsulta, alternativosConsulta);
 
         if (!epicId) {
