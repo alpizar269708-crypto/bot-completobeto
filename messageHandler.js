@@ -39,7 +39,7 @@ const categoriasMap = {
     'paypal': ['paypal', 'paypaln', 'paypali'],
     'ia': ['ia'],
     'moderacion': ['warn', 'advertir', 'verwarns', 'limpiarwarns', 'ban', 'unban', 'listanegra', 'banlist', 'unbanlist', 'grupo', 'mute', 'unmute', 'listablanca', 'desactivarbienvenida', 'activarbienvenida', 'personalizarbienvenida', 'restaurarbienvenida', 'carryban', 'blcarry', 'unblcarry', 'setprecio', 'setgrupostw', 'unsetgrupostw', 'desactivarcomandos', 'catdesa'],
-    'tienda': ['tienda', 'tiendavb'],
+    'tienda': ['tienda', 'tiendavb', 'idtienda'],
     'carry': ['carryleader', 'carryjoin', 'carryleave', 'carryclose', 'buscocarry', 'buscooff', 'doycarry', 'x2busco', 'carryver', 'eliminarid', 'id', 'id1', 'id2', 'id3', 'id4'],
     'rifas': ['rifa', 'rifainscripcion', 'cerrarrifa', 'rifaquitarduplicados', 'rifajasc13', 'addvarios', 'abrirrifa', 'activarrifaaqui', 'menurifajasc13'],
     'cashback': ['addcashback', 'delcashback', 'vercash', 'delvcash', 'canjecash'],
@@ -64,7 +64,7 @@ const comandosConUsuarioBD = new Set([
 
 const comandosValidos = new Set([
         'desactivarcomandos', 'catdesa', 'linkgrupo', 'setprecio', 'ping', 'pavos', 'rpavos', 'destacadasstw', 'legendariasstw', 'epicasstw', 'alertasstw', 'stw', 'alerta', 'alertanov', 'recompensa', 'recompensanov', 'subirpl', 'guiapl', 'buildstw', 
-        'setgrupostw', 'unsetgrupostw', 'grupo', 'mute', 'unmute', 'tienda', 'tiendastats', 'tiendavb', 'ia', 'menu', 'menusecreto',
+        'setgrupostw', 'unsetgrupostw', 'grupo', 'mute', 'unmute', 'tienda', 'tiendastats', 'tiendavb', 'idtienda', 'ia', 'menu', 'menusecreto',
         's', 'sticker', 'recup1vez', 'descargar', 'download', 'tiktok', 'instagram', 'pinterest', 'x', 'twitter', 'traduce', 'skin', 'stats', 'contacto',
         'warn', 'advertir', 'verwarns', 'limpiarwarns', 'ban', 'unban', 'listanegra', 'banlist', 'unbanlist', 
         'cartera', 'bal', 'banco', 'pay', 'pagar', 'top', 'topdinero', 'daily', 'weekly',
@@ -475,6 +475,7 @@ Apoya a un creador: JASC13` });
             ['activarrifaaqui', 'Activa la rifa en el grupo para permitir inscripciones.'],
             ['id', 'Registra o actualiza tu ID de Epic para que aparezca junto a tu etiqueta en los carries.'],
             ['carryver', 'Muestra búsquedas, escuadrones abiertos y equipos completos de los últimos 30 minutos.'],
+            ['idtienda', 'Muestra los dos ID exclusivos para la venta de PaVos.'],
             ['carryleader', 'Crea un escuadrón de carry y define sus espacios.'],
             ['id2', 'Registra o consulta tu segunda cuenta de Epic.'],
             ['id3', 'Registra o consulta tu tercera cuenta de Epic.'],
@@ -772,6 +773,9 @@ Apoya a un creador: JASC13` });
                 break;
             case 'unsetgrupostw':
                 await desactivarAlertasDiarias(sock, chatJid, msg);
+                break;
+            case 'idtienda':
+                await sock.sendMessage(chatJid, { text: '🛒 *ID DE LA TIENDA*\\n\\n1. *Jascpavardos1*\\n2. *Jascpavardos2*\\n\\n⚠️ Estos son únicamente para la venta de pavardos.' }, { quoted: msg });
                 break;
             case 'tienda':
                 if (args.length === 0) await comandoTiendaMenu(sock, chatJid, msg);
