@@ -2,7 +2,8 @@ const { esPrivilegiadoTotalAsync } = require('../utils/whatsapp');
 const { Config } = require('../database/modelos');
 
 const categoriasMap = {
-    fortnite: ['pavos', 'destacadasstw', 'legendariasstw', 'epicasstw', 'alertasstw', 'stw', 'alerta', 'alertanov', 'recompensa', 'recompensanov', 'subirpl', 'guiapl', 'buildstw', 'id', 'id1', 'id2', 'id3', 'id4'],
+    fortnite: ['buscajugador', 'buscajugadores', 'cancelarbusqueda', 'id', 'id1', 'id2', 'id3', 'id4'],
+    stw: ['pavos', 'rpavos', 'destacadasstw', 'legendariasstw', 'epicasstw', 'alertasstw', 'stw', 'alerta', 'alertanov', 'recompensa', 'recompensanov', 'subirpl', 'guiapl', 'buildstw', 'id', 'id1', 'id2', 'id3', 'id4'],
     tienda: ['tienda', 'tiendavb'],
     carry: ['carryleader', 'carryjoin', 'carryleave', 'carryclose', 'buscocarry', 'buscooff', 'doycarry', 'x2busco', 'carryver', 'eliminarid', 'id', 'id1', 'id2', 'id3', 'id4', 'carryban', 'blcarry', 'unblcarry'],
     rifas: ['rifa', 'rifainscripcion', 'cerrarrifa', 'rifajasc13', 'addvarios', 'abrirrifa', 'activarrifaaqui', 'menurifajasc13'],
@@ -14,7 +15,7 @@ const categoriasMap = {
     moderacion: ['warn', 'advertir', 'verwarns', 'limpiarwarns', 'ban', 'unban', 'listanegra', 'banlist', 'unbanlist', 'grupo', 'mute', 'unmute', 'listablanca', 'desactivarbienvenida', 'activarbienvenida', 'personalizarbienvenida', 'restaurarbienvenida', 'carryban', 'blcarry', 'unblcarry', 'setprecio', 'setgrupostw', 'unsetgrupostw', 'desactivarcomandos', 'catdesa']
 };
 
-const nombresCategorias = ['fortnite', 'tienda', 'carry', 'rifas', 'cashback', 'economia', 'utilidades', 'paypal', 'ia', 'moderacion'];
+const nombresCategorias = ['fortnite', 'stw', 'tienda', 'carry', 'rifas', 'cashback', 'economia', 'utilidades', 'paypal', 'ia', 'moderacion'];
 
 async function obtenerCategoriasActivas(chatId) {
     if (!chatId.endsWith('@g.us')) return nombresCategorias;
@@ -53,7 +54,8 @@ async function ejecutarMenu(sock, chatId, msg, args) {
     if (!isAdmin || !isGroup) categoriasActivas = categoriasActivas.filter(cat => cat !== 'moderacion'); 
 
     const descripcionCategorias = {
-        fortnite: '🎮 *fortnite* - Alertas y PaVos de Salvar el Mundo',
+        fortnite: '🎮 *fortnite* - Búsqueda de jugadores, duo, trio y squad',
+        stw: '🛡️ *stw* - Alertas, PaVos, recompensas y builds de Salvar el Mundo',
         tienda: '🛒 *tienda* - Tienda diaria de Battle Royale',
         carry: '🚀 *carry* - Sistema de escuadrones y ayuda',
         rifas: '🎟️ *rifas* - Sistema de sorteos',
@@ -73,22 +75,30 @@ async function ejecutarMenu(sock, chatId, msg, args) {
     categoriasActivas.map(cat => descripcionCategorias[cat]).join('\n') + '\n';
 
 
-    let menuFortnite = `🎮 *MENÚ FORTNITE (STW)* 🎮\n\n` +
-    `*${prefijo}pavos* - Muestra misiones de pavos actuales.\n` +
-    `*${prefijo}destacadasstw* - Lista completa de alertas destacadas útiles.\n` +
-    `*${prefijo}epicasstw* - Recompensas épicas útiles (héroes, supervivientes, defensores y esquemas).\n` +
-    `*${prefijo}legendariasstw* - Recompensas legendarias útiles de esas categorías.\n` +
-    `*${prefijo}alertasstw* - Resumen breve: PaVos y hasta 10 alertas destacadas; usa los comandos por rareza para las listas completas.\n` +
-    `*${prefijo}alerta [nombre]* - Busca una alerta por misión o recompensa.\n` +
-    `*${prefijo}alertanov [nombre]* - Muestra detalles, modificadores y requisitos disponibles; nunca muestra x4/x5.\n` +
-    `*${prefijo}recompensa [tipo] [rareza]* - Busca recompensas concretas; por ejemplo: *recompensa defensor legendario* o *recompensa héroe épico*.\n` +
-    `*${prefijo}recompensanov [tipo] [rareza]* - Igual, pero con detalles de la misión y cantidades disponibles.\n` +
-    `*${prefijo}subirpl [PL]* - Recomienda misiones útiles para subir potencia según el PL indicado (por defecto PL 62).\n` +
-    `*${prefijo}subirpl oro* - Busca alertas guardadas que indiquen oro como recompensa.\n` +
-    `*${prefijo}guiapl* - Te hace preguntas numeradas y genera una guía personal con la rotación de alertas que extrae el bot. Responde con números; puedes escribir *cancelar* para salir.\n` +
-    `*${prefijo}buildstw [nombre]* - Busca una build para un arma o héroe concreto, con perks, recomendaciones y fuentes web. Ejemplos: *buildstw Nocturno* o *buildstw Ramirez*.\n` +
-    `*${prefijo}id TuIDDeEpic* - Registra la cuenta principal.\n` +
-    `*${prefijo}id2 / id3 / id4 TuIDDeEpic* - Registra cuentas adicionales (máximo 4).\n`;
+    let menuFortnite = `🎮 *MENÚ FORTNITE* 🎮\n\n` +
+    `*buscajugador duo* - Publica una búsqueda para encontrar 1 compañero en este grupo.\n` +
+    `*buscajugador trio* - Publica una búsqueda para encontrar 2 compañeros en este grupo.\n` +
+    `*buscajugador squad* - Publica una búsqueda para encontrar 3 compañeros en este grupo.\n` +
+    `*buscajugadores* - Muestra las búsquedas activas publicadas en este grupo.\n` +
+    `*cancelarbusqueda* - Cancela tu búsqueda activa.\n` +
+    `*id TuIDDeEpic* - Registra tu cuenta principal.\n` +
+    `*id2 / id3 / id4 TuIDDeEpic* - Registra cuentas adicionales (máximo 4).\n`;
+
+    let menuSTW = `🛡️ *MENÚ SALVAR EL MUNDO (STW)* 🛡️\n\n` +
+    `*pavos* - Muestra misiones de PaVos actuales.\n` +
+    `*destacadasstw* - Lista completa de alertas destacadas útiles.\n` +
+    `*epicasstw* - Recompensas épicas útiles (héroes, supervivientes, defensores y esquemas).\n` +
+    `*legendariasstw* - Recompensas legendarias de esas categorías.\n` +
+    `*alertasstw* - Resumen breve: PaVos y hasta 10 alertas destacadas.\n` +
+    `*alerta [nombre]* - Busca una alerta por misión o recompensa.\n` +
+    `*alertanov [nombre]* - Muestra detalles, modificadores y requisitos disponibles.\n` +
+    `*recompensa [tipo] [rareza]* - Busca recompensas concretas.\n` +
+    `*recompensanov [tipo] [rareza]* - Detalles de misión y cantidades disponibles.\n` +
+    `*subirpl [PL]* - Recomienda misiones útiles para subir potencia.\n` +
+    `*subirpl oro* - Busca alertas guardadas con oro como recompensa.\n` +
+    `*guiapl* - Genera una guía personal con la rotación de alertas.\n` +
+    `*buildstw [nombre]* - Busca una build para un arma o héroe concreto.\n` +
+    `*id / id2 / id3 / id4* - Registra o consulta tus cuentas Epic (máximo 4).\n`;
 
     // Los comandos administrativos se encuentran en *menú moderación*.
 
@@ -129,6 +139,7 @@ async function ejecutarMenu(sock, chatId, msg, args) {
                   `*${prefijo}paypali [cantidad USD]* - Calcula cuánto deben enviarte para recibir esa cantidad neta en dólares.\n`,
 
         'fortnite': menuFortnite,
+        'stw': menuSTW,
         'moderacion': menuModeracion,
         'tienda': `🛒 *MENÚ TIENDA BATTLE ROYALE* 🛒\n\n` +
                   `*${prefijo}tienda* - Muestra las categorías disponibles hoy.\n` +
