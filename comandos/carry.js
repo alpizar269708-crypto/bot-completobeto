@@ -94,19 +94,24 @@ async function comandoCarry(sock, chatId, msg, comando, args = [], epicIdElegido
     if (/^id[1-4]?$/.test(comando)) {
         const numeroCuenta = comando === 'id' ? null : (comando === 'id1' ? 1 : Number(comando.slice(2)));
         const contexto = msg.message?.extendedTextMessage?.contextInfo || {};
-        const usuarioMencionado = contexto.mentionedJid?.[0] || contexto.mentionedJid?.[0]?.jid || null;
+        const mencionadoRaw = Array.isArray(contexto.mentionedJid) ? contexto.mentionedJid[0] : null;
+        const usuarioMencionado = typeof mencionadoRaw === 'string'
+            ? mencionadoRaw
+            : (mencionadoRaw?.jid || mencionadoRaw?.id || null);
         const usuarioCitado = contexto.participant || null;
+        // Si el comando lleva una mención o es respuesta a alguien, el texto de @persona
+        // nunca debe interpretarse como un Epic ID: se consulta el registro de esa persona.
         const objetivoId = usuarioCitado || usuarioMencionado;
         const consultandoOtro = Boolean(objetivoId);
         const usuarioConsulta = objetivoId || sender;
         const alternativosConsulta = consultandoOtro
-            ? [contexto.participantAlt, contexto.senderPn, usuarioMencionado].filter(Boolean)
+            ? [contexto.participantAlt, contexto.senderPn, contexto.participantPn, usuarioMencionado].filter(Boolean)
             : idsAlternativos;
 
         const texto = msg.message?.conversation || msg.message?.extendedTextMessage?.text || '';
-        // Los argumentos originales del router conservan mayúsculas y no dependen del tipo de mensaje de WhatsApp.
-        const epicDesdeArgs = Array.isArray(args) ? args.join(' ').trim() : '';
-        const epicId = (epicDesdeArgs || texto.trim().replace(/^[*_~`]+/, '').replace(/^id[1-4]?\s*/i, '')).trim();
+        // Los argumentos originales se usan para registrar Epic IDs, pero se ignoran al consultar a otra persona.
+        const epicDesdeArgs = consultandoOtro ? '' : (Array.isArray(args) ? args.join(' ').trim() : '');
+        const epicId = consultandoOtro ? '' : (epicDesdeArgs || texto.trim().replace(/^[*_~`]+/, '').replace(/^id[1-4]?\s*/i, '')).trim();
         const cuentas = await obtenerCuentasEpic(sock, usuarioConsulta, alternativosConsulta);
 
         if (!epicId) {
