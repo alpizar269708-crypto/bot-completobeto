@@ -4,7 +4,7 @@ const { Config } = require('../database/modelos');
 const categoriasMap = {
     fortnite: ['buscajugador', 'buscajugadores', 'cancelarbusqueda', 'id', 'id1', 'id2', 'id3', 'id4', 'eliminarid'],
     stw: ['pavos', 'rpavos', 'destacadasstw', 'legendariasstw', 'epicasstw', 'alertasstw', 'stw', 'alerta', 'alertanov', 'recompensa', 'recompensanov', 'subirpl', 'guiapl', 'buildstw', 'id', 'id1', 'id2', 'id3', 'id4', 'eliminarid'],
-    tienda: ['tienda', 'tiendavb'],
+    tienda: ['tienda', 'tiendavb', 'idtienda'],
     carry: ['carryleader', 'carryjoin', 'carryleave', 'carryclose', 'buscocarry', 'buscooff', 'doycarry', 'x2busco', 'carryver', 'eliminarid', 'id', 'id1', 'id2', 'id3', 'id4', 'carryban', 'blcarry', 'unblcarry'],
     rifas: ['rifa', 'rifainscripcion', 'cerrarrifa', 'rifajasc13', 'addvarios', 'abrirrifa', 'activarrifaaqui', 'menurifajasc13'],
     cashback: ['addcashback', 'delcashback', 'vercash', 'delvcash', 'canjecash'],
@@ -146,7 +146,8 @@ async function ejecutarMenu(sock, chatId, msg, args) {
         'moderacion': menuModeracion,
         'tienda': `🛒 *MENÚ TIENDA BATTLE ROYALE* 🛒\n\n` +
                   `*${prefijo}tienda* - Muestra las categorías disponibles hoy.\n` +
-                  `*${prefijo}tienda [categoría]* - Muestra la imagen de esa categoría.\n` + `*${prefijo}tiendaVb [paVos]* - Convierte paVos a MXN y USD.\n`,
+                  `*${prefijo}tienda [categoría]* - Muestra la imagen de esa categoría.\n` + `*${prefijo}tiendaVb [paVos]* - Convierte paVos a MXN y USD.\n` +
+                  `*${prefijo}IDtienda* - Muestra los dos ID exclusivos para la venta de pavardos.\n`,
                   
         'carry': `🚀 *MENÚ CARRY (ESCUADRONES)* 🚀\n\n` +
                  `*${prefijo}id TuIDDeEpic* - Registra la cuenta principal.\n` +
