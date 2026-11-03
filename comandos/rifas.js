@@ -1239,34 +1239,17 @@ async function comandoRifaJasc13(sock, chatId, msg, args) {
             }
         }
 
-        // Al realizar el sorteo se consumen únicamente los boletos completos.
-        // Cada 1000 puntos equivale a 1 boleto; los puntos sobrantes se conservan
-        // para la siguiente rifa. El cashback es independiente y se conserva completo.
-        const puntosRestantes = new Map();
-
-        for (const [id, data] of participantes.entries()) {
-            const puntosActuales = Number(data.puntos) || 0;
-            const resto = puntosActuales % 1000;
-
-            if (resto > 0) {
-                data.puntos = resto;
-                puntosRestantes.set(id, data);
-            }
-        }
-
+        // Reinicio total después del sorteo: se eliminan todos los puntos,
+        // tanto los que formaron boletos como cualquier sobrante. El cashback
+        // vive en otra clave y no se modifica.
         participantes.clear();
-        for (const [id, data] of puntosRestantes.entries()) {
-            participantes.set(id, data);
-        }
-
         await guardarParticipantesJasc13(participantes);
-        await guardarCashbackJasc13(cashback);
 
         await sock.sendMessage(chatId, {
-            text: '🔄 *Rifa JASC13 reiniciada.*\n\n' +
-                '🎟️ Los boletos utilizados en el sorteo fueron consumidos.\n' +
-                '💎 Los puntos sobrantes se conservaron para la siguiente rifa.\n' +
-                '💰 El cashback se conservó completo para cada participante.'
+            text: '🔄 *RIFA JASC13 REINICIADA POR COMPLETO*\n\n' +
+                '🧹 Se eliminaron todos los puntos acumulados y sobrantes.\n' +
+                '🎟️ La lista de participantes quedó completamente en cero.\n' +
+                '💰 El cashback permanece intacto; no se modificó.'
         });
     }
 }
