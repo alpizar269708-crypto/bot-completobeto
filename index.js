@@ -457,21 +457,34 @@ async function arrancarSocket(metodo, numeroTelefono, onCodeReady = null) {
         if (m.type !== 'notify') return;
 
         for (const msg of (m.messages || [])) {
-            if (!msg.key || msg.key.remoteJid === 'status@broadcast') continue;
+            try {
+                if (!msg.key || msg.key.remoteJid === 'status@broadcast') continue;
 
-            // Detecta "Eliminar para todos" y conserva mensajes recibidos solo en memoria temporal.
-            if (registrarEliminacion(msg, sock)) continue;
-            if (!msg.message) continue;
-            await registrarMensajeReciente(msg, sock);
+                // Detecta "Eliminar para todos" y conserva mensajes recibidos solo en memoria temporal.
+                if (registrarEliminacion(msg, sock)) continue;
+                if (!msg.message) continue;
+                await registrarMensajeReciente(msg, sock);
 
-            const textoCompleto = msg.message.conversation || msg.message.extendedTextMessage?.text || '';
-        if (msg.key.fromMe && (textoCompleto.includes('¡Pong!') || textoCompleto.includes('🤖'))) return;
+                const textoCompleto = msg.message.conversation || msg.message.extendedTextMessage?.text || '';
+                const chatId = msg.key.remoteJid;
+                const remitente = msg.key.participant || msg.key.remoteJid;
+                if (msg.key.fromMe && (textoCompleto.includes('¡Pong!') || textoCompleto.includes('🤖'))) continue;
 
-        if (textoCompleto.startsWith('setgrupostw') || textoCompleto.startsWith('!setgrupostw')) {
-            vincularChatWhatsApp(msg.key.remoteJid);
-        }
+                console.log('📩 Mensaje recibido:', {
+                    chat: chatId,
+                    remitente,
+                    tipo: m.type,
+                    texto: textoCompleto.slice(0, 120) || '[mensaje sin texto]'
+                });
 
-            await procesarMensaje(sock, msg);
+                if (textoCompleto.startsWith('setgrupostw') || textoCompleto.startsWith('!setgrupostw')) {
+                    vincularChatWhatsApp(chatId);
+                }
+
+                await procesarMensaje(sock, msg);
+            } catch (error) {
+                console.error('❌ Error procesando mensaje entrante:', error?.stack || error);
+            }
         }
     });
 
