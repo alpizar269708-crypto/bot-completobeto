@@ -11,10 +11,10 @@ function obtenerBusquedasActivas(chatId) {
     return activas;
 }
 
-async function publicarBusqueda(sock, chatId, msg, usuario, modalidad, totalJugadores, epicId) {
+async function publicarBusqueda(sock, chatId, msg, usuario, modalidad, totalJugadores, motivo, epicId) {
     const busquedas = obtenerBusquedasActivas(chatId);
     busquedas.push({
-        usuario, modalidad, totalJugadores, jugadoresActuales: 1, epicId,
+        usuario, modalidad, totalJugadores, motivo, jugadoresActuales: 1, epicId,
         expiraEn: Date.now() + DURACION_BUSQUEDA_MS
     });
     busquedasPorGrupo.set(chatId, busquedas);
@@ -22,7 +22,7 @@ async function publicarBusqueda(sock, chatId, msg, usuario, modalidad, totalJuga
     if (typeof timer.unref === 'function') timer.unref();
 
     return sock.sendMessage(chatId, {
-        text: `🎮 *BUSCO COMPAÑEROS FORTNITE*\\n\\n🎯 *Modalidad:* ${modalidad.toUpperCase()}\\n👥 *Jugadores:* 1/${totalJugadores}\\n👤 @${usuario.split('@')[0]}\\n🆔 *Epic:* ${epicId}\\n\\nConsulta las búsquedas de este grupo con *buscajugadores*.\\nCancela la tuya con *cancelarbusqueda*.\\n⏳ Expira en 60 minutos.\\n\\nApoya a un creador: *JASC13*`,
+        text: `🎮 *BUSCO COMPAÑEROS FORTNITE*\\n\\n🎯 *Modalidad:* ${modalidad.toUpperCase()}\\n📝 *Motivo:* ${motivo}\\n👥 *Jugadores:* 1/${totalJugadores}\\n👤 @${usuario.split('@')[0]}\\n🆔 *Epic:* ${epicId}\\n\\nConsulta las búsquedas de este grupo con *buscajugadores*.\\nCancela la tuya con *cancelarbusqueda*.\\n⏳ Expira en 60 minutos.\\n\\nApoya a un creador: *JASC13*`,
         mentions: [usuario]
     }, { quoted: msg });
 }
@@ -52,7 +52,7 @@ async function manejarRespuestaSeleccionSquad(sock, chatId, msg, remitente, text
         await sock.sendMessage(chatId, { text: 'ℹ️ Ya tienes una búsqueda activa en este grupo. Usa *cancelarbusqueda* para cerrarla.' }, { quoted: msg });
         return true;
     }
-    await publicarBusqueda(sock, chatId, msg, remitente, pendiente.modalidad, pendiente.totalJugadores, cuenta.epicId);
+    await publicarBusqueda(sock, chatId, msg, remitente, pendiente.modalidad, pendiente.totalJugadores, pendiente.motivo, cuenta.epicId);
     return true;
 }
 
@@ -70,7 +70,7 @@ async function comandoSquad(sock, chatId, msg, comando, args = []) {
         const menciones = [];
         const detalle = busquedas.map((b, i) => {
             menciones.push(b.usuario);
-            return `${i + 1}. *${b.modalidad.toUpperCase()}* — ${b.jugadoresActuales}/${b.totalJugadores}\\n👤 @${b.usuario.split('@')[0]} — 🆔 Epic: ${b.epicId || 'Sin registrar'}\\n⏳ Expira en ${Math.max(1, Math.ceil((b.expiraEn - Date.now()) / 60000))} min`;
+            return `${i + 1}. *${b.modalidad.toUpperCase()}* — ${b.jugadoresActuales}/${b.totalJugadores}\\n📝 *Motivo:* ${b.motivo || 'No especificado'}\\n👤 @${b.usuario.split('@')[0]} — 🆔 Epic: ${b.epicId || 'Sin registrar'}\\n⏳ Expira en ${Math.max(1, Math.ceil((b.expiraEn - Date.now()) / 60000))} min`;
         }).join('\\n\\n');
         return sock.sendMessage(chatId, {
             text: '🎮 *BÚSQUEDAS FORTNITE DE ESTE GRUPO*\\n\\n' + detalle,
@@ -91,11 +91,15 @@ async function comandoSquad(sock, chatId, msg, comando, args = []) {
     }
 
     const modalidad = String(args[0] || '').toLowerCase();
+    const motivo = args.slice(1).join(' ').trim();
     const totalJugadores = { duo: 2, trio: 3, squad: 4 }[modalidad];
     if (!totalJugadores) {
         return sock.sendMessage(chatId, {
-            text: '❌ Indica la modalidad: *buscajugador duo*, *buscajugador trio* o *buscajugador squad*.'
+            text: '❌ Indica la modalidad y el motivo. Ejemplos:\\n*buscajugador duo Misiones de historia*\\n*buscajugador trio Subir nivel de poder*\\n*buscajugador squad Misiones de 160*.'
         }, { quoted: msg });
+    }
+    if (!motivo) {
+        return sock.sendMessage(chatId, { text: '❌ Debes indicar el motivo de la búsqueda.\\n\\nEjemplo: *buscajugador squad Misiones de 160*' }, { quoted: msg });
     }
     if (busquedas.some(b => b.usuario === usuario)) {
         return sock.sendMessage(chatId, { text: 'ℹ️ Ya tienes una búsqueda activa en este grupo. Usa *cancelarbusqueda* para cerrarla.' }, { quoted: msg });
@@ -107,11 +111,11 @@ async function comandoSquad(sock, chatId, msg, comando, args = []) {
         return sock.sendMessage(chatId, { text: '❌ No tienes ningún Epic ID registrado. Primero registra tu cuenta con *ID* o *ID1* a *ID4* y vuelve a buscar compañeros.' }, { quoted: msg });
     }
     seleccionesEpicPendientes.set(`${chatId}:${usuario}`, {
-        modalidad, totalJugadores, cuentas, expiraEn: Date.now() + DURACION_SELECCION_MS
+        modalidad, totalJugadores, motivo, cuentas, expiraEn: Date.now() + DURACION_SELECCION_MS
     });
     const lista = cuentas.map(c => `${c.numero}. *ID${c.numero}:* ${c.epicId}`).join('\\n');
     return sock.sendMessage(chatId, {
-        text: `🎮 *ELIGE TU EPIC ID*\\n\\nAntes de publicar tu búsqueda de ${modalidad.toUpperCase()}, indica qué cuenta quieres usar:\\n\\n${lista}\\n\\nResponde con el número de la cuenta elegida.\\nEscribe *cancelar* si ya no deseas publicar la búsqueda.\\n⏳ Tienes 5 minutos para elegir.`
+        text: `🎮 *ELIGE TU EPIC ID*\\n\\n📝 *Motivo:* ${motivo}\\n\\nAntes de publicar tu búsqueda de ${modalidad.toUpperCase()}, indica qué cuenta quieres usar:\\n\\n${lista}\\n\\nResponde con el número de la cuenta elegida.\\nEscribe *cancelar* si ya no deseas publicar la búsqueda.\\n⏳ Tienes 5 minutos para elegir.`
     }, { quoted: msg });
 }
 
