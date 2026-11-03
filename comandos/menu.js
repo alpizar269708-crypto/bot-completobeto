@@ -2,7 +2,7 @@ const { esPrivilegiadoTotalAsync } = require('../utils/whatsapp');
 const { Config } = require('../database/modelos');
 
 const categoriasMap = {
-    fortnite: ['buscajugador', 'buscajugadores', 'cancelarbusqueda', 'id', 'id1', 'id2', 'id3', 'id4', 'eliminarid'],
+    fortnite: ['buscajugador', 'buscajugadores', 'cancelarbusqueda', 'unirme', 'id', 'id1', 'id2', 'id3', 'id4', 'eliminarid'],
     stw: ['pavos', 'rpavos', 'destacadasstw', 'legendariasstw', 'epicasstw', 'alertasstw', 'stw', 'alerta', 'alertanov', 'recompensa', 'recompensanov', 'subirpl', 'guiapl', 'buildstw', 'id', 'id1', 'id2', 'id3', 'id4', 'eliminarid'],
     tienda: ['tienda', 'tiendavb', 'idtienda'],
     carry: ['carryleader', 'carryjoin', 'carryleave', 'carryclose', 'buscocarry', 'buscooff', 'doycarry', 'x2busco', 'carryver', 'eliminarid', 'id', 'id1', 'id2', 'id3', 'id4', 'carryban', 'blcarry', 'unblcarry'],
@@ -79,6 +79,7 @@ async function ejecutarMenu(sock, chatId, msg, args) {
     `*buscajugador trio* - Publica una búsqueda para encontrar 2 compañeros en este grupo.\n` +
     `*buscajugador squad* - Publica una búsqueda para encontrar 3 compañeros en este grupo.\n` +
     `*buscajugadores* - Muestra las búsquedas activas publicadas en este grupo.\n` +
+    `*unirme* - Te une a la única búsqueda disponible; si hay varias, usa *unirme número*.\n` +
     `*cancelarbusqueda* - Cancela tu búsqueda activa.\n` +
     `*id TuIDDeEpic* - Registra tu cuenta principal.\n` +
     `*id2 / id3 / id4 TuIDDeEpic* - Registra cuentas adicionales (máximo 4).\n` +
