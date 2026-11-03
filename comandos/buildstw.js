@@ -15,7 +15,17 @@ const DOMINIOS_PERMITIDOS = [
 const CACHE_TTL = 30 * 60 * 1000;
 const cacheBuilds = new Map();
 const sesionesReemplazoHeroes = new Map();
-const SESION_REEMPLAZO_TTL = 5 * 60 * 1000;
+const SESION_REEMPLAZO_TTL = 30 * 60 * 1000;
+
+function guardarSesionReemplazo(clave, sesion) {
+    sesionesReemplazoHeroes.set(clave, sesion);
+    const timer = setTimeout(() => {
+        if (sesionesReemplazoHeroes.get(clave) === sesion && sesion.expira <= Date.now()) {
+            sesionesReemplazoHeroes.delete(clave);
+        }
+    }, SESION_REEMPLAZO_TTL);
+    if (typeof timer.unref === 'function') timer.unref();
+}
 
 function claveSesion(chatId, remitente) {
     return String(chatId) + ':' + String(remitente);
@@ -286,13 +296,13 @@ async function manejarRespuestaBuildSTW(sock, chatId, msg, remitente, textoOrigi
     }
     // Solo los números válidos del propio remitente renuevan la sesión; otros mensajes no la prolongan.
     sesion.expira = Date.now() + SESION_REEMPLAZO_TTL;
-    sesionesReemplazoHeroes.set(clave, sesion);
+    guardarSesionReemplazo(clave, sesion);
     await sock.sendMessage(chatId, { text: '🔄 Buscando reemplazos para los héroes ' + indices.join(', ') + '…' }, { quoted: msg });
     try {
         const nuevoCuerpo = await generarReemplazosHeroes(sesion.nombre, sesion.cuerpo, indices, sesion.fuentes);
         sesion.cuerpo = nuevoCuerpo;
         sesion.expira = Date.now() + SESION_REEMPLAZO_TTL;
-        sesionesReemplazoHeroes.set(clave, sesion);
+        guardarSesionReemplazo(clave, sesion);
         const respuesta = '🔫 *BUILD STW: ' + sesion.nombre.toUpperCase() + '*\n\n' + nuevoCuerpo + preguntaHeroes() + '\n\nApoya a un creador: *JASC13*.';
         await sock.sendMessage(chatId, { text: respuesta }, { quoted: msg });
     } catch (error) {
@@ -330,7 +340,7 @@ Apoya a un creador: *JASC13*.`
     if (guardado && guardado.expira > Date.now()) {
         console.info('[buildstw] Resultado servido desde caché:', { nombre });
         const remitente = msg.key?.participant || msg.key?.remoteJid || chatId;
-        sesionesReemplazoHeroes.set(claveSesion(chatId, remitente), {
+        guardarSesionReemplazo(claveSesion(chatId, remitente), {
             nombre: guardado.nombre || nombre, evolucion: guardado.evolucion || null, cuerpo: guardado.cuerpo,
             fuentes: guardado.fuentes || [], expira: Date.now() + SESION_REEMPLAZO_TTL
         });
