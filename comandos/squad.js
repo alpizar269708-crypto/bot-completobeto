@@ -2,7 +2,9 @@ const { obtenerCuentasEpic } = require('./carry');
 
 // Las búsquedas viven únicamente en memoria y dentro del grupo donde se publican.
 const busquedasPorGrupo = new Map();
+const seleccionesEpicPendientes = new Map();
 const DURACION_BUSQUEDA_MS = 60 * 60 * 1000;
+const DURACION_SELECCION_MS = 5 * 60 * 1000;
 
 function obtenerBusquedasActivas(chatId) {
     const activas = (busquedasPorGrupo.get(chatId) || []).filter(b => b.expiraEn > Date.now());
