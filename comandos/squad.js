@@ -16,7 +16,7 @@ function obtenerBusquedasActivas(chatId) {
 async function publicarBusqueda(sock, chatId, msg, usuario, modalidad, totalJugadores, motivo, epicId) {
     const busquedas = obtenerBusquedasActivas(chatId);
     busquedas.push({
-        usuario, modalidad, totalJugadores, motivo, jugadoresActuales: 1, epicId,
+        usuario, modalidad, totalJugadores, motivo, jugadoresActuales: 1, jugadores: [], epicId,
         expiraEn: Date.now() + DURACION_BUSQUEDA_MS
     });
     busquedasPorGrupo.set(chatId, busquedas);
@@ -30,7 +30,7 @@ async function publicarBusqueda(sock, chatId, msg, usuario, modalidad, totalJuga
     if (typeof timer.unref === 'function') timer.unref();
 
     return sock.sendMessage(chatId, {
-        text: `🎮 *BUSCO COMPAÑEROS FORTNITE*\n\n🎯 *Modalidad:* ${modalidad.toUpperCase()}\n📝 *Motivo:* ${motivo}\n👥 *Jugadores:* 1/${totalJugadores}\n👤 @${usuario.split('@')[0]}\n🆔 *Epic:* ${epicId}\n\nConsulta las búsquedas de este grupo con *buscajugadores*.\nCancela la tuya con *cancelarbusqueda*.\n⏳ Expira en 30 minutos.\n\nApoya a un creador: *JASC13*`,
+        text: `🎮 *BUSCO COMPAÑEROS FORTNITE*\n\n🎯 *Modalidad:* ${modalidad.toUpperCase()}\n📝 *Motivo:* ${motivo}\n👥 *Jugadores:* 1/${totalJugadores}\n👤 @${usuario.split('@')[0]}\n🆔 *Epic:* ${epicId}\n\nPara unirte escribe *unirme* (si hay varias, usa *unirme número*).\nConsulta las búsquedas con *buscajugadores*.\nCancela la tuya con *cancelarbusqueda*.\n⏳ Expira en 30 minutos.\n\nApoya a un creador: *JASC13*`,
         mentions: [usuario]
     }, { quoted: msg });
 }
@@ -86,6 +86,46 @@ async function comandoSquad(sock, chatId, msg, comando, args = []) {
         }, { quoted: msg });
     }
 
+    if (comando === 'unirme') {
+        const disponibles = busquedas.filter(b => b.usuario !== usuario && b.jugadoresActuales < b.totalJugadores);
+        if (!disponibles.length) {
+            return sock.sendMessage(chatId, { text: '❌ No hay búsquedas con espacios disponibles para unirte en este grupo.' }, { quoted: msg });
+        }
+        let seleccion;
+        const numero = Number(args[0]);
+        if (args[0] && Number.isInteger(numero) && numero >= 1) {
+            seleccion = disponibles[numero - 1];
+            if (!seleccion) return sock.sendMessage(chatId, { text: '❌ Ese número no corresponde a una búsqueda disponible. Consulta *buscajugadores*.' }, { quoted: msg });
+        } else if (disponibles.length === 1) {
+            seleccion = disponibles[0];
+        } else {
+            const lista = disponibles.map((b, i) => `${i + 1}. *${b.modalidad.toUpperCase()}* — ${b.jugadoresActuales}/${b.totalJugadores} — ${b.motivo}`).join('\\n');
+            return sock.sendMessage(chatId, { text: `🎮 *ELIGE A QUÉ BÚSQUEDA UNIRTE*\\n\\n${lista}\\n\\nEscribe *unirme número*. Ejemplo: *unirme 2*.` }, { quoted: msg });
+        }
+        if ((seleccion.jugadores || []).some(j => j.usuario === usuario)) {
+            return sock.sendMessage(chatId, { text: 'ℹ️ Ya estás unido a esta búsqueda.' }, { quoted: msg });
+        }
+        const alternativos = [msg.key.participantAlt, msg.key.participantPn, msg.key.senderPn].filter(Boolean);
+        const cuentas = await obtenerCuentasEpic(sock, usuario, alternativos);
+        if (!cuentas.length) {
+            return sock.sendMessage(chatId, { text: '❌ Primero registra tu Epic ID con *ID* o *ID2* a *ID4* para unirte.' }, { quoted: msg });
+        }
+        const epicId = cuentas[0].epicId;
+        if (!seleccion.jugadores) seleccion.jugadores = [];
+        seleccion.jugadoresActuales++;
+        seleccion.jugadores.push({ usuario, epicId });
+        const lleno = seleccion.jugadoresActuales >= seleccion.totalJugadores;
+        const aviso = lleno
+            ? `🚀 *¡BÚSQUEDA COMPLETA!*\\nLa búsqueda ${seleccion.modalidad.toUpperCase()} de @${seleccion.usuario.split('@')[0]} ya está completa.\\n\\n👥 ${seleccion.jugadoresActuales}/${seleccion.totalJugadores}`
+            : `🤝 *NUEVO JUGADOR EN LA BÚSQUEDA*\\n@${usuario.split('@')[0]} se unió a ${seleccion.modalidad.toUpperCase()} de @${seleccion.usuario.split('@')[0]}.\\n👥 ${seleccion.jugadoresActuales}/${seleccion.totalJugadores}`;
+        if (lleno) {
+            const restantes = busquedas.filter(b => b !== seleccion);
+            if (restantes.length) busquedasPorGrupo.set(chatId, restantes);
+            else busquedasPorGrupo.delete(chatId);
+        }
+        return sock.sendMessage(chatId, { text: aviso, mentions: [usuario, seleccion.usuario] }, { quoted: msg });
+    }
+
     if (comando === 'cancelarbusqueda') {
         seleccionesEpicPendientes.delete(`${chatId}:${usuario}`);
         const indice = busquedas.findIndex(b => b.usuario === usuario);
@@ -123,7 +163,7 @@ async function comandoSquad(sock, chatId, msg, comando, args = []) {
     });
     const lista = cuentas.map(c => `${c.numero}. *ID${c.numero}:* ${c.epicId}`).join('\n');
     return sock.sendMessage(chatId, {
-        text: `🎮 *ELIGE TU EPIC ID*\n\n📝 *Motivo:* ${motivo}\n\nAntes de publicar tu búsqueda de ${modalidad.toUpperCase()}, indica qué cuenta quieres usar:\n\n${lista}\n\nResponde con el número de la cuenta elegida.\nEscribe *cancelar* si ya no deseas publicar la búsqueda.\n⏳ Tienes 5 minutos para elegir.`
+        text: `🎮 *ELIGE TU EPIC ID*\n\n📝 *Motivo:* ${motivo}\n\nAntes de publicar tu búsqueda de ${modalidad.toUpperCase()}, indica qué cuenta quieres usar:\n\n${lista}\n\nResponde con el número de la cuenta elegida.\nEscribe *cancelar* si ya no deseas publicar la búsqueda.\n⏳ Tienes 30 minutos para elegir.`
     }, { quoted: msg });
 }
 
