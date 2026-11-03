@@ -1,7 +1,17 @@
 const { obtenerAlertasSTW, formatearAlertaSTW } = require('./fortnite');
 
 const sesionesGuiaPL = new Map();
-const DURACION_SESION_MS = 15 * 60 * 1000;
+const DURACION_SESION_MS = 30 * 60 * 1000;
+
+function guardarSesionGuia(clave, sesion) {
+    sesionesGuiaPL.set(clave, sesion);
+    const timer = setTimeout(() => {
+        if (sesionesGuiaPL.get(clave) === sesion && sesion.expira <= Date.now()) {
+            sesionesGuiaPL.delete(clave);
+        }
+    }, DURACION_SESION_MS);
+    if (typeof timer.unref === 'function') timer.unref();
+}
 const PASOS = ['pl', 'meta', 'horas', 'bloqueo', 'materiales', 'escuadrones', 'zona', 'rareza', 'estilo', 'oro'];
 
 function claveSesion(chatId, remitente) {
@@ -53,7 +63,7 @@ async function iniciarGuiaPL(sock, chatId, msg, args = []) {
         respuestas: {},
         expira: Date.now() + DURACION_SESION_MS
     };
-    sesionesGuiaPL.set(clave, sesion);
+    guardarSesionGuia(clave, sesion);
     await enviar(sock, chatId, msg,
         '🧭 *PREPAREMOS TU GUÍA DE STW*\n\nTe haré preguntas una por una. Responde con el número de la opción; al terminar, te indicaré qué buscar con *alerta* y *alertanov*.\n\n' +
         textoPregunta(sesion.paso));
@@ -401,7 +411,7 @@ async function manejarRespuestaGuiaPL(sock, chatId, msg, remitente, textoOrigina
 
     sesion.paso = PASOS[indice + 1];
     sesion.expira = Date.now() + DURACION_SESION_MS;
-    sesionesGuiaPL.set(clave, sesion);
+    guardarSesionGuia(clave, sesion);
     await enviar(sock, chatId, msg, textoPregunta(sesion.paso));
     return true;
 }
