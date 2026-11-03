@@ -3,8 +3,8 @@ const { obtenerCuentasEpic } = require('./carry');
 // Las búsquedas viven únicamente en memoria y dentro del grupo donde se publican.
 const busquedasPorGrupo = new Map();
 const seleccionesEpicPendientes = new Map();
-const DURACION_BUSQUEDA_MS = 60 * 60 * 1000;
-const DURACION_SELECCION_MS = 5 * 60 * 1000;
+const DURACION_BUSQUEDA_MS = 30 * 60 * 1000;
+const DURACION_SELECCION_MS = 30 * 60 * 1000;
 
 function obtenerBusquedasActivas(chatId) {
     const activas = (busquedasPorGrupo.get(chatId) || []).filter(b => b.expiraEn > Date.now());
@@ -20,11 +20,17 @@ async function publicarBusqueda(sock, chatId, msg, usuario, modalidad, totalJuga
         expiraEn: Date.now() + DURACION_BUSQUEDA_MS
     });
     busquedasPorGrupo.set(chatId, busquedas);
-    const timer = setTimeout(() => obtenerBusquedasActivas(chatId), DURACION_BUSQUEDA_MS);
+    const busquedaCreada = busquedas[busquedas.length - 1];
+    const timer = setTimeout(() => {
+        const actuales = busquedasPorGrupo.get(chatId) || [];
+        const restantes = actuales.filter(b => b !== busquedaCreada);
+        if (restantes.length) busquedasPorGrupo.set(chatId, restantes);
+        else busquedasPorGrupo.delete(chatId);
+    }, DURACION_BUSQUEDA_MS);
     if (typeof timer.unref === 'function') timer.unref();
 
     return sock.sendMessage(chatId, {
-        text: `🎮 *BUSCO COMPAÑEROS FORTNITE*\n\n🎯 *Modalidad:* ${modalidad.toUpperCase()}\n📝 *Motivo:* ${motivo}\n👥 *Jugadores:* 1/${totalJugadores}\n👤 @${usuario.split('@')[0]}\n🆔 *Epic:* ${epicId}\n\nConsulta las búsquedas de este grupo con *buscajugadores*.\nCancela la tuya con *cancelarbusqueda*.\n⏳ Expira en 60 minutos.\n\nApoya a un creador: *JASC13*`,
+        text: `🎮 *BUSCO COMPAÑEROS FORTNITE*\n\n🎯 *Modalidad:* ${modalidad.toUpperCase()}\n📝 *Motivo:* ${motivo}\n👥 *Jugadores:* 1/${totalJugadores}\n👤 @${usuario.split('@')[0]}\n🆔 *Epic:* ${epicId}\n\nConsulta las búsquedas de este grupo con *buscajugadores*.\nCancela la tuya con *cancelarbusqueda*.\n⏳ Expira en 30 minutos.\n\nApoya a un creador: *JASC13*`,
         mentions: [usuario]
     }, { quoted: msg });
 }
