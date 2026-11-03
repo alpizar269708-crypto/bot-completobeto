@@ -116,8 +116,8 @@ async function comandoSquad(sock, chatId, msg, comando, args = []) {
         seleccion.jugadores.push({ usuario, epicId });
         const lleno = seleccion.jugadoresActuales >= seleccion.totalJugadores;
         const aviso = lleno
-            ? `🚀 *¡BÚSQUEDA COMPLETA!*\\nLa búsqueda ${seleccion.modalidad.toUpperCase()} de @${seleccion.usuario.split('@')[0]} ya está completa.\\n\\n👤 @${usuario.split('@')[0]}\\n🆔 *Epic:* ${epicId}\\n👥 ${seleccion.jugadoresActuales}/${seleccion.totalJugadores}`
-            : `🤝 *NUEVO JUGADOR EN LA BÚSQUEDA*\\n@${usuario.split('@')[0]} se unió a ${seleccion.modalidad.toUpperCase()} de @${seleccion.usuario.split('@')[0]}.\\n🆔 *Epic:* ${epicId}\\n👥 ${seleccion.jugadoresActuales}/${seleccion.totalJugadores}`;
+            ? `🚀 *¡BÚSQUEDA COMPLETA!*\nLa búsqueda ${seleccion.modalidad.toUpperCase()} de @${seleccion.usuario.split('@')[0]} ya está completa.\n\n👤 @${usuario.split('@')[0]}\n🆔 *Epic:* ${epicId}\n👥 ${seleccion.jugadoresActuales}/${seleccion.totalJugadores}`
+            : `🤝 *NUEVO JUGADOR EN LA BÚSQUEDA*\n@${usuario.split('@')[0]} se unió a ${seleccion.modalidad.toUpperCase()} de @${seleccion.usuario.split('@')[0]}.\n🆔 *Epic:* ${epicId}\n👥 ${seleccion.jugadoresActuales}/${seleccion.totalJugadores}`;
         if (lleno) {
             const restantes = busquedas.filter(b => b !== seleccion);
             if (restantes.length) busquedasPorGrupo.set(chatId, restantes);
