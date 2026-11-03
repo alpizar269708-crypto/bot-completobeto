@@ -11,14 +11,7 @@ function programarExpiracionCarry(mapa, chatId, registro, sock, tipo) {
     registro.expiracionTimer = setTimeout(async () => {
         if (mapa.get(chatId) !== registro) return;
         mapa.delete(chatId);
-        try {
-            const texto = tipo === 'escuadron'
-                ? '⏰ *CARRY EXPIRADO*\nEl escuadrón se cerró automáticamente porque pasaron 30 minutos desde que se abrió.'
-                : '⏰ *BÚSQUEDA DE CARRY EXPIRADA*\nLa búsqueda se cerró automáticamente porque pasaron 30 minutos desde que se abrió.';
-            await sock.sendMessage(chatId, { text: texto });
-        } catch (error) {
-            console.error('[CARRY] No se pudo avisar que expiró:', error?.message || error);
-        }
+        // Cierre automático silencioso: no se envía ningún mensaje al grupo.
     }, DURACION_CARRY_ACTIVO);
     if (typeof registro.expiracionTimer.unref === 'function') registro.expiracionTimer.unref();
 }
