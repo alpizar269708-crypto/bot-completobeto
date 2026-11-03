@@ -27,7 +27,7 @@ const {
 } = require('./comandos/economia');
 const { comandoRifa, comandoRifaInscripcion, comandoRifaQuitarDuplicados, comandoRifaJasc13, comandoMenuRifaJasc13, comandoRecuperarRegistroJasc13, comandoAbrirRifa, comandoActivarRifaAqui, comandoCerrarRifa } = require('./comandos/rifas');
 const { comandoCarry, manejarRespuestaSeleccionCarry } = require('./comandos/carry');
-const { comandoSquad } = require('./comandos/squad');
+const { comandoSquad, manejarRespuestaSeleccionSquad } = require('./comandos/squad');
 const { comandoPaypal, comandoCalculadoraPaypal } = require('./comandos/paypal');
 const { comandoVerEliminados } = require('./comandos/verelim');
 
@@ -244,6 +244,7 @@ Apoya a un creador: JASC13` });
     }
 
     if (await manejarRespuestaSeleccionCarry(sock, chatJid, msg, remitenteReal, textoOriginal)) return;
+    if (await manejarRespuestaSeleccionSquad(sock, chatJid, msg, remitenteReal, textoOriginal)) return;
 
     // Las respuestas pendientes de reemplazo de héroes se procesan antes de validar comandos.
     if (await manejarRespuestaBuildSTW(sock, chatJid, msg, remitenteReal, textoOriginal)) return;
