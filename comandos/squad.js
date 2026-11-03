@@ -99,8 +99,8 @@ async function comandoSquad(sock, chatId, msg, comando, args = []) {
         } else if (disponibles.length === 1) {
             seleccion = disponibles[0];
         } else {
-            const lista = disponibles.map((b, i) => `${i + 1}. *${b.modalidad.toUpperCase()}* — ${b.jugadoresActuales}/${b.totalJugadores} — ${b.motivo}`).join('\\n');
-            return sock.sendMessage(chatId, { text: `🎮 *ELIGE A QUÉ BÚSQUEDA UNIRTE*\\n\\n${lista}\\n\\nEscribe *unirme número*. Ejemplo: *unirme 2*.` }, { quoted: msg });
+            const lista = disponibles.map((b, i) => `${i + 1}. *${b.modalidad.toUpperCase()}* — ${b.jugadoresActuales}/${b.totalJugadores} — ${b.motivo}`).join('\n');
+            return sock.sendMessage(chatId, { text: `🎮 *ELIGE A QUÉ BÚSQUEDA UNIRTE*\n\n${lista}\n\nEscribe *unirme número*. Ejemplo: *unirme 2*.` }, { quoted: msg });
         }
         if ((seleccion.jugadores || []).some(j => j.usuario === usuario)) {
             return sock.sendMessage(chatId, { text: 'ℹ️ Ya estás unido a esta búsqueda.' }, { quoted: msg });
@@ -116,8 +116,8 @@ async function comandoSquad(sock, chatId, msg, comando, args = []) {
         seleccion.jugadores.push({ usuario, epicId });
         const lleno = seleccion.jugadoresActuales >= seleccion.totalJugadores;
         const aviso = lleno
-            ? `🚀 *¡BÚSQUEDA COMPLETA!*\\nLa búsqueda ${seleccion.modalidad.toUpperCase()} de @${seleccion.usuario.split('@')[0]} ya está completa.\\n\\n👥 ${seleccion.jugadoresActuales}/${seleccion.totalJugadores}`
-            : `🤝 *NUEVO JUGADOR EN LA BÚSQUEDA*\\n@${usuario.split('@')[0]} se unió a ${seleccion.modalidad.toUpperCase()} de @${seleccion.usuario.split('@')[0]}.\\n👥 ${seleccion.jugadoresActuales}/${seleccion.totalJugadores}`;
+            ? `🚀 *¡BÚSQUEDA COMPLETA!*\nLa búsqueda ${seleccion.modalidad.toUpperCase()} de @${seleccion.usuario.split('@')[0]} ya está completa.\n\n👥 ${seleccion.jugadoresActuales}/${seleccion.totalJugadores}`
+            : `🤝 *NUEVO JUGADOR EN LA BÚSQUEDA*\n@${usuario.split('@')[0]} se unió a ${seleccion.modalidad.toUpperCase()} de @${seleccion.usuario.split('@')[0]}.\n👥 ${seleccion.jugadoresActuales}/${seleccion.totalJugadores}`;
         if (lleno) {
             const restantes = busquedas.filter(b => b !== seleccion);
             if (restantes.length) busquedasPorGrupo.set(chatId, restantes);
