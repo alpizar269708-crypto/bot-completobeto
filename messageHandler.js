@@ -32,7 +32,7 @@ const { comandoPaypal, comandoCalculadoraPaypal } = require('./comandos/paypal')
 const { comandoVerEliminados } = require('./comandos/verelim');
 
 const categoriasMap = {
-    'fortnite': ['buscajugador', 'buscajugadores', 'cancelarbusqueda', 'id', 'id1', 'id2', 'id3', 'id4'],
+    'fortnite': ['buscajugador', 'buscajugadores', 'cancelarbusqueda', 'unirme', 'id', 'id1', 'id2', 'id3', 'id4'],
     'stw': ['pavos', 'rpavos', 'destacadasstw', 'legendariasstw', 'epicasstw', 'alertasstw', 'stw', 'alerta', 'alertanov', 'recompensa', 'recompensanov', 'subirpl', 'guiapl', 'buildstw', 'id', 'id1', 'id2', 'id3', 'id4'],
     'economia': ['cartera', 'bal', 'banco', 'pay', 'pagar', 'top', 'topdinero', 'daily', 'weekly', 'farmear', 'work', 'crime', 'mendigar', 'pescar', 'minar', 'cazar', 'explorar', 'ruleta', 'cf', 'slots', 'dados', 'adivina', 'buscaminas', 'rob', 'ppt', 'pelea', 'carrera', 'hackear', 'shop', 'buy', 'inventario', 'mochila', 'vender', 'use', 'regalar'],
     'utilidades': ['s', 'sticker', 'recup1vez', 'descargar', 'download', 'tiktok', 'instagram', 'pinterest', 'x', 'twitter', 'traduce', 'skin', 'stats', 'tiendastats', 'tiendavb', 'contacto', 'ping', 'verelim'],
@@ -72,7 +72,7 @@ const comandosValidos = new Set([
         'ruleta', 'cf', 'slots', 'dados', 'adivina', 'buscaminas', 'rob', 'ppt', 'pelea',
         'carrera', 'hackear', 'shop', 'buy', 'inventario', 'mochila', 'vender', 'use', 'regalar',
         'rifa', 'rifainscripcion', 'cerrarrifa', 'rifaquitarduplicados', 'rifajasc13', 'addvarios', 'abrirrifa', 'activarrifaaqui', 'menurifajasc13', 'quitarrifajasc13', 'addcashback', 'delcashback', 'vercash', 'delvcash', 'canjecash', 'carryleader', 'carryjoin', 'carryleave', 'carryclose', 'buscocarry', 'buscooff', 'doycarry', 'x2busco', 'carryver', 'carryban', 'blcarry', 'unblcarry',
-        'vertodoscomandos', 'listablanca', 'buscajugador', 'buscajugadores', 'cancelarbusqueda', 'paypal', 'paypaln', 'paypali', 'desactivarbienvenida', 'activarbienvenida', 'personalizarbienvenida', 'restaurarbienvenida', 'redeploy', 'verelim', 'eliminarid', 'id', 'id1', 'id2', 'id3', 'id4'
+        'vertodoscomandos', 'listablanca', 'buscajugador', 'buscajugadores', 'cancelarbusqueda', 'unirme', 'paypal', 'paypaln', 'paypali', 'desactivarbienvenida', 'activarbienvenida', 'personalizarbienvenida', 'restaurarbienvenida', 'redeploy', 'verelim', 'eliminarid', 'id', 'id1', 'id2', 'id3', 'id4'
 ]);
 
 
@@ -970,6 +970,7 @@ Apoya a un creador: JASC13` });
             case 'buscajugador':
             case 'buscajugadores':
             case 'cancelarbusqueda':
+            case 'unirme':
                 await comandoSquad(sock, chatJid, msg, comando, argsOriginales);
                 break;
             case 'eliminarid':
