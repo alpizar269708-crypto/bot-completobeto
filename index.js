@@ -451,10 +451,18 @@ async function arrancarSocket(metodo, numeroTelefono, onCodeReady = null) {
     });
 
     sock.ev.on('messages.upsert', async (m) => {
-        // Solo procesamos mensajes que llegan en tiempo real.
-        // Los eventos "append" son historial/sincronización de chats anteriores
-        // y se ignoran completamente para que el bot empiece desde este instante.
-        if (m.type !== 'notify') return;
+        // Diagnóstico de recepción: permite distinguir si WhatsApp no entrega
+        // eventos o si los entrega con un tipo distinto de "notify".
+        console.log('📨 Evento messages.upsert:', {
+            tipo: m?.type || '[sin tipo]',
+            cantidad: Array.isArray(m?.messages) ? m.messages.length : 0
+        });
+
+        // Solo procesamos mensajes en tiempo real; append se registra para diagnóstico.
+        if (m.type !== 'notify') {
+            console.log('⏭️ Evento de mensajes ignorado por tipo:', m?.type);
+            return;
+        }
 
         for (const msg of (m.messages || [])) {
             try {
