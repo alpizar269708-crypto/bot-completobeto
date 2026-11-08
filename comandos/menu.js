@@ -109,7 +109,8 @@ async function ejecutarMenu(sock, chatId, msg, args) {
 
     let menuModeracion = `🛡️ *MENÚ MODERACIÓN (Admins)* 🛡️\n\n`;
     if (isAdmin && isGroup) {
-        menuModeracion += `*${prefijo}warn [@user] / verwarns* - Advierte a un usuario.\n` +
+        menuModeracion += `*${prefijo}elim* - Elimina para todos el mensaje al que respondas.\n` +
+        `*${prefijo}warn [@user] / verwarns* - Advierte a un usuario.\n` +
         `*${prefijo}limpiarwarns [@user]* - Borra todos los warns del usuario y lo deja en 0/3.\n` +
         `*${prefijo}ban [@user] / unban* - Expulsa o readmite.\n` +
         `*${prefijo}listanegra / unbanlist* - Gestión de bloqueados.\n` +
@@ -219,7 +220,7 @@ async function ejecutarMenu(sock, chatId, msg, args) {
                       `*${prefijo}tiendastats [nombre]* - Consulta estadísticas del cosmético.\n` + `*${prefijo}tiendaVb [paVos]* - Convierte paVos a MXN y USD.\n` +
                       `*${prefijo}contacto* - Información del creador.\n` +
                       `*${prefijo}ping* - Revisa la velocidad y estado del bot.\n` +
-                      `*${prefijo}verelim* - Muestra mensajes eliminados para todos en este chat durante las últimas 2 horas.\n`,
+                      `*${prefijo}verelim* - Muestra mensajes eliminados por usuarios o por el bot durante las últimas 2 horas.\n`,
 
         'ia': `🤖 *MENÚ INTELIGENCIA ARTIFICIAL* 🤖\n\n` +
               `*${prefijo}ia [pregunta]* - Habla de forma natural con el bot.\n`,
