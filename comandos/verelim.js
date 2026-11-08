@@ -142,6 +142,45 @@ function registrarEliminacion(msg, sock) {
     return true;
 }
 
+function registrarEliminacionPorBot(msg, motivo = 'Moderación automática') {
+    const chatId = msg?.key?.remoteJid;
+    const id = msg?.key?.id;
+    if (!chatId || !id) return false;
+
+    const ahora = Date.now();
+    limpiarMapa(mensajesPorChat, ahora);
+    limpiarMapa(eliminadosPorChat, ahora);
+    const original = mensajesPorChat.get(chatId)?.get(id) || {
+        id,
+        chatId,
+        remitente: msg.key.participant || msg.key.remoteJid,
+        texto: textoDeMensaje(msg.message).slice(0, MAX_TEXTO_GUARDADO),
+        tipo: tipoDeMensaje(msg.message),
+        timestamp: Number(msg.messageTimestamp || Math.floor(ahora / 1000)) * 1000,
+        media: null,
+        mediaBytes: 0,
+        mimetype: null,
+        fileName: null,
+        ptt: false
+    };
+
+    let registros = eliminadosPorChat.get(chatId);
+    if (!registros) {
+        if (eliminadosPorChat.size >= MAX_CHATS_EN_MEMORIA) eliminadosPorChat.delete(eliminadosPorChat.keys().next().value);
+        registros = new Map();
+        eliminadosPorChat.set(chatId, registros);
+    }
+    registros.set(`bot:${id}:${ahora}`, {
+        ...original,
+        timestampEliminacion: ahora,
+        quienElimino: 'bot',
+        motivo
+    });
+    while (registros.size > MAX_ELIMINADOS_POR_CHAT) registros.delete(registros.keys().next().value);
+    mensajesPorChat.get(chatId)?.delete(id);
+    return true;
+}
+
 function obtenerEliminados(chatId) {
     const ahora = Date.now();
     limpiarMapa(eliminadosPorChat, ahora);
@@ -169,8 +208,9 @@ async function comandoVerEliminados(sock, chatId, msg) {
         const contenido = r.texto?.trim()
             ? r.texto.trim().slice(0, 1800)
             : `[Se eliminó un mensaje de tipo ${r.tipo}. El archivo multimedia original no se almacena.]`;
-        const etiqueta = r.quienElimino?.includes('@') ? `@${r.quienElimino.split('@')[0]}` : 'No identificado';
-        return `*Mensaje eliminado #${i + 1}* · ${hora}\n👤 Lo eliminó: ${etiqueta}\n🗑️ Contenido: ${contenido}`;
+        const etiqueta = r.quienElimino === 'bot' ? '🤖 BOT' : (r.quienElimino?.includes('@') ? `@${r.quienElimino.split('@')[0]}` : 'No identificado');
+        const motivo = r.motivo ? `\n📌 Motivo: ${r.motivo}` : '';
+        return `*Mensaje eliminado #${i + 1}* · ${hora}\n👤 Lo eliminó: ${etiqueta}${motivo}\n🗑️ Contenido: ${contenido}`;
     });
 
     const extra = eliminados.length > 30 ? `\n\nSe muestran 30 de ${eliminados.length} mensajes. Los registros se borran automáticamente al cumplir 2 horas.` : '\n\nLos registros se borran automáticamente al cumplir 2 horas.';
@@ -203,4 +243,4 @@ async function comandoVerEliminados(sock, chatId, msg) {
     }
 }
 
-module.exports = { registrarMensajeReciente, registrarEliminacion, comandoVerEliminados };
+module.exports = { registrarMensajeReciente, registrarEliminacion, registrarEliminacionPorBot, comandoVerEliminados };
