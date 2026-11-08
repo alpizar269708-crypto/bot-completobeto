@@ -29,7 +29,7 @@ const { comandoRifa, comandoRifaInscripcion, comandoRifaQuitarDuplicados, comand
 const { comandoCarry, manejarRespuestaSeleccionCarry } = require('./comandos/carry');
 const { comandoSquad, manejarRespuestaSeleccionSquad } = require('./comandos/squad');
 const { comandoPaypal, comandoCalculadoraPaypal } = require('./comandos/paypal');
-const { comandoVerEliminados } = require('./comandos/verelim');
+const { comandoVerEliminados, registrarEliminacionPorBot } = require('./comandos/verelim');
 
 const categoriasMap = {
     'fortnite': ['buscajugador', 'buscajugadores', 'cancelarbusqueda', 'unirme', 'id', 'id1', 'id2', 'id3', 'id4'],
@@ -38,7 +38,7 @@ const categoriasMap = {
     'utilidades': ['s', 'sticker', 'recup1vez', 'descargar', 'download', 'tiktok', 'instagram', 'pinterest', 'x', 'twitter', 'traduce', 'skin', 'stats', 'tiendastats', 'tiendavb', 'contacto', 'ping', 'verelim'],
     'paypal': ['paypal', 'paypaln', 'paypali'],
     'ia': ['ia'],
-    'moderacion': ['warn', 'advertir', 'verwarns', 'limpiarwarns', 'ban', 'unban', 'listanegra', 'banlist', 'unbanlist', 'grupo', 'mute', 'unmute', 'listablanca', 'desactivarbienvenida', 'activarbienvenida', 'personalizarbienvenida', 'restaurarbienvenida', 'carryban', 'blcarry', 'unblcarry', 'setprecio', 'setgrupostw', 'unsetgrupostw', 'desactivarcomandos', 'catdesa'],
+    'moderacion': ['elim', 'warn', 'advertir', 'verwarns', 'limpiarwarns', 'ban', 'unban', 'listanegra', 'banlist', 'unbanlist', 'grupo', 'mute', 'unmute', 'listablanca', 'desactivarbienvenida', 'activarbienvenida', 'personalizarbienvenida', 'restaurarbienvenida', 'carryban', 'blcarry', 'unblcarry', 'setprecio', 'setgrupostw', 'unsetgrupostw', 'desactivarcomandos', 'catdesa'],
     'tienda': ['tienda', 'tiendavb', 'idtienda'],
     'carry': ['carryleader', 'carryjoin', 'carryleave', 'carryclose', 'buscocarry', 'buscooff', 'doycarry', 'x2busco', 'carryver', 'eliminarid', 'id', 'id1', 'id2', 'id3', 'id4'],
     'rifas': ['rifa', 'rifainscripcion', 'cerrarrifa', 'rifaquitarduplicados', 'rifajasc13', 'addvarios', 'abrirrifa', 'activarrifaaqui', 'menurifajasc13'],
@@ -72,7 +72,7 @@ const comandosValidos = new Set([
         'ruleta', 'cf', 'slots', 'dados', 'adivina', 'buscaminas', 'rob', 'ppt', 'pelea',
         'carrera', 'hackear', 'shop', 'buy', 'inventario', 'mochila', 'vender', 'use', 'regalar',
         'rifa', 'rifainscripcion', 'cerrarrifa', 'rifaquitarduplicados', 'rifajasc13', 'addvarios', 'abrirrifa', 'activarrifaaqui', 'menurifajasc13', 'quitarrifajasc13', 'addcashback', 'delcashback', 'vercash', 'delvcash', 'canjecash', 'carryleader', 'carryjoin', 'carryleave', 'carryclose', 'buscocarry', 'buscooff', 'doycarry', 'x2busco', 'carryver', 'carryban', 'blcarry', 'unblcarry',
-        'vertodoscomandos', 'listablanca', 'buscajugador', 'buscajugadores', 'cancelarbusqueda', 'unirme', 'paypal', 'paypaln', 'paypali', 'desactivarbienvenida', 'activarbienvenida', 'personalizarbienvenida', 'restaurarbienvenida', 'redeploy', 'verelim', 'eliminarid', 'id', 'id1', 'id2', 'id3', 'id4'
+        'vertodoscomandos', 'elim', 'listablanca', 'buscajugador', 'buscajugadores', 'cancelarbusqueda', 'unirme', 'paypal', 'paypaln', 'paypali', 'desactivarbienvenida', 'activarbienvenida', 'personalizarbienvenida', 'restaurarbienvenida', 'redeploy', 'verelim', 'eliminarid', 'id', 'id1', 'id2', 'id3', 'id4'
 ]);
 
 
@@ -98,6 +98,7 @@ async function procesarMensaje(sock, msg) {
         ) {
             try {
                 await sock.sendMessage(chatJid, { delete: msg.key });
+                registrarEliminacionPorBot(msg, 'Mute: mensaje eliminado automáticamente');
             } catch (error) {
                 console.error('No se pudo borrar un mensaje multimedia de un usuario muteado:', error?.message || error);
             }
@@ -169,7 +170,10 @@ Apoya a un creador: JASC13` });
     }
 
     if (!esComandoPropioPermitido && !tienePrivilegiosTotales && verificarMute(chatJid, remitenteReal)) {
-        try { await sock.sendMessage(chatJid, { delete: msg.key }); } catch (e) {}
+        try {
+            await sock.sendMessage(chatJid, { delete: msg.key });
+            registrarEliminacionPorBot(msg, 'Mute: mensaje eliminado automáticamente');
+        } catch (e) { console.error('No se pudo borrar el mensaje de un usuario muteado:', e?.message || e); }
         return;
     }
 
@@ -517,6 +521,55 @@ Apoya a un creador: JASC13` });
 
     if (comandosValidos.has(comando)) {
         switch (comando) {
+            case 'elim': {
+                if (!chatJid.endsWith('@g.us')) {
+                    await sock.sendMessage(chatJid, { text: '❌ *elim* solo se puede usar en grupos.' }, { quoted: msg });
+                    return;
+                }
+                let esAdminGrupo = !!msg.key.fromMe || tienePrivilegiosTotales;
+                if (!esAdminGrupo) {
+                    try {
+                        const metadata = await sock.groupMetadata(chatJid);
+                        const participante = metadata.participants?.find(p =>
+                            p.id === remitenteReal || p.jid === remitenteReal || p.lid === remitenteReal
+                        );
+                        esAdminGrupo = participante?.admin === 'admin' || participante?.admin === 'superadmin';
+                    } catch (error) {
+                        console.error('No se pudo verificar administrador para elim:', error.message || error);
+                    }
+                }
+                if (!esAdminGrupo) {
+                    await sock.sendMessage(chatJid, { text: '❌ Solo los administradores del grupo pueden usar *elim*.' }, { quoted: msg });
+                    return;
+                }
+                const contexto = msg.message?.extendedTextMessage?.contextInfo
+                    || msg.message?.imageMessage?.contextInfo
+                    || msg.message?.videoMessage?.contextInfo
+                    || msg.message?.documentMessage?.contextInfo;
+                const idCitado = contexto?.stanzaId;
+                if (!idCitado) {
+                    await sock.sendMessage(chatJid, { text: '⚠️ Responde directamente al mensaje que quieres eliminar y escribe *elim*.' }, { quoted: msg });
+                    return;
+                }
+                const claveObjetivo = {
+                    remoteJid: chatJid,
+                    id: idCitado,
+                    fromMe: !!contexto.fromMe
+                };
+                if (contexto.participant) claveObjetivo.participant = contexto.participant;
+                try {
+                    await sock.sendMessage(chatJid, { delete: claveObjetivo });
+                    registrarEliminacionPorBot({
+                        key: { ...claveObjetivo, participant: contexto.participant || chatJid },
+                        message: contexto.quotedMessage || null
+                    }, 'Eliminación manual con elim');
+                    await sock.sendMessage(chatJid, { text: '🗑️ Mensaje eliminado para todos.' }, { quoted: msg });
+                } catch (error) {
+                    console.error('No se pudo eliminar el mensaje solicitado con elim:', error?.stack || error);
+                    await sock.sendMessage(chatJid, { text: '❌ No pude eliminar ese mensaje. Verifica que el bot tenga permisos de administrador y que el mensaje siga disponible para eliminarse.' }, { quoted: msg });
+                }
+                return;
+            }
             case 'verelim': {
                 // En grupos, solo administradores del grupo o propietarios del bot.
                 // En chat privado, solo los propietarios del bot pueden ejecutarlo.
