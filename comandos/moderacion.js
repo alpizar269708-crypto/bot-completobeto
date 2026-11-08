@@ -1,4 +1,5 @@
 const { User, Config } = require('../database/modelos');
+const { registrarEliminacionPorBot } = require('./verelim');
 const { esPrivilegiadoTotal, esPrivilegiadoTotalAsync, resolverLidAPn } = require('../utils/whatsapp');
 
 // Memoria temporal para los mutes activos
@@ -478,6 +479,7 @@ async function verificarAntiLinks(sock, msg) {
 
     try {
         await sock.sendMessage(chatJid, { delete: msg.key });
+        registrarEliminacionPorBot(msg, 'Anti-links: enlace no autorizado');
     } catch (error) {
         console.log(`No se pudo borrar el mensaje con link en ${chatJid}: ${error?.message || error}`);
     }
@@ -523,6 +525,7 @@ async function verificarAntiSpam(sock, msg) {
 
         try {
             await sock.sendMessage(chatJid, { delete: msg.key });
+            registrarEliminacionPorBot(msg, 'Anti-spam: exceso de mensajes');
         } catch (e) {}
 
         let usuarioBD = await User.findOne({ numero: remitente });
