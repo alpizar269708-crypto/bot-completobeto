@@ -563,7 +563,6 @@ Apoya a un creador: JASC13` });
                         key: { ...claveObjetivo, participant: contexto.participant || chatJid },
                         message: contexto.quotedMessage || null
                     }, 'Eliminación manual con elim');
-                    await sock.sendMessage(chatJid, { text: '🗑️ Mensaje eliminado para todos.' }, { quoted: msg });
                 } catch (error) {
                     console.error('No se pudo eliminar el mensaje solicitado con elim:', error?.stack || error);
                     await sock.sendMessage(chatJid, { text: '❌ No pude eliminar ese mensaje. Verifica que el bot tenga permisos de administrador y que el mensaje siga disponible para eliminarse.' }, { quoted: msg });
