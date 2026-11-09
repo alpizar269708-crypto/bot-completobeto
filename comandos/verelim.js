@@ -40,6 +40,14 @@ function tipoDeMensaje(message) {
     if (contenido.audioMessage) return 'Audio';
     if (contenido.documentMessage) return 'Documento';
     if (contenido.stickerMessage) return 'Sticker';
+    if (contenido.contactMessage) return 'Contacto';
+    if (contenido.contactsArrayMessage) return 'Contactos';
+    if (contenido.locationMessage) return 'Ubicación';
+    if (contenido.liveLocationMessage) return 'Ubicación en tiempo real';
+    if (contenido.pollCreationMessage || contenido.pollCreationMessageV2 || contenido.pollCreationMessageV3) return 'Encuesta';
+    if (contenido.reactionMessage) return 'Reacción';
+    if (contenido.buttonsResponseMessage || contenido.listResponseMessage || contenido.templateButtonReplyMessage) return 'Respuesta interactiva';
+    if (contenido.productMessage) return 'Producto';
     if (contenido.conversation || contenido.extendedTextMessage?.text) return 'Texto';
     return 'Mensaje';
 }
@@ -74,9 +82,15 @@ async function registrarMensajeReciente(msg, sock) {
         texto: textoDeMensaje(msg.message).slice(0, MAX_TEXTO_GUARDADO),
         tipo: tipoDeMensaje(msg.message),
         timestamp: Number(msg.messageTimestamp || Math.floor(ahora / 1000)) * 1000,
-        media: null, mediaBytes: 0, mimetype: null, fileName: null, ptt: false
+        media: null, mediaBytes: 0, mimetype: null, fileName: null, ptt: false,
+        menciones: [], datosExtra: ''
     };
     const contenido = msg.message.ephemeralMessage?.message || msg.message.viewOnceMessage?.message || msg.message.viewOnceMessageV2?.message || msg.message.documentWithCaptionMessage?.message || msg.message;
+    const tipoPrincipal = ['extendedTextMessage','imageMessage','videoMessage','audioMessage','stickerMessage','documentMessage','contactMessage','contactsArrayMessage','locationMessage','liveLocationMessage','pollCreationMessage','pollCreationMessageV2','pollCreationMessageV3','reactionMessage','buttonsResponseMessage','listResponseMessage','templateButtonReplyMessage','productMessage'].find(k => contenido[k]);
+    const objetoPrincipal = tipoPrincipal ? contenido[tipoPrincipal] : null;
+    const contexto = objetoPrincipal?.contextInfo || {};
+    registro.menciones = Array.isArray(contexto.mentionedJid) ? [...contexto.mentionedJid] : [];
+    if (contexto.quotedMessage) registro.datosExtra = `Mensaje citado: ${textoDeMensaje(contexto.quotedMessage) || tipoDeMensaje(contexto.quotedMessage)}`.slice(0, 1000);
     const campoMedia = ['imageMessage', 'videoMessage', 'audioMessage', 'stickerMessage', 'documentMessage'].find(campo => contenido[campo]);
     if (campoMedia && sock) {
         try {
@@ -200,17 +214,19 @@ async function comandoVerEliminados(sock, chatId, msg) {
         return;
     }
 
-    const menciones = [...new Set(eliminados.map(r => r.quienElimino).filter(jid => jid && jid.includes('@')))];
+    const menciones = [...new Set(eliminados.flatMap(r => [r.quienElimino, ...(r.menciones || [])]).filter(jid => jid && jid.includes('@')))];
     const bloques = eliminados.slice(0, 30).map((r, i) => {
         const hora = new Date(r.timestampEliminacion).toLocaleTimeString('es-MX', {
             hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'America/Mexico_City'
         });
         const contenido = r.texto?.trim()
             ? r.texto.trim().slice(0, 1800)
-            : `[Se eliminó un mensaje de tipo ${r.tipo}. El archivo multimedia original no se almacena.]`;
+            : `[Mensaje de tipo ${r.tipo}]`;
+        const etiquetasMencion = (r.menciones || []).map(jid => `@${String(jid).split('@')[0]}`).join(' ');
+        const extraMensaje = [etiquetasMencion ? `\n👥 Menciones: ${etiquetasMencion}` : '', r.datosExtra ? `\n🧵 ${r.datosExtra}` : ''].join('');
         const etiqueta = r.quienElimino === 'bot' ? '🤖 BOT' : (r.quienElimino?.includes('@') ? `@${r.quienElimino.split('@')[0]}` : 'No identificado');
         const motivo = r.motivo ? `\n📌 Motivo: ${r.motivo}` : '';
-        return `*Mensaje eliminado #${i + 1}* · ${hora}\n👤 Lo eliminó: ${etiqueta}${motivo}\n🗑️ Contenido: ${contenido}`;
+        return `*Mensaje eliminado #${i + 1}* · ${hora}\n👤 Lo eliminó: ${etiqueta}${motivo}\n📦 Tipo: ${r.tipo}\n🗑️ Contenido: ${contenido}${extraMensaje}`;
     });
 
     const extra = eliminados.length > 30 ? `\n\nSe muestran 30 de ${eliminados.length} mensajes. Los registros se borran automáticamente al cumplir 2 horas.` : '\n\nLos registros se borran automáticamente al cumplir 2 horas.';
