@@ -18,6 +18,14 @@ function textoDeMensaje(message) {
         || message.viewOnceMessageV2?.message
         || message.documentWithCaptionMessage?.message
         || message;
+    const contacto = contenido.contactMessage;
+    const ubicacion = contenido.locationMessage || contenido.liveLocationMessage;
+    const encuesta = contenido.pollCreationMessage || contenido.pollCreationMessageV2 || contenido.pollCreationMessageV3;
+    const reaccion = contenido.reactionMessage?.text;
+    const producto = contenido.productMessage?.product;
+    const opcionesEncuesta = encuesta?.options?.map(o => o.optionName).filter(Boolean).join(' | ');
+    const coordenadas = ubicacion && Number.isFinite(ubicacion.degreesLatitude) && Number.isFinite(ubicacion.degreesLongitude)
+        ? `Ubicación: ${ubicacion.degreesLatitude}, ${ubicacion.degreesLongitude}${ubicacion.name ? ` · ${ubicacion.name}` : ''}${ubicacion.address ? ` · ${ubicacion.address}` : ''}` : '';
     return contenido.conversation
         || contenido.extendedTextMessage?.text
         || contenido.imageMessage?.caption
@@ -25,6 +33,15 @@ function textoDeMensaje(message) {
         || contenido.documentMessage?.caption
         || contenido.audioMessage?.caption
         || contenido.stickerMessage?.description
+        || (contacto ? `Contacto: ${contacto.displayName || ''} ${contacto.vcard || ''}`.trim() : '')
+        || (contenido.contactsArrayMessage ? `Contactos: ${(contenido.contactsArrayMessage.contacts || []).map(c => c.displayName || c.vcard || '').join(' | ')}` : '')
+        || coordenadas
+        || (encuesta ? `Encuesta: ${encuesta.name || ''}${opcionesEncuesta ? ` · Opciones: ${opcionesEncuesta}` : ''}` : '')
+        || (reaccion ? `Reacción: ${reaccion}` : '')
+        || (contenido.buttonsResponseMessage ? `Respuesta: ${contenido.buttonsResponseMessage.selectedDisplayText || contenido.buttonsResponseMessage.selectedButtonId || ''}` : '')
+        || (contenido.listResponseMessage ? `Respuesta: ${contenido.listResponseMessage.title || ''} ${contenido.listResponseMessage.description || ''}` : '')
+        || (contenido.templateButtonReplyMessage ? `Respuesta: ${contenido.templateButtonReplyMessage.selectedDisplayText || contenido.templateButtonReplyMessage.selectedId || ''}` : '')
+        || (producto ? `Producto: ${producto.title || ''} ${producto.description || ''}` : '')
         || '';
 }
 
