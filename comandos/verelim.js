@@ -3,13 +3,32 @@
 const VENTANA_MS = 2 * 60 * 60 * 1000;
 const MAX_MENSAJES_POR_CHAT = 300;
 const MAX_ELIMINADOS_POR_CHAT = 200;
-const MAX_CHATS_EN_MEMORIA = 100;
+const MAX_CHATS_EN_MEMORIA = 50;
 const MAX_TEXTO_GUARDADO = 4000;
-const MAX_MEDIA_POR_MENSAJE = 8 * 1024 * 1024;
-const MAX_MEDIA_TOTAL_POR_CHAT = 24 * 1024 * 1024;
+const MAX_MEDIA_POR_MENSAJE = 32 * 1024 * 1024;
+const MAX_MEDIA_TOTAL_POR_CHAT = 64 * 1024 * 1024;
+const MAX_MEDIA_TOTAL_GLOBAL = 256 * 1024 * 1024;
 
 const mensajesPorChat = new Map();
 const eliminadosPorChat = new Map();
+
+function bytesMultimediaDelChat(chatId) {
+    let total = 0;
+    for (const mapa of [mensajesPorChat, eliminadosPorChat]) {
+        for (const registro of (mapa.get(chatId)?.values() || [])) total += registro.mediaBytes || 0;
+    }
+    return total;
+}
+
+function bytesMultimediaGlobales() {
+    let total = 0;
+    for (const mapa of [mensajesPorChat, eliminadosPorChat]) {
+        for (const registros of mapa.values()) {
+            for (const registro of registros.values()) total += registro.mediaBytes || 0;
+        }
+    }
+    return total;
+}
 
 function textoDeMensaje(message) {
     if (!message) return '';
@@ -113,8 +132,12 @@ async function registrarMensajeReciente(msg, sock) {
         try {
             const { downloadMediaMessage } = require('@whiskeysockets/baileys');
             const buffer = await downloadMediaMessage(msg, 'buffer', {}, { logger: sock.logger, reuploadRequest: sock.updateMediaMessage });
-            const bytesActuales = [...registros.values()].reduce((total, r) => total + (r.mediaBytes || 0), 0);
-            if (Buffer.isBuffer(buffer) && buffer.length > 0 && buffer.length <= MAX_MEDIA_POR_MENSAJE && bytesActuales + buffer.length <= MAX_MEDIA_TOTAL_POR_CHAT) {
+            const bytesChat = bytesMultimediaDelChat(chatId);
+            const bytesGlobales = bytesMultimediaGlobales();
+            if (Buffer.isBuffer(buffer) && buffer.length > 0
+                && buffer.length <= MAX_MEDIA_POR_MENSAJE
+                && bytesChat + buffer.length <= MAX_MEDIA_TOTAL_POR_CHAT
+                && bytesGlobales + buffer.length <= MAX_MEDIA_TOTAL_GLOBAL) {
                 registro.media = buffer; registro.mediaBytes = buffer.length;
                 registro.mimetype = contenido[campoMedia]?.mimetype || null;
                 registro.fileName = contenido[campoMedia]?.fileName || null;
@@ -258,7 +281,7 @@ async function comandoVerEliminados(sock, chatId, msg) {
         if (!r.media || !r.media.length) continue;
         const etiqueta = r.quienElimino?.includes('@') ? `@${r.quienElimino.split('@')[0]}` : 'No identificado';
         const cabecera = `🗑️ *Archivo eliminado #${i + 1}*\n👤 Lo eliminó: ${etiqueta}`;
-        const mentions = r.quienElimino?.includes('@') ? [r.quienElimino] : [];
+        const mentions = [...new Set([r.quienElimino, ...(r.menciones || [])].filter(jid => jid && jid.includes('@')))];
         try {
             if (r.tipo === 'Imagen') await sock.sendMessage(chatId, { image: r.media, caption: `${cabecera}${r.texto ? `\n📝 ${r.texto}` : ''}`, mimetype: r.mimetype || undefined, mentions });
             else if (r.tipo === 'Video') await sock.sendMessage(chatId, { video: r.media, caption: `${cabecera}${r.texto ? `\n📝 ${r.texto}` : ''}`, mimetype: r.mimetype || undefined, mentions });
