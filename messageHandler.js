@@ -304,7 +304,7 @@ Apoya a un creador: JASC13` });
 
         // Todo funciona por defecto. Solo se bloquea si la categoría del comando
         // aparece explícitamente en la lista de categorías desactivadas.
-        if (estaDesactivado && !comandoDeConfiguracion) return;
+        if (estaDesactivado && !comandoDeConfiguracion && !(tienePrivilegiosTotales && ['escudo', 'desinmunizar'].includes(comando))) return;
     }
 
     // Solo los comandos llegan hasta aquí; los mensajes normales ya salieron arriba.
