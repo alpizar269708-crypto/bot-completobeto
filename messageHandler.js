@@ -119,7 +119,7 @@ async function procesarMensaje(sock, msg) {
         .replace(/[*_~`]+$/g, '');
 
     const comandoPropioPermitido = new Set([
-        'warn', 'advertir', 'verwarns', 'limpiarwarns',
+        'escudo', 'desinmunizar', 'warn', 'advertir', 'verwarns', 'limpiarwarns',
         'ban', 'unban', 'listanegra', 'banlist', 'unbanlist',
         'listablanca',
         'desactivarbienvenida', 'activarbienvenida',
