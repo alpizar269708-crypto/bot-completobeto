@@ -1704,57 +1704,14 @@ async function comandoPinterest(sock, chatId, msg, args) {
     const textoArgumentos = Array.isArray(args) ? args.join(' ') : String(args || '');
     const url = extraerUrlPinterest(textoArgumentos);
     if (!url) {
-        await sock.sendMessage(chatId, { text: '⚠️ Envíame un enlace público de Pinterest. Ejemplo: pinterest.com/pin/...' }, { quoted: msg });
+        await sock.sendMessage(chatId, {
+            text: '⚠️ Envíame un enlace público de Pinterest. Ejemplo: pinterest.com/pin/...'
+        }, { quoted: msg });
         return;
+    }
+
+    // Usar el descargador común para admitir fotos, carruseles y videos.
     return comandoDescargaSocial(sock, chatId, msg, [url], 'Pinterest');
-    }
-
-    let tempDir;
-    try {
-        await sock.sendMessage(chatId, { text: '📌 Descargando Pinterest en la mejor calidad disponible (hasta 1080p)...' }, { quoted: msg });
-        tempDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'pinterest-download-'));
-        const salida = path.join(tempDir, 'pinterest.%(ext)s');
-        await youtubedl(url, {
-            output: salida,
-            format: 'bestvideo[height<=1080]+bestaudio/best[height<=1080]/bestvideo+bestaudio/best',
-            mergeOutputFormat: 'mp4',
-            noWarnings: true,
-            noPlaylist: true,
-            socketTimeout: 30,
-            retries: 3,
-            fragmentRetries: 3,
-            extractorRetries: 2,
-            noPart: true,
-            maxFilesize: '64M',
-            restrictFilenames: true,
-            userAgent: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
-            referer: 'https://www.pinterest.com/'
-        }, { timeout: 120000 });
-
-        const archivos = await fs.promises.readdir(tempDir);
-        const ruta = archivos.map(nombre => path.join(tempDir, nombre))
-            .find(nombre => /\.(?:mp4|m4v|mov|webm)$/i.test(nombre));
-        if (!ruta) throw new Error('Pinterest no devolvió un archivo de video compatible; el pin puede ser una imagen o no ser público.');
-        const stat = await fs.promises.stat(ruta);
-        if (!stat.size || stat.size > 64 * 1024 * 1024) {
-            throw new Error(!stat.size ? 'El archivo descargado está vacío.' : 'El video supera el límite de 64 MB de WhatsApp.');
-        }
-        const video = await fs.promises.readFile(ruta);
-        if (video.length < 10000) throw new Error('El archivo recibido no parece un video válido.');
-        await sock.sendMessage(chatId, {
-            video,
-            mimetype: 'video/mp4',
-            caption: '📌 Video de Pinterest listo en la mejor calidad disponible.\n\nApoya a un creador: *JASC13*'
-        }, { quoted: msg });
-    } catch (error) {
-        console.error('Error descargando Pinterest:', error?.stack || error);
-        const detalle = String(error?.message || error).replace(/\s+/g, ' ').slice(0, 500);
-        await sock.sendMessage(chatId, {
-            text: '❌ No pude descargar ese enlace de Pinterest. Comprueba que el pin sea público y contenga un video.\n\nDetalle: ' + detalle
-        }, { quoted: msg });
-    } finally {
-        if (tempDir) await fs.promises.rm(tempDir, { recursive: true, force: true }).catch(() => {});
-    }
 }
 
 // 🌐 4. Traduce (Traductor instantáneo)
