@@ -14,7 +14,7 @@ async function estaInmune(sock, jid) {
     return false;
 }
 async function verificarPropietarioComando(sock, chatId, msg) {
-    const actor = msg.key.participant || (msg.key.fromMe ? msg.key.remoteJid : chatId);
+    const actor = msg.key.participant || (msg.key.fromMe ? (sock.user?.id || msg.key.remoteJid) : chatId);
     return await esPrivilegiadoTotalAsync(sock, actor);
 }
 async function comandoEscudo(sock, chatId, msg, args = []) {
@@ -174,8 +174,9 @@ async function verificarNuevoMiembro(sock, update) {
         const jid = typeof participante === 'string' ? participante : (participante.id || participante.phoneNumber);
         if (!jid) continue;
 
-        // Aunque exista un registro antiguo de baneo, nunca expulsar a propietarios.
-        if (await esPrivilegiadoTotalAsync(sock, jid)) continue;
+        // Los propietarios y las personas con inmunidad no pueden ser expulsados,
+        // incluso si conservan un registro de baneo anterior.
+        if (await estaInmune(sock, jid)) continue;
 
         let usuarioBD = await User.findOne({ numero: jid });
         if (usuarioBD && usuarioBD.baneado) {
