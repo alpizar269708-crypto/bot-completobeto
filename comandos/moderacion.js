@@ -2,6 +2,46 @@ const { User, Config } = require('../database/modelos');
 const { registrarEliminacionPorBot } = require('./verelim');
 const { esPrivilegiadoTotal, esPrivilegiadoTotalAsync, resolverLidAPn } = require('../utils/whatsapp');
 
+const PREFIJO_INMUNIDAD = 'inmunidad_usuario_';
+async function estaInmune(sock, jid) {
+    if (!jid) return false;
+    if (await esPrivilegiadoTotalAsync(sock, jid)) return true;
+    const resuelto = await resolverLidAPn(sock, jid).catch(() => jid);
+    for (const candidato of [...new Set([String(resuelto || ''), String(jid || '')].filter(Boolean))]) {
+        const registro = await Config.findOne({ clave: PREFIJO_INMUNIDAD + candidato }).lean().catch(() => null);
+        if (registro?.valor === 'true') return true;
+    }
+    return false;
+}
+async function verificarPropietarioComando(sock, chatId, msg) {
+    const actor = msg.key.participant || (msg.key.fromMe ? msg.key.remoteJid : chatId);
+    return await esPrivilegiadoTotalAsync(sock, actor);
+}
+async function comandoEscudo(sock, chatId, msg, args = []) {
+    if (!(await verificarPropietarioComando(sock, chatId, msg))) {
+        await sock.sendMessage(chatId, { text: '⛔ Este comando es exclusivo de los propietarios del bot.' }, { quoted: msg }); return;
+    }
+    const original = obtenerObjetivo(msg, args);
+    if (!original) {
+        await sock.sendMessage(chatId, { text: '🛡️ Etiqueta a la persona o responde a uno de sus mensajes. Ejemplo: *escudo @usuario*' }, { quoted: msg }); return;
+    }
+    const objetivo = await resolverLidAPn(sock, original).catch(() => original);
+    await Config.findOneAndUpdate({ clave: PREFIJO_INMUNIDAD + objetivo }, { $set: { valor: 'true' } }, { upsert: true, setDefaultsOnInsert: true });
+    await sock.sendMessage(chatId, { text: `🛡️ @${String(objetivo).split('@')[0]} ahora tiene *INMUNIDAD TOTAL*. No recibirá warns, bans ni mute.\n\nPara retirarla: *desinmunizar*.`, mentions: [objetivo] }, { quoted: msg });
+}
+async function comandoDesinmunizar(sock, chatId, msg, args = []) {
+    if (!(await verificarPropietarioComando(sock, chatId, msg))) {
+        await sock.sendMessage(chatId, { text: '⛔ Este comando es exclusivo de los propietarios del bot.' }, { quoted: msg }); return;
+    }
+    const original = obtenerObjetivo(msg, args);
+    if (!original) {
+        await sock.sendMessage(chatId, { text: '🧹 Etiqueta a la persona o responde a uno de sus mensajes. Ejemplo: *desinmunizar @usuario*' }, { quoted: msg }); return;
+    }
+    const objetivo = await resolverLidAPn(sock, original).catch(() => original);
+    const resultado = await Config.deleteOne({ clave: PREFIJO_INMUNIDAD + objetivo });
+    await sock.sendMessage(chatId, { text: resultado.deletedCount ? `✅ Se retiró la inmunidad de @${String(objetivo).split('@')[0]}.` : `ℹ️ @${String(objetivo).split('@')[0]} no tenía inmunidad activa.`, mentions: [objetivo] }, { quoted: msg });
+}
+
 // Memoria temporal para los mutes activos
 const mutesActivos = new Map();
 // Memoria temporal para el anti-spam (Key: chatId_remitente -> Array de timestamps)
@@ -74,8 +114,8 @@ function obtenerObjetivo(msg, args = []) {
 // Banear, guardar motivo y expulsar de todos los grupos
 async function banearYExpulsar(sock, userId, motivo = 'Baneado por un administrador', actor = {}) {
     // Protección central: ninguna sanción automática o manual puede banear a un propietario.
-    if (await esPrivilegiadoTotalAsync(sock, userId)) {
-        console.log('🛡️ Baneo bloqueado: el objetivo es propietario del bot.');
+    if (await estaInmune(sock, userId)) {
+        console.log('🛡️ Baneo bloqueado: el objetivo tiene inmunidad.');
         return false;
     }
     const cleanId = userId.includes('@') ? userId : `${userId.replace(/[^0-9]/g, '')}@s.whatsapp.net`;
@@ -459,7 +499,7 @@ async function verificarAntiLinks(sock, msg) {
     const chatJid = msg.key.remoteJid;
     if (!chatJid.endsWith('@g.us')) return false;
     // Los propietarios quedan exentos incluso si el filtro se invoca directamente.
-    if (await esPrivilegiadoTotalAsync(sock, remitente)) return false;
+    if (await estaInmune(sock, remitente)) return false;
 
     if (await verificarLinkDeMismaComunidad(sock, msg, texto)) return false;
 
@@ -505,7 +545,7 @@ async function verificarAntiSpam(sock, msg) {
     if (!chatJid.endsWith('@g.us')) return false;
     
     const remitente = msg.key.participant || chatJid;
-    if (await esPrivilegiadoTotalAsync(sock, remitente)) return false;
+    if (await estaInmune(sock, remitente)) return false;
     if (await esAdmin(sock, chatJid, remitente)) return false;
 
     const ahora = Date.now();
@@ -574,8 +614,8 @@ async function comandoWarn(sock, numero, msg, args = []) {
         return;
     }
 
-    if (await esPrivilegiadoTotalAsync(sock, objetivo)) {
-        await sock.sendMessage(chatJid, { text: '🛡️ Los propietarios del bot están protegidos y no pueden recibir warns ni advertencias.' }, { quoted: msg });
+    if (await estaInmune(sock, objetivo)) {
+        await sock.sendMessage(chatJid, { text: '🛡️ Esta persona tiene inmunidad activa. No se registró el warn.' }, { quoted: msg });
         return;
     }
 
@@ -676,8 +716,8 @@ async function comandoBan(sock, numero, msg, args = []) {
         return;
     }
 
-    if (await esPrivilegiadoTotalAsync(sock, objetivo)) {
-        await sock.sendMessage(chatJid, { text: '🛡️ No puedes banear a un propietario del bot. La sanción fue bloqueada.' }, { quoted: msg });
+    if (await estaInmune(sock, objetivo)) {
+        await sock.sendMessage(chatJid, { text: '🛡️ Esta persona tiene inmunidad activa. El baneo fue bloqueado.' }, { quoted: msg });
         return;
     }
 
@@ -841,8 +881,8 @@ async function comandoMute(sock, chatId, msg, args) {
 
     // Los propietarios del bot están protegidos: no se pueden mutear,
     // aunque quien ejecute el comando sea administrador del grupo.
-    if (await esPrivilegiadoTotalAsync(sock, objetivo)) {
-        await sock.sendMessage(chatId, { text: '🛡️ No puedes silenciar a un propietario del bot.' }, { quoted: msg });
+    if (await estaInmune(sock, objetivo)) {
+        await sock.sendMessage(chatId, { text: '🛡️ Esta persona tiene inmunidad activa. No se aplicó el mute.' }, { quoted: msg });
         return;
     }
 
@@ -887,7 +927,8 @@ async function comandoUnmute(sock, chatId, msg, args) {
     await sock.sendMessage(chatId, { text: '🔊 Usuario desmuteado con éxito.' }, { quoted: msg });
 }
 
-function verificarMute(chatId, remitente) {
+async function verificarMute(sock, chatId, remitente) {
+    if (await estaInmune(sock, remitente)) return false;
     const key = `${chatId}_${remitente}`;
     if (mutesActivos.has(key)) {
         const expira = mutesActivos.get(key);
@@ -914,6 +955,9 @@ module.exports = {
     comandoMute,
     comandoUnmute,
     verificarMute,
+    estaInmune,
+    comandoEscudo,
+    comandoDesinmunizar,
     comandoDesactivarBienvenida,
     comandoActivarBienvenida,
     comandoPersonalizarBienvenida,
