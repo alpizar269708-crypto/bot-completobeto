@@ -114,7 +114,7 @@ function obtenerObjetivo(msg, args = []) {
 // Banear, guardar motivo y expulsar de todos los grupos
 async function banearYExpulsar(sock, userId, motivo = 'Baneado por un administrador', actor = {}) {
     // Protección central: ninguna sanción automática o manual puede banear a un propietario.
-    if (await estaInmune(sock, userId)) {
+    if (!actor.forzarInmunidad && await estaInmune(sock, userId)) {
         console.log('🛡️ Baneo bloqueado: el objetivo tiene inmunidad.');
         return false;
     }
@@ -615,7 +615,8 @@ async function comandoWarn(sock, numero, msg, args = []) {
         return;
     }
 
-    if (await estaInmune(sock, objetivo)) {
+    const propietarioPuedeSancionar = await esPrivilegiadoTotalAsync(sock, msg.key.participant || (msg.key.fromMe ? (sock.user?.id || chatJid) : chatJid));
+    if (!propietarioPuedeSancionar && await estaInmune(sock, objetivo)) {
         await sock.sendMessage(chatJid, { text: '🛡️ Esta persona tiene inmunidad activa. No se registró el warn.' }, { quoted: msg });
         return;
     }
@@ -651,7 +652,7 @@ async function comandoWarn(sock, numero, msg, args = []) {
                     `📌 Total: ${totalWarns}/3`;
 
     if (totalWarns >= 3) {
-        await banearYExpulsar(sock, objetivo, `Acumulación de 3 warns (Última razón: ${motivo})`, { nombre: registroModerador.moderador, numero: registroModerador.moderadorNumero });
+        await banearYExpulsar(sock, objetivo, `Acumulación de 3 warns (Última razón: ${motivo})`, { nombre: registroModerador.moderador, numero: registroModerador.moderadorNumero, forzarInmunidad: propietarioPuedeSancionar });
         respuesta += `\n\n🚨 *Límite alcanzado:* El usuario alcanzó los 3 warns, fue baneado y expulsado de los grupos.`;
     }
 
@@ -717,7 +718,8 @@ async function comandoBan(sock, numero, msg, args = []) {
         return;
     }
 
-    if (await estaInmune(sock, objetivo)) {
+    const propietarioPuedeSancionar = await esPrivilegiadoTotalAsync(sock, msg.key.participant || (msg.key.fromMe ? (sock.user?.id || chatJid) : chatJid));
+    if (!propietarioPuedeSancionar && await estaInmune(sock, objetivo)) {
         await sock.sendMessage(chatJid, { text: '🛡️ Esta persona tiene inmunidad activa. El baneo fue bloqueado.' }, { quoted: msg });
         return;
     }
@@ -750,7 +752,7 @@ async function comandoBan(sock, numero, msg, args = []) {
         ? moderadorJid.split('@')[0].split(':')[0]
         : 'desconocido';
     const registroModerador = { nombre: moderadorNumero, numero: moderadorNumero };
-    await banearYExpulsar(sock, objetivo, motivo, registroModerador);
+    await banearYExpulsar(sock, objetivo, motivo, { ...registroModerador, forzarInmunidad: propietarioPuedeSancionar });
 
     const objetivoResuelto = await resolverLidAPn(sock, objetivo).catch(() => objetivo);
     const objetivoMencion = String(objetivoResuelto || objetivo).includes('@')
@@ -880,9 +882,10 @@ async function comandoMute(sock, chatId, msg, args) {
         return;
     }
 
-    // Los propietarios del bot están protegidos: no se pueden mutear,
-    // aunque quien ejecute el comando sea administrador del grupo.
-    if (await estaInmune(sock, objetivo)) {
+    const actorJid = msg.key.participant || (msg.key.fromMe ? (sock.user?.id || chatId) : chatId);
+    const propietarioPuedeSancionar = await esPrivilegiadoTotalAsync(sock, actorJid);
+    // La inmunidad bloquea los mutes de administradores normales, pero no los de propietarios.
+    if (!propietarioPuedeSancionar && await estaInmune(sock, objetivo)) {
         await sock.sendMessage(chatId, { text: '🛡️ Esta persona tiene inmunidad activa. No se aplicó el mute.' }, { quoted: msg });
         return;
     }
@@ -910,7 +913,7 @@ async function comandoMute(sock, chatId, msg, args) {
     }
 
     const expira = Date.now() + (tiempoMinutos * 60 * 1000);
-    mutesActivos.set(`${chatId}_${objetivo}`, expira);
+    mutesActivos.set(`${chatId}_${objetivo}`, { expira, propietario: propietarioPuedeSancionar });
     const duracionTexto = tiempoMinutos % 60 === 0
         ? `${tiempoMinutos / 60} ${tiempoMinutos / 60 === 1 ? 'hora' : 'horas'}`
         : `${tiempoMinutos} ${tiempoMinutos === 1 ? 'minuto' : 'minutos'}`;
@@ -929,12 +932,17 @@ async function comandoUnmute(sock, chatId, msg, args) {
 }
 
 async function verificarMute(sock, chatId, remitente) {
-    if (await estaInmune(sock, remitente)) return false;
     const key = `${chatId}_${remitente}`;
     if (mutesActivos.has(key)) {
-        const expira = mutesActivos.get(key);
-        if (Date.now() < expira) return true;
-        else mutesActivos.delete(key);
+        const mute = mutesActivos.get(key);
+        const expira = typeof mute === 'number' ? mute : mute.expira;
+        const aplicadoPorPropietario = typeof mute === 'object' && mute.propietario === true;
+        if (Date.now() < expira) {
+            // Un mute ordenado por un propietario también se aplica a usuarios inmunes.
+            if (aplicadoPorPropietario || !(await estaInmune(sock, remitente))) return true;
+            return false;
+        }
+        mutesActivos.delete(key);
     }
     return false;
 }
