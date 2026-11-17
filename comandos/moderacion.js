@@ -42,6 +42,93 @@ async function comandoDesinmunizar(sock, chatId, msg, args = []) {
     await sock.sendMessage(chatId, { text: resultado.deletedCount ? `✅ Se retiró la inmunidad de @${String(objetivo).split('@')[0]}.` : `ℹ️ @${String(objetivo).split('@')[0]} no tenía inmunidad activa.`, mentions: [objetivo] }, { quoted: msg });
 }
 
+const sesionesInmunidad = new Map();
+const INMUNIDAD_SESION_TTL_MS = 5 * 60 * 1000;
+
+async function obtenerListaInmunidad() {
+    return await Config.find({
+        clave: { $regex: '^' + PREFIJO_INMUNIDAD },
+        valor: 'true'
+    }).sort({ clave: 1 }).lean();
+}
+
+function numeroVisibleInmunidad(registro) {
+    const jid = String(registro.clave || '').slice(PREFIJO_INMUNIDAD.length);
+    return jid.replace(/@s\\.whatsapp\\.net$|@lid$|@c\\.us$/i, '').split(':')[0] || jid;
+}
+
+async function eliminarInmunidadPorIndice(sock, chatId, msg, registros, indice) {
+    const registro = registros[indice - 1];
+    if (!registro) {
+        await sock.sendMessage(chatId, { text: `❌ El número *${indice}* no corresponde a alguien de la lista. Usa *inmunes* para verla nuevamente.` }, { quoted: msg });
+        return false;
+    }
+    const actual = await Config.findOne({ clave: registro.clave, valor: 'true' }).lean().catch(() => null);
+    if (!actual) {
+        await sock.sendMessage(chatId, { text: 'ℹ️ Esa inmunidad ya no está activa. Usa *inmunes* para actualizar la lista.' }, { quoted: msg });
+        return false;
+    }
+    await Config.deleteOne({ clave: registro.clave });
+    const jid = String(registro.clave).slice(PREFIJO_INMUNIDAD.length);
+    await sock.sendMessage(chatId, {
+        text: `✅ Se retiró la inmunidad de *${numeroVisibleInmunidad(registro)}*.`
+    }, { quoted: msg });
+    return true;
+}
+
+async function comandoVerInmunes(sock, chatId, msg, args = []) {
+    if (!(await verificarPropietarioComando(sock, chatId, msg))) {
+        await sock.sendMessage(chatId, { text: '⛔ Este comando es exclusivo de los propietarios del bot.' }, { quoted: msg });
+        return;
+    }
+    const registros = await obtenerListaInmunidad();
+    if (!registros.length) {
+        sesionesInmunidad.delete(`${chatId}:${msg.key.participant || chatId}`);
+        await sock.sendMessage(chatId, { text: '🛡️ No hay usuarios con inmunidad activa.' }, { quoted: msg });
+        return;
+    }
+
+    const seleccionDirecta = Number(args?.[0]);
+    if (args?.[0] && /^\\d+$/.test(String(args[0]))) {
+        await eliminarInmunidadPorIndice(sock, chatId, msg, registros, seleccionDirecta);
+        return;
+    }
+
+    const actor = msg.key.participant || (msg.key.fromMe ? (sock.user?.id || msg.key.remoteJid) : chatId);
+    const claveSesion = `${chatId}:${actor}`;
+    sesionesInmunidad.set(claveSesion, {
+        registros: registros.map(({ clave }) => ({ clave })),
+        expira: Date.now() + INMUNIDAD_SESION_TTL_MS
+    });
+
+    const lista = registros.map((registro, i) =>
+        `* ${i + 1}.* ${numeroVisibleInmunidad(registro)}`
+    ).join('\\n');
+    await sock.sendMessage(chatId, {
+        text: `🛡️ *USUARIOS CON INMUNIDAD ACTIVA* (${registros.length})\\n\\n${lista}\\n\\nResponde con el *número* de la persona a quien quieres quitarle la inmunidad.\\nTambién puedes usar *inmunes 2*.\\n⏱️ La selección estará disponible durante 5 minutos.`
+    }, { quoted: msg });
+}
+
+async function manejarRespuestaSeleccionInmunidad(sock, chatId, msg, remitente, texto) {
+    const claveSesion = `${chatId}:${remitente}`;
+    const sesion = sesionesInmunidad.get(claveSesion);
+    if (!sesion) return false;
+
+    if (sesion.expira <= Date.now()) {
+        sesionesInmunidad.delete(claveSesion);
+        return false;
+    }
+    if (!/^\\s*\\d+\\s*$/.test(String(texto || ''))) return false;
+    if (!(await esPrivilegiadoTotalAsync(sock, remitente))) return false;
+
+    const indice = Number(String(texto).trim());
+    const registros = sesion.registros;
+    const eliminado = await eliminarInmunidadPorIndice(sock, chatId, msg, registros, indice);
+    if (eliminado) sesionesInmunidad.delete(claveSesion);
+    return true;
+}
+
+
 // Memoria temporal para los mutes activos
 const mutesActivos = new Map();
 // Memoria temporal para el anti-spam (Key: chatId_remitente -> Array de timestamps)
@@ -966,7 +1053,7 @@ module.exports = {
     verificarMute,
     estaInmune,
     comandoEscudo,
-    comandoDesinmunizar,
+    comandoDesinmunizar,\n    comandoVerInmunes,\n    manejarRespuestaSeleccionInmunidad,
     comandoDesactivarBienvenida,
     comandoActivarBienvenida,
     comandoPersonalizarBienvenida,
