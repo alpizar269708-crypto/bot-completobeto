@@ -104,7 +104,7 @@ async function comandoVerInmunes(sock, chatId, msg, args = []) {
         `*${i + 1}.* ${numeroVisibleInmunidad(registro)}`
     ).join('\n');
     await sock.sendMessage(chatId, {
-        text: `🛡️ *USUARIOS CON INMUNIDAD ACTIVA* (${registros.length})\n\\n${lista}\\n\\nResponde con el *número* de la persona a quien quieres quitarle la inmunidad.\\nTambién puedes usar *inmunes 2*.\\n⏱️ La selección estará disponible durante 5 minutos.`
+        text: `🛡️ *USUARIOS CON INMUNIDAD ACTIVA* (${registros.length})\n\n${lista}\n\nResponde con el *número* de la persona a quien quieres quitarle la inmunidad.\nTambién puedes usar *inmunes 2*.\n⏱️ La selección estará disponible durante 5 minutos.`
     }, { quoted: msg });
 }
 
