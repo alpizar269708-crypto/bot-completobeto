@@ -14,7 +14,7 @@ const { responderConIA } = require('./comandos/ia');
 const { 
     verificarAntiLinks, verificarAntiSpam, comandoListaBlancaLinks, comandoWarn, comandoLimpiarWarns, comandoVerWarns, comandoBan, 
     comandoUnban, comandoListaNegra, comandoUnbanList, comandoGrupo, comandoMute, 
-    comandoUnmute, verificarMute, estaInmune, comandoEscudo, comandoDesinmunizar, comandoDesactivarBienvenida, comandoActivarBienvenida, comandoPersonalizarBienvenida, comandoRestaurarBienvenida 
+    comandoUnmute, verificarMute, estaInmune, comandoEscudo, comandoDesinmunizar, comandoVerInmunes, manejarRespuestaSeleccionInmunidad, comandoDesactivarBienvenida, comandoActivarBienvenida, comandoPersonalizarBienvenida, comandoRestaurarBienvenida 
 } = require('./comandos/moderacion');
 const { User, Config } = require('./database/modelos');
 const { obtenerEconomia } = require('./comandos/economia');
@@ -38,7 +38,7 @@ const categoriasMap = {
     'utilidades': ['s', 'sticker', 'recup1vez', 'descargar', 'download', 'tiktok', 'instagram', 'pinterest', 'x', 'twitter', 'traduce', 'skin', 'stats', 'tiendastats', 'tiendavb', 'contacto', 'ping', 'verelim'],
     'paypal': ['paypal', 'paypaln', 'paypali'],
     'ia': ['ia'],
-    'moderacion': ['escudo', 'desinmunizar', 'elim', 'elim', 'warn', 'advertir', 'verwarns', 'limpiarwarns', 'ban', 'unban', 'listanegra', 'banlist', 'unbanlist', 'grupo', 'mute', 'unmute', 'listablanca', 'desactivarbienvenida', 'activarbienvenida', 'personalizarbienvenida', 'restaurarbienvenida', 'carryban', 'blcarry', 'unblcarry', 'setprecio', 'setgrupostw', 'unsetgrupostw', 'desactivarcomandos', 'catdesa'],
+    'moderacion': ['escudo', 'desinmunizar', 'inmunes', 'elim', 'elim', 'warn', 'advertir', 'verwarns', 'limpiarwarns', 'ban', 'unban', 'listanegra', 'banlist', 'unbanlist', 'grupo', 'mute', 'unmute', 'listablanca', 'desactivarbienvenida', 'activarbienvenida', 'personalizarbienvenida', 'restaurarbienvenida', 'carryban', 'blcarry', 'unblcarry', 'setprecio', 'setgrupostw', 'unsetgrupostw', 'desactivarcomandos', 'catdesa'],
     'tienda': ['tienda', 'tiendavb', 'idtienda'],
     'carry': ['carryleader', 'carryjoin', 'carryleave', 'carryclose', 'buscocarry', 'buscooff', 'doycarry', 'x2busco', 'carryver', 'eliminarid', 'id', 'id1', 'id2', 'id3', 'id4'],
     'rifas': ['rifa', 'rifainscripcion', 'cerrarrifa', 'rifaquitarduplicados', 'rifajasc13', 'addvarios', 'abrirrifa', 'activarrifaaqui', 'menurifajasc13'],
@@ -66,7 +66,7 @@ const comandosValidos = new Set([
         'desactivarcomandos', 'catdesa', 'linkgrupo', 'setprecio', 'ping', 'pavos', 'rpavos', 'destacadasstw', 'legendariasstw', 'epicasstw', 'alertasstw', 'stw', 'alerta', 'alertanov', 'recompensa', 'recompensanov', 'subirpl', 'guiapl', 'buildstw', 
         'setgrupostw', 'unsetgrupostw', 'grupo', 'mute', 'unmute', 'tienda', 'tiendastats', 'tiendavb', 'idtienda', 'ia', 'menu', 'menusecreto',
         's', 'sticker', 'recup1vez', 'descargar', 'download', 'tiktok', 'instagram', 'pinterest', 'x', 'twitter', 'traduce', 'skin', 'stats', 'contacto',
-        'escudo', 'desinmunizar', 'warn', 'advertir', 'verwarns', 'limpiarwarns', 'ban', 'unban', 'listanegra', 'banlist', 'unbanlist', 
+        'escudo', 'desinmunizar', 'inmunes', 'warn', 'advertir', 'verwarns', 'limpiarwarns', 'ban', 'unban', 'listanegra', 'banlist', 'unbanlist', 
         'cartera', 'bal', 'banco', 'pay', 'pagar', 'top', 'topdinero', 'daily', 'weekly',
         'farmear', 'work', 'crime', 'mendigar', 'pescar', 'minar', 'cazar', 'explorar',
         'ruleta', 'cf', 'slots', 'dados', 'adivina', 'buscaminas', 'rob', 'ppt', 'pelea',
@@ -119,7 +119,7 @@ async function procesarMensaje(sock, msg) {
         .replace(/[*_~`]+$/g, '');
 
     const comandoPropioPermitido = new Set([
-        'escudo', 'desinmunizar', 'warn', 'advertir', 'verwarns', 'limpiarwarns',
+        'escudo', 'desinmunizar', 'inmunes', 'warn', 'advertir', 'verwarns', 'limpiarwarns',
         'ban', 'unban', 'listanegra', 'banlist', 'unbanlist',
         'listablanca',
         'desactivarbienvenida', 'activarbienvenida',
@@ -247,6 +247,7 @@ Apoya a un creador: JASC13` });
         }
     }
 
+    if (await manejarRespuestaSeleccionInmunidad(sock, chatJid, msg, remitenteReal, textoOriginal)) return;
     if (await manejarRespuestaSeleccionCarry(sock, chatJid, msg, remitenteReal, textoOriginal)) return;
     if (await manejarRespuestaSeleccionSquad(sock, chatJid, msg, remitenteReal, textoOriginal)) return;
 
@@ -304,7 +305,7 @@ Apoya a un creador: JASC13` });
 
         // Todo funciona por defecto. Solo se bloquea si la categoría del comando
         // aparece explícitamente en la lista de categorías desactivadas.
-        if (estaDesactivado && !comandoDeConfiguracion && !(tienePrivilegiosTotales && ['escudo', 'desinmunizar'].includes(comando))) return;
+        if (estaDesactivado && !comandoDeConfiguracion && !(tienePrivilegiosTotales && ['escudo', 'desinmunizar', 'inmunes'].includes(comando))) return;
     }
 
     // Solo los comandos llegan hasta aquí; los mensajes normales ya salieron arriba.
@@ -438,8 +439,9 @@ Apoya a un creador: JASC13` });
             ['paypal', 'Muestra las tarifas estándar actuales de PayPal para México, nacional e internacional.'],
             ['paypaln', 'Calcula cuánto deben enviarte para recibir un monto neto en MXN en una operación nacional.'],
             ['paypali', 'Calcula cuánto deben enviarte para recibir un monto neto en USD en una operación internacional.'],
-            ['escudo', 'Da inmunidad total a una persona: no recibirá warns, bans ni mute. Solo propietarios.'],
+            ['escudo', 'Da inmunidad total a una persona: no recibirá sanciones de otros usuarios. Solo propietarios.'],
             ['desinmunizar', 'Retira la inmunidad de una persona. Solo propietarios.'],
+            ['inmunes', 'Muestra la lista de personas inmunes y permite retirar inmunidad por número. Solo propietarios.'],
             ['warn', 'Advierte a un usuario del grupo.']
             ['advertir', 'Alias de warn.'],
             ['verwarns', 'Consulta las advertencias de un usuario.'],
@@ -504,7 +506,7 @@ Apoya a un creador: JASC13` });
             ['cerrarsesionauth', 'Cierra la sesión de WhatsApp del bot para volver a vincularla.']
         ];
 
-        const comandosModeracion = new Set(['escudo', 'desinmunizar', 'warn', 'advertir', 'verwarns', 'limpiarwarns', 'ban', 'unban', 'listanegra', 'banlist', 'unbanlist', 'grupo', 'mute', 'unmute', 'listablanca', 'desactivarbienvenida', 'activarbienvenida', 'personalizarbienvenida', 'restaurarbienvenida', 'carryban', 'blcarry', 'unblcarry', 'setprecio', 'setgrupostw', 'unsetgrupostw', 'desactivarcomandos', 'catdesa']);
+        const comandosModeracion = new Set(['escudo', 'desinmunizar', 'inmunes', 'warn', 'advertir', 'verwarns', 'limpiarwarns', 'ban', 'unban', 'listanegra', 'banlist', 'unbanlist', 'grupo', 'mute', 'unmute', 'listablanca', 'desactivarbienvenida', 'activarbienvenida', 'personalizarbienvenida', 'restaurarbienvenida', 'carryban', 'blcarry', 'unblcarry', 'setprecio', 'setgrupostw', 'unsetgrupostw', 'desactivarcomandos', 'catdesa']);
         const comandosVisibles = comandosInfo.filter(([cmd]) => (tienePrivilegiosTotales || msg.key.fromMe || !comandosModeracion.has(cmd)));
         const texto = [
             '🕵️‍♂️ *COMANDOS DEL BOT* 🕵️‍♂️',
@@ -883,6 +885,9 @@ Apoya a un creador: JASC13` });
                 break;
             case 'desinmunizar':
                 await comandoDesinmunizar(sock, chatJid, msg, args);
+                break;
+            case 'inmunes':
+                await comandoVerInmunes(sock, chatJid, msg, args);
                 break;
             case 'warn':
             case 'advertir':
