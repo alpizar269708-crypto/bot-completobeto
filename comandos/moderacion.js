@@ -54,7 +54,7 @@ async function obtenerListaInmunidad() {
 
 function numeroVisibleInmunidad(registro) {
     const jid = String(registro.clave || '').slice(PREFIJO_INMUNIDAD.length);
-    return jid.replace(/@s\\.whatsapp\\.net$|@lid$|@c\\.us$/i, '').split(':')[0] || jid;
+    return jid.replace(/@s\.whatsapp\.net$|@lid$|@c\.us$/i, '').split(':')[0] || jid;
 }
 
 async function eliminarInmunidadPorIndice(sock, chatId, msg, registros, indice) {
@@ -69,7 +69,6 @@ async function eliminarInmunidadPorIndice(sock, chatId, msg, registros, indice) 
         return false;
     }
     await Config.deleteOne({ clave: registro.clave });
-    const jid = String(registro.clave).slice(PREFIJO_INMUNIDAD.length);
     await sock.sendMessage(chatId, {
         text: `✅ Se retiró la inmunidad de *${numeroVisibleInmunidad(registro)}*.`
     }, { quoted: msg });
@@ -89,7 +88,7 @@ async function comandoVerInmunes(sock, chatId, msg, args = []) {
     }
 
     const seleccionDirecta = Number(args?.[0]);
-    if (args?.[0] && /^\\d+$/.test(String(args[0]))) {
+    if (args?.[0] && /^\d+$/.test(String(args[0]))) {
         await eliminarInmunidadPorIndice(sock, chatId, msg, registros, seleccionDirecta);
         return;
     }
@@ -102,10 +101,10 @@ async function comandoVerInmunes(sock, chatId, msg, args = []) {
     });
 
     const lista = registros.map((registro, i) =>
-        `* ${i + 1}.* ${numeroVisibleInmunidad(registro)}`
-    ).join('\\n');
+        `*${i + 1}.* ${numeroVisibleInmunidad(registro)}`
+    ).join('\n');
     await sock.sendMessage(chatId, {
-        text: `🛡️ *USUARIOS CON INMUNIDAD ACTIVA* (${registros.length})\\n\\n${lista}\\n\\nResponde con el *número* de la persona a quien quieres quitarle la inmunidad.\\nTambién puedes usar *inmunes 2*.\\n⏱️ La selección estará disponible durante 5 minutos.`
+        text: `🛡️ *USUARIOS CON INMUNIDAD ACTIVA* (${registros.length})\n\\n${lista}\\n\\nResponde con el *número* de la persona a quien quieres quitarle la inmunidad.\\nTambién puedes usar *inmunes 2*.\\n⏱️ La selección estará disponible durante 5 minutos.`
     }, { quoted: msg });
 }
 
@@ -118,7 +117,7 @@ async function manejarRespuestaSeleccionInmunidad(sock, chatId, msg, remitente, 
         sesionesInmunidad.delete(claveSesion);
         return false;
     }
-    if (!/^\\s*\\d+\\s*$/.test(String(texto || ''))) return false;
+    if (!/^\s*\d+\s*$/.test(String(texto || ''))) return false;
     if (!(await esPrivilegiadoTotalAsync(sock, remitente))) return false;
 
     const indice = Number(String(texto).trim());
