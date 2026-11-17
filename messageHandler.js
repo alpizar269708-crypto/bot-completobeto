@@ -442,7 +442,7 @@ Apoya a un creador: JASC13` });
             ['escudo', 'Da inmunidad total a una persona: no recibirá sanciones de otros usuarios. Solo propietarios.'],
             ['desinmunizar', 'Retira la inmunidad de una persona. Solo propietarios.'],
             ['inmunes', 'Muestra la lista de personas inmunes y permite retirar inmunidad por número. Solo propietarios.'],
-            ['warn', 'Advierte a un usuario del grupo.']
+            ['warn', 'Advierte a un usuario del grupo.'],
             ['advertir', 'Alias de warn.'],
             ['verwarns', 'Consulta las advertencias de un usuario.'],
             ['limpiarwarns', 'Borra todos los warns del usuario indicado y lo deja en 0/3.'],
