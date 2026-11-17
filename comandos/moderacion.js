@@ -27,7 +27,7 @@ async function comandoEscudo(sock, chatId, msg, args = []) {
     }
     const objetivo = await resolverLidAPn(sock, original).catch(() => original);
     await Config.findOneAndUpdate({ clave: PREFIJO_INMUNIDAD + objetivo }, { $set: { valor: 'true' } }, { upsert: true, setDefaultsOnInsert: true });
-    await sock.sendMessage(chatId, { text: `🛡️ @${String(objetivo).split('@')[0]} ahora tiene *INMUNIDAD TOTAL*. No recibirá warns, bans ni mute.\n\nPara retirarla: *desinmunizar*.`, mentions: [objetivo] }, { quoted: msg });
+    await sock.sendMessage(chatId, { text: `🛡️ @${String(objetivo).split('@')[0]} ahora tiene *INMUNIDAD*. Los administradores normales no podrán darle warns, bans ni mute; los propietarios sí podrán sancionarlo.\n\nPara retirarla: *desinmunizar*.`, mentions: [objetivo] }, { quoted: msg });
 }
 async function comandoDesinmunizar(sock, chatId, msg, args = []) {
     if (!(await verificarPropietarioComando(sock, chatId, msg))) {
