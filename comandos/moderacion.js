@@ -84,9 +84,12 @@ async function comandoEscudo(sock, chatId, msg, args = []) {
     const objetivo = await resolverLidAPn(sock, original).catch(() => original);
     const valor = duracion.expira ? JSON.stringify({ expira: duracion.expira }) : 'true';
     await Config.findOneAndUpdate({ clave: PREFIJO_INMUNIDAD + objetivo }, { $set: { valor } }, { upsert: true, setDefaultsOnInsert: true });
-    const vigencia = duracion.expira ? `durante *${duracion.etiqueta}*` : '*permanente*';
-    const nota = duracion.expira ? '\n\n⏳ La inmunidad se retirará automáticamente al terminar el plazo.' : '\n\nPara retirarla: *desinmunizar*.';
-    await sock.sendMessage(chatId, { text: `🛡️ @${String(objetivo).split('@')[0]} ahora tiene *INMUNIDAD ${vigencia}*. Los administradores normales no podrán darle warns, bans ni mute; los propietarios sí podrán sancionarlo.${nota}`, mentions: [objetivo] }, { quoted: msg });
+    const numeroVisible = String(objetivo).split('@')[0].split(':')[0];
+    const vigencia = duracion.expira ? ` por ${duracion.etiqueta}` : ' permanentemente';
+    await sock.sendMessage(chatId, {
+        text: `🛡️ @${numeroVisible} ahora es *INMUNE A TODO*${vigencia}.`,
+        mentions: [objetivo]
+    }, { quoted: msg });
 }
 
 async function comandoDesinmunizar(sock, chatId, msg, args = []) {
