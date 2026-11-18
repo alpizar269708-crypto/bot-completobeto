@@ -3,32 +3,92 @@ const { registrarEliminacionPorBot } = require('./verelim');
 const { esPrivilegiadoTotal, esPrivilegiadoTotalAsync, resolverLidAPn } = require('../utils/whatsapp');
 
 const PREFIJO_INMUNIDAD = 'inmunidad_usuario_';
+function obtenerExpiracionInmunidad(valor) {
+    if (valor === 'true') return null;
+    try {
+        const datos = JSON.parse(String(valor || ''));
+        return Number.isFinite(Number(datos.expira)) ? Number(datos.expira) : 0;
+    } catch (error) {
+        return 0;
+    }
+}
+
 async function estaInmune(sock, jid) {
     if (!jid) return false;
     if (await esPrivilegiadoTotalAsync(sock, jid)) return true;
     const resuelto = await resolverLidAPn(sock, jid).catch(() => jid);
     for (const candidato of [...new Set([String(resuelto || ''), String(jid || '')].filter(Boolean))]) {
-        const registro = await Config.findOne({ clave: PREFIJO_INMUNIDAD + candidato }).lean().catch(() => null);
-        if (registro?.valor === 'true') return true;
+        const clave = PREFIJO_INMUNIDAD + candidato;
+        const registro = await Config.findOne({ clave }).lean().catch(() => null);
+        if (!registro) continue;
+        const expira = obtenerExpiracionInmunidad(registro.valor);
+        if (expira === null || expira > Date.now()) return true;
+        await Config.deleteOne({ clave }).catch(() => null);
     }
     return false;
 }
+
 async function verificarPropietarioComando(sock, chatId, msg) {
     const actor = msg.key.participant || (msg.key.fromMe ? (sock.user?.id || msg.key.remoteJid) : chatId);
     return await esPrivilegiadoTotalAsync(sock, actor);
 }
+function analizarDuracionInmunidad(args = []) {
+    const texto = args.join(' ').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    const coincidencia = texto.match(/(?:^|\s)(\d+)\s*(minutos?|mins?|m|horas?|hrs?|h|dias?|d|semanas?|s)(?=\s|$)/i);
+    if (!coincidencia) return { expira: null, etiqueta: 'permanente' };
+    const cantidad = Number(coincidencia[1]);
+    const unidad = coincidencia[2].toLowerCase();
+    if (!Number.isSafeInteger(cantidad) || cantidad <= 0) return { error: 'La duración debe ser un número mayor que cero.' };
+    let factor;
+    if (/^(m|min|minuto|minutos|mins?)$/.test(unidad)) factor = 60 * 1000;
+    else if (/^(h|hr|hrs|hora|horas)$/.test(unidad)) factor = 60 * 60 * 1000;
+    else if (/^(d|dia|dias)$/.test(unidad)) factor = 24 * 60 * 60 * 1000;
+    else factor = 7 * 24 * 60 * 60 * 1000;
+    const milisegundos = cantidad * factor;
+    if (!Number.isSafeInteger(milisegundos) || !Number.isSafeInteger(Date.now() + milisegundos)) return { error: 'La duración indicada es demasiado grande.' };
+    return { expira: Date.now() + milisegundos, etiqueta: `${cantidad} ${unidad}` };
+}
+
+function describirTiempoRestante(expira) {
+    if (!expira) return 'Permanente';
+    const restante = Math.max(0, expira - Date.now());
+    if (!restante) return 'Vencida';
+    const unidades = [['día', 86400000], ['hora', 3600000], ['minuto', 60000]];
+    let valor = restante;
+    const partes = [];
+    for (const [nombre, factor] of unidades) {
+        const cantidad = Math.floor(valor / factor);
+        if (cantidad > 0) {
+            partes.push(`${cantidad} ${nombre}${cantidad === 1 ? '' : 's'}`);
+            valor -= cantidad * factor;
+            if (partes.length === 2) break;
+        }
+    }
+    if (!partes.length) partes.push('menos de 1 minuto');
+    return partes.join(' y ');
+}
+
 async function comandoEscudo(sock, chatId, msg, args = []) {
     if (!(await verificarPropietarioComando(sock, chatId, msg))) {
         await sock.sendMessage(chatId, { text: '⛔ Este comando es exclusivo de los propietarios del bot.' }, { quoted: msg }); return;
     }
     const original = obtenerObjetivo(msg, args);
     if (!original) {
-        await sock.sendMessage(chatId, { text: '🛡️ Etiqueta a la persona o responde a uno de sus mensajes. Ejemplo: *escudo @usuario*' }, { quoted: msg }); return;
+        await sock.sendMessage(chatId, { text: '🛡️ Etiqueta a la persona o responde a uno de sus mensajes. Ejemplo: *escudo @usuario 24 horas*' }, { quoted: msg }); return;
+    }
+    const duracion = analizarDuracionInmunidad(args);
+    if (duracion.error) {
+        await sock.sendMessage(chatId, { text: '❌ ' + duracion.error }, { quoted: msg });
+        return;
     }
     const objetivo = await resolverLidAPn(sock, original).catch(() => original);
-    await Config.findOneAndUpdate({ clave: PREFIJO_INMUNIDAD + objetivo }, { $set: { valor: 'true' } }, { upsert: true, setDefaultsOnInsert: true });
-    await sock.sendMessage(chatId, { text: `🛡️ @${String(objetivo).split('@')[0]} ahora tiene *INMUNIDAD*. Los administradores normales no podrán darle warns, bans ni mute; los propietarios sí podrán sancionarlo.\n\nPara retirarla: *desinmunizar*.`, mentions: [objetivo] }, { quoted: msg });
+    const valor = duracion.expira ? JSON.stringify({ expira: duracion.expira }) : 'true';
+    await Config.findOneAndUpdate({ clave: PREFIJO_INMUNIDAD + objetivo }, { $set: { valor } }, { upsert: true, setDefaultsOnInsert: true });
+    const vigencia = duracion.expira ? `durante *${duracion.etiqueta}*` : '*permanente*';
+    const nota = duracion.expira ? '\n\n⏳ La inmunidad se retirará automáticamente al terminar el plazo.' : '\n\nPara retirarla: *desinmunizar*.';
+    await sock.sendMessage(chatId, { text: `🛡️ @${String(objetivo).split('@')[0]} ahora tiene *INMUNIDAD ${vigencia}*. Los administradores normales no podrán darle warns, bans ni mute; los propietarios sí podrán sancionarlo.${nota}`, mentions: [objetivo] }, { quoted: msg });
 }
+
 async function comandoDesinmunizar(sock, chatId, msg, args = []) {
     if (!(await verificarPropietarioComando(sock, chatId, msg))) {
         await sock.sendMessage(chatId, { text: '⛔ Este comando es exclusivo de los propietarios del bot.' }, { quoted: msg }); return;
@@ -46,10 +106,14 @@ const sesionesInmunidad = new Map();
 const INMUNIDAD_SESION_TTL_MS = 5 * 60 * 1000;
 
 async function obtenerListaInmunidad() {
-    return await Config.find({
-        clave: { $regex: '^' + PREFIJO_INMUNIDAD },
-        valor: 'true'
-    }).sort({ clave: 1 }).lean();
+    const registros = await Config.find({ clave: { $regex: '^' + PREFIJO_INMUNIDAD } }).sort({ clave: 1 }).lean();
+    const activos = [];
+    for (const registro of registros) {
+        const expira = obtenerExpiracionInmunidad(registro.valor);
+        if (expira === null || expira > Date.now()) activos.push({ ...registro, expira });
+        else await Config.deleteOne({ clave: registro.clave }).catch(() => null);
+    }
+    return activos;
 }
 
 function numeroVisibleInmunidad(registro) {
@@ -63,8 +127,9 @@ async function eliminarInmunidadPorIndice(sock, chatId, msg, registros, indice) 
         await sock.sendMessage(chatId, { text: `❌ El número *${indice}* no corresponde a alguien de la lista. Usa *inmunes* para verla nuevamente.` }, { quoted: msg });
         return false;
     }
-    const actual = await Config.findOne({ clave: registro.clave, valor: 'true' }).lean().catch(() => null);
-    if (!actual) {
+    const actual = await Config.findOne({ clave: registro.clave }).lean().catch(() => null);
+    const expiraActual = actual ? obtenerExpiracionInmunidad(actual.valor) : 0;
+    if (!actual || (expiraActual !== null && expiraActual <= Date.now())) {
         await sock.sendMessage(chatId, { text: 'ℹ️ Esa inmunidad ya no está activa. Usa *inmunes* para actualizar la lista.' }, { quoted: msg });
         return false;
     }
@@ -101,7 +166,7 @@ async function comandoVerInmunes(sock, chatId, msg, args = []) {
     });
 
     const lista = registros.map((registro, i) =>
-        `*${i + 1}.* ${numeroVisibleInmunidad(registro)}`
+        `*${i + 1}.* ${numeroVisibleInmunidad(registro)} — ${describirTiempoRestante(registro.expira)}`
     ).join('\n');
     await sock.sendMessage(chatId, {
         text: `🛡️ *USUARIOS CON INMUNIDAD ACTIVA* (${registros.length})\n\n${lista}\n\nResponde con el *número* de la persona a quien quieres quitarle la inmunidad.\nTambién puedes usar *inmunes 2*.\n⏱️ La selección estará disponible durante 5 minutos.`
