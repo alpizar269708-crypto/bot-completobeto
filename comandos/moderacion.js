@@ -84,10 +84,23 @@ async function comandoEscudo(sock, chatId, msg, args = []) {
     const objetivo = await resolverLidAPn(sock, original).catch(() => original);
     const valor = duracion.expira ? JSON.stringify({ expira: duracion.expira }) : 'true';
     await Config.findOneAndUpdate({ clave: PREFIJO_INMUNIDAD + objetivo }, { $set: { valor } }, { upsert: true, setDefaultsOnInsert: true });
-    const numeroVisible = String(objetivo).split('@')[0].split(':')[0];
+    let nombreVisible = '';
+    try {
+        const contacto = sock.contacts?.[objetivo] || sock.contacts?.[original];
+        nombreVisible = contacto?.name || contacto?.notify || contacto?.verifiedName || '';
+        if (!nombreVisible && chatId.endsWith('@g.us')) {
+            const metadata = await sock.groupMetadata(chatId);
+            const participante = metadata.participants?.find(p =>
+                [p.id, p.jid, p.lid].filter(Boolean).some(id => String(id) === String(objetivo) || String(id) === String(original))
+            );
+            nombreVisible = participante?.notify || participante?.name || participante?.verifiedName || '';
+        }
+    } catch (error) {}
+    nombreVisible = String(nombreVisible || '').replace(/^@+/, '').trim();
+    const etiqueta = nombreVisible ? `@${nombreVisible}` : `@${String(objetivo).split('@')[0].split(':')[0]}`;
     const vigencia = duracion.expira ? ` por ${duracion.etiqueta}` : ' permanentemente';
     await sock.sendMessage(chatId, {
-        text: `🛡️ @${numeroVisible} ahora es *INMUNE A TODO*${vigencia}.`,
+        text: `🛡️ ${etiqueta} ahora es *INMUNE A TODO*${vigencia}.`,
         mentions: [objetivo]
     }, { quoted: msg });
 }
