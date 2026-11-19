@@ -661,18 +661,59 @@ async function verificarLinkDeMismaComunidad(sock, msg, texto) {
     return false;
 }
 
+async function comandoVerAntiLinks(sock, chatId, msg, args = []) {
+    if (!chatId.endsWith('@g.us')) {
+        await sock.sendMessage(chatId, { text: 'Este comando solo se usa en grupos.' }, { quoted: msg });
+        return;
+    }
+    const remitente = msg.key.participant || chatId;
+    if (!await esPrivilegiadoTotalAsync(sock, remitente)) {
+        await sock.sendMessage(chatId, { text: 'Solo el propietario del bot puede configurar esto.' }, { quoted: msg });
+        return;
+    }
+
+    const accion = String(args[0] || '').toLowerCase();
+    if (accion === 'off') {
+        await Config.deleteOne({ clave: 'antilinks_grupo_destino' });
+        await sock.sendMessage(chatId, { text: 'Reenvío desactivado.' }, { quoted: msg });
+        return;
+    }
+    if (accion) {
+        await sock.sendMessage(chatId, { text: 'Usa *verantlinks* o *verantlinks off*.' }, { quoted: msg });
+        return;
+    }
+
+    await Config.findOneAndUpdate(
+        { clave: 'antilinks_grupo_destino' },
+        { valor: chatId },
+        { upsert: true }
+    );
+    await sock.sendMessage(chatId, { text: 'Aquí se reenviarán todos los mensajes eliminados por el antilinks.' }, { quoted: msg });
+}
+
+async function reenviarEliminacionAntiLinks(sock, msg) {
+    const config = await Config.findOne({ clave: 'antilinks_grupo_destino' }).lean().catch(() => null);
+    const destino = config?.valor;
+    if (!destino || !destino.endsWith('@g.us')) return;
+
+    try {
+        if (typeof sock.copyNForward === 'function') {
+            await sock.copyNForward(destino, msg, true);
+        } else {
+            console.error('Anti-links: copyNForward no está disponible en el socket.');
+        }
+    } catch (error) {
+        console.error('No se pudo reenviar al grupo de anti-links:', error?.message || error);
+    }
+}
+
 async function verificarAntiLinks(sock, msg) {
     const texto = msg.message?.conversation || msg.message?.extendedTextMessage?.text || msg.message?.imageMessage?.caption || msg.message?.videoMessage?.caption || msg.message?.documentMessage?.caption || '';
     const remitente = msg.key.participant || msg.key.remoteJid;
     const chatJid = msg.key.remoteJid;
     if (!chatJid.endsWith('@g.us')) return false;
-    // Los propietarios quedan exentos incluso si el filtro se invoca directamente.
     if (await estaInmune(sock, remitente)) return false;
-
     if (await verificarLinkDeMismaComunidad(sock, msg, texto)) return false;
-
-    // Los administradores del grupo, incluido el usuario con privilegios totales,
-    // quedan fuera de la moderación de enlaces.
     if (await esAdmin(sock, chatJid, remitente)) return false;
 
     const regexLink = /(?:https?:\/\/|www\.)[^\s]+|(?:chat\.whatsapp\.com|wa\.me|t\.me)\/[^\s]+|(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}(?:\/[^\s]*)?/gi;
@@ -680,11 +721,11 @@ async function verificarAntiLinks(sock, msg) {
     if (coincidencias.length === 0) return false;
 
     const listaBlanca = await obtenerLinksListaBlanca();
-    const linksNoPermitidos = coincidencias.filter(linkDetectado => {
-        return !linkPermitidoPorListaBlanca(linkDetectado, listaBlanca);
-    });
+    const linksNoPermitidos = coincidencias.filter(linkDetectado => !linkPermitidoPorListaBlanca(linkDetectado, listaBlanca));
     if (linksNoPermitidos.length === 0) return false;
 
+    // Reenvía el mensaje original (incluidos medios y captions) antes de eliminarlo.
+    await reenviarEliminacionAntiLinks(sock, msg);
     try {
         await sock.sendMessage(chatJid, { delete: msg.key });
         registrarEliminacionPorBot(msg, 'Anti-links: enlace no autorizado');
@@ -692,21 +733,13 @@ async function verificarAntiLinks(sock, msg) {
         console.log(`No se pudo borrar el mensaje con link en ${chatJid}: ${error?.message || error}`);
     }
 
-    let usuarioBD = await User.findOne({ numero: remitente });
-    if (!usuarioBD) usuarioBD = await User.create({ numero: remitente, warns: [] });
-    if (!Array.isArray(usuarioBD.warns)) usuarioBD.warns = [];
-    usuarioBD.warns.push({ motivo: 'Envío de enlaces no autorizados', fecha: new Date() });
-    usuarioBD.markModified('warns');
-    const totalWarns = usuarioBD.warns.length;
-    let mensajeAviso = `⚠️ @${remitente.split('@')[0]} Enviar enlaces no autorizados está prohibido.\n📌 *Advertencias:* ${totalWarns}/3`;
-    if (totalWarns >= 3) {
-        await banearYExpulsar(sock, remitente, 'Acumulación de 3 advertencias por enlaces no autorizados');
-        mensajeAviso += '\n\n🚨 *Límite alcanzado:* El usuario ha sido agregado a la lista negra y expulsado de todos los grupos.';
-    }
-    await usuarioBD.save();
-    await sock.sendMessage(chatJid, { text: mensajeAviso, mentions: [remitente] });
+    await sock.sendMessage(chatJid, {
+        text: `⚠️ @${String(remitente).split('@')[0].split(':')[0]} Enviar enlaces no autorizados está prohibido.`,
+        mentions: [remitente]
+    });
     return true;
 }
+
 // 🛡️ Filtro Anti-Spam Automático
 async function verificarAntiSpam(sock, msg) {
     const chatJid = msg.key.remoteJid;
