@@ -78,7 +78,7 @@ const comandosValidos = new Set([
 
 async function procesarMensaje(sock, msg) {
     const chatJid = msg.key.remoteJid;
-    const textoOriginal = msg.message?.conversation || msg.message?.extendedTextMessage?.text || msg.message?.imageMessage?.caption || msg.message?.videoMessage?.caption || '';
+    const textoOriginal = msg.message?.conversation || msg.message?.extendedTextMessage?.text || msg.message?.imageMessage?.caption || msg.message?.videoMessage?.caption || msg.message?.documentMessage?.caption || '';
 
     // Baileys v7 puede identificar al remitente con @lid y proporcionar
     // el número telefónico en participantAlt/participantPn.
