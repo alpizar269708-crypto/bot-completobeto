@@ -157,9 +157,8 @@ function registrarEliminacion(msg, sock) {
     // Baileys usa ProtocolMessage.Type.REVOKE = 0 para "Eliminar para todos".
     if (!protocolo || !(protocolo.type === 0 || protocolo.type === 'REVOKE')) return false;
 
-    // No registrar eliminaciones hechas por el propio bot. Esto evita que
-    // verelim muestre los mensajes que el bot borra al aplicar un mute.
-    if (msg?.key?.fromMe) return true;
+    // También registrar eliminaciones hechas desde la cuenta del bot: puede ser
+    // el propietario quien borre manualmente el mensaje de otro participante.
 
     const chatId = msg?.key?.remoteJid;
     const idOriginal = protocolo.key?.id;
@@ -174,6 +173,12 @@ function registrarEliminacion(msg, sock) {
     if (!original || ahora - original.timestamp > VENTANA_MS) return true;
 
     let registros = eliminadosPorChat.get(chatId);
+    // Evita duplicar el registro si la eliminación ya fue anotada por el
+    // propio sistema de moderación antes de llegar el evento REVOKE.
+    if (registros && [...registros.values()].some(registro => registro.id === idOriginal)) {
+        mensajesPorChat.get(chatId)?.delete(idOriginal);
+        return true;
+    }
     if (!registros) {
         if (eliminadosPorChat.size >= MAX_CHATS_EN_MEMORIA) eliminadosPorChat.delete(eliminadosPorChat.keys().next().value);
         registros = new Map();
