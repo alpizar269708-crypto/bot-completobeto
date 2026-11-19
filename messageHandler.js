@@ -14,7 +14,7 @@ const { responderConIA } = require('./comandos/ia');
 const { 
     verificarAntiLinks, verificarAntiSpam, comandoListaBlancaLinks, comandoWarn, comandoLimpiarWarns, comandoVerWarns, comandoBan, 
     comandoUnban, comandoListaNegra, comandoUnbanList, comandoGrupo, comandoMute, 
-    comandoUnmute, verificarMute, estaInmune, comandoEscudo, comandoDesinmunizar, comandoVerInmunes, manejarRespuestaSeleccionInmunidad, comandoDesactivarBienvenida, comandoActivarBienvenida, comandoPersonalizarBienvenida, comandoRestaurarBienvenida 
+    comandoUnmute, verificarMute, estaInmune, comandoEscudo, comandoDesinmunizar, comandoVerInmunes, manejarRespuestaSeleccionInmunidad, comandoDesactivarBienvenida, comandoActivarBienvenida, comandoPersonalizarBienvenida, comandoRestaurarBienvenida, comandoVerAntiLinks 
 } = require('./comandos/moderacion');
 const { User, Config } = require('./database/modelos');
 const { obtenerEconomia } = require('./comandos/economia');
@@ -38,7 +38,7 @@ const categoriasMap = {
     'utilidades': ['s', 'sticker', 'recup1vez', 'descargar', 'download', 'tiktok', 'instagram', 'pinterest', 'x', 'twitter', 'traduce', 'skin', 'stats', 'tiendastats', 'tiendavb', 'contacto', 'ping', 'verelim'],
     'paypal': ['paypal', 'paypaln', 'paypali'],
     'ia': ['ia'],
-    'moderacion': ['escudo', 'desinmunizar', 'inmunes', 'elim', 'elim', 'warn', 'advertir', 'verwarns', 'limpiarwarns', 'ban', 'unban', 'listanegra', 'banlist', 'unbanlist', 'grupo', 'mute', 'unmute', 'listablanca', 'desactivarbienvenida', 'activarbienvenida', 'personalizarbienvenida', 'restaurarbienvenida', 'carryban', 'blcarry', 'unblcarry', 'setprecio', 'setgrupostw', 'unsetgrupostw', 'desactivarcomandos', 'catdesa'],
+    'moderacion': ['escudo', 'desinmunizar', 'inmunes', 'elim', 'elim', 'warn', 'advertir', 'verwarns', 'limpiarwarns', 'ban', 'unban', 'listanegra', 'banlist', 'unbanlist', 'grupo', 'mute', 'unmute', 'listablanca', 'verantlinks', 'desactivarbienvenida', 'activarbienvenida', 'personalizarbienvenida', 'restaurarbienvenida', 'carryban', 'blcarry', 'unblcarry', 'setprecio', 'setgrupostw', 'unsetgrupostw', 'desactivarcomandos', 'catdesa'],
     'tienda': ['tienda', 'tiendavb', 'idtienda'],
     'carry': ['carryleader', 'carryjoin', 'carryleave', 'carryclose', 'buscocarry', 'buscooff', 'doycarry', 'x2busco', 'carryver', 'eliminarid', 'id', 'id1', 'id2', 'id3', 'id4'],
     'rifas': ['rifa', 'rifainscripcion', 'cerrarrifa', 'rifaquitarduplicados', 'rifajasc13', 'addvarios', 'abrirrifa', 'activarrifaaqui', 'menurifajasc13'],
@@ -66,13 +66,13 @@ const comandosValidos = new Set([
         'desactivarcomandos', 'catdesa', 'linkgrupo', 'setprecio', 'ping', 'pavos', 'rpavos', 'destacadasstw', 'legendariasstw', 'epicasstw', 'alertasstw', 'stw', 'alerta', 'alertanov', 'recompensa', 'recompensanov', 'subirpl', 'guiapl', 'buildstw', 
         'setgrupostw', 'unsetgrupostw', 'grupo', 'mute', 'unmute', 'tienda', 'tiendastats', 'tiendavb', 'idtienda', 'ia', 'menu', 'menusecreto',
         's', 'sticker', 'recup1vez', 'descargar', 'download', 'tiktok', 'instagram', 'pinterest', 'x', 'twitter', 'traduce', 'skin', 'stats', 'contacto',
-        'escudo', 'desinmunizar', 'inmunes', 'warn', 'advertir', 'verwarns', 'limpiarwarns', 'ban', 'unban', 'listanegra', 'banlist', 'unbanlist', 
+        'escudo', 'desinmunizar', 'inmunes', 'verantlinks', 'warn', 'advertir', 'verwarns', 'limpiarwarns', 'ban', 'unban', 'listanegra', 'banlist', 'unbanlist', 
         'cartera', 'bal', 'banco', 'pay', 'pagar', 'top', 'topdinero', 'daily', 'weekly',
         'farmear', 'work', 'crime', 'mendigar', 'pescar', 'minar', 'cazar', 'explorar',
         'ruleta', 'cf', 'slots', 'dados', 'adivina', 'buscaminas', 'rob', 'ppt', 'pelea',
         'carrera', 'hackear', 'shop', 'buy', 'inventario', 'mochila', 'vender', 'use', 'regalar',
         'rifa', 'rifainscripcion', 'cerrarrifa', 'rifaquitarduplicados', 'rifajasc13', 'addvarios', 'abrirrifa', 'activarrifaaqui', 'menurifajasc13', 'quitarrifajasc13', 'addcashback', 'delcashback', 'vercash', 'delvcash', 'canjecash', 'carryleader', 'carryjoin', 'carryleave', 'carryclose', 'buscocarry', 'buscooff', 'doycarry', 'x2busco', 'carryver', 'carryban', 'blcarry', 'unblcarry',
-        'vertodoscomandos', 'elim', 'listablanca', 'buscajugador', 'buscajugadores', 'cancelarbusqueda', 'unirme', 'paypal', 'paypaln', 'paypali', 'desactivarbienvenida', 'activarbienvenida', 'personalizarbienvenida', 'restaurarbienvenida', 'redeploy', 'verelim', 'eliminarid', 'id', 'id1', 'id2', 'id3', 'id4'
+        'vertodoscomandos', 'elim', 'listablanca', 'verantlinks', 'buscajugador', 'buscajugadores', 'cancelarbusqueda', 'unirme', 'paypal', 'paypaln', 'paypali', 'desactivarbienvenida', 'activarbienvenida', 'personalizarbienvenida', 'restaurarbienvenida', 'redeploy', 'verelim', 'eliminarid', 'id', 'id1', 'id2', 'id3', 'id4'
 ]);
 
 
@@ -119,7 +119,7 @@ async function procesarMensaje(sock, msg) {
         .replace(/[*_~`]+$/g, '');
 
     const comandoPropioPermitido = new Set([
-        'escudo', 'desinmunizar', 'inmunes', 'warn', 'advertir', 'verwarns', 'limpiarwarns',
+        'escudo', 'desinmunizar', 'inmunes', 'verantlinks', 'warn', 'advertir', 'verwarns', 'limpiarwarns',
         'ban', 'unban', 'listanegra', 'banlist', 'unbanlist',
         'listablanca',
         'desactivarbienvenida', 'activarbienvenida',
@@ -163,7 +163,7 @@ Apoya a un creador: JASC13` });
     }
 
     // La lista blanca se procesa antes del anti-links para permitir agregar cualquier URL.
-    if (textoComandoPrevio === 'listablanca') {
+    if (textoComandoPrevio === 'verantlinks') {\n        const partesVerAntiLinks = textoOriginal.trim().split(/\\s+/);\n        await comandoVerAntiLinks(sock, chatJid, msg, partesVerAntiLinks.slice(1));\n        return;\n    }\n\n    if (textoComandoPrevio === 'listablanca') {
         const partesListaBlanca = textoOriginal.trim().split(/\s+/);
         await comandoListaBlancaLinks(sock, chatJid, msg, partesListaBlanca.slice(1));
         return;
@@ -880,7 +880,7 @@ Apoya a un creador: JASC13` });
             case 'contacto':
                 await comandoContacto(sock, chatJid, msg);
                 break;
-            case 'escudo':
+            case 'verantlinks':\n                await comandoVerAntiLinks(sock, chatJid, msg, args);\n                break;\n            case 'escudo':
                 await comandoEscudo(sock, chatJid, msg, args);
                 break;
             case 'desinmunizar':
