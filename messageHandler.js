@@ -411,7 +411,7 @@ Apoya a un creador: JASC13` });
             ['listablanca', 'Administra la lista blanca de links y dominios completos. Ejemplo: *listablanca agregar betomaster.com* permite todas las rutas y subdominios de ese dominio.'],
             ['linkgrupo', 'Envía el enlace de invitación del grupo donde se ejecuta el comando.'],
             ['ping', 'Comprueba que el bot esté activo.'],
-            ['verelim', 'Muestra mensajes eliminados para todos en este chat durante las últimas 2 horas y menciona a quien los eliminó.'],
+            ['verelim', 'Muestra quién eliminó cada mensaje y quién lo había enviado, con su contenido, durante las últimas 2 horas.'],
             ['pavos', 'Muestra las misiones actuales que dan PaVos usando el sistema público habitual.'],
             ['destacadasstw', 'Muestra alertas destacadas de Salvar el Mundo y PL altas.'],
             ['epicasstw', 'Muestra alertas de misiones con recompensas épicas.'],
