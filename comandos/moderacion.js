@@ -735,13 +735,8 @@ async function verificarAntiLinks(sock, msg) {
     } catch (error) {
         console.log(`No se pudo borrar el mensaje con link en ${chatJid}: ${error?.message || error}`);
     }
-    if (eliminado) await reenviarEliminacionAntiLinks(sock, msg);
 
-    await sock.sendMessage(chatJid, { delete: msg.key });
-        registrarEliminacionPorBot(msg, 'Anti-links: enlace no autorizado');
-    } catch (error) {
-        console.log(`No se pudo borrar el mensaje con link en ${chatJid}: ${error?.message || error}`);
-    }
+    if (eliminado) await reenviarEliminacionAntiLinks(sock, msg);
 
     await sock.sendMessage(chatJid, {
         text: `⚠️ @${String(remitente).split('@')[0].split(':')[0]} Enviar enlaces no autorizados está prohibido.`,
@@ -749,6 +744,7 @@ async function verificarAntiLinks(sock, msg) {
     });
     return true;
 }
+
 
 // 🛡️ Filtro Anti-Spam Automático
 async function verificarAntiSpam(sock, msg) {
