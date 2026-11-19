@@ -666,7 +666,7 @@ async function comandoVerAntiLinks(sock, chatId, msg, args = []) {
         await sock.sendMessage(chatId, { text: 'Este comando solo se usa en grupos.' }, { quoted: msg });
         return;
     }
-    const remitente = msg.key.participant || chatId;
+    const remitente = msg.key.participant || (msg.key.fromMe ? sock.user?.id : chatId);
     if (!await esPrivilegiadoTotalAsync(sock, remitente)) {
         await sock.sendMessage(chatId, { text: 'Solo el propietario del bot puede configurar esto.' }, { quoted: msg });
         return;
