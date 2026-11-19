@@ -697,11 +697,14 @@ async function reenviarEliminacionAntiLinks(sock, msg) {
     if (!destino || !destino.endsWith('@g.us')) return;
 
     try {
-        if (typeof sock.copyNForward === 'function') {
-            await sock.copyNForward(destino, msg, true);
-        } else {
-            console.error('Anti-links: copyNForward no está disponible en el socket.');
-        }
+        const { generateForwardMessageContent, generateWAMessageFromContent } = require('@whiskeysockets/baileys');
+        const contenido = await generateForwardMessageContent(msg, true);
+        const reenviado = generateWAMessageFromContent(destino, contenido, {
+            userJid: sock.user?.id
+        });
+        await sock.relayMessage(destino, reenviado.message, {
+            messageId: reenviado.key.id
+        });
     } catch (error) {
         console.error('No se pudo reenviar al grupo de anti-links:', error?.message || error);
     }
@@ -724,10 +727,17 @@ async function verificarAntiLinks(sock, msg) {
     const linksNoPermitidos = coincidencias.filter(linkDetectado => !linkPermitidoPorListaBlanca(linkDetectado, listaBlanca));
     if (linksNoPermitidos.length === 0) return false;
 
-    // Reenvía el mensaje original (incluidos medios y captions) antes de eliminarlo.
-    await reenviarEliminacionAntiLinks(sock, msg);
+    let eliminado = false;
     try {
         await sock.sendMessage(chatJid, { delete: msg.key });
+        registrarEliminacionPorBot(msg, 'Anti-links: enlace no autorizado');
+        eliminado = true;
+    } catch (error) {
+        console.log(`No se pudo borrar el mensaje con link en ${chatJid}: ${error?.message || error}`);
+    }
+    if (eliminado) await reenviarEliminacionAntiLinks(sock, msg);
+
+    await sock.sendMessage(chatJid, { delete: msg.key });
         registrarEliminacionPorBot(msg, 'Anti-links: enlace no autorizado');
     } catch (error) {
         console.log(`No se pudo borrar el mensaje con link en ${chatJid}: ${error?.message || error}`);
