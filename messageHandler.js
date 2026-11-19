@@ -163,7 +163,13 @@ Apoya a un creador: JASC13` });
     }
 
     // La lista blanca se procesa antes del anti-links para permitir agregar cualquier URL.
-    if (textoComandoPrevio === 'verantlinks') {\n        const partesVerAntiLinks = textoOriginal.trim().split(/\\s+/);\n        await comandoVerAntiLinks(sock, chatJid, msg, partesVerAntiLinks.slice(1));\n        return;\n    }\n\n    if (textoComandoPrevio === 'listablanca') {
+    if (textoComandoPrevio === 'verantlinks') {
+        const partesVerAntiLinks = textoOriginal.trim().split(/\s+/);
+        await comandoVerAntiLinks(sock, chatJid, msg, partesVerAntiLinks.slice(1));
+        return;
+    }
+
+    if (textoComandoPrevio === 'listablanca') {
         const partesListaBlanca = textoOriginal.trim().split(/\s+/);
         await comandoListaBlancaLinks(sock, chatJid, msg, partesListaBlanca.slice(1));
         return;
@@ -880,7 +886,10 @@ Apoya a un creador: JASC13` });
             case 'contacto':
                 await comandoContacto(sock, chatJid, msg);
                 break;
-            case 'verantlinks':\n                await comandoVerAntiLinks(sock, chatJid, msg, args);\n                break;\n            case 'escudo':
+            case 'verantlinks':
+                await comandoVerAntiLinks(sock, chatJid, msg, args);
+                break;
+            case 'escudo':
                 await comandoEscudo(sock, chatJid, msg, args);
                 break;
             case 'desinmunizar':
