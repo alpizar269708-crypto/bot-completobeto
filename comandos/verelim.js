@@ -256,7 +256,7 @@ async function comandoVerEliminados(sock, chatId, msg) {
 
     const esMismaPersona = (a, b) => {
         if (!a || !b) return false;
-        const normalizar = valor => String(valor).trim().toLowerCase().replace(/:\\d+(?=@)/, '');
+        const normalizar = valor => String(valor).trim().toLowerCase().replace(/:\d+(?=@)/, '');
         return normalizar(a) === normalizar(b);
     };
     const autorDiferente = r => r.remitente && r.remitente !== 'bot' && !esMismaPersona(r.quienElimino, r.remitente);
@@ -273,14 +273,14 @@ async function comandoVerEliminados(sock, chatId, msg) {
             ? r.texto.trim().slice(0, 1800)
             : `[Mensaje de tipo ${r.tipo}]`;
         const etiquetasMencion = (r.menciones || []).map(jid => `@${String(jid).split('@')[0]}`).join(' ');
-        const extraMensaje = [etiquetasMencion ? `\\n👥 Menciones: ${etiquetasMencion}` : '', r.datosExtra ? `\\n🧵 ${r.datosExtra}` : ''].join('');
+        const extraMensaje = [etiquetasMencion ? `\n👥 Menciones: ${etiquetasMencion}` : '', r.datosExtra ? `\n🧵 ${r.datosExtra}` : ''].join('');
         const etiqueta = r.quienElimino === 'bot' ? '🤖 BOT' : (r.quienElimino?.includes('@') ? `@${r.quienElimino.split('@')[0].split(':')[0]}` : 'No identificado');
         const autor = r.remitente === 'bot'
             ? '🤖 BOT'
             : (r.remitente?.includes('@') ? `@${r.remitente.split('@')[0].split(':')[0]}` : 'No identificado');
-        const lineaAutor = autorDiferente(r) ? `\\n📨 Mensaje de: ${autor}` : '';
-        const motivo = r.motivo ? `\\n📌 Motivo: ${r.motivo}` : '';
-        return `*Mensaje eliminado #${i + 1}* · ${hora}\\n👤 Lo eliminó: ${etiqueta}${lineaAutor}${motivo}\\n📦 Tipo: ${r.tipo}\\n🗑️ Contenido: ${contenido}${extraMensaje}`;
+        const lineaAutor = autorDiferente(r) ? `\n📨 Mensaje de: ${autor}` : '';
+        const motivo = r.motivo ? `\n📌 Motivo: ${r.motivo}` : '';
+        return `*Mensaje eliminado #${i + 1}* · ${hora}\n👤 Lo eliminó: ${etiqueta}${lineaAutor}${motivo}\n📦 Tipo: ${r.tipo}\n🗑️ Contenido: ${contenido}${extraMensaje}`;
     });
 
     const extra = eliminados.length > 30 ? `\n\nSe muestran 30 de ${eliminados.length} mensajes. Los registros se borran automáticamente al cumplir 2 horas.` : '\n\nLos registros se borran automáticamente al cumplir 2 horas.';
@@ -297,8 +297,8 @@ async function comandoVerEliminados(sock, chatId, msg) {
         const autor = r.remitente === 'bot'
             ? '🤖 BOT'
             : (r.remitente?.includes('@') ? `@${r.remitente.split('@')[0].split(':')[0]}` : 'No identificado');
-        const lineaAutor = autorDiferente(r) ? `\\n📨 Mensaje de: ${autor}` : '';
-        const cabecera = `🗑️ *Archivo eliminado #${i + 1}*\\n👤 Lo eliminó: ${etiqueta}${lineaAutor}`;
+        const lineaAutor = autorDiferente(r) ? `\n📨 Mensaje de: ${autor}` : '';
+        const cabecera = `🗑️ *Archivo eliminado #${i + 1}*\n👤 Lo eliminó: ${etiqueta}${lineaAutor}`;
         const mentions = [...new Set([r.quienElimino, ...(autorDiferente(r) ? [r.remitente] : []), ...(r.menciones || [])].filter(jid => jid && jid.includes('@')))];
         try {
             if (r.tipo === 'Imagen') await sock.sendMessage(chatId, { image: r.media, caption: `${cabecera}${r.texto ? `\n📝 ${r.texto}` : ''}`, mimetype: r.mimetype || undefined, mentions });
