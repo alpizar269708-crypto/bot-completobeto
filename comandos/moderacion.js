@@ -1149,7 +1149,8 @@ async function verificarMute(sock, chatId, remitente) {
 
 // 👥 Seguimiento persistente de actividad por grupo.
 module.exports = { 
-    verificarAntiLinks, 
+    verificarAntiLinks,
+    comandoVerAntiLinks, 
     verificarAntiSpam,
     comandoListaBlancaLinks,
     comandoWarn, 
